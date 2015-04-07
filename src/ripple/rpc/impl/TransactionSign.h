@@ -20,6 +20,9 @@
 #ifndef RIPPLE_RPC_TRANSACTIONSIGN_H_INCLUDED
 #define RIPPLE_RPC_TRANSACTIONSIGN_H_INCLUDED
 
+#include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/server/Role.h>
+
 namespace ripple {
 namespace RPC {
 
@@ -117,6 +120,9 @@ inline Json::Value transactionSign (
     RPCDetail::LedgerFacade ledgerFacade (netOPs);
     return transactionSign (params, bSubmit, bFailHard, ledgerFacade, role);
 }
+
+// Sign and return a signed transaction for library api submission.
+std::string transactionSign (Json::Value& params);
 
 } // RPC
 } // ripple

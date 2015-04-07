@@ -533,5 +533,75 @@ transactionSign (
     }
 }
 
+
+std::string transactionSign (Json::Value& params)
+{
+    if (! params.isMember ("secret") || ! params.isMember ("tx_json") ||
+            ! params ["tx_json"].isObject())
+    {
+        // TODO there should be error handling.
+        std::cerr << "Bad json document." << std::endl;
+        return std::string();
+    }
+
+    Json::Value& tx_json (params ["tx_json"]);
+    if (! tx_json.isMember ("TransactionType") ||
+            ! tx_json.isMember ("Account") ||
+            ! tx_json.isMember ("Sequence") ||
+            ! tx_json.isMember ("Fee"))
+        return std::string();
+
+    RippleAddress naSeed;
+    std::string const& passphrase = params ["secret"].asString();
+    if (! naSeed.setSeedGeneric (passphrase))
+        return std::string();
+    if (! naSeed.setSeedGeneric (passphrase))
+        return std::string();
+
+    RippleAddress raSrcAddressID;
+    if (! raSrcAddressID.setAccountID (tx_json["Account"].asString()))
+        return std::string();
+    if (! tx_json.isMember ("Flags"))
+        tx_json ["Flags"] = tfFullyCanonicalSig;
+
+    RippleAddress secret = RippleAddress::createSeedGeneric (
+            passphrase);
+    RippleAddress masterGenerator = RippleAddress::createGeneratorPublic (
+            secret);
+    RippleAddress masterAccountPublic = RippleAddress::createAccountPublic (
+            masterGenerator, 0);
+
+    STParsedJSONObject parsed ("tx_json", tx_json);
+    if (! parsed.object.get())
+        return std::string();
+
+    std::unique_ptr <STObject> sopTrans = std::move (parsed.object);
+    sopTrans->setFieldVL (
+            sfSigningPubKey,
+            masterAccountPublic.getAccountPublic());
+    STTx::pointer stpTrans;
+    try
+    {
+        stpTrans = std::make_shared <STTx> (*sopTrans);
+    }
+    catch (std::exception&)
+    {
+        return std::string();
+    }
+
+    std::string reason;
+    if (! passesLocalChecks (*stpTrans, reason))
+        return std::string();
+
+    RippleAddress naAccountPrivate = RippleAddress::createAccountPrivate (
+            masterGenerator, secret, 0);
+    stpTrans->sign (naAccountPrivate);
+
+    Serializer s;
+    stpTrans->add (s, true);
+
+    return strHex (s.getData());
+}
+
 } // RPC
 } // ripple

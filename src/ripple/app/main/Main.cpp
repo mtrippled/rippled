@@ -486,6 +486,7 @@ extern int run (int argc, char** argv);
 
 // Must be outside the namespace for obvious reasons
 //
+/*
 int main (int argc, char** argv)
 {
     // Workaround for Boost.Context / Boost.Coroutine
@@ -532,3 +533,4 @@ int main (int argc, char** argv)
 
     return result;
 }
+*/

@@ -317,7 +317,8 @@ def config_env(toolchain, variant, env):
             '-Wno-sign-compare',
             '-Wno-char-subscripts',
             '-Wno-format',
-            '-g'                        # generate debug symbols
+            '-g',                        # generate debug symbols
+            '-fPIC'
             ])
 
         env.Append(LINKFLAGS=[
@@ -688,6 +689,7 @@ def get_unity_sources():
         'src/ripple/unity/json.cpp',
         'src/ripple/unity/protocol.cpp',
         'src/ripple/unity/shamap.cpp',
+        'src/ripple/unity/lib.cpp',
         'src/ripple/unity/legacy.cpp',
     )
 
@@ -839,7 +841,8 @@ for tu_style in ['classic', 'unity']:
             if toolchain == "clang" and Beast.system.osx:
                 object_builder.add_source_files('src/ripple/unity/beastobjc.mm')
 
-            target = env.Program(
+            env['STATIC_AND_SHARED_OBJECTS_ARE_THE_SAME'] = 1
+            target = env.SharedLibrary(
                 target=os.path.join(variant_dir, 'rippled'),
                 source=object_builder.objects
                 )
