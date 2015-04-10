@@ -533,7 +533,6 @@ transactionSign (
     }
 }
 
-
 std::string transactionSign (Json::Value& params)
 {
     if (! params.isMember ("secret") || ! params.isMember ("tx_json") ||
