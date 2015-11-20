@@ -22,11 +22,18 @@
 
 #include <ripple/core/JobTypes.h>
 #include <ripple/json/json_value.h>
+#ifdef BENCHMARK
+#include <ripple/basics/AtomicArray.h>
+#endif
 #include <beast/insight/Collector.h>
 #include <beast/threads/Stoppable.h>
 #include <boost/function.hpp>
 #include <boost/optional.hpp>
 #include <thread>
+
+#ifdef BENCHMARK
+class PerfTrace;
+#endif
 
 namespace ripple {
 
@@ -42,7 +49,12 @@ public:
     virtual ~JobQueue () { }
 
     virtual void addJob (
+#ifndef BENCHMARK
         JobType, std::string const& name, JobFunction const&) = 0;
+#else
+        JobType, std::string const& name, JobFunction const&,
+        std::shared_ptr<PerfTrace> trace=std::shared_ptr<PerfTrace>()) = 0;
+#endif
 
     // Jobs waiting at this priority
     virtual int getJobCount (JobType t) const = 0;
@@ -80,6 +92,14 @@ public:
     virtual Job* getJobForThread (std::thread::id const& id = {}) const = 0;
 
     virtual Json::Value getJson (int c = 0) = 0;
+
+#ifdef BENCHMARK
+    /** Get per-job counters. */
+    virtual AtomicArray<std::uint64_t>& getCounters() = 0;
+
+    /** Get number of worker threads. */
+    virtual int getNumberOfThreads() = 0;
+#endif
 };
 
 std::unique_ptr <JobQueue>

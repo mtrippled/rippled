@@ -142,11 +142,19 @@ public:
     /** Gather statistics pertaining to read and write activities.
         Return the reads and writes, and total read and written bytes.
      */
+#ifndef BENCHMARK
     virtual std::uint32_t getStoreCount () const = 0;
     virtual std::uint32_t getFetchTotalCount () const = 0;
     virtual std::uint32_t getFetchHitCount () const = 0;
     virtual std::uint32_t getStoreSize () const = 0;
     virtual std::uint32_t getFetchSize () const = 0;
+#else
+    virtual std::uint64_t getStoreCount () const = 0;
+    virtual std::uint64_t getFetchTotalCount () const = 0;
+    virtual std::uint64_t getFetchHitCount () const = 0;
+    virtual std::uint64_t getStoreSize () const = 0;
+    virtual std::uint64_t getFetchSize () const = 0;
+#endif
 };
 
 }

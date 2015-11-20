@@ -20,12 +20,19 @@
 #include <BeastConfig.h>
 #include <ripple/app/main/Application.h>
 #include <ripple/basics/Log.h>
+#ifdef BENCHMARK
+#include <ripple/basics/PerfLog.h>
+#endif
 #include <ripple/rpc/impl/Handler.h>
 
 namespace ripple {
 
 Json::Value doLogRotate (RPC::Context& context)
 {
+#ifdef BENCHMARK
+    context.app.getPerfLog().rotate();
+#endif
+
     return RPC::makeObjectValue (context.app.logs().rotate());
 }
 

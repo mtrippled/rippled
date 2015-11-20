@@ -49,14 +49,26 @@ Json::Value doSubmit (RPC::Context& context)
     {
         auto const failType = getFailHard (context);
 
+#ifdef BENCHMARK
+        startTimer ("transactionSubmit");
+        Json::Value ret = RPC::transactionSubmit (
+#else
         return RPC::transactionSubmit (
+#endif
         context.params,
         failType,
         context.role,
         context.ledgerMaster.getValidatedLedgerAge(),
         context.app,
         context.ledgerMaster.getCurrentLedger(),
+#ifndef BENCHMARK
         RPC::getProcessTxnFn (context.netOps));
+#else
+        RPC::getProcessTxnFn (context.netOps, context.trace),
+            context.trace);
+        endTimer (context.trace, "transactionSubmit");
+        return ret;
+#endif
     }
 
     Json::Value jvResult;
@@ -110,8 +122,14 @@ Json::Value doSubmit (RPC::Context& context)
     {
         auto const failType = getFailHard (context);
 
+#ifdef BENCHMARK
+        startTimer (context.trace, "processTransaction");
+#endif
         context.netOps.processTransaction (
             tpTrans, context.role == Role::ADMIN, true, failType);
+#ifdef BENCHMARK
+        endTimer (context.trace, "processTransaction");
+#endif
     }
     catch (std::exception& e)
     {

@@ -92,6 +92,7 @@ class TxQ_test : public TestSuite
         bool didApply;
         TER ter;
 
+        std::shared_ptr<OpenView const> temp;
         env.openLedger.modify(
             [&](OpenView& view, beast::Journal j)
             {
@@ -101,7 +102,8 @@ class TxQ_test : public TestSuite
                             env.journal);
 
                 return didApply;
-            }
+            },
+            temp
         );
 
         env.postconditions(jt, ter, didApply);

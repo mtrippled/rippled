@@ -25,6 +25,10 @@
 #include <cassert>
 #include <fstream>
 
+#ifdef BENCHMARK
+#include <thread>
+#endif
+
 namespace ripple {
 
 Logs::Sink::Sink (std::string const& partition,
@@ -300,8 +304,17 @@ Logs::format (std::string& output, std::string const& message,
 {
     output.reserve (message.size() + partition.size() + 100);
 
+#ifndef BENCHMARK
     output = boost::posix_time::to_simple_string (
         boost::posix_time::second_clock::universal_time ());
+#else
+    std::stringstream ss;
+
+    ss << boost::posix_time::to_simple_string (
+        boost::posix_time::microsec_clock::universal_time ())
+        << " TID:" << std::this_thread::get_id();
+    output = ss.str();
+#endif
 
     output += " ";
     if (! partition.empty ())

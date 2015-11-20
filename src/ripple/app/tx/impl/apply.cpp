@@ -21,6 +21,9 @@
 #include <ripple/app/tx/apply.h>
 #include <ripple/app/tx/applySteps.h>
 #include <ripple/app/misc/HashRouter.h>
+#ifdef BENCHMARK
+#include <ripple/basics/PerfTrace.h>
+#endif
 #include <ripple/protocol/Feature.h>
 
 namespace ripple {
@@ -114,12 +117,44 @@ forceValidity(HashRouter& router, uint256 const& txid,
 std::pair<TER, bool>
 apply (Application& app, OpenView& view,
     STTx const& tx, ApplyFlags flags,
-        beast::Journal j)
+#ifndef BENCHMARK
+    beast::Journal j)
+#else
+    beast::Journal j,
+    std::shared_ptr<PerfTrace> const& trace)
+#endif
 {
+#ifdef BENCHMARK
+    startTimer (trace, "preflight");
+#endif
     auto pfresult = preflight(app, view.rules(),
         tx, flags, j);
+#ifdef BENCHMARK
+    endTimer (trace, "preflight");
+    startTimer (trace, "preclaim");
+#endif
     auto pcresult = preclaim(pfresult, app, view);
+#ifdef BENCHMARK
+    endTimer (trace, "preclaim");
+#endif
+#ifndef BENCHMARK
     return doApply(pcresult, app, view);
+#else
+    startTimer (trace, "doApply");
+    auto ret = doApply(pcresult, app, view, trace);
+    endTimer (trace, "doApply");
+    return ret;
+#endif
 }
+
+#ifdef BENCHMARK
+std::pair<TER, bool>
+apply (Application& app, OpenView& view,
+    STTx const& tx, ApplyFlags flags,
+    beast::Journal j)
+{
+    return apply (app, view, tx, flags, j, std::shared_ptr<PerfTrace>());
+}
+#endif
 
 } // ripple

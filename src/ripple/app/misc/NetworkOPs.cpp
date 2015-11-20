@@ -45,6 +45,9 @@
 #include <ripple/app/tx/apply.h>
 #include <ripple/basics/Log.h>
 #include <ripple/basics/Time.h>
+#ifdef BENCHMARK
+#include <ripple/basics/benchmark.h>
+#endif
 #include <ripple/protocol/digest.h>
 #include <ripple/basics/StringUtilities.h>
 #include <ripple/basics/UptimeTimer.h>
@@ -221,6 +224,12 @@ public:
     void processTransaction (
         std::shared_ptr<Transaction>& transaction,
         bool bAdmin, bool bLocal, FailHard failType) override;
+#ifdef BENCHMARK
+    void processTransaction (
+        Transaction::pointer& transaction,
+        bool bAdmin, bool bLocal, FailHard failType,
+        std::shared_ptr<PerfTrace> const& trace) override;
+#endif
 
     /**
      * For transactions submitted directly by a client, apply batch of
@@ -232,6 +241,11 @@ public:
      */
     void doTransactionSync (std::shared_ptr<Transaction> transaction,
         bool bAdmin, FailHard failType);
+#ifdef BENCHMARK
+    void doTransactionSync (Transaction::pointer transaction,
+        bool bAdmin, FailHard failType,
+        std::shared_ptr<PerfTrace> const& trace);
+#endif
 
     /**
      * For transactions not submitted by a locally connected client, fire and
@@ -244,6 +258,11 @@ public:
      */
     void doTransactionAsync (std::shared_ptr<Transaction> transaction,
         bool bAdmin, FailHard failtype);
+#ifdef BENCHMARK
+    void doTransactionAsync (Transaction::pointer transaction,
+        bool bAdmin, FailHard failtype,
+        std::shared_ptr<PerfTrace> const& trace);
+#endif
 
     /**
      * Apply transactions in batches. Continue until none are queued.
@@ -255,7 +274,13 @@ public:
      *
      * @param Lock that protects the transaction batching
      */
-    void apply (std::unique_lock<std::mutex>& batchLock);
+    void apply (std::unique_lock<std::mutex>& batchLock,
+        std::shared_ptr<OpenView const>& temp);
+#ifdef BENCHMARK
+    void apply (std::unique_lock<std::mutex>& batchLock,
+        std::shared_ptr<OpenView const>& temp,
+        std::shared_ptr<PerfTrace> const& trace);
+#endif
 
     //
     // Owner functions.
@@ -345,6 +370,10 @@ public:
     }
     Json::Value getConsensusInfo () override;
     Json::Value getServerInfo (bool human, bool admin) override;
+#ifdef BENCHMARK
+    Json::Value getServerInfo (bool human, bool admin,
+        std::shared_ptr<PerfTrace> const& trace) override;
+#endif
     void clearLedgerFetch () override;
     Json::Value getLedgerFetchInfo () override;
     std::uint32_t acceptLedger () override;
@@ -448,6 +477,13 @@ public:
     InfoSub::pointer addRpcSub (
         std::string const& strUrl, InfoSub::ref) override;
 
+#ifdef BENCHMARK
+    AtomicArray<std::uint64_t>& getTerCounters()
+    {
+        return terCounters_;
+    }
+#endif
+
     //--------------------------------------------------------------------------
     //
     // Stoppable.
@@ -485,6 +521,15 @@ private:
     void pubValidation (STValidation::ref val);
 
     std::string getHostId (bool forAdmin);
+
+#ifdef BENCHMARK
+    void setResult (Transaction::pointer& transaction, TER terResult)
+    {
+        transaction->setResult (terResult);
+        terCounters_.add (0);
+        terCounters_.add (terResult - telLOCAL_ERROR + 1);
+    }
+#endif
 
 private:
     using SubMapType = hash_map <std::uint64_t, InfoSub::wptr>;
@@ -546,6 +591,15 @@ private:
     std::vector <TransactionStatus> mTransactions;
 
     StateAccounting accounting_;
+#ifdef BENCHMARK
+    /**
+     * These counters are incremented with the result type for each transaction.
+     * The 1st index position is for a running total of all types, and the
+     * remaining positions correspond to the entire range of TER codes.
+     */
+    AtomicArray <std::uint64_t> terCounters_ = AtomicArray<std::uint64_t> (
+        tecINTERNAL - telLOCAL_ERROR + 2, perf_jss::ter_counters);
+#endif
 };
 
 //------------------------------------------------------------------------------
@@ -785,8 +839,22 @@ void NetworkOPsImp::submitTransaction (std::shared_ptr<STTx const> const& iTrans
     });
 }
 
+#ifdef BENCHMARK
 void NetworkOPsImp::processTransaction (std::shared_ptr<Transaction>& transaction,
         bool bAdmin, bool bLocal, FailHard failType)
+{
+    processTransaction (transaction, bAdmin, bLocal, failType,
+        std::shared_ptr<PerfTrace>());
+}
+#endif
+
+void NetworkOPsImp::processTransaction (std::shared_ptr<Transaction>& transaction,
+#ifndef BENCHMARK
+        bool bAdmin, bool bLocal, FailHard failType)
+#else
+        bool bAdmin, bool bLocal, FailHard failType,
+        std::shared_ptr<PerfTrace> const& trace)
+#endif
 {
     auto ev = m_job_queue.getLoadEventAP (jtTXN_PROC, "ProcessTXN");
     auto const newFlags = app_.getHashRouter ().getFlags (transaction->getID ());
@@ -795,7 +863,11 @@ void NetworkOPsImp::processTransaction (std::shared_ptr<Transaction>& transactio
     {
         // cached bad
         transaction->setStatus (INVALID);
+#ifndef BENCHMARK
         transaction->setResult (temBAD_SIGNATURE);
+#else
+        setResult (transaction, temBAD_SIGNATURE);
+#endif
         return;
     }
 
@@ -815,7 +887,11 @@ void NetworkOPsImp::processTransaction (std::shared_ptr<Transaction>& transactio
         m_journal.info << "Transaction has bad signature: " <<
             validity.second;
         transaction->setStatus(INVALID);
+#ifndef BENCHMARK
         transaction->setResult(temBAD_SIGNATURE);
+#else
+            setResult (transaction, temBAD_SIGNATURE);
+#endif
         app_.getHashRouter().setFlags(transaction->getID(),
             SF_BAD);
         return;
@@ -824,14 +900,27 @@ void NetworkOPsImp::processTransaction (std::shared_ptr<Transaction>& transactio
     // canonicalize can change our pointer
     app_.getMasterTransaction ().canonicalize (&transaction);
 
+#ifndef BENCHMARK
     if (bLocal)
         doTransactionSync (transaction, bAdmin, failType);
     else
         doTransactionAsync (transaction, bAdmin, failType);
+#else
+    startTimer (trace, "doTransaction", bLocal);
+    if (bLocal && !benchmark::benchmark.async)
+        doTransactionSync (transaction, bAdmin, failType, trace);
+    else
+        doTransactionAsync (transaction, bAdmin, failType, trace);
+    endTimer (trace, "doTransaction");
+#endif
 }
 
 void NetworkOPsImp::doTransactionAsync (std::shared_ptr<Transaction> transaction,
+#ifndef BENCHMARK
         bool bAdmin, FailHard failType)
+#else
+        bool bAdmin, FailHard failType, std::shared_ptr<PerfTrace> const& trace)
+#endif
 {
     std::lock_guard<std::mutex> lock (mMutex);
 
@@ -850,55 +939,112 @@ void NetworkOPsImp::doTransactionAsync (std::shared_ptr<Transaction> transaction
     }
 }
 
+#ifdef BENCHMARK
+void NetworkOPsImp::doTransactionAsync (std::shared_ptr<Transaction> transaction,
+        bool bAdmin, FailHard failType)
+{
+    doTransactionAsync (transaction, bAdmin, failType,
+        std::shared_ptr<PerfTrace>());
+}
+#endif
+
+#ifndef BENCHMARK
+void NetworkOPsImp::doTransactionSync (std::shared_ptr<Transaction> transaction,
+        bool bAdmin, FailHard failType)
+#else
+void NetworkOPsImp::doTransactionSync (std::shared_ptr<Transaction> transaction,
+        bool bAdmin, FailHard failType, std::shared_ptr<PerfTrace> const& trace)
+#endif
+{
+    std::shared_ptr<OpenView const> temp;
+    {
+        std::unique_lock<std::mutex> lock (mMutex);
+
+        if (! transaction->getApplying())
+        {
+            mTransactions.push_back (TransactionStatus (transaction, bAdmin, true,
+            failType));
+            transaction->setApplying();
+        }
+
+#ifdef BENCHMARK
+        startTimer (trace, "do loop");
+#endif
+        do
+        {
+            if (mDispatchState == DispatchState::running)
+            {
+                // A batch processing job is already running, so wait.
+                mCond.wait (lock);
+            }
+            else
+            {
+
+#ifndef BENCHMARK
+                apply (lock, temp);
+#else
+                startTimer (trace, "apply");
+                apply (lock, temp, trace);
+                endTimer (trace, "apply");
+#endif
+
+                if (mTransactions.size())
+                {
+                    // More transactions need to be applied, but by another job.
+                    m_job_queue.addJob (jtBATCH, "transactionBatch",
+                                        [this] (Job&) { transactionBatch(); });
+                    mDispatchState = DispatchState::scheduled;
+                }
+            }
+        }
+        while (transaction->getApplying());
+#ifdef BENCHMARK
+        endTimer (trace, "do loop");
+#endif
+    }
+}
+
+#ifdef BENCHMARK
 void NetworkOPsImp::doTransactionSync (std::shared_ptr<Transaction> transaction,
         bool bAdmin, FailHard failType)
 {
-    std::unique_lock<std::mutex> lock (mMutex);
-
-    if (! transaction->getApplying())
-    {
-        mTransactions.push_back (TransactionStatus (transaction, bAdmin, true,
-        failType));
-        transaction->setApplying();
-    }
-
-    do
-    {
-        if (mDispatchState == DispatchState::running)
-        {
-            // A batch processing job is already running, so wait.
-            mCond.wait (lock);
-        }
-        else
-        {
-            apply (lock);
-
-            if (mTransactions.size())
-            {
-                // More transactions need to be applied, but by another job.
-                m_job_queue.addJob (jtBATCH, "transactionBatch",
-                                    [this] (Job&) { transactionBatch(); });
-                mDispatchState = DispatchState::scheduled;
-            }
-        }
-    }
-    while (transaction->getApplying());
+    doTransactionSync (transaction, bAdmin, failType,
+        std::shared_ptr<PerfTrace>());
 }
+#endif
 
 void NetworkOPsImp::transactionBatch()
 {
-    std::unique_lock<std::mutex> lock (mMutex);
-
-    if (mDispatchState == DispatchState::running)
-        return;
-
-    while (mTransactions.size())
+    std::shared_ptr<OpenView const> temp;
     {
-        apply (lock);
+        std::unique_lock<std::mutex> lock (mMutex);
+
+        if (mDispatchState == DispatchState::running)
+            return;
+
+        while (mTransactions.size())
+        {
+            apply (lock, temp);
+        }
     }
 }
 
-void NetworkOPsImp::apply (std::unique_lock<std::mutex>& batchLock)
+#ifdef BENCHMARK
+void NetworkOPsImp::apply (std::unique_lock<std::mutex>& batchLock,
+    std::shared_ptr<OpenView const>& temp)
+{
+    apply (batchLock, temp, std::shared_ptr<PerfTrace>());
+}
+#endif
+
+#ifndef BENCHMARK
+void NetworkOPsImp::apply (std::unique_lock<std::mutex>& batchLock,
+    std::shared_ptr<OpenView const>& temp)
+#else
+void NetworkOPsImp::apply (std::unique_lock<std::mutex>& batchLock,
+    std::shared_ptr<OpenView const>& temp,
+    std::shared_ptr<PerfTrace> const& trace)
+#endif
 {
     std::vector<TransactionStatus> transactions;
     mTransactions.swap (transactions);
@@ -909,11 +1055,21 @@ void NetworkOPsImp::apply (std::unique_lock<std::mutex>& batchLock)
 
     batchLock.unlock();
 
+#ifdef BENCHMARK
+    startTimer (m_ledgerMaster.getOpenTrace(), "batch", transactions.size());
+#endif
     {
         auto lock = beast::make_lock(app_.getMasterMutex());
+#ifdef BENCHMARK
+        startTimer (m_ledgerMaster.getOpenTrace(), "applying");
+#endif
         {
             std::lock_guard <std::recursive_mutex> lock (
                 m_ledgerMaster.peekMutex());
+#ifdef BENCHMARK
+            auto lockTrace = makeTrace ("masterlock", 22);
+            startTimer (lockTrace, "modify");
+#endif
 
             app_.openLedger().modify(
                 [&](OpenView& view, beast::Journal j)
@@ -928,16 +1084,33 @@ void NetworkOPsImp::apply (std::unique_lock<std::mutex>& batchLock)
 
                     auto const result = app_.getTxQ().apply(
                         app_, view, e.transaction->getSTransaction(),
+#ifndef BENCHMARK
                         flags, j);
+#else
+                        flags, j, lockTrace);
+#endif
                     e.result = result.first;
                     e.applied = result.second;
                     changed = changed || result.second;
                 }
                 return changed;
-            });
+#ifndef BENCHMARK
+            },
+            temp);
+#else
+            },
+            temp, lockTrace);
+            endTimer (lockTrace, "modify");
+#endif
         }
+#ifdef BENCHMARK
+        endTimer (m_ledgerMaster.getOpenTrace(), "applying");
+#endif
 
         auto newOL = app_.openLedger().current();
+#ifdef BENCHMARK
+        startTimer (m_ledgerMaster.getOpenTrace(), "post apply 1");
+#endif
         for (TransactionStatus& e : transactions)
         {
             if (e.applied)
@@ -946,7 +1119,11 @@ void NetworkOPsImp::apply (std::unique_lock<std::mutex>& batchLock)
                     e.transaction->getSTransaction(), e.result);
             }
 
+#ifndef BENCHMARK
             e.transaction->setResult (e.result);
+#else
+            setResult (e.transaction, e.result);
+#endif
 
             if (isTemMalformed (e.result))
                 app_.getHashRouter().setFlags (e.transaction->getID(), SF_BAD);
@@ -1036,7 +1213,13 @@ void NetworkOPsImp::apply (std::unique_lock<std::mutex>& batchLock)
                 }
             }
         }
+#ifdef BENCHMARK
+        endTimer (m_ledgerMaster.getOpenTrace(), "post apply 1");
+#endif
     }
+#ifdef BENCHMARK
+    endTimer (m_ledgerMaster.getOpenTrace(), "batch");
+#endif
 
     batchLock.lock();
 
@@ -1957,8 +2140,23 @@ Json::Value NetworkOPsImp::getConsensusInfo ()
     return info;
 }
 
+#ifdef BENCHMARK
 Json::Value NetworkOPsImp::getServerInfo (bool human, bool admin)
 {
+    return getServerInfo (human, admin, std::shared_ptr<PerfTrace>());
+}
+#endif
+
+#ifndef BENCHMARK
+Json::Value NetworkOPsImp::getServerInfo (bool human, bool admin)
+#else
+Json::Value NetworkOPsImp::getServerInfo (bool human, bool admin,
+    std::shared_ptr<PerfTrace> const& trace)
+#endif
+{
+#ifdef BENCHMARK
+    addTrace (trace, "getServerInfo");
+#endif
     Json::Value info = Json::objectValue;
 
     // hostid: unique string describing the machine

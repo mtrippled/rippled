@@ -282,6 +282,9 @@ Json::Value ConnectionImpl <WebSocket>::invokeCommand (
     else
     {
         RPC::Context context {
+#ifdef BENCHMARK
+            makeTrace ("websocket cmd"),
+#endif
             app_.journal ("RPCHandler"), jvRequest, app_, loadType, m_netOPs, app_.getLedgerMaster(),
             role, {app_, suspend, "WSClient::command"},
             this->shared_from_this ()};

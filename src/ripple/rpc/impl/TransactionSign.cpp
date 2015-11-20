@@ -335,17 +335,28 @@ transactionPreProcessImpl (
     SigningForParams& signingArgs,
     int validatedLedgerAge,
     Application& app,
+#ifndef BENCHMARK
     std::shared_ptr<ReadView const> ledger)
+#else
+    std::shared_ptr<ReadView const> ledger,
+    std::shared_ptr<PerfTrace> const& trace)
+#endif
 {
     auto j = app.journal ("RPCHandler");
 
     KeyPair keypair;
+#ifdef BENCHMARK
+    startTimer (trace, "keypairForSignature");
+#endif
     {
         Json::Value jvResult;
         keypair = keypairForSignature (params, jvResult);
         if (contains_error (jvResult))
             return std::move (jvResult);
     }
+#ifdef BENCHMARK
+    endTimer (trace, "keypairForSignature");
+#endif
 
     bool const verify = !(params.isMember (jss::offline)
                           && params[jss::offline].asBool());
@@ -356,9 +367,15 @@ transactionPreProcessImpl (
     Json::Value& tx_json (params [jss::tx_json]);
 
     // Check tx_json fields, but don't add any.
+#ifdef BENCHMARK
+    startTimer (trace, "checkTxJsonFields");
+#endif
     auto txJsonResult = checkTxJsonFields (
         tx_json, role, verify, validatedLedgerAge,
         app.config(), app.getFeeTrack());
+#ifdef BENCHMARK
+    endTimer (trace, "checkTxJsonFields");
+#endif
 
     if (RPC::contains_error (txJsonResult.first))
         return std::move (txJsonResult.first);
@@ -386,6 +403,9 @@ transactionPreProcessImpl (
     }
 
     {
+#ifdef BENCHMARK
+    startTimer (trace, "checkFee");
+#endif
         Json::Value err = checkFee (
             params,
             role,
@@ -393,10 +413,16 @@ transactionPreProcessImpl (
             app.config(),
             app.getFeeTrack(),
             ledger);
+#ifdef BENCHMARK
+        endTimer (trace, "checkFee");
+#endif
 
         if (RPC::contains_error (err))
             return std::move (err);
 
+#ifdef BENCHMARK
+    startTimer (trace, "checkPayment");
+#endif
         err = checkPayment (
             params,
             tx_json,
@@ -405,11 +431,17 @@ transactionPreProcessImpl (
             app,
             ledger,
             verify && signingArgs.editFields());
+#ifdef BENCHMARK
+    endTimer (trace, "checkPayment");
+#endif
 
         if (RPC::contains_error(err))
             return std::move (err);
     }
 
+#ifdef BENCHMARK
+    startTimer (trace, "signingArgs.editFields check");
+#endif
     if (signingArgs.editFields())
     {
         if (!tx_json.isMember (jss::Sequence))
@@ -429,11 +461,17 @@ transactionPreProcessImpl (
         if (!tx_json.isMember (jss::Flags))
             tx_json[jss::Flags] = tfFullyCanonicalSig;
     }
+#ifdef BENCHMARK
+    endTimer (trace, "signingArgs.editFields check");
+#endif
 
     // If multisigning then we need to return the public key.
     if (signingArgs.isMultiSigning())
         signingArgs.setPublicKey (keypair.publicKey);
 
+#ifdef BENCHMARK
+    startTimer (trace, "verify check");
+#endif
     if (verify)
     {
         if (! sle)
@@ -456,6 +494,9 @@ transactionPreProcessImpl (
                 return rpcError (err);
         }
     }
+#ifdef BENCHMARK
+    endTimer (trace, "verify check");
+#endif
 
     STParsedJSONObject parsed (std::string (jss::tx_json), tx_json);
     if (parsed.object == boost::none)
@@ -507,6 +548,22 @@ transactionPreProcessImpl (
 
     return transactionPreProcessResult {std::move (stpTrans)};
 }
+
+#ifdef BENCHMARK
+static
+transactionPreProcessResult
+transactionPreProcessImpl (
+    Json::Value& params,
+    Role role,
+    SigningForParams& signingArgs,
+    int validatedLedgerAge,
+    Application& app,
+    std::shared_ptr<ReadView const> ledger)
+{
+    return transactionPreProcessImpl (params, role, signingArgs,
+        validatedLedgerAge, app, ledger, std::shared_ptr<PerfTrace>());
+}
+#endif
 
 static
 std::pair <Json::Value, Transaction::pointer>
@@ -712,7 +769,12 @@ Json::Value transactionSubmit (
     Application& app,
     std::shared_ptr<ReadView const> ledger,
     ProcessTransactionFn const& processTransaction,
+#ifndef BENCHMARK
     ApplyFlags flags)
+#else
+    std::shared_ptr<PerfTrace> const& trace,
+    ApplyFlags flags)
+#endif
 {
     using namespace detail;
 
@@ -722,8 +784,15 @@ Json::Value transactionSubmit (
 
     // Add and amend fields based on the transaction type.
     SigningForParams signForParams;
+#ifndef BENCHMARK
     transactionPreProcessResult preprocResult = transactionPreProcessImpl (
         jvRequest, role, signForParams, validatedLedgerAge, app, ledger);
+#else
+    startTimer (trace, "transactionPreProcessImpl");
+    transactionPreProcessResult preprocResult = transactionPreProcessImpl (
+        jvRequest, role, signForParams, validatedLedgerAge, app, ledger, trace);
+    endTimer (trace, "transactionPreProcessImpl");
+#endif
 
     if (!preprocResult.second)
         return preprocResult.first;
@@ -740,8 +809,15 @@ Json::Value transactionSubmit (
     try
     {
         // FIXME: For performance, should use asynch interface
+#ifndef BENCHMARK
         processTransaction (
             txn.second, role == Role::ADMIN, true, failType);
+#else
+        startTimer (trace, "processTransaction");
+        processTransaction (
+            txn.second, role == Role::ADMIN, true, failType, trace);
+        endTimer (trace, "processTransaction");
+#endif
     }
     catch (std::exception&)
     {
@@ -1112,7 +1188,12 @@ Json::Value transactionSubmitMultiSigned (
     {
         // FIXME: For performance, should use asynch interface
         processTransaction (
+#ifndef BENCHMARK
             txn.second, role == Role::ADMIN, true, failType);
+#else
+            txn.second, role == Role::ADMIN, true, failType,
+                std::shared_ptr<PerfTrace>());
+#endif
     }
     catch (std::exception&)
     {

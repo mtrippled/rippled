@@ -188,7 +188,14 @@ Status callMethod (
     {
         auto v = context.app.getJobQueue().getLoadEventAP(
             jtGENERIC, "cmd:" + name);
+#ifndef BENCHMARK
         return method (context, result);
+#else
+        startTimer (context.trace, name);
+        Status ret = method (context, result);
+        endTimer (context.trace, name);
+        return ret;
+#endif
     }
     catch (std::exception& e)
     {

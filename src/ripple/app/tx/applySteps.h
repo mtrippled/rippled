@@ -152,9 +152,19 @@ calculateBaseFee(Application& app, ReadView const& view,
     @return A pair with the TER and a bool indicating
     whether or not the transaction was applied.
 */
+#ifndef BENCHMARK
 std::pair<TER, bool>
 doApply(PreclaimResult const& preclaimResult,
     Application& app, OpenView& view);
+#else
+std::pair<TER, bool>
+doApply(PreclaimResult const& preclaimResult,
+    Application& app, OpenView& view, std::shared_ptr<PerfTrace> const& trace);
+
+std::pair<TER, bool>
+doApply(PreclaimResult const& preclaimResult,
+    Application& app, OpenView& view);
+#endif
 
 }
 

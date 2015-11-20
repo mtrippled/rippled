@@ -39,7 +39,11 @@ public:
     RawStateTable (RawStateTable&&) = default;
 
     RawStateTable& operator= (RawStateTable&&) = delete;
+#ifndef BENCHMARK
     RawStateTable& operator= (RawStateTable const&) = delete;
+#else
+    RawStateTable& operator= (RawStateTable const&) = default;
+#endif
 
     void
     apply (RawView& to) const;

@@ -113,7 +113,12 @@ private:
 
     void
     processRequest (HTTP::Port const& port, std::string const& request,
+#ifndef BENCHMARK
         beast::IP::Endpoint const& remoteIPAddress, Output&&, Suspend const&);
+#else
+        beast::IP::Endpoint const& remoteIPAddress, Output&&, Suspend const&,
+        std::shared_ptr<PerfTrace> const& trace);
+#endif
 
     //
     // PropertyStream

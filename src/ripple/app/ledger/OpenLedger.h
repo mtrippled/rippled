@@ -53,7 +53,11 @@ private:
     CachedSLEs& cache_;
     std::mutex mutable modify_mutex_;
     std::mutex mutable current_mutex_;
+#ifndef BENCHMARK
     std::shared_ptr<OpenView const> current_;
+#else
+    std::shared_ptr<OpenView> current_;
+#endif
 
 public:
     /** Signature for modification functions.
@@ -123,8 +127,16 @@ public:
 
         @return `true` if the open view was changed
     */
+#ifdef BENCHMARK
     bool
-    modify (modify_type const& f);
+    modify (std::function<
+        bool(OpenView&, beast::Journal)> const& f,
+        std::shared_ptr<OpenView const>& temp,
+        std::shared_ptr<PerfTrace> const& trace);
+#endif
+    bool
+    modify (modify_type const& f,
+        std::shared_ptr<OpenView const>& temp);
 
     /** Accept a new ledger.
 

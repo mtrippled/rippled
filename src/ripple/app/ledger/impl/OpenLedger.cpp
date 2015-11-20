@@ -54,22 +54,68 @@ OpenLedger::current() const
 }
 
 bool
-OpenLedger::modify (modify_type const& f)
+#ifndef BENCHMARK
+OpenLedger::modify (modify_type const& f, std::shared_ptr<OpenView const>& temp)
+#else
+OpenLedger::modify (modify_type const& f, std::shared_ptr<OpenView const>& temp,
+    std::shared_ptr<PerfTrace> const& trace)
+#endif
 {
+#ifdef BENCHMARK
+    startTimer (trace, "acquire modify_mutex_");
+#endif
     std::lock_guard<
         std::mutex> lock1(modify_mutex_);
+#ifdef BENCHMARK
+    endTimer (trace, "acquire modify_mutex_");
+    startTimer (trace, "copy OpenView");
+    current_->trace_ = trace;
+#endif
     auto next = std::make_shared<
         OpenView>(*current_);
+#ifdef BENCHMARK
+    endTimer (trace, "copy OpenView");
+    current_->trace_.reset();
+    startTimer (trace, "modify callback");
+#endif
     auto const changed = f(*next, j_);
+#ifdef BENCHMARK
+    endTimer (trace, "modify callback");
+#endif
     if (changed)
     {
+#ifdef BENCHMARK
+        startTimer (trace, "acquire current_mutex_");
+#endif
         std::lock_guard<
             std::mutex> lock2(
                 current_mutex_);
+#ifdef BENCHMARK
+        endTimer (trace, "acquire current_mutex_");
+        startTimer (trace, "move current_");
+#endif
+        temp = std::move(current_);
+#ifdef BENCHMARK
+        endTimer (trace, "move current_");
+        startTimer (trace, "replace current_");
+#endif
         current_ = std::move(next);
+#ifdef BENCHMARK
+        endTimer (trace, "replace current_");
+#endif
     }
     return changed;
 }
+
+#ifdef BENCHMARK
+bool
+OpenLedger::modify (std::function<
+    bool(OpenView&, beast::Journal)> const& f,
+    std::shared_ptr<OpenView const>& temp)
+{
+    return modify (f, temp, std::shared_ptr<PerfTrace>());
+}
+#endif
 
 void
 OpenLedger::accept(Application& app, Rules const& rules,

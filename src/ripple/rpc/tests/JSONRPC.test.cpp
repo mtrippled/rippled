@@ -1631,7 +1631,12 @@ public:
 
     // A function that can be called as though it would process a transaction.
     static void fakeProcessTransaction (
+#ifndef BENCHMARK
         std::shared_ptr<Transaction>&, bool, bool, NetworkOPs::FailHard)
+#else
+        std::shared_ptr<Transaction>&, bool, bool, NetworkOPs::FailHard,
+            std::shared_ptr<PerfTrace> const& trace)
+#endif
     {
         ;
     }

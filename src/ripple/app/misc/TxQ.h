@@ -196,7 +196,22 @@ public:
     std::pair<TER, bool>
     apply(Application& app, OpenView& view,
         std::shared_ptr<STTx const> const& tx,
+#ifndef BENCHMARK
             ApplyFlags flags, beast::Journal j);
+#else
+            ApplyFlags flags, beast::Journal j,
+            std::shared_ptr<PerfTrace> const& trace);
+#endif
+
+#ifdef BENCHMARK
+    std::pair<TER, bool>
+    apply(Application& app, OpenView& view,
+        std::shared_ptr<STTx const> const& tx,
+            ApplyFlags flags, beast::Journal j)
+    {
+        return apply (app, view, tx, flags, j, std::shared_ptr<PerfTrace>());
+    }
+#endif
 
     /**
         Fill the new open ledger with transactions from the queue.

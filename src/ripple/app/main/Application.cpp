@@ -50,6 +50,11 @@
 #include <ripple/basics/ResolverAsio.h>
 #include <ripple/basics/Sustain.h>
 #include <ripple/basics/chrono.h>
+#ifdef BENCHMARK
+#include <ripple/basics/PerfGather.h>
+#include <ripple/basics/PerfLog.h>
+#include <ripple/basics/benchmark.h>
+#endif
 #include <ripple/json/json_reader.h>
 #include <ripple/json/to_string.h>
 #include <ripple/core/ConfigSections.h>
@@ -213,6 +218,28 @@ public:
 
 //------------------------------------------------------------------------------
 
+#ifdef BENCHMARK
+/** This is here instead of in the class file to avoid cyclic
+ * dependency between the PerfLog and PerfGather classes.
+ */
+std::unique_ptr<PerfGather>
+create_PerfGather (beast::Stoppable& parent,
+        JobQueue& jobQueue,
+        NetworkOPs& networkOps,
+        NodeStore::Database& nodeStore,
+        PerfLog& perfLog)
+{
+    std::unique_ptr<PerfGather> ptr = make_PerfGather (parent,
+            jobQueue,
+            networkOps,
+            nodeStore,
+            perfLog.logging());
+    perfLog.startGather (ptr.get());
+
+    return ptr;
+}
+#endif
+
 // VFALCO TODO Move the function definitions into the class declaration
 class ApplicationImp
     : public Application
@@ -286,6 +313,9 @@ private:
 
 public:
     std::unique_ptr<Config const> config_;
+#ifdef BENCHMARK
+    std::unique_ptr<PerfLog> perfLog_;
+#endif
     std::unique_ptr<Logs> logs_;
     beast::Journal m_journal;
     Application::MutexType m_masterMutex;
@@ -346,6 +376,10 @@ public:
 
     io_latency_sampler m_io_latency_sampler;
 
+#ifdef BENCHMARK
+    std::unique_ptr <PerfGather> perfGather_;
+#endif
+
     //--------------------------------------------------------------------------
 
     static
@@ -367,6 +401,10 @@ public:
         : RootStoppable ("Application")
         , BasicApp (numberOfThreads(*config))
         , config_ (std::move(config))
+#ifdef BENCHMARK
+        , perfLog_ (make_PerfLog (benchmark::benchmark.perf_log,
+            benchmark::benchmark.log_interval, *this))
+#endif
         , logs_ (std::move(logs))
 
         , m_journal (logs_->journal("Application"))
@@ -476,6 +514,11 @@ public:
 
         , m_io_latency_sampler (m_collectorManager->collector()->make_event ("ios_latency"),
             logs_->journal("Application"), std::chrono::milliseconds (100), get_io_service())
+
+#ifdef BENCHMARK
+        , perfGather_ (create_PerfGather (*this, *m_jobQueue, *m_networkOPs,
+            *m_nodeStore, *perfLog_))
+#endif
     {
         add (m_resourceManager.get ());
 
@@ -720,6 +763,18 @@ public:
 
     beast::Journal journal (std::string const& name) override;
 
+#ifdef BENCHMARK
+    PerfLog& getPerfLog() override
+    {
+        return *perfLog_;
+    }
+
+    PerfGather* getPerfGather() override
+    {
+        return perfGather_.get();
+    }
+#endif
+
     //--------------------------------------------------------------------------
     bool initSqliteDbs ()
     {
@@ -881,7 +936,6 @@ public:
         m_sweepTimer.setExpiration (config_->getSize (siSweepInterval));
     }
 
-
 private:
     void addTxnSeqField();
     void updateTables ();
@@ -889,6 +943,7 @@ private:
     Ledger::pointer getLastFullLedger();
     bool loadOldLedger (
         std::string const& ledgerID, bool replay, bool isFilename);
+
 };
 
 //------------------------------------------------------------------------------
@@ -1420,12 +1475,15 @@ bool ApplicationImp::loadOldLedger (
 
                 replayData->txns_.emplace (txIndex, txPair.first);
 
+                std::shared_ptr<OpenView const> temp;
                 openLedger_->modify(
                     [&txID, &s](OpenView& view, beast::Journal j)
                     {
                         view.rawTxInsert (txID, std::move (s), nullptr);
                         return true;
-                    });
+                    },
+                    temp
+                );
             }
 
             m_ledgerMaster->takeReplay (std::move (replayData));

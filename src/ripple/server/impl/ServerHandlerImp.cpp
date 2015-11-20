@@ -188,7 +188,11 @@ ServerHandlerImp::onRequest (HTTP::Session& session)
                 processSession(detach, suspend);
             });
     };
+#ifndef BENCHMARK
     m_jobQueue.addJob(jtCLIENT, "RPC-Client", job);
+#else
+    m_jobQueue.addJob(jtCLIENT, "RPC-Client", job, session.trace());
+#endif
 }
 
 void
@@ -215,7 +219,12 @@ ServerHandlerImp::processSession (
         to_string (session->body()),
         session->remoteAddress().at_port (0),
         makeOutput (*session),
+#ifndef BENCHMARK
         suspend);
+#else
+        suspend,
+        session->trace());
+#endif
 
     if (session->request().keep_alive())
         session->complete();
@@ -229,7 +238,12 @@ ServerHandlerImp::processRequest (
     std::string const& request,
     beast::IP::Endpoint const& remoteIPAddress,
     Output&& output,
+#ifndef BENCHMARK
     Suspend const& suspend)
+#else
+    Suspend const& suspend,
+    std::shared_ptr<PerfTrace> const& trace)
+#endif
 {
     auto rpcJ = app_.journal ("RPC");
     // Move off the webserver thread onto the JobQueue.
@@ -352,6 +366,9 @@ ServerHandlerImp::processRequest (
     auto const start (std::chrono::high_resolution_clock::now ());
 
     RPC::Context context {
+#ifdef BENCHMARK
+        trace,
+#endif
         m_journal, params, app_, loadType, m_networkOPs, app_.getLedgerMaster(), role,
         {app_, suspend, "RPC-Coroutine"}};
 

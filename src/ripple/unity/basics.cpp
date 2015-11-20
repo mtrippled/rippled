@@ -35,6 +35,13 @@
 #include <ripple/basics/impl/Time.cpp>
 #include <ripple/basics/impl/UptimeTimer.cpp>
 
+#ifdef BENCHMARK
+#include <ripple/basics/impl/PerfLogImp.cpp>
+#include <ripple/basics/impl/PerfGatherImp.cpp>
+#include <ripple/basics/impl/PerfTrace.cpp>
+#include <ripple/basics/impl/benchmark.cpp>
+#endif
+
 #include <ripple/basics/tests/CheckLibraryVersions.test.cpp>
 #include <ripple/basics/tests/hardened_hash_test.cpp>
 #include <ripple/basics/tests/KeyCache.test.cpp>

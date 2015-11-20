@@ -62,6 +62,16 @@ public:
     beast::insight::Gauge job_count;
     beast::insight::Hook hook;
 
+#ifdef BENCHMARK
+    /**
+     * For each job type, there are 3 states: pending, running, and finished.
+     * There is an additional set of 3 entries for the total of all
+     * job types in each state. These are in indices 0-2.
+     */
+    AtomicArray<std::uint64_t> counters_ = AtomicArray<std::uint64_t> (
+            (jtMAX - jtINVALID + 1) * 3, perf_jss::job_queue_counters);
+#endif
+
     //--------------------------------------------------------------------------
     static JobTypes const& getJobTypes ()
     {
@@ -116,7 +126,12 @@ public:
     }
 
     void addJob (
+#ifndef BENCHMARK
         JobType type, std::string const& name, JobFunction const& func) override
+#else
+        JobType type, std::string const& name, JobFunction const& func,
+        std::shared_ptr<PerfTrace> trace) override
+#endif
     {
         assert (type != jtINVALID);
 
@@ -166,8 +181,21 @@ public:
 
             std::pair <std::set <Job>::iterator, bool> result (
                 m_jobSet.insert (Job (type, name, ++m_lastJob,
+#ifndef BENCHMARK
                     data.load (), func, m_cancelCallback)));
+#else
+                    data.load (), func, m_cancelCallback, trace)));
+#endif
             queueJob (*result.first, lock);
+#ifdef BENCHMARK
+            counters_.add (0);
+            counters_.add ((type - jtINVALID + 1) * 3);
+            {
+                std::string t = std::to_string (type);
+                startTimer (trace, "queued " + t);
+                startTimer (trace, "pending " + t);
+            }
+#endif
         }
     }
 
@@ -350,6 +378,18 @@ public:
         return (i == m_threadIds.end()) ? nullptr : i->second;
     }
 
+#ifdef BENCHMARK
+    AtomicArray<std::uint64_t>& getCounters()
+    {
+        return counters_;
+    }
+
+    int getNumberOfThreads()
+    {
+        return m_workers.getNumberOfThreads();
+    }
+#endif
+
 private:
     //--------------------------------------------------------------------------
     JobTypeData& getJobTypeData (JobType type)
@@ -477,6 +517,16 @@ private:
 
         --data.waiting;
         ++data.running;
+
+#ifdef BENCHMARK
+        counters_.add (1);
+        counters_.add ((type - jtINVALID + 1) * 3 + 1);
+        {
+            std::string t = std::to_string (type);
+            endTimer (job.trace(), "pending " + t);
+            startTimer (job.trace(), "running " + t);
+        }
+#endif
     }
 
     //------------------------------------------------------------------------------
@@ -494,7 +544,11 @@ private:
     // Invariants:
     //  <none>
     //
+#ifndef BENCHMARK
     void finishJob (Job const& job)
+#else
+    void finishJob (Job&job)
+#endif
     {
         JobType const type = job.getType ();
 
@@ -517,6 +571,16 @@ private:
             assert (false);
         }
         --data.running;
+
+#ifdef BENCHMARK
+        counters_.add (2);
+        counters_.add ((type - jtINVALID + 1) * 3 + 2);
+        {
+            std::string t = std::to_string (type);
+            endTimer (job.trace(), "running " + t);
+            endTimer (job.trace(), "queued " + t);
+        }
+#endif
     }
 
     //--------------------------------------------------------------------------

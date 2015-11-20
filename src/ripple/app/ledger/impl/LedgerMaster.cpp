@@ -175,6 +175,9 @@ public:
         , fetch_packs_ ("FetchPack", 65536, 45, stopwatch,
             app_.journal("TaggedCache"))
         , fetch_seq_ (0)
+#ifdef BENCHMARK
+        , openTrace_ (makeTrace ("initial open ledger"))
+#endif
     {
     }
 
@@ -212,6 +215,9 @@ public:
 
         {
             ScopedLockType sl (m_mutex);
+#ifdef BENCHMARK
+            PerfTrace lockTrace ("masterlock", 1);
+#endif
 
             if ((mLastValidLedger.second != 0) &&
                 ! areCompatible (mLastValidLedger.first,
@@ -321,6 +327,9 @@ public:
     {
         // returns true if transaction was added
         ScopedLockType ml (m_mutex);
+#ifdef BENCHMARK
+        PerfTrace lockTrace ("masterlock", 2);
+#endif
         mHeldTransactions.insert (transaction->getSTransaction ());
     }
 
@@ -332,6 +341,9 @@ public:
 
         {
             ScopedLockType ml (m_mutex);
+#ifdef BENCHMARK
+            PerfTrace lockTrace ("masterlock", 3);
+#endif
 
             mClosedLedger.set (lastClosed);
         }
@@ -372,29 +384,37 @@ public:
     */
     void applyHeldTransactions () override
     {
-        ScopedLockType sl (m_mutex);
+        std::shared_ptr<OpenView const> temp;
 
-        app_.openLedger().modify(
-            [&](OpenView& view, beast::Journal j)
-            {
-                bool any = false;
-                for (auto const& it : mHeldTransactions)
+        {
+            ScopedLockType sl (m_mutex);
+#ifdef BENCHMARK
+            PerfTrace lockTrace ("masterlock", 4);
+#endif
+
+            app_.openLedger().modify(
+                [&](OpenView& view, beast::Journal j)
                 {
-                    ApplyFlags flags = tapNONE;
-                    auto const result = app_.getTxQ().apply(
-                        app_, view, it.second, flags, j);
-                    if (result.second)
-                        any = true;
-                }
-                return any;
-            });
+                    bool any = false;
+                    for (auto const& it : mHeldTransactions)
+                    {
+                        ApplyFlags flags = tapNONE;
+                        auto const result = app_.getTxQ().apply(
+                            app_, view, it.second, flags, j);
+                        if (result.second)
+                            any = true;
+                    }
+                    return any;
+                },
+                temp);
 
-        // VFALCO TODO recreate the CanonicalTxSet object instead of resetting
-        // it.
-        // VFALCO NOTE The hash for an open ledger is undefined so we use
-        // something that is a reasonable substitute.
-        mHeldTransactions.reset (
-            app_.openLedger().current()->info().parentHash);
+            // VFALCO TODO recreate the CanonicalTxSet object instead of
+            // resetting it.
+            // VFALCO NOTE The hash for an open ledger is undefined so we use
+            // something that is a reasonable substitute.
+            mHeldTransactions.reset (
+                app_.openLedger().current()->info().parentHash);
+        }
     }
 
     LedgerIndex getBuildingLedger () override
@@ -522,6 +542,9 @@ public:
         {
             {
                 ScopedLockType ml (m_mutex);
+#ifdef BENCHMARK
+                PerfTrace lockTrace ("masterlock", 5);
+#endif
                 minHas = seq;
                 --seq;
 
@@ -562,6 +585,9 @@ public:
         }
         {
             ScopedLockType ml (m_mutex);
+#ifdef BENCHMARK
+            PerfTrace lockTrace ("masterlock", 6);
+#endif
             mFillInProgress = 0;
             tryAdvance();
         }
@@ -695,6 +721,9 @@ public:
             }
 
             ScopedLockType ml (m_mutex);
+#ifdef BENCHMARK
+            PerfTrace lockTrace ("masterlock", 7);
+#endif
 
             if (ledger->info().seq > mValidLedgerSeq)
                 setValidLedger(ledger);
@@ -747,6 +776,9 @@ public:
             if (valCount >= mMinValidations)
             {
                 ScopedLockType ml (m_mutex);
+#ifdef BENCHMARK
+                PerfTrace lockTrace ("masterlock", 8);
+#endif
                 if (seq > mLastValidLedger.second)
                     mLastValidLedger = std::make_pair (hash, seq);
 
@@ -821,6 +853,9 @@ public:
         // Can we advance the last fully-validated ledger? If so, can we
         // publish?
         ScopedLockType ml (m_mutex);
+#ifdef BENCHMARK
+        PerfTrace lockTrace ("masterlock", 9);
+#endif
 
         if (ledger->info().seq <= mValidLedgerSeq)
             return;
@@ -838,6 +873,9 @@ public:
         JLOG (m_journal.info)
             << "Advancing accepted ledger to " << ledger->info().seq
             << " with >= " << minVal << " validations";
+#ifdef BENCHMARK
+        openTrace_ = makeTrace ("ledger", ledger->info().seq + 1);
+#endif
 
         mLastValidateHash = ledger->getHash();
         mLastValidateSeq = ledger->info().seq;
@@ -976,13 +1014,22 @@ public:
     void advanceThread()
     {
         ScopedLockType sl (m_mutex);
+#ifdef BENCHMARK
+        auto lockTrace = makeTrace ("masterlock", 10);
+#endif
         assert (!mValidLedger.empty () && mAdvanceThread);
 
         JLOG (m_journal.trace) << "advanceThread<";
 
         try
         {
+#ifndef BENCHMARK
             doAdvance();
+#else
+            startTimer (lockTrace, "doAdvance");
+            doAdvance (lockTrace);
+            endTimer (lockTrace, "doAdvance");
+#endif
         }
         catch (...)
         {
@@ -1024,9 +1071,18 @@ public:
         std::uint32_t const candidateLedger) const;
 
     // Try to publish ledgers, acquire missing ledgers
+#ifndef BENCHMARK
     void doAdvance ();
+#else
+    void doAdvance (std::shared_ptr<PerfTrace>& lockTrace);
+#endif
 
+#ifndef BENCHMARK
     std::vector<Ledger::pointer> findNewLedgersToPublish ()
+#else
+    std::vector<Ledger::pointer> findNewLedgersToPublish (
+        PerfTrace::pointer lockTrace)
+#endif
     {
         std::vector<Ledger::pointer> ret;
 
@@ -1059,6 +1115,9 @@ public:
             Ledger::pointer valLedger = mValidLedger.get ();
             std::uint32_t valSeq = valLedger->info().seq;
 
+#ifdef BENCHMARK
+            lockTrace.reset();
+#endif
             ScopedUnlockType sul(m_mutex);
             try
             {
@@ -1112,6 +1171,9 @@ public:
                     << "findNewLedgersToPublish catches an exception";
             }
         }
+#ifdef BENCHMARK
+        lockTrace.reset (new PerfTrace ("masterlock", 11));
+#endif
 
         JLOG (m_journal.trace)
             << "findNewLedgersToPublish> " << ret.size();
@@ -1121,6 +1183,9 @@ public:
     void tryAdvance() override
     {
         ScopedLockType ml (m_mutex);
+#ifdef BENCHMARK
+        PerfTrace lockTrace ("masterlock", 12);
+#endif
 
         // Can't advance without at least one fully-valid ledger
         mAdvanceWork = true;
@@ -1173,6 +1238,9 @@ public:
     {
         {
             ScopedLockType ml (m_mutex);
+#ifdef BENCHMARK
+            PerfTrace lockTrace ("masterlock", 13);
+#endif
             if (app_.getOPs().isNeedNetworkLedger())
             {
                 --mPathFindThread;
@@ -1186,6 +1254,9 @@ public:
             std::shared_ptr<ReadView const> lastLedger;
             {
                 ScopedLockType ml (m_mutex);
+#ifdef BENCHMARK
+                PerfTrace lockTrace ("masterlock", 14);
+#endif
 
                 if (!mValidLedger.empty() &&
                     (!mPathLedger ||
@@ -1249,6 +1320,9 @@ public:
     void newPathRequest () override
     {
         ScopedLockType ml (m_mutex);
+#ifdef BENCHMARK
+        PerfTrace lockTrace ("masterlock", 15);
+#endif
         mPathFindNewRequest = true;
 
         newPFWork("pf:newRequest");
@@ -1257,6 +1331,9 @@ public:
     bool isNewPathRequest () override
     {
         ScopedLockType ml (m_mutex);
+#ifdef BENCHMARK
+        PerfTrace lockTrace ("masterlock", 16);
+#endif
         if (!mPathFindNewRequest)
             return false;
         mPathFindNewRequest = false;
@@ -1268,6 +1345,9 @@ public:
     void newOrderBookDB () override
     {
         ScopedLockType ml (m_mutex);
+#ifdef BENCHMARK
+        PerfTrace lockTrace ("masterlock", 17);
+#endif
         mPathLedger.reset();
 
         newPFWork("pf:newOBDB");
@@ -1582,6 +1662,20 @@ public:
         std::uint32_t uUptime) override;
 
     std::size_t getFetchPackCacheSize () const override;
+
+#ifdef BENCHMARK
+    /**
+     * openTrace_ lifecycle is from newOL through its assignment to and lifespan
+     */
+    PerfTrace::pointer openTrace_;
+    std::mutex openTraceMutex_;
+
+    PerfTrace::ref getOpenTrace() override
+    {
+        std::lock_guard<std::mutex> lock (openTraceMutex_);
+        return openTrace_;
+    }
+#endif
 };
 
 bool LedgerMasterImp::shouldAcquire (
@@ -1603,29 +1697,54 @@ bool LedgerMasterImp::shouldAcquire (
 }
 
 // Try to publish ledgers, acquire missing ledgers
+#ifndef BENCHMARK
 void LedgerMasterImp::doAdvance ()
+#else
+void LedgerMasterImp::doAdvance (std::shared_ptr<PerfTrace>& lockTrace)
+#endif
 {
     // TODO NIKB: simplify and unindent this a bit!
+#ifdef BENCHMARK
+    std::size_t iterCounter = 0;
+#endif
 
     do
     {
+#ifdef BENCHMARK
+        startTimer (lockTrace, "doAdvance while", ++iterCounter);
+#endif
         mAdvanceWork = false; // If there's work to do, we'll make progress
         bool progress = false;
 
+#ifndef BENCHMARK
         auto const pubLedgers = findNewLedgersToPublish ();
+#else
+        startTimer (lockTrace, "findNewLedgersToPublish");
+        auto const pubLedgers = findNewLedgersToPublish (lockTrace);
+        endTimer (lockTrace, "findNewLedgersToPublish");
+#endif
         if (pubLedgers.empty())
         {
+#ifdef BENCHMARK
+            startTimer (lockTrace, "pubLedgers.empty");
+#endif
             if (!standalone_ && !app_.getFeeTrack().isLoadedLocal() &&
                 (app_.getJobQueue().getJobCount(jtPUBOLDLEDGER) < 10) &&
                 (mValidLedgerSeq == mPubLedgerSeq) &&
                 (getValidatedLedgerAge() < MAX_LEDGER_AGE_ACQUIRE))
             { // We are in sync, so can acquire
+#ifdef BENCHMARK
+                startTimer (lockTrace, "doAdvance 1");
+#endif
                 std::uint32_t missing;
                 {
                     ScopedLockType sl (mCompleteLock);
                     missing = mCompleteLedgers.prevMissing(
                         mPubLedger->info().seq);
                 }
+#ifdef BENCHMARK
+                endTimer (lockTrace, "doAdvance 1");
+#endif
                 JLOG (m_journal.trace)
                     << "tryAdvance discovered missing " << missing;
                 if ((missing != RangeSet::absent) && (missing > 0) &&
@@ -1633,13 +1752,25 @@ void LedgerMasterImp::doAdvance ()
                         app_.getSHAMapStore ().getCanDelete (), missing) &&
                     ((mFillInProgress == 0) || (missing > mFillInProgress)))
                 {
+#ifdef BENCHMARK
+                    startTimer (lockTrace, "doAdvance 2");
+                    startTimer (lockTrace, "doAdvance 3");
+#endif
                     JLOG (m_journal.trace)
                         << "advanceThread should acquire";
                     {
+#ifdef BENCHMARK
+                        addTrace (lockTrace, "reset()ting");
+                        lockTrace.reset();
+                        addTrace (lockTrace, "just reset()");
+#endif
                         ScopedUnlockType sl(m_mutex);
                         uint256 hash = getLedgerHashForHistory (missing);
                         if (hash.isNonZero())
                         {
+#ifdef BENCHMARK
+                            startTimer (lockTrace, "doAdvance 4");
+#endif
                             Ledger::pointer ledger = getLedgerByHash (hash);
                             if (!ledger)
                             {
@@ -1683,6 +1814,9 @@ void LedgerMasterImp::doAdvance ()
                                 {
                                     // Previous ledger is in DB
                                     ScopedLockType lock (m_mutex);
+#ifdef BENCHMARK
+                                    PerfTrace lockTrace2 ("masterlock", 19);
+#endif
                                     mFillInProgress = ledger->info().seq;
                                     app_.getJobQueue().addJob(
                                         jtADVANCE, "tryFill",
@@ -1713,9 +1847,15 @@ void LedgerMasterImp::doAdvance ()
                                     "Threw while prefetching";
                                 }
                             }
+#ifdef BENCHMARK
+                            endTimer (lockTrace, "doAdvance 4");
+#endif
                         }
                         else
                         {
+#ifdef BENCHMARK
+                            startTimer (lockTrace, "doAdvance 5");
+#endif
                             JLOG (m_journal.fatal) <<
                                 "Can't find ledger following prevMissing " <<
                                 missing;
@@ -1725,14 +1865,24 @@ void LedgerMasterImp::doAdvance ()
                                 app_.getLedgerMaster().getCompleteLedgers();
                             clearLedger (missing + 1);
                             progress = true;
+#ifdef BENCHMARK
+                            endTimer (lockTrace, "doAdvance 4");
+#endif
                         }
                     }
+#ifdef BENCHMARK
+                    endTimer (lockTrace, "doAdvance 3");
+                    lockTrace.reset (new PerfTrace ("masterlock", 18));
+#endif
                     if (mValidLedgerSeq != mPubLedgerSeq)
                     {
                         JLOG (m_journal.debug) <<
                             "tryAdvance found last valid changed";
                         progress = true;
                     }
+#ifdef BENCHMARK
+                    endTimer (lockTrace, "doAdvance 2");
+#endif
                 }
             }
             else
@@ -1741,15 +1891,24 @@ void LedgerMasterImp::doAdvance ()
                 JLOG (m_journal.trace) <<
                     "tryAdvance not fetching history";
             }
+#ifdef BENCHMARK
+            endTimer (lockTrace, "pubLedgers.empty");
+#endif
         }
         else
         {
+#ifdef BENCHMARK
+            startTimer (lockTrace, "not pubLedgers.empty");
+#endif
             JLOG (m_journal.trace) <<
                 "tryAdvance found " << pubLedgers.size() <<
                 " ledgers to publish";
             for(auto ledger : pubLedgers)
             {
                 {
+#ifdef BENCHMARK
+                    lockTrace.reset();
+#endif
                     ScopedUnlockType sul (m_mutex);
                     JLOG (m_journal.debug) <<
                         "tryAdvance publishing seq " << ledger->info().seq;
@@ -1757,6 +1916,9 @@ void LedgerMasterImp::doAdvance ()
                     setFullLedger(ledger, true, true);
                     app_.getOPs().pubLedger(ledger);
                 }
+#ifdef BENCHMARK
+                lockTrace.reset (new PerfTrace ("masterlock", 20));
+#endif
 
                 setPubLedger(ledger);
                 progress = true;
@@ -1764,9 +1926,15 @@ void LedgerMasterImp::doAdvance ()
 
             app_.getOPs().clearNeedNetworkLedger();
             newPFWork ("pf:newLedger");
+#ifdef BENCHMARK
+            endTimer (lockTrace, "not pubLedgers.empty");
+#endif
         }
         if (progress)
             mAdvanceWork = true;
+#ifdef BENCHMARK
+        endTimer (lockTrace, "doAdvance while");
+#endif
     } while (mAdvanceWork);
 }
 

@@ -1185,6 +1185,10 @@ void LedgerConsensusImp::accept (std::shared_ptr<SHAMap> set)
         auto sl = beast::make_lock(
             ledgerMaster_.peekMutex (), std::defer_lock);
         std::lock(lock, sl);
+#ifdef BENCHMARK
+        auto lockTrace = makeTrace ("masterlock", 21);
+        startTimer (lockTrace, "Build new open ledger 1");
+#endif
 
         auto const localTx = m_localTX.getTxSet();
         auto const oldOL = ledgerMaster_.getCurrentLedger();
@@ -1196,6 +1200,10 @@ void LedgerConsensusImp::accept (std::shared_ptr<SHAMap> set)
             rules.emplace(*lastVal);
         else
             rules.emplace();
+#ifdef BENCHMARK
+        endTimer (lockTrace, "Build new open ledger 1");
+        startTimer (lockTrace, "new OL accept");
+#endif
         app_.openLedger().accept(app_, *rules,
             newLCL, localTx, anyDisputes, retriableTxs, tapNONE,
                 "consensus",
@@ -1204,6 +1212,9 @@ void LedgerConsensusImp::accept (std::shared_ptr<SHAMap> set)
                         // Stuff the ledger with transactions from the queue.
                         return app_.getTxQ().accept(app_, view);
                     });
+#ifdef BENCHMARK
+        endTimer (lockTrace, "new OL accept");
+#endif
     }
 
     mNewLedgerHash = newLCL->getHash ();
