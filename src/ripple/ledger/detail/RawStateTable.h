@@ -22,6 +22,10 @@
 
 #include <ripple/ledger/RawView.h>
 #include <ripple/ledger/ReadView.h>
+#ifdef BENCHMARK
+#include <ripple/basics/benchmark.h>
+#include <ripple/unl/tests/qalloc.h>
+#endif
 #include <map>
 #include <utility>
 
@@ -92,8 +96,14 @@ private:
 
     class sles_iter_impl;
 
+#if !defined BENCHMARK || BENCHMARK == 1
     using items_t = std::map<key_type,
         std::pair<Action, std::shared_ptr<SLE>>>;
+#else
+    using items_t = std::map<key_type,
+        std::pair<Action, std::shared_ptr<SLE>>,
+            std::less<key_type>, test::qalloc_unique>;
+#endif
 
     items_t items_;
     XRPAmount dropsDestroyed_ = 0;

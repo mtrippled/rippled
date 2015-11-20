@@ -1205,7 +1205,11 @@ void LedgerConsensusImp::accept (std::shared_ptr<SHAMap> set)
         startTimer (trace, "new OL accept");
 #endif
         app_.openLedger().accept(app_, *rules,
+#ifndef BENCHMARK
+            newLCL, localTx, anyDisputes, retriableTxs, tapNONE,
+#else
             newLCL, localTx, anyDisputes, retriableTxs, tapNONE, trace,
+#endif
                 "consensus",
                     [&](OpenView& view, beast::Journal j)
                     {

@@ -22,6 +22,7 @@
 
 #ifdef BENCHMARK
 #include <ripple/basics/PerfTrace.h>
+#include <ripple/unl/tests/qalloc.h>
 #endif
 #include <ripple/ledger/RawView.h>
 #include <ripple/ledger/ReadView.h>
@@ -53,10 +54,17 @@ private:
     class txs_iter_impl;
 
     // List of tx, key order
+#if !defined BENCHMARK || BENCHMARK == 1
     using txs_map = std::map<key_type,
         std::pair<std::shared_ptr<
             Serializer const>, std::shared_ptr<
                 Serializer const>>>;
+#else
+    using txs_map = std::map<key_type,
+        std::pair<std::shared_ptr<Serializer const>,
+            std::shared_ptr<Serializer const>>,
+                std::less<key_type>, test::qalloc_unique>;
+#endif
 
     Rules rules_;
     txs_map txs_;
