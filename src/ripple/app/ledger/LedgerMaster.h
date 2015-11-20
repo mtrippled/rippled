@@ -25,6 +25,9 @@
 #include <ripple/app/ledger/LedgerHolder.h>
 #include <ripple/basics/chrono.h>
 #include <ripple/basics/StringUtilities.h>
+#ifdef BENCHMARK
+#include <ripple/basics/PerfTrace.h>
+#endif
 #include <ripple/protocol/RippleLedgerHash.h>
 #include <ripple/protocol/STValidation.h>
 #include <beast/insight/Collector.h>
@@ -208,6 +211,10 @@ public:
 
     virtual
     std::size_t getFetchPackCacheSize () const = 0;
+
+#ifdef BENCHMARK
+    virtual PerfTrace::ref getOpenTrace() = 0;
+#endif
 };
 
 std::unique_ptr <LedgerMaster>

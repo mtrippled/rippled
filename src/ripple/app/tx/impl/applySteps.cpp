@@ -156,16 +156,35 @@ invoke_calculateBaseFee(PreclaimContext const& ctx)
     }
 }
 
+#ifndef BENCHMARK
 static
 std::pair<TER, bool>
 invoke_apply (ApplyContext& ctx)
+#else
+static
+std::pair<TER, bool>
+invoke_apply (ApplyContext& ctx, std::shared_ptr<PerfTrace> const& trace)
+#endif
 {
     switch(ctx.tx.getTxnType())
     {
     case ttACCOUNT_SET:     { SetAccount    p(ctx); return p(); }
     case ttOFFER_CANCEL:    { CancelOffer   p(ctx); return p(); }
     case ttOFFER_CREATE:    { CreateOffer   p(ctx); return p(); }
+#ifndef BENCHMARK
     case ttPAYMENT:         { Payment       p(ctx); return p(); }
+#else
+    case ttPAYMENT:
+    {
+        startTimer (trace, "create Payment");
+        Payment p(ctx, trace);
+        endTimer (trace, "create Payment");
+        startTimer (trace, "payment functor");
+        auto ret = p();
+        endTimer (trace, "payment functor");
+        return ret;
+    }
+#endif
     case ttSUSPAY_CREATE:   { SusPayCreate  p(ctx); return p(); }
     case ttSUSPAY_FINISH:   { SusPayFinish  p(ctx); return p(); }
     case ttSUSPAY_CANCEL:   { SusPayCancel  p(ctx); return p(); }
@@ -245,9 +264,15 @@ calculateBaseFee(Application& app, ReadView const& view,
     return invoke_calculateBaseFee(ctx);
 }
 
+#ifndef BENCHMARK
 std::pair<TER, bool>
 doApply(PreclaimResult const& preclaimResult,
     Application& app, OpenView& view)
+#else
+std::pair<TER, bool>
+doApply(PreclaimResult const& preclaimResult,
+    Application& app, OpenView& view, std::shared_ptr<PerfTrace> const& trace)
+#endif
 {
     if (preclaimResult.view.seq() != view.seq())
     {
@@ -259,11 +284,24 @@ doApply(PreclaimResult const& preclaimResult,
     {
         if (!preclaimResult.likelyToClaimFee)
             return{ preclaimResult.ter, false };
+#ifndef BENCHMARK
         ApplyContext ctx(app, view,
             preclaimResult.tx, preclaimResult.ter,
                 preclaimResult.baseFee, preclaimResult.flags,
                     preclaimResult.j);
         return invoke_apply(ctx);
+#else
+        startTimer (trace, "create ApplyContext");
+        ApplyContext ctx(app, view,
+            preclaimResult.tx, preclaimResult.ter,
+                preclaimResult.baseFee, preclaimResult.flags,
+                    preclaimResult.j);
+        endTimer (trace, "create ApplyContext");
+        startTimer (trace, "invoke_apply");
+        auto ret = invoke_apply(ctx, trace);
+        endTimer (trace, "invoke_apply");
+        return ret;
+#endif
     }
     catch (std::exception const& e)
     {
@@ -272,5 +310,14 @@ doApply(PreclaimResult const& preclaimResult,
         return { tefEXCEPTION, false };
     }
 }
+
+#ifdef BENCHMARK
+std::pair<TER, bool>
+doApply(PreclaimResult const& preclaimResult,
+    Application& app, OpenView& view)
+{
+    return doApply (preclaimResult, app, view, std::shared_ptr<PerfTrace>());
+}
+#endif
 
 } // ripple

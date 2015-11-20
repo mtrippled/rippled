@@ -32,6 +32,9 @@ namespace ripple {
 
 class Application;
 class HashRouter;
+#ifdef BENCHMARK
+class PerfTrace;
+#endif
 
 enum class Validity
 {
@@ -109,6 +112,14 @@ std::pair<TER, bool>
 apply (Application& app, OpenView& view,
     STTx const& tx, ApplyFlags flags,
         beast::Journal journal);
+
+#ifdef BENCHMARK
+std::pair<TER, bool>
+apply (Application& app, OpenView& view,
+    STTx const& tx, ApplyFlags flags,
+    beast::Journal journal,
+    std::shared_ptr<PerfTrace> const& trace);
+#endif
 
 } // ripple
 

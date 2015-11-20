@@ -69,6 +69,11 @@ class Cluster;
 class DatabaseCon;
 class SHAMapStore;
 
+#ifdef BENCHMARK
+class PerfLog;
+class PerfGather;
+#endif
+
 using NodeCache     = TaggedCache <uint256, Blob>;
 
 class Application : public beast::PropertyStream::Source
@@ -89,6 +94,7 @@ public:
     virtual MutexType& getMasterMutex () = 0;
 
 public:
+
     Application ();
 
     virtual ~Application () = default;
@@ -144,6 +150,12 @@ public:
     virtual bool serverOkay (std::string& reason) = 0;
 
     virtual beast::Journal journal (std::string const& name) = 0;
+
+#ifdef BENCHMARK
+    virtual PerfLog& getPerfLog() = 0;
+    virtual PerfGather* getPerfGather() = 0;
+#endif
+
     /** Retrieve the "wallet database"
 
         It looks like this is used to store the unique node list.

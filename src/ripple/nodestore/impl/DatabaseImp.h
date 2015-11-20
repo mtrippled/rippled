@@ -407,37 +407,65 @@ public:
             dest.storeBatch (b);
     }
 
+#ifndef BENCHMARK
     std::uint32_t getStoreCount () const override
+#else
+    std::uint64_t getStoreCount () const override
+#endif
     {
         return m_storeCount;
     }
 
+#ifndef BENCHMARK
     std::uint32_t getFetchTotalCount () const override
+#else
+    std::uint64_t getFetchTotalCount () const override
+#endif
     {
         return m_fetchTotalCount;
     }
 
+#ifndef BENCHMARK
     std::uint32_t getFetchHitCount () const override
+#else
+    std::uint64_t getFetchHitCount () const override
+#endif
     {
         return m_fetchHitCount;
     }
 
+#ifndef BENCHMARK
     std::uint32_t getStoreSize () const override
+#else
+    std::uint64_t getStoreSize () const override
+#endif
     {
         return m_storeSize;
     }
 
+#ifndef BENCHMARK
     std::uint32_t getFetchSize () const override
+#else
+    std::uint64_t getFetchSize () const override
+#endif
     {
         return m_fetchSize;
     }
 
 private:
+#ifndef BENCHMARK
     std::atomic <std::uint32_t> m_storeCount;
     std::atomic <std::uint32_t> m_fetchTotalCount;
     std::atomic <std::uint32_t> m_fetchHitCount;
     std::atomic <std::uint32_t> m_storeSize;
     std::atomic <std::uint32_t> m_fetchSize;
+#else
+    std::atomic <std::uint64_t> m_storeCount;
+    std::atomic <std::uint64_t> m_fetchTotalCount;
+    std::atomic <std::uint64_t> m_fetchHitCount;
+    std::atomic <std::uint64_t> m_storeSize;
+    std::atomic <std::uint64_t> m_fetchSize;
+#endif
 };
 
 }

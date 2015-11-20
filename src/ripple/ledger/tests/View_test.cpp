@@ -76,6 +76,7 @@ class View_test
     void
     wipe (OpenLedger& openLedger)
     {
+        std::shared_ptr<OpenView const> temp;
         openLedger.modify(
             [](OpenView& view, beast::Journal)
         {
@@ -91,7 +92,8 @@ class View_test
                     *view.read(keylet::unchecked(*next))));
             }
             return true;
-        });
+        },
+        temp);
     }
 
     static

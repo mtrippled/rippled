@@ -279,6 +279,7 @@ Env::submit (JTx const& jt)
     if (jt.stx)
     {
         txid_ = jt.stx->getTransactionID();
+        std::shared_ptr<OpenView const> temp;
         openLedger.modify(
             [&](OpenView& view, beast::Journal j)
             {
@@ -286,7 +287,9 @@ Env::submit (JTx const& jt)
                     app(), view, *jt.stx, applyFlags(),
                         beast::Journal{});
                 return didApply;
-            });
+            },
+            temp
+        );
     }
     else
     {

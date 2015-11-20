@@ -301,7 +301,12 @@ TxQ::erase(TxQ::FeeMultiSet::const_iterator_type candidateIter)
 std::pair<TER, bool>
 TxQ::apply(Application& app, OpenView& view,
     std::shared_ptr<STTx const> const& tx,
+#ifndef BENCHMARK
         ApplyFlags flags, beast::Journal j)
+#else
+        ApplyFlags flags, beast::Journal j,
+        std::shared_ptr<PerfTrace> const& trace)
+#endif
 {
     auto const allowEscalation =
         (flags & tapENABLE_TESTING) ||
@@ -309,7 +314,14 @@ TxQ::apply(Application& app, OpenView& view,
                 app.config().features));
     if (!allowEscalation)
     {
+#ifndef BENCHMARK
         return ripple::apply(app, view, *tx, flags, j);
+#else
+        startTimer (trace, "ripple::apply");
+        auto ret = ripple::apply(app, view, *tx, flags, j, trace);
+        endTimer (trace, "ripple::apply");
+        return ret;
+#endif
     }
 
     auto const account = (*tx)[sfAccount];

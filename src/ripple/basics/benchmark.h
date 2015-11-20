@@ -1,7 +1,7 @@
 //------------------------------------------------------------------------------
 /*
     This file is part of rippled: https://github.com/ripple/rippled
-    Copyright (c) 2012, 2013 Ripple Labs Inc.
+    Copyright (c) 2015 Ripple Labs Inc.
 
     Permission to use, copy, modify, and/or distribute this software for any
     purpose  with  or without fee is hereby granted, provided that the above
@@ -17,55 +17,27 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_RPC_CONTEXT_H_INCLUDED
-#define RIPPLE_RPC_CONTEXT_H_INCLUDED
-
-#include <ripple/core/Config.h>
-#include <ripple/core/JobCoro.h>
-#include <ripple/net/InfoSub.h>
-#include <ripple/server/Role.h>
-
-#include <beast/utility/Journal.h>
+#ifndef RIPPLE_BASICS_BENCHMARK_H_INCLUDED
+#define RIPPLE_BASICS_BENCHMARK_H_INCLUDED
 
 namespace ripple {
 
-class Application;
-class NetworkOPs;
-class LedgerMaster;
-#ifdef BENCHMARK
-class PerfTrace;
-#endif
+class Config;
 
-namespace RPC {
+namespace benchmark {
 
-/** The context of information needed to call an RPC. */
-struct Context
+struct Benchmark
 {
-    /**
-     * Data passed in from HTTP headers.
-     */
-    struct Headers
-    {
-        std::string user;
-        std::string forwardedFor;
-    };
-
-#ifdef BENCHMARK
-    std::shared_ptr<PerfTrace> trace;
-#endif
-    beast::Journal j;
-    Json::Value params;
-    Application& app;
-    Resource::Charge& loadType;
-    NetworkOPs& netOps;
-    LedgerMaster& ledgerMaster;
-    Role role;
-    std::shared_ptr<JobCoro> jobCoro;
-    InfoSub::pointer infoSub;
-    Headers headers;
+    std::string perf_log;
+    unsigned int log_interval = 1;
+    bool async = false;
 };
 
-} // RPC
+extern Benchmark benchmark;
+
+void configure (Config const& c);
+
+} //benchmark
 } // ripple
 
 #endif

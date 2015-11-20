@@ -63,6 +63,7 @@ Json::Value checkFee (
     std::shared_ptr<ReadView const>& ledger);
 
 // Return a std::function<> that calls NetworkOPs::processTransaction.
+#ifndef BENCHMARK
 using ProcessTransactionFn =
     std::function<void (std::shared_ptr<Transaction>& transaction,
         bool bUnlimited, bool bLocal, NetworkOPs::FailHard failType)>;
@@ -75,6 +76,29 @@ inline ProcessTransactionFn getProcessTxnFn (NetworkOPs& netOPs)
         netOPs.processTransaction(transaction, bUnlimited, bLocal, failType);
     };
 }
+#else
+using ProcessTransactionFn =
+    std::function<void (Transaction::pointer& transaction,
+        bool bAdmin, bool bLocal, NetworkOPs::FailHard failType,
+        std::shared_ptr<PerfTrace> const& trace)>;
+
+inline ProcessTransactionFn getProcessTxnFn (NetworkOPs& netOPs,
+    std::shared_ptr<PerfTrace> const& trace)
+{
+    return [&netOPs, &trace](Transaction::pointer& transaction,
+        bool bAdmin, bool bLocal, NetworkOPs::FailHard failType,
+        std::shared_ptr<PerfTrace> const& trace)
+    {
+        netOPs.processTransaction(transaction, bAdmin, bLocal, failType, trace);
+    };
+}
+
+inline ProcessTransactionFn getProcessTxnFn (NetworkOPs& netOPs)
+{
+    return getProcessTxnFn (netOPs, std::shared_ptr<PerfTrace>());
+}
+#endif
+
 
 /** Returns a Json::objectValue. */
 Json::Value transactionSign (
@@ -95,7 +119,28 @@ Json::Value transactionSubmit (
     Application& app,
     std::shared_ptr<ReadView const> ledger,
     ProcessTransactionFn const& processTransaction,
+#ifndef BENCHMARK
     ApplyFlags flags = tapNONE);
+#else
+    std::shared_ptr<PerfTrace> const& trace,
+    ApplyFlags flags = tapNONE);
+#endif
+
+#ifdef BENCHMARK
+Json::Value transactionSubmit (
+    Json::Value params,  // Passed by value so it can be modified locally.
+    NetworkOPs::FailHard failType,
+    Role role,
+    int validatedLedgerAge,
+    Application& app,
+    std::shared_ptr<ReadView const> ledger,
+    ProcessTransactionFn const& processTransaction,
+    ApplyFlags flags = tapNONE)
+{
+    return transactionSubmit (params, failType, role, validatedLedgerAge, app,
+        ledger, processTransaction, std::shared_ptr<PerfTrace>(), flags);
+}
+#endif
 
 /** Returns a Json::objectValue. */
 Json::Value transactionSignFor (

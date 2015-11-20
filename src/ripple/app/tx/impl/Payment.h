@@ -44,6 +44,14 @@ public:
     {
     }
 
+#ifdef BENCHMARK
+    Payment (ApplyContext& ctx,
+        std::shared_ptr<PerfTrace> const& trace)
+        : Transactor(ctx, trace)
+    {
+    }
+#endif
+
     static
     TER
     preflight (PreflightContext const& ctx);

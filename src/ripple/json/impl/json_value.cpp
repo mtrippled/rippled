@@ -266,7 +266,6 @@ Value::Value ( const char* beginValue,
                      UInt (endValue - beginValue) );
 }
 
-
 Value::Value ( std::string const& value )
     : type_ ( stringValue )
     , allocated_ ( true )

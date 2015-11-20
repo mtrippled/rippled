@@ -205,7 +205,11 @@ ServerHandlerImp::processSession (std::shared_ptr<HTTP::Session> const& session,
 {
     processRequest (session->port(), to_string (session->body()),
         session->remoteAddress().at_port (0), makeOutput (*session), jobCoro,
+#ifndef BENCHMARK
         session->forwarded_for(), session->user());
+#else
+        session->forwarded_for(), session->user(), session->trace());
+#endif
 
     if (session->request().keep_alive())
         session->complete();
@@ -217,7 +221,12 @@ void
 ServerHandlerImp::processRequest (HTTP::Port const& port,
     std::string const& request, beast::IP::Endpoint const& remoteIPAddress,
         Output&& output, std::shared_ptr<JobCoro> jobCoro,
+#ifndef BENCHMARK
         std::string forwardedFor, std::string user)
+#else
+        std::string forwardedFor, std::string user,
+        std::shared_ptr<PerfTrace> const& trace)
+#endif
 {
     auto rpcJ = app_.journal ("RPC");
     // Move off the webserver thread onto the JobQueue.
@@ -349,7 +358,11 @@ ServerHandlerImp::processRequest (HTTP::Port const& port,
 
     auto const start (std::chrono::high_resolution_clock::now ());
 
+#ifndef BENCHMARK
     RPC::Context context {m_journal, params, app_, loadType, m_networkOPs,
+#else
+    RPC::Context context {trace, m_journal, params, app_, loadType, m_networkOPs,
+#endif
         app_.getLedgerMaster(), role, jobCoro, InfoSub::pointer(),
         {user, forwardedFor}};
     Json::Value result;

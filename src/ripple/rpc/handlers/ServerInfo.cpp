@@ -33,7 +33,11 @@ Json::Value doServerInfo (RPC::Context& context)
     Json::Value ret (Json::objectValue);
 
     ret[jss::info] = context.netOps.getServerInfo (
+#ifndef BENCHMARK
         true, context.role == Role::ADMIN);
+#else
+        true, context.role == Role::ADMIN, context.trace);
+#endif
 
     return ret;
 }

@@ -79,6 +79,9 @@ protected:
     XRPAmount     mFeeDue;
     XRPAmount     mPriorBalance;  // Balance before fees.
     XRPAmount     mSourceBalance; // Balance after fees.
+#ifdef BENCHMARK
+    std::shared_ptr<PerfTrace> trace_;
+#endif
 
 public:
     /** Process the transaction. */
@@ -141,6 +144,10 @@ protected:
 
     explicit
     Transactor (ApplyContext& ctx);
+#ifdef BENCHMARK
+    explicit
+    Transactor (ApplyContext& ctx, std::shared_ptr<PerfTrace> const& trace);
+#endif
 
     virtual void preCompute();
 

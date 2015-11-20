@@ -22,6 +22,10 @@
 
 #include <ripple/core/LoadMonitor.h>
 
+#ifdef BENCHMARK
+class PerfTrace;
+#endif
+
 namespace ripple {
 
 // Note that this queue should only be used for CPU-bound jobs
@@ -76,6 +80,9 @@ enum JobType
     jtNS_SYNC_READ  ,
     jtNS_ASYNC_READ ,
     jtNS_WRITE      ,
+#ifdef BENCHMARK
+    jtMAX           ,
+#endif
 };
 
 class Job
@@ -109,7 +116,12 @@ public:
          std::uint64_t index,
          LoadMonitor& lm,
          std::function <void (Job&)> const& job,
+#ifndef BENCHMARK
          CancelCallback cancelCallback);
+#else
+         CancelCallback cancelCallback,
+         std::shared_ptr<PerfTrace> const& trace);
+#endif
 
     //Job& operator= (Job const& other);
 
@@ -127,6 +139,13 @@ public:
 
     void rename (std::string const& n);
 
+#ifdef BENCHMARK
+    std::shared_ptr<PerfTrace> const& trace()
+    {
+        return trace_;
+    }
+#endif
+
     // These comparison operators make the jobs sort in priority order
     // in the job set
     bool operator< (const Job& j) const;
@@ -142,6 +161,9 @@ private:
     LoadEvent::pointer          m_loadEvent;
     std::string                 mName;
     clock_type::time_point m_queue_time;
+#ifdef BENCHMARK
+    mutable std::shared_ptr<PerfTrace> trace_;
+#endif
 };
 
 }

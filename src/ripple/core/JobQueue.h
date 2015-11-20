@@ -24,12 +24,19 @@
 #include <ripple/core/JobTypeData.h>
 #include <ripple/core/JobCoro.h>
 #include <ripple/json/json_value.h>
+#ifdef BENCHMARK
+#include <ripple/basics/AtomicArray.h>
+#endif
 #include <beast/insight/Collector.h>
 #include <beast/threads/Stoppable.h>
 #include <beast/module/core/thread/Workers.h>
 #include <boost/function.hpp>
 #include <thread>
 #include <set>
+
+#ifdef BENCHMARK
+class PerfTrace;
+#endif
 
 namespace ripple {
 
@@ -46,7 +53,12 @@ public:
         Stoppable& parent, beast::Journal journal, Logs& logs);
     ~JobQueue ();
 
+#ifndef BENCHMARK
     void addJob (JobType type, std::string const& name, JobFunction const& func);
+#else
+    void addJob (JobType type, std::string const& name, JobFunction const& func,
+        std::shared_ptr<PerfTrace> trace=std::shared_ptr<PerfTrace>());
+#endif
 
     /** Creates a coroutine and adds a job to the queue which will run it.
 
@@ -98,6 +110,28 @@ public:
 
     // Cannot be const because LoadMonitor has no const methods.
     Json::Value getJson (int c = 0);
+
+#ifdef BENCHMARK
+    /**
+     * For each job type, there are 3 states: pending, running, and finished.
+     * There is an additional set of 3 entries for the total of all
+     * job types in each state. These are in indices 0-2.
+     */
+    AtomicArray<std::uint64_t> counters_ = AtomicArray<std::uint64_t> (
+            (jtMAX - jtINVALID + 1) * 3, perf_jss::job_queue_counters);
+
+    /** Get per-job counters. */
+    AtomicArray<std::uint64_t>& getCounters()
+    {
+        return counters_;
+    }
+
+    /** Get number of worker threads. */
+    int getNumberOfThreads()
+    {
+        return m_workers.getNumberOfThreads();
+    }
+#endif
 
 private:
     using JobDataMap = std::map <JobType, JobTypeData>;
@@ -180,7 +214,11 @@ private:
     //
     // Invariants:
     //  <none>
+#ifndef BENCHMARK
     void finishJob (Job const& job);
+#else
+    void finishJob (Job& job);
+#endif
 
     template <class Rep, class Period>
     void on_dequeue (JobType type,

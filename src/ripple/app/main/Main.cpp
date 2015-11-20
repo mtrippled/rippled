@@ -26,6 +26,9 @@
 #include <ripple/basics/StringUtilities.h>
 #include <ripple/basics/Sustain.h>
 #include <ripple/basics/ThreadName.h>
+#ifdef BENCHMARK
+#include <ripple/basics/benchmark.h>
+#endif
 #include <ripple/core/Config.h>
 #include <ripple/core/ConfigSections.h>
 #include <ripple/crypto/RandomNumbers.h>
@@ -95,7 +98,11 @@ void startServer (Application& app)
                 std::cerr << "Startup RPC: " << jvCommand << std::endl;
 
             Resource::Charge loadType = Resource::feeReferenceRPC;
+#ifndef BENCHMARK
             RPC::Context context {app.journal ("RPCHandler"), jvCommand, app,
+#else
+            RPC::Context context {makeTrace ("startServer cmd"), app.journal ("RPCHandler"), jvCommand, app,
+#endif
                 loadType, app.getOPs (), app.getLedgerMaster(), Role::ADMIN};
 
             Json::Value jvResult;
@@ -481,6 +488,10 @@ int run (int argc, char** argv)
             logs->severity (beast::Journal::kTrace);
         else
             logs->severity (beast::Journal::kInfo);
+
+#ifdef BENCHMARK
+        benchmark::configure (*config);
+#endif
 
         auto app = make_Application (
             std::move(config),

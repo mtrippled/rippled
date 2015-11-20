@@ -21,6 +21,9 @@
 #define RIPPLE_SERVER_SESSION_H_INCLUDED
 
 #include <ripple/server/Writer.h>
+#ifdef BENCHMARK
+#include <ripple/basics/PerfTrace.h>
+#endif
 #include <beast/http/body.h>
 #include <beast/http/message.h>
 #include <beast/net/IPEndpoint.h>
@@ -44,7 +47,13 @@ class Session;
 class Session
 {
 public:
+#ifndef BENCHMARK
     Session() = default;
+#else
+    Session()
+    : trace_ (makeTrace ("rpc"))
+    {}
+#endif
     Session (Session const&) = delete;
 
     /** A user-definable pointer.
@@ -149,6 +158,17 @@ public:
     virtual
     void
     close (bool graceful) = 0;
+
+#ifdef BENCHMARK
+    std::shared_ptr<PerfTrace> const&
+    trace()
+    {
+        return trace_;
+    }
+
+private:
+    std::shared_ptr<PerfTrace> trace_;
+#endif
 };
 
 }  // namespace HTTP

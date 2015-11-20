@@ -116,12 +116,31 @@ PreflightContext::PreflightContext(Application& app_, STTx const& tx_,
 
 //------------------------------------------------------------------------------
 
+#ifndef BENCHMARK
 Transactor::Transactor(
     ApplyContext& ctx)
     : ctx_ (ctx)
     , j_ (ctx.journal)
 {
 }
+#else
+Transactor::Transactor(
+    ApplyContext& ctx)
+    : ctx_ (ctx)
+    , j_ (ctx.journal)
+    , trace_ (std::shared_ptr<PerfTrace>())
+{
+}
+
+Transactor::Transactor(
+    ApplyContext& ctx,
+    std::shared_ptr<PerfTrace> const& trace)
+    : ctx_ (ctx)
+    , j_ (ctx.journal)
+    , trace_ (trace)
+{
+}
+#endif
 
 std::uint64_t Transactor::calculateBaseFee (
     PreclaimContext const& ctx)
@@ -307,7 +326,14 @@ TER Transactor::apply ()
         view().update (sle);
     }
 
+#ifndef BENCHMARK
     return doApply ();
+#else
+    startTimer (trace_, "Payment::doApply");
+    auto ret = doApply();
+    endTimer (trace_, "Payment::doApply");
+    return ret;
+#endif
 }
 
 TER
@@ -571,7 +597,15 @@ Transactor::operator()()
 
     auto terResult = ctx_.preclaimResult;
     if (terResult == tesSUCCESS)
+    {
+#ifdef BENCHMARK
+    startTimer (trace_, "Transactor::apply");
+#endif
         terResult = apply();
+#ifdef BENCHMARK
+    endTimer (trace_, "Transactor::apply");
+#endif
+    }
 
     // No transaction can return temUNKNOWN from apply,
     // and it can't be passed in from a preclaim.

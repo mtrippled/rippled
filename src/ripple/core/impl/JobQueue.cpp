@@ -76,9 +76,16 @@ JobQueue::collect ()
     job_count = m_jobSet.size ();
 }
 
+#ifndef BENCHMARK
 void
 JobQueue::addJob (JobType type, std::string const& name,
     JobFunction const& func)
+#else
+void
+JobQueue::addJob (JobType type, std::string const& name,
+    JobFunction const& func,
+    std::shared_ptr<PerfTrace> trace)
+#endif
 {
     assert (type != jtINVALID);
 
@@ -127,8 +134,21 @@ JobQueue::addJob (JobType type, std::string const& name,
 
         std::pair <std::set <Job>::iterator, bool> result (
             m_jobSet.insert (Job (type, name, ++m_lastJob,
+#ifndef BENCHMARK
                 data.load (), func, m_cancelCallback)));
+#else
+                data.load (), func, m_cancelCallback, trace)));
+#endif
         queueJob (*result.first, lock);
+#ifdef BENCHMARK
+        counters_.add (0);
+        counters_.add ((type - jtINVALID + 1) * 3);
+        {
+            std::string t = std::to_string (type);
+            startTimer (trace, "queued " + t);
+            startTimer (trace, "pending " + t);
+        }
+#endif
     }
 }
 
@@ -407,7 +427,11 @@ JobQueue::getNextJob (Job& job)
 }
 
 void
+#ifndef BENCHMARK
 JobQueue::finishJob (Job const& job)
+#else
+JobQueue::finishJob (Job& job)
+#endif
 {
     JobType const type = job.getType ();
 
@@ -430,6 +454,16 @@ JobQueue::finishJob (Job const& job)
         assert (false);
     }
     --data.running;
+
+#ifdef BENCHMARK
+    counters_.add (2);
+    counters_.add ((type - jtINVALID + 1) * 3 + 2);
+    {
+        std::string t = std::to_string (type);
+        endTimer (job.trace(), "running " + t);
+        endTimer (job.trace(), "queued " + t);
+    }
+#endif
 }
 
 template <class Rep, class Period>

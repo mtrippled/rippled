@@ -39,13 +39,21 @@ Job::Job (JobType type,
           std::uint64_t index,
           LoadMonitor& lm,
           std::function <void (Job&)> const& job,
+#ifndef BENCHMARK
           CancelCallback cancelCallback)
+#else
+          CancelCallback cancelCallback,
+          std::shared_ptr<PerfTrace> const& trace)
+#endif
     : m_cancelCallback (cancelCallback)
     , mType (type)
     , mJobIndex (index)
     , mJob (job)
     , mName (name)
     , m_queue_time (clock_type::now ())
+#ifdef BENCHMARK
+    , trace_ (trace)
+#endif
 {
     m_loadEvent = std::make_shared <LoadEvent> (std::ref (lm), name, false);
 }

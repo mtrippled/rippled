@@ -41,6 +41,9 @@ namespace ripple {
 class Peer;
 class LedgerMaster;
 class Transaction;
+#ifdef BENCHMARK
+class PerfTrace;
+#endif
 
 // This is the primary interface into the "client" portion of the program.
 // Code that wants to do normal operations on the network such as
@@ -124,6 +127,11 @@ public:
      */
     virtual void processTransaction (std::shared_ptr<Transaction>& transaction,
         bool bUnlimited, bool bLocal, FailHard failType) = 0;
+#ifdef BENCHMARK
+    virtual void processTransaction (std::shared_ptr<Transaction>& transaction,
+        bool bUnlimited, bool bLocal, FailHard failType,
+        std::shared_ptr<PerfTrace> const& trace) = 0;
+#endif
 
     //--------------------------------------------------------------------------
     //
@@ -180,6 +188,10 @@ public:
 
     virtual Json::Value getConsensusInfo () = 0;
     virtual Json::Value getServerInfo (bool human, bool admin) = 0;
+#ifdef BENCHMARK
+    virtual Json::Value getServerInfo (bool human, bool admin,
+        std::shared_ptr<PerfTrace> const& trace) = 0;
+#endif
     virtual void clearLedgerFetch () = 0;
     virtual Json::Value getLedgerFetchInfo () = 0;
 
@@ -231,6 +243,11 @@ public:
     virtual void pubProposedTransaction (
         std::shared_ptr<ReadView const> const& lpCurrent,
         std::shared_ptr<STTx const> const& stTxn, TER terResult) = 0;
+
+#ifdef BENCHMARK
+    /** Get transaction status counters. */
+    virtual AtomicArray<std::uint64_t>& getTerCounters() = 0;
+#endif
 };
 
 //------------------------------------------------------------------------------

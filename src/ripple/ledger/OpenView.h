@@ -20,6 +20,9 @@
 #ifndef RIPPLE_LEDGER_OPENVIEW_H_INCLUDED
 #define RIPPLE_LEDGER_OPENVIEW_H_INCLUDED
 
+#ifdef BENCHMARK
+#include <ripple/basics/PerfTrace.h>
+#endif
 #include <ripple/ledger/RawView.h>
 #include <ripple/ledger/ReadView.h>
 #include <ripple/ledger/detail/RawStateTable.h>
@@ -68,6 +71,9 @@ private:
     std::shared_ptr<void const> hold_;
 
 public:
+#ifdef BENCHMARK
+    std::shared_ptr<PerfTrace> trace_;
+#endif
     OpenView() = delete;
     OpenView& operator= (OpenView&&) = delete;
     OpenView& operator= (OpenView const&) = delete;
@@ -86,7 +92,33 @@ public:
         Since the SLEs are immutable, calls on the
         RawView interface cannot break invariants.
     */
+#ifndef BENCHMARK
     OpenView (OpenView const&) = default;
+#else
+    OpenView (OpenView const& other)
+        : ReadView (other)
+        , TxsRawView (other)
+    {
+        startTimer (other.trace_, "OpenView.rules_");
+        rules_ = other.rules_;
+        endTimer (other.trace_, "OpenView.rules_");
+        startTimer (other.trace_, "OpenView.txs_");
+        txs_ = other.txs_;
+        endTimer (other.trace_, "OpenView.txs_");
+        startTimer (other.trace_, "OpenView.info_");
+        info_ = other.info_;
+        endTimer (other.trace_, "OpenView.info_");
+        startTimer (other.trace_, "OpenView.base_");
+        base_ = other.base_;
+        endTimer (other.trace_, "OpenView.base_");
+        startTimer (other.trace_, "OpenView.items_");
+        items_ = other.items_;
+        endTimer (other.trace_, "OpenView.items_");
+        startTimer (other.trace_, "OpenView.hold_");
+        hold_ = other.hold_;
+        endTimer (other.trace_, "OpenView.hold_");
+    }
+#endif
 
     /** Construct an open ledger view.
 

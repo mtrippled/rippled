@@ -21,6 +21,9 @@
 #define RIPPLE_BASICS_LOG_H_INCLUDED
 
 #include <ripple/basics/UnorderedContainers.h>
+#ifdef BENCHMARK
+#include <ripple/basics/PerfTrace.h>
+#endif
 #include <beast/utility/ci_char_traits.h>
 #include <beast/utility/Journal.h>
 #include <boost/filesystem.hpp>

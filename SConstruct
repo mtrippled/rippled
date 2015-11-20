@@ -393,6 +393,10 @@ def config_base(env):
         env.Append(CPPPATH=[os.path.join(profile_jemalloc, 'include')])
         env.Append(LINKFLAGS=['-Wl,-rpath,' + os.path.join(profile_jemalloc, 'lib')])
 
+    benchmark = ARGUMENTS.get('benchmark')
+    if benchmark:
+        env.Append(CPPDEFINES={'BENCHMARK': benchmark})
+
 def add_static_libs(env, static_libs, dyn_libs=None):
     if not 'HASSTATICLIBS' in env:
         env['HASSTATICLIBS'] = True
