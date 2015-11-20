@@ -122,12 +122,22 @@ OpenLedger::accept(Application& app, Rules const& rules,
     std::shared_ptr<Ledger const> const& ledger,
         OrderedTxs const& locals, bool retriesFirst,
             OrderedTxs& retries, ApplyFlags flags,
+#ifdef BENCHMARK
+            std::shared_ptr<PerfTrace> const& trace,
+#endif
                 std::string const& suffix,
                     modify_type const& f)
 {
+#ifdef BENCHMARK
+    startTimer (trace, "OpenLedger::accept 1");
+#endif
     JLOG(j_.trace) <<
         "accept ledger " << ledger->seq() << " " << suffix;
     auto next = create(rules, ledger);
+#ifdef BENCHMARK
+    endTimer (trace, "OpenLedger::accept 1");
+    startTimer (trace, "OpenLedger::accept 2");
+#endif
     if (retriesFirst)
     {
         // Handle disputed tx, outside lock
@@ -137,12 +147,24 @@ OpenLedger::accept(Application& app, Rules const& rules,
         apply (app, *next, *ledger, empty{},
             retries, flags, j_);
     }
+#ifdef BENCHMARK
+    endTimer (trace, "OpenLedger::accept 2");
+#endif
     // Block calls to modify, otherwise
     // new tx going into the open ledger
     // would get lost.
+#ifdef BENCHMARK
+    startTimer (trace, "OpenLedger::accept 3");
+#endif
     std::lock_guard<
         std::mutex> lock1(modify_mutex_);
+#ifdef BENCHMARK
+    endTimer (trace, "OpenLedger::accept 3");
+#endif
     // Apply tx from the current open view
+#ifdef BENCHMARK
+    startTimer (trace, "OpenLedger::accept 4");
+#endif
     if (! current_->txs.empty())
         apply (app, *next, *ledger,
             boost::adaptors::transform(
@@ -154,17 +176,42 @@ OpenLedger::accept(Application& app, Rules const& rules,
                 return p.first;
             }),
                 retries, flags, j_);
+#ifdef BENCHMARK
+    endTimer (trace, "OpenLedger::accept 4");
+#endif
     // Apply local tx
+#ifdef BENCHMARK
+    startTimer (trace, "OpenLedger::accept 5");
+#endif
     for (auto const& item : locals)
         ripple::apply(app, *next,
             *item.second, flags, j_);
+#ifdef BENCHMARK
+    endTimer (trace, "OpenLedger::accept 5");
+#endif
     // Call the modifier
+#ifdef BENCHMARK
+    startTimer (trace, "OpenLedger::accept 6");
+#endif
     if (f)
         f(*next, j_);
+#ifdef BENCHMARK
+    endTimer (trace, "OpenLedger::accept 6");
+#endif
     // Switch to the new open view
+#ifdef BENCHMARK
+    startTimer (trace, "OpenLedger::accept 7");
+#endif
     std::lock_guard<
         std::mutex> lock2(current_mutex_);
+#ifdef BENCHMARK
+    endTimer (trace, "OpenLedger::accept 7");
+    startTimer (trace, "OpenLedger::accept 8");
+#endif
     current_ = std::move(next);
+#ifdef BENCHMARK
+    endTimer (trace, "OpenLedger::accept 8");
+#endif
 }
 
 //------------------------------------------------------------------------------

@@ -176,8 +176,25 @@ public:
         std::shared_ptr<Ledger const> const& ledger,
             OrderedTxs const& locals, bool retriesFirst,
                 OrderedTxs& retries, ApplyFlags flags,
+#ifdef BENCHMARK
+                std::shared_ptr<PerfTrace> const& trace,
+#endif
                     std::string const& suffix = "",
                         modify_type const& f = {});
+
+#ifdef BENCHMARK
+    void
+    accept (Application& app, Rules const& rules,
+        std::shared_ptr<Ledger const> const& ledger,
+            OrderedTxs const& locals, bool retriesFirst,
+                OrderedTxs& retries, ApplyFlags flags,
+                    std::string const& suffix = "",
+                        modify_type const& f = {})
+    {
+        accept (app, rules, ledger, locals, retriesFirst, retries, flags,
+                std::shared_ptr<PerfTrace>(), suffix, f);
+    }
+#endif
 
     /** Algorithm for applying transactions.
 
