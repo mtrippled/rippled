@@ -82,28 +82,38 @@ OpenLedger::modify (modify_type const& f, std::shared_ptr<OpenView const>& temp,
 #ifdef BENCHMARK
     endTimer (trace, "modify callback");
 #endif
+
+#ifndef BENCHMARK
     if (changed)
     {
-#ifdef BENCHMARK
-        startTimer (trace, "acquire current_mutex_");
-#endif
         std::lock_guard<
             std::mutex> lock2(
                 current_mutex_);
-#ifdef BENCHMARK
-        endTimer (trace, "acquire current_mutex_");
-        startTimer (trace, "move current_");
-#endif
-        temp = std::move(current_);
-#ifdef BENCHMARK
-        endTimer (trace, "move current_");
-        startTimer (trace, "replace current_");
-#endif
         current_ = std::move(next);
-#ifdef BENCHMARK
-        endTimer (trace, "replace current_");
-#endif
     }
+#else
+    if (changed)
+    {
+        startTimer (trace, "replace OpenView");
+        startTimer (trace, "acquire current_mutex_");
+        std::lock_guard<std::mutex> lock2(current_mutex_);
+        endTimer (trace, "acquire current_mutex_");
+        if (benchmark::benchmark.destroy_in_lock)
+        {
+            current_ = std::move(next);
+        }
+        else
+        {
+            startTimer (trace, "move current_");
+            temp = std::move(current_);
+            endTimer (trace, "move current_");
+            startTimer (trace, "replace current_");
+            current_ = std::move(next);
+            endTimer (trace, "replace current_");
+        }
+        endTimer (trace, "replace OpenView");
+    }
+#endif
     return changed;
 }
 

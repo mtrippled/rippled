@@ -35,6 +35,7 @@ void configure (Config const& c)
     set (benchmark.perf_log, "perf_log", section);
     set (benchmark.log_interval, "log_interval", section);
     set (benchmark.async, "async", section);
+    set (benchmark.destroy_in_lock, "destroy_in_lock", section);
 }
 
 } // benchmark

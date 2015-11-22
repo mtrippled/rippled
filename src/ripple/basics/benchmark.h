@@ -31,6 +31,7 @@ struct Benchmark
     std::string perf_log;
     unsigned int log_interval = 1;
     bool async = false;
+    bool destroy_in_lock = true;
 };
 
 extern Benchmark benchmark;
