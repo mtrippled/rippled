@@ -46,6 +46,7 @@ class __System(object):
         self.linux = self.name == 'Linux'
         self.osx = self.name == 'Darwin'
         self.windows = self.name == 'Windows'
+        self.freebsd = self.name == 'FreeBSD'
         self.distro = None
         self.version = None
 
@@ -66,6 +67,9 @@ class __System(object):
         elif self.windows:
             release, version, csd, ptype = platform.win32_ver()
             self.__display = '%s %s %s (%s)' % (self.name, release, version, ptype)
+        elif self.freebsd:
+            self.__display = '%s %s %s' % (self.name, platform.release(),
+                platform.machine())
 
         else:
             raise Exception('Unknown system platform "' + self.name + '"')

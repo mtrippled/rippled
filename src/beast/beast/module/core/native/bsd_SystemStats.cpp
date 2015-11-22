@@ -22,6 +22,8 @@
 
 //==============================================================================
 
+namespace beast {
+
 void outputDebugString (std::string const& text)
 {
     std::cerr << text << std::endl;

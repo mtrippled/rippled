@@ -154,7 +154,11 @@ public:
         m_alog->at(log::alevel::DEVEL) << "Endpoint destructor called" << log::endl;
         // Tell the memory pool we don't want to be notified about newly freed
         // messages any more (because we wont be here)
+#ifndef __FreeBSD__
         m_pool->set_callback(NULL);
+#else
+        m_pool->set_callback(0);
+#endif
 
         // Detach any connections that are still alive at this point
         boost::lock_guard<boost::recursive_mutex> lock(m_lock);

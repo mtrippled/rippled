@@ -71,7 +71,7 @@
 #  pragma intrinsic (__debugbreak)
 # endif
 # define beast_breakDebugger        { __debugbreak(); }
-#elif BEAST_GCC || BEAST_MAC
+#elif BEAST_GCC || BEAST_MAC || BEAST_BSD
 # if BEAST_NO_INLINE_ASM
 #  define beast_breakDebugger       { }
 # else

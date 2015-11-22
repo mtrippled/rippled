@@ -383,6 +383,8 @@ def config_base(env):
         openssl = os.path.join(OSX_OPENSSL_ROOT, most_recent)
         env.Prepend(CPPPATH='%s/include' % openssl)
         env.Prepend(LIBPATH=['%s/lib' % openssl])
+    elif Beast.system.freebsd:
+        env.Append(CPPPATH='/usr/local/include')
 
     # handle command-line arguments
     profile_jemalloc = ARGUMENTS.get('profile-jemalloc')
@@ -533,7 +535,8 @@ def config_env(toolchain, variant, env):
             'boost_system',
             'boost_thread'
         ]
-        env.Append(LIBS=['dl'])
+        if Beast.system.freebsd is None:
+            env.Append(LIBS=['dl'])
 
         if should_link_static():
             add_static_libs(env, boost_libs)
@@ -555,6 +558,13 @@ def config_env(toolchain, variant, env):
             env.Append(FRAMEWORKS=[
                 'AppKit',
                 'Foundation'
+                ])
+        elif Beast.system.freebsd:
+            env.Append(LIBS=[
+                'pthread',
+                'crypto',
+                'protobuf',
+                'ssl',
                 ])
         else:
             env.Append(LIBS=['rt'])

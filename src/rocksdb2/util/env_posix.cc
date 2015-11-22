@@ -1357,7 +1357,7 @@ class PosixEnv : public Env {
   }
 
   virtual uint64_t NowNanos() {
-#ifdef OS_LINUX
+#if defined(OS_LINUX) || defined(OS_FREEBSD)
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return static_cast<uint64_t>(ts.tv_sec) * 1000000000 + ts.tv_nsec;
