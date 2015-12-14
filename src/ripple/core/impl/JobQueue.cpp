@@ -424,6 +424,16 @@ JobQueue::getNextJob (Job& job)
 
     --data.waiting;
     ++data.running;
+
+#ifdef BENCHMARK
+    counters_.add (1);
+    counters_.add ((type - jtINVALID + 1) * 3 + 1);
+    {
+        std::string t = std::to_string (type);
+        endTimer (job.trace(), "pending " + t);
+        startTimer (job.trace(), "running " + t);
+    }
+#endif
 }
 
 void
