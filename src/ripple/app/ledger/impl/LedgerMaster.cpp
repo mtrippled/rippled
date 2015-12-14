@@ -1965,9 +1965,15 @@ void LedgerMasterImp::doAdvance (std::shared_ptr<PerfTrace>& lockTrace)
                 setPubLedger(ledger);
 
                 {
+#ifdef BENCHMARK
+                    lockTrace.reset();
+#endif
                     ScopedUnlockType sul(m_mutex);
                     app_.getOPs().pubLedger(ledger);
                 }
+#ifdef BENCHMARK
+                lockTrace.reset (new PerfTrace ("masterlock", 23));
+#endif
             }
 
             progress = true;
