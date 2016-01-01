@@ -60,12 +60,14 @@ private:
         std::pair<std::shared_ptr<Serializer const>,
         std::shared_ptr<Serializer const>>>, false>>;
 
-    Rules rules_;
-    txs_map txs_;
-    LedgerInfo info_;
+    // Support parallel readers.
+    Rules const rules_;
+    LedgerInfo const info_;
     ReadView const* base_;
+    std::shared_ptr<void const> const hold_;
+
+    txs_map txs_;
     detail::RawStateTable items_;
-    std::shared_ptr<void const> hold_;
 
 public:
     OpenView() = delete;

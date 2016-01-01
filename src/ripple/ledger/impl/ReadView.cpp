@@ -23,6 +23,24 @@
 
 namespace ripple {
 
+LedgerInfo
+make_LedgerInfo (LedgerInfo const& src, bool open, bool validated,
+    bool accepted, LedgerIndex seq, NetClock::time_point parentCloseTime,
+    uint256 parentHash)
+{
+    LedgerInfo ret (src);
+    ret.open            = open;
+    ret.validated       = validated;
+    ret.accepted        = accepted;
+    ret.seq             = seq;
+    ret.parentCloseTime = parentCloseTime;
+    ret.parentHash      = parentHash;
+
+    return ret;
+}
+
+//------------------------------------------------------------------------------
+
 class Rules::Impl
 {
 private:

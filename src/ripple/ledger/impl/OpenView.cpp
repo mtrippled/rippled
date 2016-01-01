@@ -90,16 +90,11 @@ OpenView::OpenView (open_ledger_t,
     ReadView const* base, Rules const& rules,
         std::shared_ptr<void const> hold)
     : rules_ (rules)
-    , info_ (base->info())
+    , info_  (make_LedgerInfo (base->info(), true, false, false,
+              base->info().seq+1, base->info().closeTime, base->info().hash))
     , base_ (base)
     , hold_ (std::move(hold))
 {
-    info_.open = true;
-    info_.validated = false;
-    info_.accepted = false;
-    info_.seq = base_->info().seq + 1;
-    info_.parentCloseTime = base_->info().closeTime;
-    info_.parentHash = base_->info().hash;
 }
 
 OpenView::OpenView (ReadView const* base,

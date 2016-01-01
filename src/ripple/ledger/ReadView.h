@@ -75,6 +75,26 @@ struct LedgerInfo
     // For all ledgers
     //
 
+    LedgerInfo()
+        : validated (false)
+    {}
+
+    LedgerInfo (LedgerInfo const& src)
+        : open                (src.open)
+        , seq                 (src.seq)
+        , parentCloseTime     (src.parentCloseTime)
+        , hash                (src.hash)
+        , txHash              (src.txHash)
+        , accountHash         (src.accountHash)
+        , parentHash          (src.parentHash)
+        , drops               (src.drops)
+        , validated           (src.validated.load())
+        , accepted            (src.accepted)
+        , closeFlags          (src.closeFlags)
+        , closeTimeResolution (src.closeTimeResolution)
+        , closeTime           (src.closeTime)
+    {}
+
     bool open = true;
     LedgerIndex seq = 0;
     NetClock::time_point parentCloseTime = {};
@@ -94,7 +114,7 @@ struct LedgerInfo
     // If validated is false, it means "not yet validated."
     // Once validated is true, it will never be set false at a later time.
     // VFALCO TODO Make this not mutable
-    bool mutable validated = false;
+    std::atomic<bool> mutable validated;
     bool accepted = false;
 
     // flags indicating how this ledger close took place
@@ -109,6 +129,11 @@ struct LedgerInfo
     //
     NetClock::time_point closeTime = {};
 };
+
+LedgerInfo
+make_LedgerInfo (LedgerInfo const& src, bool open, bool validated,
+    bool accepted, LedgerIndex seq, NetClock::time_point parentCloseTime,
+    uint256 parentHash);
 
 //------------------------------------------------------------------------------
 
