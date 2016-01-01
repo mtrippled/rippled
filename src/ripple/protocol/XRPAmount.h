@@ -36,12 +36,21 @@ class XRPAmount
     , private boost::additive <XRPAmount>
 {
 private:
-    std::int64_t drops_;
+    std::atomic<std::int64_t> drops_;
 
 public:
     XRPAmount () = default;
-    XRPAmount (XRPAmount const& other) = default;
-    XRPAmount& operator= (XRPAmount const& other) = default;
+
+    XRPAmount (XRPAmount const& other)
+    {
+        drops_ = other.drops_.load();
+    }
+
+    XRPAmount& operator= (XRPAmount const& other)
+    {
+        drops_ = other.drops_.load();
+        return *this;
+    }
 
     XRPAmount (beast::Zero)
         : drops_ (0)
