@@ -239,11 +239,15 @@ RawStateTable::erase(
     std::shared_ptr<SLE> const& sle)
 {
     // The base invariant is checked during apply
+    /*
     auto const result = items_.emplace(
         std::piecewise_construct,
             std::forward_as_tuple(sle->key()),
                 std::forward_as_tuple(
                     Action::erase, sle));
+     */
+    auto const result = items_.insert(
+        std::make_pair(sle->key(), std::make_pair(Action::erase, sle)));
     if (result.second)
         return;
     auto& item = result.first->second;
@@ -266,11 +270,15 @@ void
 RawStateTable::insert(
     std::shared_ptr<SLE> const& sle)
 {
+    /*
     auto const result = items_.emplace(
         std::piecewise_construct,
             std::forward_as_tuple(sle->key()),
                 std::forward_as_tuple(
                     Action::insert, sle));
+     */
+    auto const result = items_.insert(
+        std::make_pair(sle->key(), std::make_pair(Action::insert, sle)));
     if (result.second)
         return;
     auto& item = result.first->second;
@@ -293,11 +301,15 @@ void
 RawStateTable::replace(
     std::shared_ptr<SLE> const& sle)
 {
+    /*
     auto const result = items_.emplace(
         std::piecewise_construct,
             std::forward_as_tuple(sle->key()),
                 std::forward_as_tuple(
                     Action::replace, sle));
+     */
+    auto const result = items_.insert(
+        std::make_pair(sle->key(), std::make_pair(Action::replace, sle)));
     if (result.second)
         return;
     auto& item = result.first->second;
