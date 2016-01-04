@@ -35,7 +35,8 @@ template < class Key,
            std::size_t Partitions,
            class Partitioner,
            class Compare = std::less<Key>,
-           class Alloc = std::allocator<std::pair<const Key,T> >
+           class Alloc = std::allocator<std::pair<const Key,T> >,
+           bool isConst = false
          >
 class parallel_map_iter;
 
@@ -65,7 +66,11 @@ public:
     using iterator        = parallel_map_iter<Key, T, Partitions, Partitioner,
         Compare, Alloc>;
     using const_iterator  = parallel_map_iter<Key, T, Partitions, Partitioner,
-        Compare, Alloc>;
+        Compare, Alloc, true>;
+//    using iterator        = parallel_map_iter<Key, T, Partitions, Partitioner,
+//        Compare, Alloc, false>;
+//    using const_iterator  = parallel_map_iter<Key, T, Partitions, Partitioner,
+//        Compare, Alloc, true>;
     // using reverse_iterator = ?;
     // using const_reverse_iterator = ?;
     using difference_type = std::ptrdiff_t;
@@ -102,22 +107,50 @@ public:
     }
 };
 
+template <bool flag, class IsTrue, class IsFalse>
+struct constness;
+
+template <class IsTrue, class IsFalse>
+struct constness<true, IsTrue, IsFalse>
+{
+    using type = IsTrue;
+};
+
+template <class IsTrue, class IsFalse>
+struct constness<false, IsTrue, IsFalse>
+{
+    using type = IsFalse;
+};
+
 template < class Key,
            class T,
            std::size_t Partitions,
            class Partitioner,
            class Compare,
-           class Alloc
+           class Alloc,
+           bool isConst
          >
 class parallel_map_iter
 {
     using key_type        = Key;
     using mapped_type     = T;
     using value_type      = std::pair<const key_type, mapped_type>;
-    using iterator = parallel_map_iter<Key, T, Partitions, Partitioner, Compare,
-        Alloc>;
+    using reference       = typename constness<isConst, value_type const&,
+        value_type&>::type;
+    using pointer         = typename constness<isConst, value_type const*,
+        value_type*>::type;
+    using iterator        = parallel_map_iter<Key, T, Partitions, Partitioner,
+        Compare, Alloc>;
+    using const_iterator  = parallel_map_iter<Key, T, Partitions, Partitioner,
+        Compare, Alloc, true>;
+//    using nodeptr         = constness<isConst, para
 
-    parallel_map<Key, T, Partitions, Partitioner, Compare, Alloc>& map_;
+//typedef typename choose<isconst, const slist_node<T>*,
+//                           slist_node<T>*>::type
+//           nodeptr;
+
+    pointer map_ = nullptr;
+//    parallel_map<Key, T, Partitions, Partitioner, Compare, Alloc>& map_;
     std::size_t partition_ = 0;
     typename std::map<Key, T, Compare, Alloc>::iterator it_;
 
@@ -126,12 +159,12 @@ class parallel_map_iter
     {
         ++it_;
 
-        while (it_ == map_[partition_].end())
+        while (it_ == map_->at(partition_).end())
         {
             if (partition_ == Partitions - 1)
                 return *this;
 
-            it_ = map_[++partition_].begin();
+            it_ = map_->at(++partition_).begin();
         }
 
         return *this;
@@ -140,45 +173,50 @@ class parallel_map_iter
 public:
     parallel_map_iter(parallel_map<Key, T, Partitions, Partitioner, Compare,
         Alloc>& map)
-        : map_ (map)
+        : map_ (&map)
     {}
 
-    iterator&
+    parallel_map_iter(parallel_map_iter<Key, T, Partitions, Partitioner,
+        Compare, Alloc, false> const& other)
+        : map_ (&other.map_)
+    {}
+
+    parallel_map_iter&
     begin()
     {
         partition_ = 0;
-        it_ = map_[partition_].begin();
+        it_ = map_->at(partition_).begin();
         return *this;
     }
 
-    iterator&
+    parallel_map_iter&
     end()
     {
         partition_ = Partitions - 1;
-        it_ = map_[partition_].end();
+        it_ = map_->at(partition_).end();
         return *this;
     }
 
-    iterator&
+    parallel_map_iter&
     find (key_type const& k)
     {
         partition_ = Partitioner(k);
-        it_ = map_[partition_].find(k);
+        it_ = map_->at(partition_).find(k);
         return *this;
     }
 
-    iterator&
+    parallel_map_iter&
     upper_bound (key_type const& k)
     {
         partition_ = Partitioner(k);
-        it_ = map_[partition_].upper_bound(k);
+        it_ = map_->at(partition_).upper_bound(k);
 
-        while (it_ == map_[partition_].end())
+        while (it_ == map_->at(partition_).end())
         {
             if (partition_ == Partitions - 1)
                 return end();
 
-            it_ = map_[++partition_].begin();
+            it_ = map_->at(++partition_).begin();
         }
 
         return *this;
@@ -187,34 +225,40 @@ public:
     void
     erase (iterator it)
     {
-        map_[partition_].erase(it);
+        map_->at(partition_).erase(it);
     }
 
-    value_type&
+    reference
     operator*()
     {
         return *it_;
     }
 
+    pointer
+    operator->()
+    {
+        return &*it_;
+    }
+
     bool
-    operator== (iterator const& other)
+    operator== (parallel_map_iter const& other) const
     {
         return (partition_ == other.partition_) && (it_ == other.it_);
     }
 
     bool
-    operator!= (iterator const& other)
+    operator!= (parallel_map_iter const& other) const
     {
         return ! (*this == other);
     }
 
-    iterator&
+    parallel_map_iter&
     operator++()
     {
         return inc();
     }
 
-    iterator&
+    parallel_map_iter&
     operator++ (int)
     {
         iterator tmp(*this);
@@ -224,10 +268,7 @@ public:
 };
 
 std::size_t
-partitioner (uint256 const& k)
-{
-    return 42;
-}
+partitioner (uint256 const& k);
 
 // Helper class that buffers raw modifications
 class RawStateTable
@@ -295,12 +336,14 @@ private:
         std::less<key_type>, qalloc_type<std::pair<key_type const,
         std::pair<Action, std::shared_ptr<SLE>>>, false>>;
      */
+//    /*
     using items_t = detail::parallel_map<key_type,
         std::pair<Action, std::shared_ptr<SLE>>,
         16,
         std::function<std::size_t (uint256 const&)>,
         std::less<key_type>, qalloc_type<std::pair<key_type const,
         std::pair<Action, std::shared_ptr<SLE>>>, false>>;
+//     */
 
     items_t items_;
     XRPAmount dropsDestroyed_ = 0;

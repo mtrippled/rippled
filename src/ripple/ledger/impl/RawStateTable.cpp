@@ -24,6 +24,12 @@
 namespace ripple {
 namespace detail {
 
+std::size_t
+partitioner (uint256 const& k)
+{
+    return k.data()[0] >> 4;
+}
+
 class RawStateTable::sles_iter_impl
     : public ReadView::sles_type::iter_base
 {
