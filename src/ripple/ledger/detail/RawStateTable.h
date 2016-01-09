@@ -131,10 +131,12 @@ template < class Key,
            bool isConst
          >
 class parallel_map_iter
+    : public std::iterator<std::input_iterator_tag, std::pair<const Key, T>>
 {
+    using value_type = typename std::iterator_traits<parallel_map_iter>::value_type;
     using key_type        = Key;
     using mapped_type     = T;
-    using value_type      = std::pair<const key_type, mapped_type>;
+//    using value_type      = std::pair<const key_type, mapped_type>;
     using reference       = typename constness<isConst, value_type const&,
         value_type&>::type;
     using pointer         = typename constness<isConst, value_type const*,
@@ -159,12 +161,12 @@ class parallel_map_iter
     {
         ++it_;
 
-        while (it_ == map_->at(partition_).end())
+        while (it_ == map_->map_[partition_].end())
         {
             if (partition_ == Partitions - 1)
                 return *this;
 
-            it_ = map_->at(++partition_).begin();
+            it_ = map_->map_[++partition_].begin();
         }
 
         return *this;
@@ -185,7 +187,7 @@ public:
     begin()
     {
         partition_ = 0;
-        it_ = map_->at(partition_).begin();
+        it_ = map_->map_[partition_].begin();
         return *this;
     }
 
@@ -193,7 +195,7 @@ public:
     end()
     {
         partition_ = Partitions - 1;
-        it_ = map_->at(partition_).end();
+        it_ = map_->map_[partition_].end();
         return *this;
     }
 
@@ -201,7 +203,7 @@ public:
     find (key_type const& k)
     {
         partition_ = Partitioner(k);
-        it_ = map_->at(partition_).find(k);
+        it_ = map_->map_[partition_].find(k);
         return *this;
     }
 
@@ -209,14 +211,14 @@ public:
     upper_bound (key_type const& k)
     {
         partition_ = Partitioner(k);
-        it_ = map_->at(partition_).upper_bound(k);
+        it_ = map_->map_[partition_].upper_bound(k);
 
-        while (it_ == map_->at(partition_).end())
+        while (it_ == map_->map_[partition_].end())
         {
             if (partition_ == Partitions - 1)
                 return end();
 
-            it_ = map_->at(++partition_).begin();
+            it_ = map_->map_[++partition_].begin();
         }
 
         return *this;
@@ -225,7 +227,7 @@ public:
     void
     erase (iterator it)
     {
-        map_->at(partition_).erase(it);
+        map_->map_[partition_].erase(it);
     }
 
     reference
@@ -330,20 +332,20 @@ private:
 
     class sles_iter_impl;
 
-    /*
+//    /*
     using items_t = std::map<key_type,
         std::pair<Action, std::shared_ptr<SLE>>,
         std::less<key_type>, qalloc_type<std::pair<key_type const,
         std::pair<Action, std::shared_ptr<SLE>>>, false>>;
-     */
-//    /*
+//     */
+    /*
     using items_t = detail::parallel_map<key_type,
         std::pair<Action, std::shared_ptr<SLE>>,
         16,
         std::function<std::size_t (uint256 const&)>,
         std::less<key_type>, qalloc_type<std::pair<key_type const,
         std::pair<Action, std::shared_ptr<SLE>>>, false>>;
-//     */
+     */
 
     items_t items_;
     XRPAmount dropsDestroyed_ = 0;
