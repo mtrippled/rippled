@@ -21,4 +21,10 @@
 
 namespace ripple {
 
+std::size_t
+partitioner (uint256 const& key)
+{
+    return key.data()[0] >> 4;
+}
+
 } //ripple
