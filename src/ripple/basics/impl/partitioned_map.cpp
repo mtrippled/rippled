@@ -17,7 +17,7 @@
 */
 //==============================================================================
 
-#include <ripple/basics/parallel_map.h>
+#include <ripple/basics/partitioned_map.h>
 
 namespace ripple {
 

@@ -1918,7 +1918,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|x64'">True</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='release|x64'">True</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="..\..\src\ripple\basics\impl\parallel_map.cpp">
+    <ClCompile Include="..\..\src\ripple\basics\impl\partitioned_map.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|x64'">True</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='release|x64'">True</ExcludedFromBuild>
     </ClCompile>
@@ -1965,6 +1965,8 @@
     <ClInclude Include="..\..\src\ripple\basics\make_SSLContext.h">
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\basics\mulDiv.h">
+    </ClInclude>
+    <ClInclude Include="..\..\src\ripple\basics\partitioned_map.h">
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\basics\qalloc.h">
     </ClInclude>

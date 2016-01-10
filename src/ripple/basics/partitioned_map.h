@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_BASICS_PARALLEL_MAP_H_INCLUDED
-#define	RIPPLE_BASICS_PARALLEL_MAP_H_INCLUDED
+#ifndef RIPPLE_BASICS_PARTITIONED_MAP_H_INCLUDED
+#define	RIPPLE_BASICS_PARTITIONED_MAP_H_INCLUDED
 
 #include <ripple/basics/base_uint.h>
 #include <cstdarg>
@@ -37,37 +37,37 @@ template <
     class Compare = std::less<Key>,
     class Alloc = std::allocator<std::pair<const Key,T>>
     >
-class parallel_map
+class partitioned_map
 {
 public:
     template <bool IsConst=false>
-    class parallel_map_iterator
+    class partitioned_map_iterator
         : public std::iterator <
             std::input_iterator_tag,
-            typename parallel_map::value_type,
-            typename parallel_map::difference_type,
+            typename partitioned_map::value_type,
+            typename partitioned_map::difference_type,
             typename std::conditional<IsConst,
-                typename parallel_map::const_pointer,
-                typename parallel_map::pointer>::type,
+                typename partitioned_map::const_pointer,
+                typename partitioned_map::pointer>::type,
             typename std::conditional<IsConst,
-                typename parallel_map::const_reference,
-                typename parallel_map::reference>::type
+                typename partitioned_map::const_reference,
+                typename partitioned_map::reference>::type
             >
     {
     public:
         using value_type =
-            typename std::iterator_traits<parallel_map_iterator>::value_type;
+            typename std::iterator_traits<partitioned_map_iterator>::value_type;
         using pointer =
-            typename std::iterator_traits<parallel_map_iterator>::pointer;
+            typename std::iterator_traits<partitioned_map_iterator>::pointer;
         using reference =
-            typename std::iterator_traits<parallel_map_iterator>::reference;
+            typename std::iterator_traits<partitioned_map_iterator>::reference;
 
     private:
         pointer map_ = nullptr;
         std::size_t partition_ = 0;
         typename std::map<Key, T, Compare, Alloc>::iterator it_;
 
-        parallel_map_iterator&
+        partitioned_map_iterator&
         inc()
         {
             ++it_;
@@ -84,35 +84,35 @@ public:
         }
 
     public:
-        parallel_map_iterator (parallel_map<Key, T, Partitions, Partitioner,
+        partitioned_map_iterator (partitioned_map<Key, T, Partitions, Partitioner,
                 Compare, Alloc>& map)
             : map_ (&map)
         {}
 
-        parallel_map_iterator (parallel_map_iterator<false> const& other)
+        partitioned_map_iterator (partitioned_map_iterator<false> const& other)
             : map_ (other.map_)
             , partition_ (other.partition_)
             , it_ (other.it_)
         {}
 
-        parallel_map_iterator (parallel_map_iterator<IsConst> const& other)
+        partitioned_map_iterator (partitioned_map_iterator<IsConst> const& other)
             : map_ (other.map_)
             , partition_ (other.partition_)
             , it_ (other.it_)
         {}
 
-        parallel_map_iterator&
-        operator= (parallel_map_iterator const& other) = default;
+        partitioned_map_iterator&
+        operator= (partitioned_map_iterator const& other) = default;
 
         bool
-        operator== (parallel_map_iterator const& other) const
+        operator== (partitioned_map_iterator const& other) const
         {
             return (partition_ == other.partition_) && (map_ == other.map_) &&
                 (it_ == other.it_);
         }
 
         bool
-        operator!= (parallel_map_iterator const& other) const
+        operator!= (partitioned_map_iterator const& other) const
         {
             return ! (*this == other);
         }
@@ -129,13 +129,13 @@ public:
             return &*it_;
         }
 
-        parallel_map_iterator&
+        partitioned_map_iterator&
         operator++()
         {
             return inc();
         }
 
-        parallel_map_iterator&
+        partitioned_map_iterator&
         operator++ (int)
         {
             iterator tmp(*this);
@@ -143,7 +143,7 @@ public:
             return tmp;
         }
 
-        parallel_map_iterator&
+        partitioned_map_iterator&
         begin()
         {
             partition_ = 0;
@@ -151,7 +151,7 @@ public:
             return *this;
         }
 
-        parallel_map_iterator&
+        partitioned_map_iterator&
         end()
         {
             partition_ = Partitions - 1;
@@ -159,8 +159,8 @@ public:
             return *this;
         }
 
-        parallel_map_iterator&
-        find (typename parallel_map::key_type const& key)
+        partitioned_map_iterator&
+        find (typename partitioned_map::key_type const& key)
         {
             partition_ = Partitioner(key);
             it_ = map_->map_[partition_].find(key);
@@ -171,8 +171,8 @@ public:
             return *this;
         }
 
-        parallel_map_iterator&
-        upper_bound (typename parallel_map::key_type const& key)
+        partitioned_map_iterator&
+        upper_bound (typename partitioned_map::key_type const& key)
         {
             partition_ = Partitioner(key);
             it_ = map_->map_[partition_].upper_bound(key);
@@ -188,15 +188,15 @@ public:
             return *this;
         }
 
-        parallel_map_iterator&
-        erase (typename parallel_map::const_iterator it)
+        partitioned_map_iterator&
+        erase (typename partitioned_map::const_iterator it)
         {
             return it.map_->at(it.partition_).erase(it.it_);
         }
 
-        std::pair<parallel_map_iterator, bool>
-        emplace (std::tuple<typename parallel_map::key_type const> const& key,
-            std::tuple<typename parallel_map::mapped_type> const& mapped)
+        std::pair<partitioned_map_iterator, bool>
+        emplace (std::tuple<typename partitioned_map::key_type const> const& key,
+            std::tuple<typename partitioned_map::mapped_type> const& mapped)
         {
             partition_ = Partition(std::get<0>(key));
             auto s = map_->map_[partition_].emplace(std::piecewise_construct,
@@ -205,17 +205,17 @@ public:
             return std::make_pair(*this, s.second);
         }
 
-        std::pair<parallel_map_iterator, bool>
-        emplace (typename parallel_map::key_type const &key,
-            typename parallel_map::mapped_type const& mapped)
+        std::pair<partitioned_map_iterator, bool>
+        emplace (typename partitioned_map::key_type const &key,
+            typename partitioned_map::mapped_type const& mapped)
         {
             return emplace(std::piecewise_construct, std::forward_as_tuple(key),
                 std::forward_as_tuple(mapped));
         }
 
-        std::pair<parallel_map_iterator, bool>
-        emplace (std::pair<typename parallel_map::key_type const,
-            typename parallel_map::mapped_type> const& value)
+        std::pair<partitioned_map_iterator, bool>
+        emplace (std::pair<typename partitioned_map::key_type const,
+            typename partitioned_map::mapped_type> const& value)
         {
             return emplace(std::piecewise_construct,
                 std::forward_as_tuple(value.first),
@@ -232,8 +232,8 @@ public:
     using pointer         = value_type*;
     using const_pointer   = value_type const*;
     using difference_type = std::ptrdiff_t;
-    using iterator        = parallel_map_iterator<false>;
-    using const_iterator  = parallel_map_iterator<true>;
+    using iterator        = partitioned_map_iterator<false>;
+    using const_iterator  = partitioned_map_iterator<true>;
 
 private:
     std::array<std::map<Key, T, Compare, Alloc>, Partitions> map_;
@@ -321,4 +321,4 @@ partitioner (uint256 const& key);
 
 } // ripple
 
-#endif // RIPPLE_BASICS_PARALLEL_MAP_H_INCLUDED
+#endif // RIPPLE_BASICS_PARTITIONED_MAP_H_INCLUDED
