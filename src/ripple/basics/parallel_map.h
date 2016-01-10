@@ -316,7 +316,7 @@ public:
 
 //------------------------------------------------------------------------------
 
-std::size_t
+inline std::size_t
 partitioner (uint256 const& key);
 
 } // ripple
