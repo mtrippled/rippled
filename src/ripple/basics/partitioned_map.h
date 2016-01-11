@@ -84,18 +84,15 @@ public:
         }
 
     public:
-        partitioned_map_iterator (partitioned_map<Key, T, Partitions, Partitioner,
-                Compare, Alloc>& map)
+        partitioned_map_iterator()
+        {}
+
+        partitioned_map_iterator (std::array<std::map<Key, T, Compare, Alloc>,
+            Partitions> const& map)
             : map_ (&map)
         {}
 
         partitioned_map_iterator (partitioned_map_iterator<false> const& other)
-            : map_ (other.map_)
-            , partition_ (other.partition_)
-            , it_ (other.it_)
-        {}
-
-        partitioned_map_iterator (partitioned_map_iterator<IsConst> const& other)
             : map_ (other.map_)
             , partition_ (other.partition_)
             , it_ (other.it_)
@@ -118,13 +115,13 @@ public:
         }
 
         reference
-        operator*()
+        operator*() const
         {
             return *it_;
         }
 
         pointer
-        operator->()
+        operator->() const
         {
             return &*it_;
         }
@@ -194,9 +191,11 @@ public:
             return it.map_->at(it.partition_).erase(it.it_);
         }
 
+        template <class Mapped>
         std::pair<partitioned_map_iterator, bool>
-        emplace (std::tuple<typename partitioned_map::key_type const> const& key,
-            std::tuple<typename partitioned_map::mapped_type> const& mapped)
+        emplace (std::piecewise_construct_t const& p,
+            std::tuple<typename partitioned_map::key_type const> const& key,
+            std::tuple<Mapped> const& mapped)
         {
             partition_ = Partition(std::get<0>(key));
             auto s = map_->map_[partition_].emplace(std::piecewise_construct,
@@ -205,6 +204,7 @@ public:
             return std::make_pair(*this, s.second);
         }
 
+        /*
         std::pair<partitioned_map_iterator, bool>
         emplace (typename partitioned_map::key_type const &key,
             typename partitioned_map::mapped_type const& mapped)
@@ -221,6 +221,7 @@ public:
                 std::forward_as_tuple(value.first),
                 std::forward_as_tuple(value.second));
         }
+         */
 };
 
 public:
@@ -284,7 +285,7 @@ public:
     const_iterator&
     upper_bound (key_type const& key) const
     {
-        return iterator(map_).upper_bound(key);
+        return const_iterator(map_).upper_bound(key);
     }
 
     iterator&
@@ -304,13 +305,6 @@ public:
     emplace (Args&&... args)
     {
         return iterator(map_).emplace(args...);
-    }
-
-    template <class... Args>
-    std::pair<const_iterator, bool>
-    emplace (Args&&...args)
-    {
-        return const_iterator(map_).emplace(args...);
     }
 };
 
