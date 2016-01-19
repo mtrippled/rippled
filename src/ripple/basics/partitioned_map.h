@@ -33,7 +33,8 @@ template <
     class Key,
     class T,
     std::size_t Partitions,
-    class Partitioner,
+    std::size_t(*Partitioner)(Key const&),
+//    class Partitioner,
     class Compare = std::less<Key>,
     class Alloc = std::allocator<std::pair<const Key,T>>
     >
@@ -54,6 +55,9 @@ public:
                 typename partitioned_map::reference>::type
             >
     {
+        friend class partitioned_map_iterator<true>;
+        friend class partitioned_map_iterator<false>;
+
     public:
         using value_type =
             typename std::iterator_traits<partitioned_map_iterator>::value_type;
@@ -61,23 +65,30 @@ public:
             typename std::iterator_traits<partitioned_map_iterator>::pointer;
         using reference =
             typename std::iterator_traits<partitioned_map_iterator>::reference;
+        using map_type =
+            typename std::conditional<IsConst, typename partitioned_map::map_type const, typename partitioned_map::map_type>::type;
+        using map_iterator =
+                typename std::conditional<IsConst, typename std::map<Key, T, Compare, Alloc>::const_iterator, typename std::map<Key, T, Compare, Alloc>::iterator>::type;
 
     private:
-        pointer map_ = nullptr;
+        map_type* map_ = nullptr;
+//        std::array<std::map<Key, T, Compare, Alloc>, Partitions> * map_ = nullptr;
+//        pointer map_ = nullptr;
         std::size_t partition_ = 0;
-        typename std::map<Key, T, Compare, Alloc>::iterator it_;
+//        typename std::map<Key, T, Compare, Alloc>::iterator it_;
+        map_iterator it_;
 
         partitioned_map_iterator&
         inc()
         {
             ++it_;
 
-            while (it_ == map_->map_[partition_].end())
+            while (it_ == map_->at(partition_).end())
             {
                 if (partition_ == Partitions - 1)
                     return *this;
 
-                it_ = map_->map_[++partition_].begin();
+                it_ = map_->at(++partition_).begin();
             }
 
             return *this;
@@ -87,8 +98,7 @@ public:
         partitioned_map_iterator()
         {}
 
-        partitioned_map_iterator (std::array<std::map<Key, T, Compare, Alloc>,
-            Partitions> const& map)
+        partitioned_map_iterator (map_type& map)
             : map_ (&map)
         {}
 
@@ -144,7 +154,7 @@ public:
         begin()
         {
             partition_ = 0;
-            it_ = map_->map_[partition_].begin();
+            it_ = map_->at(partition_).begin();
             return *this;
         }
 
@@ -152,7 +162,7 @@ public:
         end()
         {
             partition_ = Partitions - 1;
-            it_ = map_->map_[partition_].end();
+            it_ = map_->at(partition_).end();
             return *this;
         }
 
@@ -160,9 +170,9 @@ public:
         find (typename partitioned_map::key_type const& key)
         {
             partition_ = Partitioner(key);
-            it_ = map_->map_[partition_].find(key);
+            it_ = map_->at(partition_).find(key);
 
-            if (it_ == map_->map_[partition_].end())
+            if (it_ == map_->at(partition_).end())
                 return end();
 
             return *this;
@@ -172,14 +182,14 @@ public:
         upper_bound (typename partitioned_map::key_type const& key)
         {
             partition_ = Partitioner(key);
-            it_ = map_->map_[partition_].upper_bound(key);
+            it_ = map_->at(partition_).upper_bound(key);
 
-            while (it_ == map_->map_[partition_].end())
+            while (it_ == map_->at(partition_).end())
             {
                 if (partition_ == Partitions - 1)
                     return end();
 
-                it_ = map_->map_[++partition_].begin();
+                it_ = map_->at(++partition_).begin();
             }
 
             return *this;
@@ -188,20 +198,44 @@ public:
         partitioned_map_iterator&
         erase (typename partitioned_map::const_iterator it)
         {
-            return it.map_->at(it.partition_).erase(it.it_);
+//            return it.map_->at(it.partition_).erase(it.it_);
+            map_->at(partition_).erase(it.it_);
+//            ++it.partition_;
+//            it.map_ = nullptr;
+//            it.it_ = *this;
+            return *this;
         }
 
-        template <class Mapped>
+//        template <class... Keyed, class... Mapped>
+        template <class... Urgs>
         std::pair<partitioned_map_iterator, bool>
-        emplace (std::piecewise_construct_t const& p,
-            std::tuple<typename partitioned_map::key_type const> const& key,
-            std::tuple<Mapped> const& mapped)
+        emplace (Urgs&&... urgs)
+//        emplace (std::pair<Keyed..., Mapped...> foo)
+//        emplace (std::piecewise_construct_t const& p,
+//            Keyed keyed,
+//            std::tuple<typename partitioned_map::key_type const> const& key,
+//            Mapped mapped)
         {
-            partition_ = Partition(std::get<0>(key));
-            auto s = map_->map_[partition_].emplace(std::piecewise_construct,
-                key, mapped);
-            it_ = s.first;
-            return std::make_pair(*this, s.second);
+            std::tuple<Urgs...> a(urgs...);
+
+            if (sizeof...(urgs) == 3)
+            {
+                partition_ = Partitioner(std::get<0>(std::get<1>(a)));
+                auto const b = std::get<0>(std::get<1>(a));
+                auto const c = std::get<0>(std::get<2>(a));
+                auto const d = std::get<1>(std::get<2>(a));
+                typename std::tuple_element<2, std::tuple<Urgs...>>::type lv = std::get<2>(a);
+                auto s = map_->at(partition_).emplace(
+                    std::piecewise_construct, std::get<1>(a), lv);
+//                    std::piecewise_construct, std::get<1>(a), std::get<2>(a));
+//                    std::piecewise_construct, std::get<1>(a), std::make_tuple(c, d));
+                it_ = s.first;
+                return std::make_pair(*this, s.second);
+            }
+            else
+            {
+                // TODO as other forms of emplace() are used.
+            }
         }
 
         /*
@@ -235,9 +269,11 @@ public:
     using difference_type = std::ptrdiff_t;
     using iterator        = partitioned_map_iterator<false>;
     using const_iterator  = partitioned_map_iterator<true>;
+    using map_type        = std::array<std::map<Key, T, Compare, Alloc>,
+                                Partitions>;
 
 private:
-    std::array<std::map<Key, T, Compare, Alloc>, Partitions> map_;
+    map_type map_;
 
 public:
     iterator&
@@ -289,15 +325,17 @@ public:
     }
 
     iterator&
-    erase (const_iterator it)
+    erase (iterator it)
     {
-        return iterator(it).erase(it);
+        return it.erase(it);
+//        return iterator(it).erase(it);
     }
 
     const_iterator&
     erase (const_iterator it) const
     {
-        return const_iterator(it).erase(it);
+        return it.erase(it);
+//        return const_iterator(it).erase(it);
     }
 
     template <class... Args>
@@ -310,7 +348,7 @@ public:
 
 //------------------------------------------------------------------------------
 
-inline std::size_t
+std::size_t
 partitioner (uint256 const& key);
 
 } // ripple

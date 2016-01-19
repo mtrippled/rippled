@@ -100,7 +100,8 @@ private:
     using items_t = partitioned_map<key_type,
         std::pair<Action, std::shared_ptr<SLE>>,
         16,
-        std::function<std::size_t (uint256 const&)>,
+        &ripple::partitioner,
+//        std::function<std::size_t (uint256 const&)>,
         std::less<key_type>, qalloc_type<std::pair<key_type const,
         std::pair<Action, std::shared_ptr<SLE>>>, false>>;
 
