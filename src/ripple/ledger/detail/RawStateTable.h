@@ -95,15 +95,21 @@ private:
         std::pair<Action, std::shared_ptr<SLE>>,
         std::less<key_type>, qalloc_type<std::pair<key_type const,
         std::pair<Action, std::shared_ptr<SLE>>>, false>>;
-     */
+    */
 
+    /*
     using items_t = partitioned_map<key_type,
         std::pair<Action, std::shared_ptr<SLE>>,
         16,
         &ripple::partitioner,
-//        std::function<std::size_t (uint256 const&)>,
         std::less<key_type>, qalloc_type<std::pair<key_type const,
         std::pair<Action, std::shared_ptr<SLE>>>, false>>;
+    */
+
+    using items_t = partitioned_map<key_type,
+        std::pair<Action, std::shared_ptr<SLE>>,
+        16,
+        &ripple::partitioner>;
 
     items_t items_;
     XRPAmount dropsDestroyed_ = 0;

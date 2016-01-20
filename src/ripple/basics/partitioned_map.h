@@ -34,7 +34,6 @@ template <
     class T,
     std::size_t Partitions,
     std::size_t(*Partitioner)(Key const&),
-//    class Partitioner,
     class Compare = std::less<Key>,
     class Alloc = std::allocator<std::pair<const Key,T>>
     >
@@ -226,7 +225,8 @@ public:
                 auto const d = std::get<1>(std::get<2>(a));
                 typename std::tuple_element<2, std::tuple<Urgs...>>::type lv = std::get<2>(a);
                 auto s = map_->at(partition_).emplace(
-                    std::piecewise_construct, std::get<1>(a), lv);
+                    urgs...);
+//                    std::piecewise_construct, std::get<1>(a), lv);
 //                    std::piecewise_construct, std::get<1>(a), std::get<2>(a));
 //                    std::piecewise_construct, std::get<1>(a), std::make_tuple(c, d));
                 it_ = s.first;
