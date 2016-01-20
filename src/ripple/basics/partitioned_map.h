@@ -29,6 +29,30 @@
 
 namespace ripple {
 
+namespace detail {
+template<int...> struct index_tuple{};
+
+template<int I, typename IndexTuple, typename... Types>
+struct make_indexes_impl;
+
+template<int I, int... Indexes, typename T, typename ... Types>
+struct make_indexes_impl<I, index_tuple<Indexes...>, T, Types...>
+{
+    typedef typename make_indexes_impl<I + 1, index_tuple<Indexes..., I>, Types...>::type type;
+};
+
+template<int I, int... Indexes>
+struct make_indexes_impl<I, index_tuple<Indexes...> >
+{
+    typedef index_tuple<Indexes...> type;
+};
+
+template<typename ... Types>
+struct make_indexes : make_indexes_impl<0, index_tuple<>, Types...>
+{};
+
+}
+
 template <
     class Key,
     class T,
@@ -106,6 +130,16 @@ public:
             , partition_ (other.partition_)
             , it_ (other.it_)
         {}
+
+        partitioned_map_iterator(
+                map_type& map,
+                std::size_t partition,
+                map_iterator iter)
+            : map_ (&map)
+            , partition_ (partition)
+            , it_ (iter)
+        {
+        }
 
         partitioned_map_iterator&
         operator= (partitioned_map_iterator const& other) = default;
@@ -205,39 +239,6 @@ public:
             return *this;
         }
 
-//        template <class... Keyed, class... Mapped>
-        template <class... Urgs>
-        std::pair<partitioned_map_iterator, bool>
-        emplace (Urgs&&... urgs)
-//        emplace (std::pair<Keyed..., Mapped...> foo)
-//        emplace (std::piecewise_construct_t const& p,
-//            Keyed keyed,
-//            std::tuple<typename partitioned_map::key_type const> const& key,
-//            Mapped mapped)
-        {
-            std::tuple<Urgs...> a(urgs...);
-
-            if (sizeof...(urgs) == 3)
-            {
-                partition_ = Partitioner(std::get<0>(std::get<1>(a)));
-                auto const b = std::get<0>(std::get<1>(a));
-                auto const c = std::get<0>(std::get<2>(a));
-                auto const d = std::get<1>(std::get<2>(a));
-                typename std::tuple_element<2, std::tuple<Urgs...>>::type lv = std::get<2>(a);
-                auto s = map_->at(partition_).emplace(
-                    urgs...);
-//                    std::piecewise_construct, std::get<1>(a), lv);
-//                    std::piecewise_construct, std::get<1>(a), std::get<2>(a));
-//                    std::piecewise_construct, std::get<1>(a), std::make_tuple(c, d));
-                it_ = s.first;
-                return std::make_pair(*this, s.second);
-            }
-            else
-            {
-                // TODO as other forms of emplace() are used.
-            }
-        }
-
         /*
         std::pair<partitioned_map_iterator, bool>
         emplace (typename partitioned_map::key_type const &key,
@@ -256,7 +257,7 @@ public:
                 std::forward_as_tuple(value.second));
         }
          */
-};
+    };
 
 public:
     using key_type        = Key;
@@ -338,11 +339,40 @@ public:
 //        return const_iterator(it).erase(it);
     }
 
-    template <class... Args>
-    std::pair<iterator, bool>
-    emplace (Args&&... args)
+    // Should be private:
+    template <
+        class... T1,
+        class... T2,
+        int... I1,
+        int... I2>
+    auto
+    emplace_special (
+        std::size_t partition,
+        std::tuple<T1...> const& t1,
+        std::tuple<T2...> const& t2,
+        detail::index_tuple<I1...>,
+        detail::index_tuple<I2...>)
     {
-        return iterator(map_).emplace(args...);
+        return map_.at(partition).emplace(
+            std::piecewise_construct,
+            std::tuple<T1...>(std::forward<T1>(std::get<I1>(t1))...),
+            std::tuple<T2...>(std::forward<T2>(std::get<I2>(t2))...));
+    }
+
+    template <class... T1, class... T2>
+    std::pair<iterator, bool>
+    emplace (std::piecewise_construct_t, std::tuple<T1...>&& t1, std::tuple<T2...>&& t2)
+    {
+        auto partition = Partitioner(std::get<0>(t1));
+
+        auto ret = emplace_special (partition,
+            std::forward<std::tuple<T1...>>(t1),
+            std::forward<std::tuple<T2...>>(t2),
+            typename detail::make_indexes<T1...>::type(),
+            typename detail::make_indexes<T2...>::type());
+
+        return std::make_pair (
+            iterator(map_, partition, ret.first), ret.second);
     }
 };
 
