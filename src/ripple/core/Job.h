@@ -75,6 +75,7 @@ enum JobType
     jtNS_SYNC_READ  ,
     jtNS_ASYNC_READ ,
     jtNS_WRITE      ,
+    jtMAX           ,
 };
 
 class Job

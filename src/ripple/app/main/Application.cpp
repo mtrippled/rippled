@@ -404,7 +404,9 @@ public:
         //
         , m_jobQueue (std::make_unique<JobQueue>(
             m_collectorManager->group ("jobq"), m_nodeStoreScheduler,
-            logs_->journal("JobQueue"), *logs_))
+            logs_->journal("JobQueue"), *logs_,
+            config_->exists (SECTION_VALIDATOR_TOKEN) ||
+            config_->exists (SECTION_VALIDATION_SEED)))
 
         //
         // Anything which calls addJob must be a descendant of the JobQueue

@@ -28,6 +28,7 @@
 #include <ripple/core/Stoppable.h>
 #include <ripple/core/impl/Workers.h>
 #include <ripple/json/json_value.h>
+#include <ripple/basics/AtomicArray.h>
 #include <boost/coroutine/all.hpp>
 
 namespace ripple {
@@ -108,7 +109,7 @@ public:
     using JobFunction = std::function <void(Job&)>;
 
     JobQueue (beast::insight::Collector::ptr const& collector,
-        Stoppable& parent, beast::Journal journal, Logs& logs);
+        Stoppable& parent, beast::Journal journal, Logs& logs, bool validator);
     ~JobQueue ();
 
     /** Adds a job to the JobQueue.
@@ -185,6 +186,26 @@ public:
     void
     rendezvous();
 
+    /**
+     * For each job type, there are 3 states: pending, running, and finished.
+     * There is an additional set of 3 entries for the total of all
+     * job types in each state. These are in indices 0-2.
+     */
+    AtomicArray<std::uint64_t> counters_ = AtomicArray<std::uint64_t> (
+            (jtMAX - jtINVALID + 1) * 3, perf_jss::job_queue_counters);
+
+    /** Get per-job counters. */
+    AtomicArray<std::uint64_t>& getCounters()
+    {
+        return counters_;
+    }
+
+    /** Get number of worker threads. */
+    int getNumberOfThreads()
+    {
+        return m_workers.getNumberOfThreads();
+    }
+
 private:
     friend class Coro;
 
@@ -212,6 +233,8 @@ private:
     beast::insight::Hook hook;
 
     std::condition_variable cv_;
+
+    bool validator_;
 
     static JobTypes const& getJobTypes()
     {

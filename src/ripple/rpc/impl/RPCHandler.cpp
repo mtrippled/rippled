@@ -37,11 +37,17 @@
 #include <ripple/resource/Fees.h>
 #include <ripple/rpc/Role.h>
 #include <ripple/resource/Fees.h>
+#include <ripple/basics/AtomicArray.h>
+#include <atomic>
+#include <cstdint>
+#include <chrono>
 
 namespace ripple {
 namespace RPC {
 
 namespace {
+
+std::atomic<std::uint64_t> RPCCOUNTER {0};
 
 /**
    This code is called from both the HTTP RPC handler and Websockets.
@@ -193,9 +199,26 @@ Status callMethod (
 {
     try
     {
+        std::uint64_t rpcCounter = RPCCOUNTER++;
+        auto begin = std::chrono::steady_clock::now();
+
+        Json::Value timer;
+        timer[perf_jss::rpc_counter] = std::to_string (rpcCounter);
+        timer[perf_jss::rpc_command] = name;
+        timer[perf_jss::starting] = true;
+
         auto v = context.app.getJobQueue().makeLoadEvent(
             jtGENERIC, "cmd:" + name);
-        return method (context, result);
+        JLOG (context.j.debug())
+            << Json::to_string (timer);
+        auto ret = method (context, result);
+        timer[perf_jss::starting] = false;
+        timer[perf_jss::duration_us] = std::to_string (
+                std::chrono::duration_cast <std::chrono::microseconds>(
+                        std::chrono::steady_clock::now() - begin).count());
+        JLOG (context.j.debug())
+            << Json::to_string (timer);
+        return ret;
     }
     catch (std::exception& e)
     {

@@ -24,7 +24,7 @@
 namespace ripple {
 
 JobQueue::JobQueue (beast::insight::Collector::ptr const& collector,
-    Stoppable& parent, beast::Journal journal, Logs& logs)
+    Stoppable& parent, beast::Journal journal, Logs& logs, bool validator)
     : Stoppable ("JobQueue", parent)
     , m_journal (journal)
     , m_lastJob (0)
@@ -33,6 +33,7 @@ JobQueue::JobQueue (beast::insight::Collector::ptr const& collector,
     , m_workers (*this, "JobQueue", 0)
     , m_cancelCallback (std::bind (&Stoppable::isStopping, this))
     , m_collector (collector)
+    , validator_ (validator)
 {
     hook = m_collector->make_hook (std::bind (&JobQueue::collect, this));
     job_count = m_collector->make_gauge ("job_count");
@@ -107,6 +108,8 @@ JobQueue::addJob (JobType type, std::string const& name,
             m_jobSet.insert (Job (type, name, ++m_lastJob,
                 data.load (), func, m_cancelCallback)));
         queueJob (*result.first, lock);
+        counters_.add (0);
+        counters_.add ((type - jtINVALID + 1) * 3);
     }
 }
 
@@ -381,6 +384,8 @@ JobQueue::getNextJob (Job& job)
 
     --data.waiting;
     ++data.running;
+    counters_.add (1);
+    counters_.add ((type - jtINVALID + 1) * 3 + 1);
 }
 
 void
@@ -400,6 +405,8 @@ JobQueue::finishJob (JobType type)
     }
 
     --data.running;
+    counters_.add (2);
+    counters_.add ((type - jtINVALID + 1) * 3 + 2);
 }
 
 template <class Rep, class Period>

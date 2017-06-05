@@ -666,6 +666,14 @@ void NetworkOPsImp::onDeadlineTimer (DeadlineTimer& timer)
 void NetworkOPsImp::processHeartbeatTimer ()
 {
     {
+        Json::Value jc;
+        jc[perf_jss::num_workers] = m_job_queue.getNumberOfThreads();
+        jc[m_job_queue.counters_.name()] = m_job_queue.counters_.json();
+        JLOG(m_journal.debug())
+            << Json::to_string(jc);
+    }
+
+    {
         auto lock = make_lock(app_.getMasterMutex());
 
         // VFALCO NOTE This is for diagnosing a crash on exit
