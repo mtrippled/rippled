@@ -26,33 +26,39 @@
 #include <map>
 #include <string>
 #include <vector>
+#if RIPPLED_PERF
+#include <ripple/basics/ContainerAtomic.h>
+#include <cstdint>
+#include <cstddef>
+#include <unordered_map>
+#include <functional>
+#endif
 
 /** \brief JSON (JavaScript Object Notation).
  */
-namespace Json
-{
+namespace Json {
 
 /** \brief Type of the value held by a Value object.
  */
-enum ValueType
-{
-    nullValue = 0, ///< 'null' value
-    intValue,      ///< signed integer value
-    uintValue,     ///< unsigned integer value
-    realValue,     ///< double value
-    stringValue,   ///< UTF-8 string value
-    booleanValue,  ///< bool value
-    arrayValue,    ///< array value (ordered list)
-    objectValue    ///< object value (collection of name/value pairs).
-};
+    enum ValueType
+    {
+        nullValue = 0, ///< 'null' value
+        intValue,      ///< signed integer value
+        uintValue,     ///< unsigned integer value
+        realValue,     ///< double value
+        stringValue,   ///< UTF-8 string value
+        booleanValue,  ///< bool value
+        arrayValue,    ///< array value (ordered list)
+        objectValue    ///< object value (collection of name/value pairs).
+    };
 
-enum CommentPlacement
-{
-    commentBefore = 0,        ///< a comment placed on the line before a value
-    commentAfterOnSameLine,   ///< a comment just after a value on the same line
-    commentAfter,             ///< a comment on the line after a value (only make sense for root value)
-    numberOfCommentPlacement
-};
+    enum CommentPlacement
+    {
+        commentBefore = 0,        ///< a comment placed on the line before a value
+        commentAfterOnSameLine,   ///< a comment just after a value on the same line
+        commentAfter,             ///< a comment on the line after a value (only make sense for root value)
+        numberOfCommentPlacement
+    };
 
 /** \brief Lightweight wrapper to tag static string.
  *
@@ -68,27 +74,63 @@ enum CommentPlacement
  * object[code] = 1234;
  * \endcode
  */
-class StaticString
+    class StaticString
+    {
+    public:
+        constexpr explicit StaticString(const char *czstring)
+                : str_(czstring)
+        {
+        }
+
+        constexpr operator const char *() const
+        {
+            return str_;
+        }
+
+        constexpr const char *c_str() const
+        {
+            return str_;
+        }
+
+    private:
+        const char *str_;
+    };
+
+#if RIPPLED_PERF
+} // Json
+namespace std {
+template <>
+struct hash<Json::StaticString>
 {
-public:
-    constexpr explicit StaticString ( const char* czstring )
-        : str_ ( czstring )
+    std::size_t operator()(Json::StaticString const &k) const
     {
+        return std::hash<std::string>()(k.c_str());
     }
-
-    constexpr operator const char* () const
-    {
-        return str_;
-    }
-
-    constexpr const char* c_str () const
-    {
-        return str_;
-    }
-
-private:
-    const char* str_;
 };
+} // std
+
+namespace Json {
+
+inline bool operator< (StaticString x, StaticString y)
+{
+    return strcmp(x.c_str(), y.c_str()) < 0;
+}
+
+inline bool operator> (StaticString x, StaticString y)
+{
+    return strcmp(x.c_str(), y.c_str()) < 0;
+}
+
+inline bool operator<= (StaticString x, StaticString y)
+{
+    return strcmp(x.c_str(), y.c_str()) <= 0;
+}
+
+inline bool operator>= (StaticString x, StaticString y)
+{
+    return strcmp(x.c_str(), y.c_str()) >= 0;
+}
+#endif
 
 inline bool operator== (StaticString x, StaticString y)
 {
@@ -217,6 +259,28 @@ public:
     Value ( double value );
     Value ( const char* value );
     Value ( const char* beginValue, const char* endValue );
+
+#if RIPPLED_PERF
+    Value ( std::uint64_t value );
+    Value ( std::int64_t value );
+
+    template <class T>
+    Value ( ripple::perf::ContainerAtomic<T> const& value )
+        : type_ (nullValue)
+    {
+        *this = static_cast<T>(value.load());
+    }
+
+    template <class T>
+    Value ( std::unordered_map<StaticString*, T> const& m )
+            : type_ (nullValue)
+    {
+        *this = Json::objectValue;
+        for (auto const& i : m)
+            this->operator[](*i.first) = Value(i.second);
+    }
+#endif
+
     /** \brief Constructs a value from a static string.
 
      * Like other value string constructor but do not duplicate the string for
@@ -385,7 +449,11 @@ private:
         double real_;
         bool bool_;
         char* string_;
+#if RIPPLED_PERF
+        ObjectValues* map_ = nullptr;
+#else
         ObjectValues* map_;
+#endif
     } value_;
     ValueType type_ : 8;
     int allocated_ : 1;     // Notes: if declared as bool, bitfield is useless.

@@ -20,6 +20,9 @@
 #ifndef RIPPLE_BASICS_LOG_H_INCLUDED
 #define RIPPLE_BASICS_LOG_H_INCLUDED
 
+#if RIPPLED_PERF
+#include <ripple/basics/Trace.h>
+#endif
 #include <ripple/basics/UnorderedContainers.h>
 #include <beast/core/string.hpp>
 #include <ripple/beast/utility/Journal.h>

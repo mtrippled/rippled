@@ -22,6 +22,10 @@
 
 #include <boost/optional.hpp>
 #include <string>
+#if RIPPLED_PERF
+#include <unordered_map>
+#include <type_traits>
+#endif
 
 namespace ripple {
 
@@ -164,6 +168,9 @@ enum TER
     // - Applied
     // - Forwarded
     tesSUCCESS      = 0,
+#if RIPPLED_PERF
+    tesTOTAL,
+#endif
 
     // 100 .. 159 C
     //   Claim fee only (ripple transaction with no good paths, pay to
@@ -214,7 +221,7 @@ enum TER
     tecINTERNAL                 = 144,
     tecOVERSIZE                 = 145,
     tecCRYPTOCONDITION_ERROR    = 146,
-    tecINVARIANT_FAILED         = 147
+    tecINVARIANT_FAILED         = 147,
 };
 
 inline bool isTelLocal(TER x)
@@ -247,7 +254,13 @@ inline bool isTecClaim(TER x)
     return ((x) >= tecCLAIM);
 }
 
-// VFALCO TODO group these into a shell class along with the defines above.
+#if RIPPLED_PERF
+    extern
+    std::unordered_map<std::underlying_type_t<TER>, std::string>
+    terNames();
+#endif
+
+    // VFALCO TODO group these into a shell class along with the defines above.
 extern
 bool
 transResultInfo (TER code, std::string& token, std::string& text);

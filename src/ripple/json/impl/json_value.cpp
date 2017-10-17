@@ -23,6 +23,9 @@
 #include <ripple/json/to_string.h>
 #include <ripple/json/json_writer.h>
 #include <ripple/beast/core/LexicalCast.h>
+#if RIPPLED_PERF
+#include <string>
+#endif
 
 namespace Json {
 
@@ -289,6 +292,19 @@ Value::Value ( bool value )
     value_.bool_ = value;
 }
 
+#if RIPPLED_PERF
+Value::Value ( std::uint64_t value )
+    : type_ (nullValue)
+{
+    *this = std::to_string(value);
+}
+
+Value::Value ( std::int64_t value )
+    : type_ (nullValue)
+{
+    *this = std::to_string(value);
+}
+#endif
 
 Value::Value ( const Value& other )
     : type_ ( other.type_ )
@@ -344,7 +360,10 @@ Value::~Value ()
 
     case arrayValue:
     case objectValue:
-        delete value_.map_;
+#if RIPPLED_PERF
+        if (value_.map_)
+#endif
+            delete value_.map_;
         break;
 
     default:

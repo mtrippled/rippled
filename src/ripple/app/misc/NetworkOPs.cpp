@@ -58,6 +58,10 @@
 #include <ripple/basics/make_lock.h>
 #include <beast/core/detail/base64.hpp>
 #include <boost/asio/steady_timer.hpp>
+#if RIPPLED_PERF
+#include <ripple/basics/PerfLog.h>
+#include <utility>
+#endif
 
 namespace ripple {
 
@@ -527,6 +531,15 @@ private:
 
     std::string getHostId (bool forAdmin);
 
+#ifdef RIPPLED_PERF
+    void
+    setResult(Transaction::pointer& transaction, TER result)
+    {
+        transaction->setResult(result);
+        perf::gPerfLog->ter(result);
+    }
+#endif
+
 private:
     using SubMapType = hash_map <std::uint64_t, InfoSub::wptr>;
     using SubInfoMapType = hash_map <AccountID, SubMapType>;
@@ -892,7 +905,11 @@ void NetworkOPsImp::processTransaction (std::shared_ptr<Transaction>& transactio
     {
         // cached bad
         transaction->setStatus (INVALID);
+#if RIPPLED_PERF
+        setResult(transaction, temBAD_SIGNATURE);
+#else
         transaction->setResult (temBAD_SIGNATURE);
+#endif
         return;
     }
 
@@ -912,7 +929,11 @@ void NetworkOPsImp::processTransaction (std::shared_ptr<Transaction>& transactio
         JLOG(m_journal.info()) << "Transaction has bad signature: " <<
             validity.second;
         transaction->setStatus(INVALID);
+#if RIPPLED_PERF
+        setResult(transaction, temBAD_SIGNATURE);
+#else
         transaction->setResult(temBAD_SIGNATURE);
+#endif
         app_.getHashRouter().setFlags(transaction->getID(),
             SF_BAD);
         return;
@@ -1052,7 +1073,11 @@ void NetworkOPsImp::apply (std::unique_lock<std::mutex>& batchLock)
                     e.transaction->getSTransaction(), e.result);
             }
 
+#if RIPPLED_PERF
+            setResult(e.transaction, e.result);
+#else
             e.transaction->setResult (e.result);
+#endif
 
             if (isTemMalformed (e.result))
                 app_.getHashRouter().setFlags (e.transaction->getID(), SF_BAD);

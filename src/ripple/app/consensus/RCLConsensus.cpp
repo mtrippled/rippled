@@ -40,6 +40,9 @@
 #include <ripple/overlay/predicates.h>
 #include <ripple/protocol/Feature.h>
 #include <ripple/protocol/digest.h>
+#if RIPPLED_PERF
+#include <ripple/basics/Trace.h>
+#endif
 
 namespace ripple {
 
