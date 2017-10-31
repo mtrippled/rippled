@@ -755,6 +755,9 @@ void NetworkOPsImp::processHeartbeatTimer ()
 
         if (mMode == omDISCONNECTED)
         {
+#if RIPPLED_PERF
+            JLOG(m_journal.warn()) << "setMode omCONNECTED 3";
+#endif
             setMode (omCONNECTED);
             JLOG(m_journal.info())
                 << "Node count (" << numPeers << ") is sufficient.";
@@ -763,9 +766,19 @@ void NetworkOPsImp::processHeartbeatTimer ()
         // Check if the last validated ledger forces a change between these
         // states.
         if (mMode == omSYNCING)
-            setMode (omSYNCING);
+        {
+#if RIPPLED_PERF
+            JLOG(m_journal.warn()) << "setMode omSYNCING 1";
+#endif
+            setMode(omSYNCING);
+        }
         else if (mMode == omCONNECTED)
-            setMode (omCONNECTED);
+        {
+#if RIPPLED_PERF
+            JLOG(m_journal.warn()) << "setMode omCONNECTED 4";
+#endif
+            setMode(omCONNECTED);
+        }
 
     }
 
@@ -1424,7 +1437,12 @@ bool NetworkOPsImp::checkLastClosedLedger (
     JLOG(m_journal.info()) << "Net LCL " << closedLedger;
 
     if ((mMode == omTRACKING) || (mMode == omFULL))
-        setMode (omCONNECTED);
+    {
+#if RIPPLED_PERF
+        JLOG(m_journal.warn()) << "setMode omCONNECTED 1";
+#endif
+        setMode(omCONNECTED);
+    }
 
     if (consensus)
     {
@@ -1627,7 +1645,12 @@ void NetworkOPsImp::endConsensus ()
 void NetworkOPsImp::consensusViewChange ()
 {
     if ((mMode == omFULL) || (mMode == omTRACKING))
-        setMode (omCONNECTED);
+    {
+#if RIPPLED_PERF
+        JLOG(m_journal.warn()) << "setMode omConnected 2";
+#endif
+        setMode(omCONNECTED);
+    }
 }
 
 void NetworkOPsImp::pubManifest (Manifest const& mo)
