@@ -30,6 +30,9 @@ namespace perf { enum class TraceType { trace, trap, timer }; }
 class Trace
 {
 public:
+    using pointer = std::shared_ptr<Trace>;
+    using ref = pointer const&;
+
     Trace (std::string const& name,
            std::uint64_t const counter=0,
            perf::TraceType const type=perf::TraceType::trace);
@@ -72,7 +75,7 @@ private:
 
 //-----------------------------------------------------------------------------
 
-std::shared_ptr<Trace>
+Trace::pointer
 makeTrace(std::string const& name, std::uint64_t const counter=0);
 
 void sendTrap(std::string const& name, std::uint64_t const counter=0);

@@ -261,7 +261,11 @@ private:
     void advanceThread();
     // Try to publish ledgers, acquire missing ledgers.  Always called with
     // m_mutex locked.  The passed ScopedLockType is a reminder to callers.
+#if RIPPLED_PERF
+    void doAdvance(ScopedLockType&, Trace::pointer trace);
+#else
     void doAdvance(ScopedLockType&);
+#endif
     bool shouldFetchPack(std::uint32_t seq) const;
     bool shouldAcquire(
         std::uint32_t const currentLedger,
@@ -270,7 +274,11 @@ private:
         std::uint32_t const candidateLedger) const;
 
     std::vector<std::shared_ptr<Ledger const>>
+#if RIPPLED_PERF
+    findNewLedgersToPublish(Trace::pointer trace);
+#else
     findNewLedgersToPublish();
+#endif
 
     void updatePaths(Job& job);
 

@@ -24,6 +24,13 @@
 #ifndef RIPPLE_BASICS_SCOPEDLOCK_H_INCLUDED
 #define RIPPLE_BASICS_SCOPEDLOCK_H_INCLUDED
 
+#if RIPPLED_PERF
+#include <ripple/basics/Trace.h>
+#include <string>
+#include <cstdint>
+#include <memory>
+#endif
+
 namespace ripple
 {
 
@@ -67,6 +74,11 @@ template <class MutexType>
 class GenericScopedUnlock
 {
     MutexType& lock_;
+#if RIPPLED_PERF
+    Trace::pointer trace_;
+    std::string name_;
+    std::uint64_t counter_;
+#endif
 public:
     /** Creates a GenericScopedUnlock.
 
@@ -84,6 +96,19 @@ public:
         lock.unlock();
     }
 
+#if RIPPLED_PERF
+    GenericScopedUnlock (MutexType& lock, Trace::pointer trace,
+                         std::string const& name, std::uint64_t const counter)
+        : lock_ (lock)
+        , trace_ (trace)
+        , name_ (name)
+        , counter_ (counter)
+    {
+        lock.unlock();
+        trace_.reset();
+    }
+#endif
+
     GenericScopedUnlock (GenericScopedUnlock const&) = delete;
     GenericScopedUnlock& operator= (GenericScopedUnlock const&) = delete;
 
@@ -97,6 +122,10 @@ public:
     ~GenericScopedUnlock() noexcept(false)
     {
         lock_.lock();
+#if RIPPLED_PERF
+        if (trace_)
+            trace_.reset(new Trace(name_, counter_));
+#endif
     }
 };
 
