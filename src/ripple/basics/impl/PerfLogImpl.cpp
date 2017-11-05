@@ -276,7 +276,7 @@ PerfLogImpl::report()
     }
 
     std::multimap<std::chrono::time_point<std::chrono::system_clock>,
-            PerfEvents> perfEvents;
+            Events> perfEvents;
     {
         std::lock_guard<std::mutex> lock (eventsMutex_);
         if (perfEvents_.size())
@@ -292,24 +292,29 @@ PerfLogImpl::report()
         {
             auto& entry = report[*ssEntries_].append (Json::objectValue);
             entry[*ssType_] = "trace";
-            entry[*ssTime_] = timeString (trace.second.time_);
             entry[*ssEvents_] = Json::arrayValue;
 
+            bool first = true;
             auto& events = entry[*ssEvents_];
-            for (auto& e : trace.second.events_)
+            for (auto& e : trace.second)
             {
                 Json::Value je = Json::objectValue;
                 je[*ssTime_] = timeString (e.first);
+                if (first)
+                {
+                    entry[*ssTime_] = je[*ssTime_];
+                    first = false;
+                }
                 je[*ssName_] = std::get<0> (e.second);
                 switch (std::get<1> (e.second))
                 {
-                    case PerfEventType::generic:
+                    case EventType::generic:
                         je[*ssType_] = "generic";
                         break;
-                    case PerfEventType::start:
+                    case EventType::start:
                         je[*ssType_] = "start";
                         break;
-                    case PerfEventType::end:
+                    case EventType::end:
                         je[*ssType_] = "end";
                 }
 #if BEAST_LINUX
@@ -330,12 +335,13 @@ PerfLogImpl::report()
 }
 
 void
-PerfLogImpl::addEvent(PerfEvents const& event)
+PerfLogImpl::addEvent(Events const& event)
 {
     if (perf_log_.size())
     {
         std::lock_guard<std::mutex> lock (eventsMutex_);
-        perfEvents_.emplace (event.time_, event);
+        if (event.size())
+            perfEvents_.emplace(event.begin()->first, event);
     }
 }
 

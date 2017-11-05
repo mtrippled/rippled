@@ -42,65 +42,25 @@ namespace ripple {
 
 namespace perf {
 
-enum class PerfEventType
+enum class EventType
 {
     generic,
     start,
     end
 };
 
-class PerfEvents
-{
-public:
-    using Event = std::tuple<std::string,
-            PerfEventType,
+using Event = std::tuple<std::string,
+        EventType,
 #if BEAST_LINUX
-            int,
+        int,
 #else
-            std::thread::id,
+        std::thread::id,
 #endif
-            std::uint64_t>;
+        std::uint64_t>;
 
-    PerfEvents()
-            : time_ (std::chrono::system_clock::now())
-    {}
-
-    PerfEvents(PerfEvents const& other)
-            : time_ (other.time_)
-            , events_ (other.events_)
-    {}
-
-    void add(std::chrono::time_point<std::chrono::system_clock> const& time,
-              std::string const& name,
-              PerfEventType const type,
-              std::uint64_t const counter)
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-
-        events_.emplace(time, std::make_tuple (name,
-                                               type,
-#if BEAST_LINUX
-                                               syscall(SYS_gettid),
-#else
-                                               std::this_thread::get_id(),
-#endif
-                                               counter));
-    }
-
-    void add(std::string const& name,
-             PerfEventType const type=PerfEventType::generic,
-             std::uint64_t const counter=0)
-    {
-        add(std::chrono::system_clock::now(), name, type, counter);
-    }
-
-    std::chrono::time_point<std::chrono::system_clock> time_;
-    std::multimap<std::chrono::time_point<std::chrono::system_clock>,
-            Event> events_;
-    std::mutex mutex_;
-    };
-
-//-----------------------------------------------------------------------------
+using Events = std::multimap<
+        std::chrono::time_point<std::chrono::system_clock>,
+        Event>;
 
 /**
  * This class logs performance data, and also maintains configuration options
@@ -119,7 +79,7 @@ public:
 
     /** Re-open logfile for RPC "logrotate". */
     virtual void rotate() = 0;
-    virtual void addEvent(PerfEvents const &event) = 0;
+    virtual void addEvent(Events const &event) = 0;
     virtual void rpcRunning(std::string const &method) = 0;
     virtual void rpcFinished(std::string const &method) = 0;
     virtual void rpcErrored(std::string const &method) = 0;

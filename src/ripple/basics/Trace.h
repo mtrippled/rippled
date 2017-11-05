@@ -35,42 +35,83 @@ public:
 
     Trace (std::string const& name,
            std::uint64_t const counter=0,
-           perf::TraceType const type=perf::TraceType::trace);
+           perf::TraceType const type=perf::TraceType::trace)
+    {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            type_ = type;
+        }
+        open(name, counter, type, false);
+    }
 
-    ~Trace();
+    ~Trace()
+    {
+        close(false);
+    }
 
     Trace (Trace const& other)
-            : type_ (other.type_)
-            , events_ (other.events_)
-            , timers_ (other.timers_)
-    {}
+    {
+        std::unique_lock<std::mutex> thisLock(mutex_, std::defer_lock);
+        std::unique_lock<std::mutex> otherLock(other.mutex_, std::defer_lock);
+        std::lock(thisLock, otherLock);
+        type_ = other.type_;
+        events_ = other.events_;
+        timers_ = other.timers_;
+    }
 
     void add (std::string const& name,
               std::uint64_t const counter=0,
-              perf::PerfEventType const type=perf::PerfEventType::generic)
+              perf::EventType const type=perf::EventType::generic)
     {
-        events_.add (name, type, counter);
+        std::lock_guard<std::mutex> lock(mutex_);
+        addEvent(name, type, counter);
     }
 
-    void start (std::string const& timer,
-                std::chrono::time_point<std::chrono::system_clock>& tp,
-                std::uint64_t const counter=0);
-
-    void start (std::string const& timer,
-                std::uint64_t const counter=0)
-    {
-        auto now = std::chrono::system_clock::now();
-        start (timer, now, counter);
-    }
+    void
+    start (std::string const& timer,
+           std::uint64_t const counter=0,
+           std::chrono::time_point<std::chrono::system_clock> const& tp =
+                   std::chrono::system_clock::now());
 
     void end (std::string const& timer);
+    void close(bool clear=true);
+    void open(std::string const& name,
+              std::uint64_t const counter=0,
+              perf::TraceType const type=perf::TraceType::trace,
+              bool const doClose=true);
 
 private:
     perf::TraceType type_;
-    perf::PerfEvents events_;
+    perf::Events events_;
     std::unordered_map<std::string,
-    std::chrono::time_point<std::chrono::system_clock>> timers_;
-    std::mutex timersMutex_;
+            std::chrono::time_point<std::chrono::system_clock>> timers_;
+    mutable std::mutex mutex_;
+
+    void
+    lockedStart(std::string const& timer,
+                std::uint64_t const counter=0,
+                std::chrono::time_point<std::chrono::system_clock> const& tp =
+                std::chrono::system_clock::now());
+
+    void
+    addEvent(std::string const& name,
+             perf::EventType const type,
+             std::uint64_t const counter,
+             std::chrono::time_point<std::chrono::system_clock> const& tp=
+             std::chrono::system_clock::now())
+    {
+        events_.emplace(tp,
+                        std::make_tuple(name,
+                        type,
+#if BEAST_LINUX
+                        syscall(SYS_gettid),
+#else
+                        std::this_thread::get_id(),
+#endif
+                        counter));
+
+    }
+
 };
 
 //-----------------------------------------------------------------------------

@@ -21,71 +21,90 @@
 
 namespace ripple {
 
-Trace::Trace (std::string const& name,
-              std::uint64_t const counter,
-              perf::TraceType type)
-        : type_ (type)
-        , events_ (perf::PerfEvents())
+void
+Trace::lockedStart(std::string const& timer,
+                   std::uint64_t const counter,
+                   std::chrono::time_point<std::chrono::system_clock> const& tp)
 {
-    if (type_ != perf::TraceType::timer)
-        events_.add(events_.time_, name, perf::PerfEventType::generic, counter);
-    else
-        start (name, events_.time_);
-}
-
-Trace::~Trace()
-{
-    switch (type_)
-    {
-        case perf::TraceType::trace:
-        {
-            auto now = std::chrono::system_clock::now();
-            events_.add (now, "END", perf::PerfEventType::generic,
-                         std::chrono::duration_cast<std::chrono::microseconds> (
-                                 now - events_.events_.begin()->first).count());
-        }
-            break;
-        case perf::TraceType::trap:
-            break;
-        case perf::TraceType::timer:
-            end (timers_.begin()->first);
-    }
-
-    perf::gPerfLog->addEvent (events_);
-}
-
-void Trace::start (std::string const& timer,
-                   std::chrono::time_point<std::chrono::system_clock>& tp,
-                   std::uint64_t const counter)
-{
-    {
-        std::lock_guard<std::mutex> lock (timersMutex_);
-        timers_[timer] = tp;
-    }
-
+    timers_[timer] = tp;
     if (type_ == perf::TraceType::trace)
-        events_.add (tp, timer, perf::PerfEventType::start, counter);
+        addEvent(timer, perf::EventType::start, counter, tp);
 }
 
-void Trace::end (std::string const& timer)
+
+void
+Trace::start(std::string const& timer,
+             std::uint64_t const counter,
+             std::chrono::time_point<std::chrono::system_clock> const& tp)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    lockedStart(timer, counter, tp);
+}
+
+void
+Trace::end(std::string const& timer)
 {
     std::uint64_t duration = 0;
     std::chrono::time_point<std::chrono::system_clock> endTime =
             std::chrono::system_clock::now();
 
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto start = timers_.find (timer);
+    if (start != timers_.end())
     {
-        std::lock_guard<std::mutex> lock (timersMutex_);
-
-        auto start = timers_.find (timer);
-        if (start != timers_.end())
-        {
-            duration = std::chrono::duration_cast<std::chrono::microseconds> (
-                    endTime - start->second).count();
-            timers_.erase (start);
-        }
+        duration = std::chrono::duration_cast<std::chrono::microseconds> (
+                endTime - start->second).count();
+        timers_.erase (start);
     }
+    addEvent(timer, perf::EventType::end, duration, endTime);
+}
 
-    events_.add (endTime, timer, perf::PerfEventType::end, duration);
+void
+Trace::close(bool clear)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!events_.empty())
+    {
+        switch (type_)
+        {
+            case perf::TraceType::trace:
+            {
+                auto now = std::chrono::system_clock::now();
+                addEvent("END", perf::EventType::generic,
+                        std::chrono::duration_cast<std::chrono::microseconds>(
+                                now -
+                                events_.begin()->first).count(), now);
+            }
+                break;
+            case perf::TraceType::trap:
+                break;
+            case perf::TraceType::timer:
+                assert(timers_.begin() != timers_.end());
+                end(timers_.begin()->first);
+        }
+
+        perf::gPerfLog->addEvent(events_);
+        if (clear)
+            events_.clear();
+    }
+    if (clear && !timers_.empty())
+        timers_.clear();
+}
+
+void
+Trace::open(std::string const& name,
+            std::uint64_t const counter,
+            perf::TraceType const type,
+            bool const doClose)
+{
+    if (doClose)
+        close();
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (type_ != perf::TraceType::timer)
+        addEvent(name, perf::EventType::generic, counter);
+    else
+        lockedStart(name);
 }
 
 //-----------------------------------------------------------------------------

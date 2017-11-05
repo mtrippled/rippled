@@ -151,7 +151,7 @@ private:
     unsigned int cPid_ = 0;
 #endif
     std::multimap<std::chrono::time_point<std::chrono::system_clock>,
-        PerfEvents> perfEvents_;
+        Events> perfEvents_;
     std::mutex eventsMutex_;
     Counters counters_;
     std::atomic<int> workers_ {0};
@@ -197,7 +197,7 @@ private:
     std::string timeString(
             std::chrono::time_point<std::chrono::system_clock> const &tp);
     void report();
-    void addEvent(PerfEvents const &event) override;
+    void addEvent(Events const &event) override;
 
     void
     rpc(std::string const& method, std::string const& type)
