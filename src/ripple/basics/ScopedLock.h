@@ -105,7 +105,7 @@ public:
         , counter_ (counter)
     {
         lock.unlock();
-        trace_.reset();
+        trace_->close();
     }
 #endif
 
@@ -124,7 +124,7 @@ public:
         lock_.lock();
 #if RIPPLED_PERF
         if (trace_)
-            trace_.reset(new Trace(name_, counter_));
+            trace_->open(name_, counter_);
 #endif
     }
 };
