@@ -25,7 +25,7 @@
 
 namespace ripple {
 
-namespace perf { enum class TraceType { trace, trap, timer }; }
+namespace perf { enum class TraceType { none = 0, trace, trap, timer }; }
 
 class Trace
 {
@@ -33,9 +33,15 @@ public:
     using pointer = std::shared_ptr<Trace>;
     using ref = pointer const&;
 
-    Trace (std::string const& name,
-           std::uint64_t const counter=0,
-           perf::TraceType const type=perf::TraceType::trace)
+    Trace()
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        type_ = perf::TraceType::none;
+    }
+
+    Trace(std::string const& name,
+          std::uint64_t const counter=0,
+          perf::TraceType const type=perf::TraceType::trace)
     {
         {
             std::lock_guard<std::mutex> lock(mutex_);
@@ -55,7 +61,8 @@ public:
         std::unique_lock<std::mutex> otherLock(other.mutex_, std::defer_lock);
         std::lock(thisLock, otherLock);
         type_ = other.type_;
-        events_ = other.events_;
+        events_.reset(new perf::Events);
+        *events_ = *other.events_;
         timers_ = other.timers_;
     }
 
@@ -64,6 +71,7 @@ public:
               perf::EventType const type=perf::EventType::generic)
     {
         std::lock_guard<std::mutex> lock(mutex_);
+        assert(type_ != perf::TraceType::none && events_->size());
         addEvent(name, type, counter);
     }
 
@@ -82,7 +90,7 @@ public:
 
 private:
     perf::TraceType type_;
-    perf::Events events_;
+    std::unique_ptr<perf::Events> events_;
     std::unordered_map<std::string,
             std::chrono::time_point<std::chrono::system_clock>> timers_;
     mutable std::mutex mutex_;
@@ -100,16 +108,19 @@ private:
              std::chrono::time_point<std::chrono::system_clock> const& tp=
              std::chrono::system_clock::now())
     {
-        events_.emplace(tp,
-                        std::make_tuple(name,
-                        type,
+        assert(type_ != perf::TraceType::none);
+        if (events_)
+        {
+            events_->emplace(tp,
+                            std::make_tuple(name,
+                                            type,
 #if BEAST_LINUX
-                        syscall(SYS_gettid),
+                                            syscall(SYS_gettid),
 #else
-                        std::this_thread::get_id(),
+                                    std::this_thread::get_id(),
 #endif
-                        counter));
-
+                                            counter));
+        }
     }
 
 };

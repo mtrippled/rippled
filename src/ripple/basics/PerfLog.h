@@ -79,7 +79,7 @@ public:
 
     /** Re-open logfile for RPC "logrotate". */
     virtual void rotate() = 0;
-    virtual void addEvent(Events const &event) = 0;
+    virtual void addEvent(std::unique_ptr<Events> event) = 0;
     virtual void rpcRunning(std::string const &method) = 0;
     virtual void rpcFinished(std::string const &method) = 0;
     virtual void rpcErrored(std::string const &method) = 0;

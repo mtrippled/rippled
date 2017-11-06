@@ -26,6 +26,7 @@ Trace::lockedStart(std::string const& timer,
                    std::uint64_t const counter,
                    std::chrono::time_point<std::chrono::system_clock> const& tp)
 {
+    assert(type_ != perf::TraceType::none);
     timers_[timer] = tp;
     if (type_ == perf::TraceType::trace)
         addEvent(timer, perf::EventType::start, counter, tp);
@@ -49,6 +50,7 @@ Trace::end(std::string const& timer)
             std::chrono::system_clock::now();
 
     std::lock_guard<std::mutex> lock(mutex_);
+    assert(type_ != perf::TraceType::none);
     auto start = timers_.find (timer);
     if (start != timers_.end())
     {
@@ -63,32 +65,40 @@ void
 Trace::close(bool clear)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (!events_.empty())
+    if (type_ != perf::TraceType::none)
     {
         switch (type_)
         {
             case perf::TraceType::trace:
             {
+                assert(events_ && !events_->empty());
                 auto now = std::chrono::system_clock::now();
                 addEvent("END", perf::EventType::generic,
                         std::chrono::duration_cast<std::chrono::microseconds>(
                                 now -
-                                events_.begin()->first).count(), now);
+                                events_->begin()->first).count(), now);
             }
                 break;
-            case perf::TraceType::trap:
-                break;
             case perf::TraceType::timer:
-                assert(timers_.begin() != timers_.end());
+                assert(!timers_.empty());
                 end(timers_.begin()->first);
+                break;
+            case perf::TraceType::none:
+            case perf::TraceType::trap:
+            default:
+                assert(false);
         }
 
-        perf::gPerfLog->addEvent(events_);
-        if (clear)
-            events_.clear();
+        if (events_)
+            perf::gPerfLog->addEvent(std::move(events_));
     }
-    if (clear && !timers_.empty())
+    if (clear)
+    {
+        if (events_)
+            events_.reset();
         timers_.clear();
+    }
+    type_ = perf::TraceType::none;
 }
 
 void
@@ -101,6 +111,8 @@ Trace::open(std::string const& name,
         close();
 
     std::lock_guard<std::mutex> lock(mutex_);
+    assert(type != perf::TraceType::none);
+    events_.reset(new perf::Events);
     if (type_ != perf::TraceType::timer)
         addEvent(name, perf::EventType::generic, counter);
     else

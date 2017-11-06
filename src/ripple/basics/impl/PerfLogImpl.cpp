@@ -276,11 +276,11 @@ PerfLogImpl::report()
     }
 
     std::multimap<std::chrono::time_point<std::chrono::system_clock>,
-            Events> perfEvents;
+            std::unique_ptr<Events>> perfEvents;
     {
         std::lock_guard<std::mutex> lock (eventsMutex_);
         if (perfEvents_.size())
-            perfEvents_.swap (perfEvents);
+            perfEvents = std::move(perfEvents_);
     }
 
     if (perfEvents.size())
@@ -290,13 +290,16 @@ PerfLogImpl::report()
 
         for (auto& trace : perfEvents)
         {
+            assert(trace.second);
+            if (!trace.second)
+                continue;
             auto& entry = report[*ssEntries_].append (Json::objectValue);
             entry[*ssType_] = "trace";
             entry[*ssEvents_] = Json::arrayValue;
 
             bool first = true;
             auto& events = entry[*ssEvents_];
-            for (auto& e : trace.second)
+            for (auto& e : *trace.second)
             {
                 Json::Value je = Json::objectValue;
                 je[*ssTime_] = timeString (e.first);
@@ -335,13 +338,12 @@ PerfLogImpl::report()
 }
 
 void
-PerfLogImpl::addEvent(Events const& event)
+PerfLogImpl::addEvent(std::unique_ptr<Events> event)
 {
-    if (perf_log_.size())
+    if (perf_log_.size() && event)
     {
         std::lock_guard<std::mutex> lock (eventsMutex_);
-        if (event.size())
-            perfEvents_.emplace(event.begin()->first, event);
+        perfEvents_.emplace(event->begin()->first, std::move(event));
     }
 }
 
