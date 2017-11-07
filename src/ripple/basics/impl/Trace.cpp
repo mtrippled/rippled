@@ -45,20 +45,20 @@ Trace::start(std::string const& timer,
 void
 Trace::end(std::string const& timer)
 {
-    std::uint64_t duration = 0;
-    std::chrono::time_point<std::chrono::system_clock> endTime =
-            std::chrono::system_clock::now();
-
     std::lock_guard<std::mutex> lock(mutex_);
-    assert(type_ != perf::TraceType::none);
+    if (type_ == perf::TraceType::none)
+        return;
     auto start = timers_.find (timer);
     if (start != timers_.end())
     {
-        duration = std::chrono::duration_cast<std::chrono::microseconds> (
-                endTime - start->second).count();
+        std::chrono::time_point<std::chrono::system_clock> endTime =
+                std::chrono::system_clock::now();
+        std::uint64_t duration =
+                std::chrono::duration_cast<std::chrono::microseconds> (
+                        endTime - start->second).count();
         timers_.erase (start);
+        addEvent(timer, perf::EventType::end, duration, endTime);
     }
-    addEvent(timer, perf::EventType::end, duration, endTime);
 }
 
 void
@@ -111,7 +111,7 @@ Trace::open(std::string const& name,
         close();
 
     std::lock_guard<std::mutex> lock(mutex_);
-    assert(type != perf::TraceType::none);
+    type_ = (type == perf::TraceType::none ? perf::TraceType::trace : type);
     events_.reset(new perf::Events);
     if (type_ != perf::TraceType::timer)
         addEvent(name, perf::EventType::generic, counter);

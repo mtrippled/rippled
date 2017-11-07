@@ -290,7 +290,7 @@ class Consensus
 
     using Result = ConsensusResult<Adaptor>;
 
-    // Helper class to ensure adaptor is notified whenver the ConsensusMode
+    // Helper class to ensure adaptor is notified whenever the ConsensusMode
     // changes
     class MonitoredMode
     {
@@ -314,6 +314,9 @@ class Consensus
         }
     };
 public:
+#if RIPPLED_PERF
+        Trace trace_;
+#endif
     //! Clock type for measuring time within the consensus code
     using clock_type = beast::abstract_clock<std::chrono::steady_clock>;
 
@@ -582,6 +585,9 @@ Consensus<Adaptor>::startRound(
     Ledger_t prevLedger,
     bool proposing)
 {
+#if RIPPLED_PERF
+    trace_.open("consensus");
+#endif
     if (firstRound_)
     {
         // take our initial view of closeTime_ from the seed ledger
@@ -775,6 +781,9 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
 {
+#if RIPPLED_PERF
+        trace_.add("timerEntry");
+#endif
     // Nothing to do if we are currently working on a ledger
     if (phase_ == ConsensusPhase::accepted)
         return;

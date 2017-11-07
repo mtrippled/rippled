@@ -935,7 +935,7 @@ LedgerMaster::advanceThread()
 {
     ScopedLockType sl (m_mutex);
 #if RIPPLED_PERF
-    auto trace = makeTrace("masterlock", 4);
+    Trace trace("masterlock", 4);
 #endif
     assert (!mValidLedger.empty () && mAdvanceThread);
 
@@ -985,7 +985,7 @@ LedgerMaster::shouldFetchPack (std::uint32_t seq) const
 
 std::vector<std::shared_ptr<Ledger const>>
 #if RIPPLED_PERF
-LedgerMaster::findNewLedgersToPublish (Trace::pointer trace)
+LedgerMaster::findNewLedgersToPublish (Trace& trace)
 #else
 LedgerMaster::findNewLedgersToPublish ()
 #endif
@@ -1585,7 +1585,7 @@ LedgerMaster::shouldAcquire (
 
 // Try to publish ledgers, acquire missing ledgers
 #if RIPPLED_PERF
-void LedgerMaster::doAdvance (ScopedLockType& sl, Trace::pointer trace)
+void LedgerMaster::doAdvance (ScopedLockType& sl, Trace& trace)
 #else
 void LedgerMaster::doAdvance (ScopedLockType& sl)
 #endif

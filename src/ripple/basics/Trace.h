@@ -75,7 +75,8 @@ public:
               perf::EventType const type=perf::EventType::generic)
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        assert(type_ != perf::TraceType::none && events_->size());
+        if (type_ == perf::TraceType::none)
+            type_ = perf::TraceType::trace;
         addEvent(name, type, counter);
     }
 

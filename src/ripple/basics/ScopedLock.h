@@ -75,7 +75,7 @@ class GenericScopedUnlock
 {
     MutexType& lock_;
 #if RIPPLED_PERF
-    Trace::pointer trace_;
+    boost::optional<Trace&> trace_;
     std::string name_;
     std::uint64_t counter_;
 #endif
@@ -97,7 +97,7 @@ public:
     }
 
 #if RIPPLED_PERF
-    GenericScopedUnlock (MutexType& lock, Trace::pointer trace,
+    GenericScopedUnlock (MutexType& lock, Trace& trace,
                          std::string const& name, std::uint64_t const counter)
         : lock_ (lock)
         , trace_ (trace)
