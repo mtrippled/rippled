@@ -21,9 +21,6 @@
 #include <ripple/app/main/Application.h>
 #include <ripple/basics/Log.h>
 #include <ripple/rpc/impl/Handler.h>
-#if RIPPLED_PERF
-#include <ripple/basics/PerfLog.h>
-#endif
 
 namespace ripple {
 

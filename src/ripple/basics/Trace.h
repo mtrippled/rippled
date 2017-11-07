@@ -34,10 +34,8 @@ public:
     using ref = pointer const&;
 
     Trace()
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        type_ = perf::TraceType::none;
-    }
+        : type_ (perf::TraceType::none)
+    {}
 
     Trace(std::string const& name,
           std::uint64_t const counter=0,
@@ -64,6 +62,12 @@ public:
         events_.reset(new perf::Events);
         *events_ = *other.events_;
         timers_ = other.timers_;
+    }
+
+    explicit operator
+    bool()
+    {
+        return type_ != perf::TraceType::none;
     }
 
     void add (std::string const& name,
@@ -117,7 +121,7 @@ private:
 #if BEAST_LINUX
                                             syscall(SYS_gettid),
 #else
-                                    std::this_thread::get_id(),
+                                            std::this_thread::get_id(),
 #endif
                                             counter));
         }

@@ -105,7 +105,8 @@ public:
         , counter_ (counter)
     {
         lock.unlock();
-        trace_->close();
+        if (trace_)
+            trace_->close();
     }
 #endif
 
