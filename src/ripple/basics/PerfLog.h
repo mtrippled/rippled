@@ -29,14 +29,6 @@
 #include <map>
 #include <tuple>
 #include <thread>
-#if BEAST_LINUX
-#include <sys/types.h>
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
-#include <unistd.h>
-#include <sys/syscall.h>
-#endif
 
 namespace ripple {
 
