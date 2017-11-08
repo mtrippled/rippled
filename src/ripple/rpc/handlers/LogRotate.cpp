@@ -27,14 +27,6 @@ namespace ripple {
 Json::Value doLogRotate (RPC::Context& context)
 {
 #if RIPPLED_PERF
-    Trace trace("logrotation", 312343);
-    trace.start("foo");
-    trace.end("football");
-    trace.close();
-    trace.open("logrotation2", 12333);
-    trace.start("hello", 1);
-    trace.end("foo");
-    trace.end("hello");
     perf::gPerfLog->rotate();
 #endif
     return RPC::makeObjectValue (context.app.logs().rotate());

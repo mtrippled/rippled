@@ -296,18 +296,13 @@ PerfLogImpl::report()
             auto& entry = report[*ssEntries_].append (Json::objectValue);
             entry[*ssType_] = "trace";
             entry[*ssEvents_] = Json::arrayValue;
+            entry[*ssTime_] = timeString(trace.first);
 
-            bool first = true;
             auto& events = entry[*ssEvents_];
             for (auto& e : *trace.second)
             {
                 Json::Value je = Json::objectValue;
                 je[*ssTime_] = timeString (e.first);
-                if (first)
-                {
-                    entry[*ssTime_] = je[*ssTime_];
-                    first = false;
-                }
                 je[*ssName_] = std::get<0> (e.second);
                 switch (std::get<1> (e.second))
                 {
