@@ -122,14 +122,21 @@ public:
     */
     ~GenericScopedUnlock() noexcept(false)
     {
-        lock_.lock();
 #if RIPPLED_PERF
         if (trace_)
+        {
             trace_->open(name_, counter_);
+            lock_.lock();
+            trace_->add("locked");
+        } else
+        {
+            lock_.lock();
+        }
+#else
+        lock_.lock()
 #endif
     }
 };
 
 } // ripple
 #endif
-

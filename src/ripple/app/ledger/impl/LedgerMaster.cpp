@@ -106,9 +106,12 @@ LedgerMaster::isCompatible (
     }
 
     {
-        ScopedLockType sl (m_mutex);
 #if RIPPLED_PERF
         Trace trace("masterlock", 15);
+#endif
+        ScopedLockType sl (m_mutex);
+#if RIPPLED_PERF
+        trace.add("locked");
 #endif
 
         if ((mLastValidLedger.second != 0) &&
@@ -243,9 +246,12 @@ void
 LedgerMaster::addHeldTransaction (
     std::shared_ptr<Transaction> const& transaction)
 {
-    ScopedLockType ml (m_mutex);
 #if RIPPLED_PERF
     Trace trace("masterlock", 3);
+#endif
+    ScopedLockType ml (m_mutex);
+#if RIPPLED_PERF
+    trace.add("locked");
 #endif
     mHeldTransactions.insert (transaction->getSTransaction ());
 }
@@ -261,9 +267,12 @@ LedgerMaster::switchLCL(std::shared_ptr<Ledger const> const& lastClosed)
         LogicError ("The new last closed ledger is open!");
 
     {
-        ScopedLockType ml (m_mutex);
 #if RIPPLED_PERF
         Trace trace("masterlock", 21);
+#endif
+        ScopedLockType ml (m_mutex);
+#if RIPPLED_PERF
+        trace.add("locked");
 #endif
         mClosedLedger.set (lastClosed);
     }
@@ -300,9 +309,12 @@ LedgerMaster::storeLedger (std::shared_ptr<Ledger const> ledger)
 void
 LedgerMaster::applyHeldTransactions ()
 {
+#if RIPPLED_PERF
+        Trace trace("masterlock", 5);
+#endif
     ScopedLockType sl (m_mutex);
 #if RIPPLED_PERF
-    Trace trace("masterlock", 5);
+        trace.add("locked");
 #endif
 
     app_.openLedger().modify(
@@ -332,9 +344,12 @@ std::vector<std::shared_ptr<STTx const>>
 LedgerMaster::pruneHeldTransactions(AccountID const& account,
     std::uint32_t const seq)
 {
-    ScopedLockType sl(m_mutex);
 #if RIPPLED_PERF
     Trace trace("masterlock", 19);
+#endif
+    ScopedLockType sl(m_mutex);
+#if RIPPLED_PERF
+    trace.add("locked");
 #endif
 
     return mHeldTransactions.prune(account, seq);
@@ -465,9 +480,12 @@ LedgerMaster::tryFill (
     while (! job.shouldCancel() && seq > 0)
     {
         {
-            ScopedLockType ml (m_mutex);
 #if RIPPLED_PERF
             Trace trace("masterlock", 23);
+#endif
+            ScopedLockType ml (m_mutex);
+#if RIPPLED_PERF
+            trace.add("locked");
 #endif
             minHas = seq;
             --seq;
@@ -508,9 +526,12 @@ LedgerMaster::tryFill (
         mCompleteLedgers.insert(range(minHas, maxHas));
     }
     {
-        ScopedLockType ml (m_mutex);
 #if RIPPLED_PERF
         Trace trace("masterlock", 24);
+#endif
+        ScopedLockType ml (m_mutex);
+#if RIPPLED_PERF
+        trace.add("locked");
 #endif
         mFillInProgress = 0;
         tryAdvance();
@@ -657,9 +678,12 @@ LedgerMaster::setFullLedger (
     }
 
     {
-        ScopedLockType ml (m_mutex);
 #if RIPPLED_PERF
         Trace trace("masterlock", 20);
+#endif
+        ScopedLockType ml (m_mutex);
+#if RIPPLED_PERF
+        trace.add("locked");
 #endif
 
         if (ledger->info().seq > mValidLedgerSeq)
@@ -713,9 +737,12 @@ LedgerMaster::checkAccept (uint256 const& hash, std::uint32_t seq)
 
         if (valCount >= app_.validators ().quorum ())
         {
-            ScopedLockType ml (m_mutex);
 #if RIPPLED_PERF
             Trace trace("masterlock", 6);
+#endif
+            ScopedLockType ml (m_mutex);
+#if RIPPLED_PERF
+            trace.add("locked");
 #endif
             if (seq > mLastValidLedger.second)
                 mLastValidLedger = std::make_pair (hash, seq);
@@ -770,9 +797,12 @@ LedgerMaster::checkAccept (
 
     // Can we advance the last fully-validated ledger? If so, can we
     // publish?
-    ScopedLockType ml (m_mutex);
 #if RIPPLED_PERF
     Trace trace("masterlock", 7);
+#endif
+    ScopedLockType ml (m_mutex);
+#if RIPPLED_PERF
+    trace.add("locked");
 #endif
 
     if (ledger->info().seq <= mValidLedgerSeq)
@@ -933,9 +963,12 @@ LedgerMaster::consensusBuilt(
 void
 LedgerMaster::advanceThread()
 {
-    ScopedLockType sl (m_mutex);
 #if RIPPLED_PERF
     Trace trace("masterlock", 4);
+#endif
+    ScopedLockType sl (m_mutex);
+#if RIPPLED_PERF
+    trace.add("locked");
 #endif
     assert (!mValidLedger.empty () && mAdvanceThread);
 
@@ -1101,9 +1134,12 @@ LedgerMaster::findNewLedgersToPublish ()
 void
 LedgerMaster::tryAdvance()
 {
-    ScopedLockType ml (m_mutex);
 #if RIPPLED_PERF
     Trace trace("masterlock", 22);
+#endif
+    ScopedLockType ml (m_mutex);
+#if RIPPLED_PERF
+    trace.add("locked");
 #endif
 
     // Can't advance without at least one fully-valid ledger
@@ -1156,9 +1192,12 @@ void
 LedgerMaster::updatePaths (Job& job)
 {
     {
-        ScopedLockType ml (m_mutex);
 #if RIPPLED_PERF
         Trace trace("masterlock", 25);
+#endif
+        ScopedLockType ml (m_mutex);
+#if RIPPLED_PERF
+        trace.add("locked");
 #endif
         if (app_.getOPs().isNeedNetworkLedger())
         {
@@ -1172,9 +1211,12 @@ LedgerMaster::updatePaths (Job& job)
     {
         std::shared_ptr<ReadView const> lastLedger;
         {
-            ScopedLockType ml (m_mutex);
 #if RIPPLED_PERF
             Trace trace("masterlock", 26);
+#endif
+            ScopedLockType ml (m_mutex);
+#if RIPPLED_PERF
+            trace.add("locked");
 #endif
 
             if (!mValidLedger.empty() &&
@@ -1204,9 +1246,12 @@ LedgerMaster::updatePaths (Job& job)
             {
                 JLOG (m_journal.debug())
                     << "Published ledger too old for updating paths";
-                ScopedLockType ml (m_mutex);
 #if RIPPLED_PERF
                 Trace trace("masterlock", 27);
+#endif
+                ScopedLockType ml (m_mutex);
+#if RIPPLED_PERF
+                trace.add("locked");
 #endif
                 --mPathFindThread;
                 return;
@@ -1245,9 +1290,12 @@ LedgerMaster::updatePaths (Job& job)
 bool
 LedgerMaster::newPathRequest ()
 {
-    ScopedLockType ml (m_mutex);
 #if RIPPLED_PERF
     Trace trace("masterlock", 18);
+#endif
+    ScopedLockType ml (m_mutex);
+#if RIPPLED_PERF
+    trace.add("locked");
 #endif
     mPathFindNewRequest = newPFWork("pf:newRequest", ml);
     return mPathFindNewRequest;
@@ -1256,9 +1304,12 @@ LedgerMaster::newPathRequest ()
 bool
 LedgerMaster::isNewPathRequest ()
 {
-    ScopedLockType ml (m_mutex);
 #if RIPPLED_PERF
     Trace trace("masterlock", 16);
+#endif
+    ScopedLockType ml (m_mutex);
+#if RIPPLED_PERF
+    trace.add("locked");
 #endif
     bool const ret = mPathFindNewRequest;
     mPathFindNewRequest = false;
@@ -1270,9 +1321,12 @@ LedgerMaster::isNewPathRequest ()
 bool
 LedgerMaster::newOrderBookDB ()
 {
+#if RIPPLED_PERF
+        Trace trace("masterlock", 17);
+#endif
     ScopedLockType ml (m_mutex);
 #if RIPPLED_PERF
-    Trace trace("masterlock", 17);
+        trace.add("locked");
 #endif
     mPathLedger.reset();
 
@@ -1329,9 +1383,12 @@ LedgerMaster::getValidatedRules ()
 std::shared_ptr<ReadView const>
 LedgerMaster::getPublishedLedger ()
 {
+#if RIPPLED_PERF
+        Trace trace("masterlock", 14);
+#endif
     ScopedLockType lock(m_mutex);
 #if RIPPLED_PERF
-    Trace trace("masterlock", 14);
+        trace.add("locked");
 #endif
     return mPubLedger;
 }
@@ -1681,9 +1738,12 @@ void LedgerMaster::doAdvance (ScopedLockType& sl)
 
                                     int fillInProgress;
                                     {
-                                        ScopedLockType lock(m_mutex);
 #if RIPPLED_PERF
                                         Trace trace("masterlock", 9);
+#endif
+                                        ScopedLockType lock(m_mutex);
+#if RIPPLED_PERF
+                                        trace.add("locked");
 #endif
                                         mHistLedger = ledger;
                                         fillInProgress = mFillInProgress;
@@ -1694,9 +1754,12 @@ void LedgerMaster::doAdvance (ScopedLockType& sl)
                                     {
                                         {
                                             // Previous ledger is in DB
-                                            ScopedLockType lock(m_mutex);
 #if RIPPLED_PERF
                                             Trace trace("masterlock", 10);
+#endif
+                                            ScopedLockType lock(m_mutex);
+#if RIPPLED_PERF
+                                            trace.add("locked");
 #endif
                                             mFillInProgress = ledger->info().seq;
                                         }

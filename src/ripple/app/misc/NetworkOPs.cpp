@@ -1051,12 +1051,14 @@ void NetworkOPsImp::apply (std::unique_lock<std::mutex>& batchLock)
         auto lock = make_lock(app_.getMasterMutex());
         bool changed = false;
         {
-            std::lock_guard <std::recursive_mutex> lock (
-                m_ledgerMaster.peekMutex());
 #if RIPPLED_PERF
             Trace trace("masterlock", 2);
 #endif
-
+            std::lock_guard <std::recursive_mutex> lock (
+                m_ledgerMaster.peekMutex());
+#if RIPPLED_PERF
+            trace.add("locked");
+#endif
             app_.openLedger().modify(
                 [&](OpenView& view, beast::Journal j)
             {
