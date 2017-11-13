@@ -529,14 +529,12 @@ private:
 
     std::string getHostId (bool forAdmin);
 
-#ifdef RIPPLED_PERF
     void
     setResult(Transaction::pointer& transaction, TER result)
     {
         transaction->setResult(result);
         perf::gPerfLog->ter(result);
     }
-#endif
 
 private:
     using SubMapType = hash_map <std::uint64_t, InfoSub::wptr>;
@@ -753,9 +751,6 @@ void NetworkOPsImp::processHeartbeatTimer ()
 
         if (mMode == omDISCONNECTED)
         {
-#if RIPPLED_PERF
-            JLOG(m_journal.warn()) << "setMode omCONNECTED 3";
-#endif
             setMode (omCONNECTED);
             JLOG(m_journal.info())
                 << "Node count (" << numPeers << ") is sufficient.";
@@ -764,19 +759,9 @@ void NetworkOPsImp::processHeartbeatTimer ()
         // Check if the last validated ledger forces a change between these
         // states.
         if (mMode == omSYNCING)
-        {
-#if RIPPLED_PERF
-            JLOG(m_journal.warn()) << "setMode omSYNCING 1";
-#endif
             setMode(omSYNCING);
-        }
         else if (mMode == omCONNECTED)
-        {
-#if RIPPLED_PERF
-            JLOG(m_journal.warn()) << "setMode omCONNECTED 4";
-#endif
             setMode(omCONNECTED);
-        }
 
     }
 
@@ -916,11 +901,7 @@ void NetworkOPsImp::processTransaction (std::shared_ptr<Transaction>& transactio
     {
         // cached bad
         transaction->setStatus (INVALID);
-#if RIPPLED_PERF
         setResult(transaction, temBAD_SIGNATURE);
-#else
-        transaction->setResult (temBAD_SIGNATURE);
-#endif
         return;
     }
 
@@ -940,11 +921,7 @@ void NetworkOPsImp::processTransaction (std::shared_ptr<Transaction>& transactio
         JLOG(m_journal.info()) << "Transaction has bad signature: " <<
             validity.second;
         transaction->setStatus(INVALID);
-#if RIPPLED_PERF
         setResult(transaction, temBAD_SIGNATURE);
-#else
-        transaction->setResult(temBAD_SIGNATURE);
-#endif
         app_.getHashRouter().setFlags(transaction->getID(),
             SF_BAD);
         return;
@@ -1049,14 +1026,10 @@ void NetworkOPsImp::apply (std::unique_lock<std::mutex>& batchLock)
         auto lock = make_lock(app_.getMasterMutex());
         bool changed = false;
         {
-#if RIPPLED_PERF
             auto trace = perf::makeTrace("masterlock", 2);
-#endif
             std::lock_guard <std::recursive_mutex> lock (
                 m_ledgerMaster.peekMutex());
-#if RIPPLED_PERF
             perf::add(trace, "locked");
-#endif
             app_.openLedger().modify(
                 [&](OpenView& view, beast::Journal j)
             {
@@ -1091,11 +1064,7 @@ void NetworkOPsImp::apply (std::unique_lock<std::mutex>& batchLock)
                     e.transaction->getSTransaction(), e.result);
             }
 
-#if RIPPLED_PERF
             setResult(e.transaction, e.result);
-#else
-            e.transaction->setResult (e.result);
-#endif
 
             if (isTemMalformed (e.result))
                 app_.getHashRouter().setFlags (e.transaction->getID(), SF_BAD);
@@ -1439,12 +1408,7 @@ bool NetworkOPsImp::checkLastClosedLedger (
     JLOG(m_journal.info()) << "Net LCL " << closedLedger;
 
     if ((mMode == omTRACKING) || (mMode == omFULL))
-    {
-#if RIPPLED_PERF
-        JLOG(m_journal.warn()) << "setMode omCONNECTED 1";
-#endif
         setMode(omCONNECTED);
-    }
 
     if (consensus)
     {
@@ -1647,12 +1611,7 @@ void NetworkOPsImp::endConsensus ()
 void NetworkOPsImp::consensusViewChange ()
 {
     if ((mMode == omFULL) || (mMode == omTRACKING))
-    {
-#if RIPPLED_PERF
-        JLOG(m_journal.warn()) << "setMode omConnected 2";
-#endif
         setMode(omCONNECTED);
-    }
 }
 
 void NetworkOPsImp::pubManifest (Manifest const& mo)

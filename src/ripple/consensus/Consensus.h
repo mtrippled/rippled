@@ -314,9 +314,6 @@ class Consensus
         }
     };
 public:
-#if RIPPLED_PERF
-        std::unique_ptr<perf::Trace> trace_ {perf::makeTrace()};
-#endif
     //! Clock type for measuring time within the consensus code
     using clock_type = beast::abstract_clock<std::chrono::steady_clock>;
 
@@ -563,6 +560,9 @@ private:
 
     // Journal for debugging
     beast::Journal j_;
+
+    // Performance tracing ledger lifecycle.
+    std::unique_ptr<perf::Trace> trace_ {perf::makeTrace()};
 };
 
 template <class Adaptor>
@@ -585,9 +585,7 @@ Consensus<Adaptor>::startRound(
     Ledger_t prevLedger,
     bool proposing)
 {
-#if RIPPLED_PERF
     perf::open(trace_, "consensus");
-#endif
     if (firstRound_)
     {
         // take our initial view of closeTime_ from the seed ledger
@@ -781,9 +779,7 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
 {
-#if RIPPLED_PERF
     perf::add(trace_, "timerEntry");
-#endif
     // Nothing to do if we are currently working on a ledger
     if (phase_ == ConsensusPhase::accepted)
         return;

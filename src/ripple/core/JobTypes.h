@@ -23,11 +23,9 @@
 #include <ripple/core/Job.h>
 #include <ripple/core/JobTypeInfo.h>
 #include <map>
-#if RIPPLED_PERF
 #include <unordered_map>
 #include <type_traits>
 #include <string>
-#endif
 
 namespace ripple
 {
@@ -79,9 +77,7 @@ add(    jtGENERIC,       "generic",                 0,        true,  0,     0);
 add(    jtNS_SYNC_READ,  "SyncReadNode",            0,        true,  0,     0);
 add(    jtNS_ASYNC_READ, "AsyncReadNode",           0,        true,  0,     0);
 add(    jtNS_WRITE,      "WriteNode",               0,        true,  0,     0);
-#if RIPPLED_PERF
 add(    jtTOTAL,         "total",                   0,        true,  0,     0);
-#endif
     }
 
     JobTypeInfo const& get (JobType jt) const
@@ -120,7 +116,6 @@ add(    jtTOTAL,         "total",                   0,        true,  0,     0);
         return m_map.cend ();
     }
 
-#if RIPPLED_PERF
     std::unordered_map<std::underlying_type_t<JobType>, std::string>
     typeNames()
     {
@@ -129,7 +124,6 @@ add(    jtTOTAL,         "total",                   0,        true,  0,     0);
             ret[i.first] = i.second.name();
         return ret;
     };
-#endif
 
 private:
     void add(JobType jt, std::string name, int limit,

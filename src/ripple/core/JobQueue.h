@@ -202,6 +202,13 @@ public:
     void
     rendezvous();
 
+    static JobTypes&
+    getJobTypes()
+    {
+        static JobTypes types;
+        return types;
+    }
+
 private:
     friend class Coro;
 
@@ -229,21 +236,6 @@ private:
     beast::insight::Hook hook;
 
     std::condition_variable cv_;
-
-#if RIPPLED_PERF
-public:
-    static JobTypes& getJobTypes()
-#else
-    static JobTypes const& getJobTypes()
-#endif
-    {
-        static JobTypes types;
-        return types;
-    }
-
-#if RIPPLED_PERF
-private:
-#endif
 
     void collect();
     JobTypeData& getJobTypeData (JobType type);

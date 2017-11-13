@@ -20,9 +20,7 @@
 #include <BeastConfig.h>
 #include <ripple/core/JobQueue.h>
 #include <ripple/basics/contract.h>
-#if RIPPLED_PERF
 #include <ripple/basics/PerfLog.h>
-#endif
 
 namespace ripple {
 
@@ -337,9 +335,7 @@ JobQueue::queueJob (Job const& job, std::lock_guard <std::mutex> const& lock)
     JobType const type (job.getType ());
     assert (type != jtINVALID);
     assert (m_jobSet.find (job) != m_jobSet.end ());
-#if RIPPLED_PERF
     perf::gPerfLog->jobQueued(type);
-#endif
 
     JobTypeData& data (getJobTypeData (type));
 
@@ -449,9 +445,7 @@ JobQueue::processTask ()
             type = job.getType();
             JobTypeData& data(getJobTypeData(type));
             JLOG(m_journal.trace()) << "Doing " << data.name () << " job";
-#if RIPPLED_PERF
             perf::gPerfLog->jobRunning(type);
-#endif
             on_dequeue (job.getType (), start_time - job.queue_time ());
             job.doJob ();
         }
@@ -464,9 +458,7 @@ JobQueue::processTask ()
         // otherwise destructors with side effects can access
         // parent objects that are already destroyed.
         finishJob (type);
-#if RIPPLED_PERF
         perf::gPerfLog->jobFinished(type);
-#endif
         if(--m_processCount == 0 && m_jobSet.empty())
             cv_.notify_all();
         checkStopped (lock);

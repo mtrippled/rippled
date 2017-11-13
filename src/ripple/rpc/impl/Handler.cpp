@@ -79,7 +79,6 @@ class HandlerTable {
         return i == table_.end() ? nullptr : &i->second;
     }
 
-#if RIPPLED_PERF
     std::vector<char const*> const
     getHandlerNames() const
     {
@@ -89,7 +88,6 @@ class HandlerTable {
             ret.push_back(i.second.name_);
         return ret;
     }
-#endif
   private:
     std::map<std::string, Handler> table_;
 
@@ -177,14 +175,12 @@ const Handler* getHandler(std::string const& name) {
     return handlers.getHandler(name);
 }
 
-#if RIPPLED_PERF
 std::vector<char const*> const
 getHandlerNames()
 {
     HandlerTable const handlers(handlerArray);
     return handlers.getHandlerNames();
 };
-#endif
 
 } // RPC
 } // ripple

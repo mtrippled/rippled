@@ -26,13 +26,11 @@
 #include <map>
 #include <string>
 #include <vector>
-#if RIPPLED_PERF
 #include <ripple/basics/ContainerAtomic.h>
 #include <cstdint>
 #include <cstddef>
 #include <unordered_map>
 #include <functional>
-#endif
 
 /** \brief JSON (JavaScript Object Notation).
  */
@@ -96,7 +94,6 @@ namespace Json {
         const char *str_;
     };
 
-#if RIPPLED_PERF
 } // Json
 namespace std {
 template <>
@@ -130,7 +127,6 @@ inline bool operator>= (StaticString x, StaticString y)
 {
     return strcmp(x.c_str(), y.c_str()) >= 0;
 }
-#endif
 
 inline bool operator== (StaticString x, StaticString y)
 {
@@ -260,7 +256,6 @@ public:
     Value ( const char* value );
     Value ( const char* beginValue, const char* endValue );
 
-#if RIPPLED_PERF
     Value ( std::uint64_t value );
     Value ( std::int64_t value );
 
@@ -279,7 +274,6 @@ public:
         for (auto const& i : m)
             this->operator[](*i.first) = Value(i.second);
     }
-#endif
 
     /** \brief Constructs a value from a static string.
 
@@ -449,11 +443,7 @@ private:
         double real_;
         bool bool_;
         char* string_;
-#if RIPPLED_PERF
         ObjectValues* map_ = nullptr;
-#else
-        ObjectValues* map_;
-#endif
     } value_;
     ValueType type_ : 8;
     int allocated_ : 1;     // Notes: if declared as bool, bitfield is useless.

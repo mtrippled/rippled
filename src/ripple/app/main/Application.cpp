@@ -54,9 +54,7 @@
 #include <ripple/protocol/STParsedJSON.h>
 #include <ripple/protocol/Protocol.h>
 #include <ripple/resource/Fees.h>
-#if RIPPLED_PERF
 #include <ripple/basics/PerfLog.h>
-#endif
 #include <ripple/beast/asio/io_latency_probe.h>
 #include <ripple/beast/core/LexicalCast.h>
 #include <boost/asio/steady_timer.hpp>
@@ -291,9 +289,7 @@ private:
 
 public:
     std::unique_ptr<Config> config_;
-#if RIPPLED_PERF
     std::unique_ptr<perf::PerfLog> perfLog_;
-#endif
     std::unique_ptr<Logs> logs_;
     std::unique_ptr<TimeKeeper> timeKeeper_;
 
@@ -384,10 +380,8 @@ public:
         : RootStoppable ("Application")
         , BasicApp (numberOfThreads(*config))
         , config_ (std::move(config))
-#if RIPPLED_PERF
         , perfLog_ (make_PerfLog(setup_PerfLog(config_->section("perf")),*this,
                                  *this))
-#endif
         , logs_ (std::move(logs))
         , timeKeeper_ (std::move(timeKeeper))
 

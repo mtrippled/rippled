@@ -78,10 +78,8 @@ enum JobType
     jtNS_SYNC_READ,
     jtNS_ASYNC_READ,
     jtNS_WRITE,
-#if RIPPLED_PERF
     // Not a job. Used for performance counters.
     jtTOTAL,
-#endif
 };
 
 class Job

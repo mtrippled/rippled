@@ -27,9 +27,7 @@ namespace ripple {
 
 namespace detail {
 
-#if RIPPLED_PERF == 0
 static
-#endif
 std::unordered_map<
     std::underlying_type_t<TER>,
     std::pair<char const* const, char const* const>> const&
@@ -154,16 +152,13 @@ transResults()
         { terQUEUED,                 { "terQUEUED",                "Held until escalated fee drops."                                               } },
 
         { tesSUCCESS,                { "tesSUCCESS",               "The transaction was applied. Only final in a validated ledger."                } },
-#if RIPPLED_PERF
-        { tesTOTAL,                  { "tesTOTAL",                 "Total number of codes returned, for performance tracking."                     } },
-#endif
+        { tesTOTAL,                  { "tesTOTAL",                 "Total number of codes returned, for performance tracking (not returned)."      } },
     };
     return results;
 }
 
 }
 
-#if RIPPLED_PERF
 std::unordered_map<std::underlying_type_t<TER>, std::string>
 terNames()
 {
@@ -172,8 +167,6 @@ terNames()
         ret[i.first] = i.second.first;
     return ret;
 }
-
-#endif
 
 bool transResultInfo (TER code, std::string& token, std::string& text)
 {

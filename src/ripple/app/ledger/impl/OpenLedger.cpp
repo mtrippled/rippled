@@ -45,57 +45,41 @@ OpenLedger::OpenLedger(std::shared_ptr<
 bool
 OpenLedger::empty() const
 {
-#if RIPPLED_PERF
     auto trace = perf::makeTrace("modifylock", 1);
-#endif
     std::lock_guard<
         std::mutex> lock(modify_mutex_);
-#if RIPPLED_PERF
     perf::add(trace, "locked");
-#endif
     return current_->txCount() == 0;
 }
 
 std::shared_ptr<OpenView const>
 OpenLedger::current() const
 {
-#if RIPPLED_PERF
     auto trace = perf::makeTrace("currentlock", 1);
-#endif
     std::lock_guard<
         std::mutex> lock(
             current_mutex_);
-#if RIPPLED_PERF
     perf::add(trace, "locked");
-#endif
     return current_;
 }
 
 bool
 OpenLedger::modify (modify_type const& f)
 {
-#if RIPPLED_PERF
     auto trace1 = perf::makeTrace("modifylock", 2);
-#endif
     std::lock_guard<
         std::mutex> lock1(modify_mutex_);
-#if RIPPLED_PERF
     perf::add(trace1, "locked");
-#endif
     auto next = std::make_shared<
         OpenView>(*current_);
     auto const changed = f(*next, j_);
     if (changed)
     {
-#if RIPPLED_PERF
         auto trace2 = perf::makeTrace("currentlock", 2);
-#endif
         std::lock_guard<
             std::mutex> lock2(
                 current_mutex_);
-#if RIPPLED_PERF
         perf::add(trace2, "locked");
-#endif
         current_ = std::move(next);
     }
     return changed;
@@ -130,14 +114,10 @@ OpenLedger::accept(Application& app, Rules const& rules,
     // Block calls to modify, otherwise
     // new tx going into the open ledger
     // would get lost.
-#if RIPPLED_PERF
     auto trace1 = perf::makeTrace("modifylock", 3);
-#endif
     std::lock_guard<
         std::mutex> lock1(modify_mutex_);
-#if RIPPLED_PERF
     perf::add(trace1, "locked");
-#endif
     // Apply tx from the current open view
     if (! current_->txs.empty())
     {
@@ -195,14 +175,10 @@ OpenLedger::accept(Application& app, Rules const& rules,
     }
 
     // Switch to the new open view
-#if RIPPLED_PERF
     auto trace2 = perf::makeTrace("currentlock", 3);
-#endif
     std::lock_guard<
         std::mutex> lock2(current_mutex_);
-#if RIPPLED_PERF
     perf::add(trace2, "locked");
-#endif
     current_ = std::move(next);
 }
 

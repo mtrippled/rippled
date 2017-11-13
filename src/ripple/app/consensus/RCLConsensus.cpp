@@ -40,9 +40,7 @@
 #include <ripple/overlay/predicates.h>
 #include <ripple/protocol/Feature.h>
 #include <ripple/protocol/digest.h>
-#if RIPPLED_PERF
 #include <ripple/basics/Trace.h>
-#endif
 
 namespace ripple {
 
@@ -527,13 +525,9 @@ RCLConsensus::Adaptor::doAccept(
         // Build new open ledger
         auto lock = make_lock(app_.getMasterMutex(), std::defer_lock);
         auto sl = make_lock(ledgerMaster_.peekMutex(), std::defer_lock);
-#if RIPPLED_PERF
         auto trace = perf::makeTrace("masterlock", 1);
-#endif
         std::lock(lock, sl);
-#if RIPPLED_PERF
         perf::add(trace, "locked");
-#endif
 
         auto const lastVal = ledgerMaster_.getValidatedLedger();
         boost::optional<Rules> rules;
