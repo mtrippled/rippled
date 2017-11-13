@@ -246,6 +246,11 @@ inline bool isTesSuccess(TER x)
     return ((x) == tesSUCCESS);
 }
 
+inline bool isTesTotal(TER x)
+{
+    return ((x) == tesTOTAL);
+}
+
 inline bool isTecClaim(TER x)
 {
     return ((x) >= tecCLAIM);
