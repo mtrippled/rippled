@@ -291,15 +291,21 @@ Value::Value ( bool value )
 }
 
 Value::Value ( std::uint64_t value )
-    : type_ (nullValue)
+    : type_ ( stringValue )
+    , allocated_ ( true )
 {
-    *this = std::to_string(value);
+    std::string str(std::to_string(value));
+    value_.string_ = valueAllocator ()->duplicateStringValue (
+            str.c_str (), str.size() );
 }
 
 Value::Value ( std::int64_t value )
-    : type_ (nullValue)
+    : type_ ( stringValue )
+    , allocated_ ( true )
 {
-    *this = std::to_string(value);
+    std::string str(std::to_string(value));
+    value_.string_ = valueAllocator ()->duplicateStringValue (
+            str.c_str (), str.size() );
 }
 
 Value::Value ( const Value& other )
