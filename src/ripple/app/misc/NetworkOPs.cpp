@@ -58,10 +58,8 @@
 #include <ripple/basics/make_lock.h>
 #include <beast/core/detail/base64.hpp>
 #include <boost/asio/steady_timer.hpp>
-#if RIPPLED_PERF
 #include <ripple/basics/PerfLog.h>
 #include <utility>
-#endif
 
 namespace ripple {
 
@@ -1052,12 +1050,12 @@ void NetworkOPsImp::apply (std::unique_lock<std::mutex>& batchLock)
         bool changed = false;
         {
 #if RIPPLED_PERF
-            Trace trace("masterlock", 2);
+            auto trace = perf::makeTrace("masterlock", 2);
 #endif
             std::lock_guard <std::recursive_mutex> lock (
                 m_ledgerMaster.peekMutex());
 #if RIPPLED_PERF
-            trace.add("locked");
+            perf::add(trace, "locked");
 #endif
             app_.openLedger().modify(
                 [&](OpenView& view, beast::Journal j)
@@ -1069,9 +1067,11 @@ void NetworkOPsImp::apply (std::unique_lock<std::mutex>& batchLock)
                     if (e.admin)
                         flags = flags | tapUNLIMITED;
 
+                    perf::start(trace, "apply");
                     auto const result = app_.getTxQ().apply(
                         app_, view, e.transaction->getSTransaction(),
-                        flags, j);
+                        flags, j, trace);
+                    perf::end(trace, "apply");
                     e.result = result.first;
                     e.applied = result.second;
                     changed = changed || result.second;

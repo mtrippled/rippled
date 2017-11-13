@@ -45,6 +45,7 @@ PerfLogImpl::PerfLogImpl (Setup const& setup,
         : Stoppable ("PerfLogImpl", parent)
         , perf_log_ (setup.perf_log)
         , log_interval_ (setup.log_interval)
+        , logging_ (setup.perf_log.size())
         , app_ (app)
 {
     perf::gPerfLog = this;
@@ -172,6 +173,8 @@ PerfLogImpl::~PerfLogImpl()
 void
 PerfLogImpl::rotate()
 {
+    if (!logging())
+        return;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         rotate_ = true;
@@ -335,6 +338,8 @@ PerfLogImpl::report()
 void
 PerfLogImpl::addEvent(std::unique_ptr<Events> event)
 {
+    if (!logging())
+        return;
     if (perf_log_.size() && event)
     {
         std::lock_guard<std::mutex> lock (eventsMutex_);

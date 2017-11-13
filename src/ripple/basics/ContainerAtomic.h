@@ -17,7 +17,6 @@
 */
 //==============================================================================
 
-#if RIPPLED_PERF
 #ifndef RIPPLED_CONTAINERATOMIC_H
 #define RIPPLED_CONTAINERATOMIC_H
 
@@ -242,4 +241,3 @@ void foofunc();
 } // perf
 } // ripple
 #endif // RIPPLED_CONTAINERATOMIC_H
-#endif // RIPPLED_PERF

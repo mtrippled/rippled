@@ -528,11 +528,11 @@ RCLConsensus::Adaptor::doAccept(
         auto lock = make_lock(app_.getMasterMutex(), std::defer_lock);
         auto sl = make_lock(ledgerMaster_.peekMutex(), std::defer_lock);
 #if RIPPLED_PERF
-        Trace trace("masterlock", 1);
+        auto trace = perf::makeTrace("masterlock", 1);
 #endif
         std::lock(lock, sl);
 #if RIPPLED_PERF
-        trace.add("locked");
+        perf::add(trace, "locked");
 #endif
 
         auto const lastVal = ledgerMaster_.getValidatedLedger();

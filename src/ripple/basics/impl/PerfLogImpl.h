@@ -50,9 +50,16 @@ public:
 
     void rotate() override;
 
+    bool logging() const override
+    {
+        return logging_;
+    }
+
     void
     rpcRunning(std::string const& method) override
     {
+        if (!logging())
+            return;
         rpc(method, "running");
         rpc("total", "running");
     }
@@ -60,6 +67,8 @@ public:
     void
     rpcFinished(std::string const& method) override
     {
+        if (!logging())
+            return;
         rpc(method, "finished");
         rpc("total", "finished");
     }
@@ -67,6 +76,8 @@ public:
     void
     rpcErrored(std::string const& method) override
     {
+        if (!logging())
+            return;
         rpc(method, "errored");
         rpc("total", "errored");
     }
@@ -74,6 +85,8 @@ public:
     void
     jobQueued(JobType const& jt) override
     {
+        if (!logging())
+            return;
         job(jt, "queued");
         job(jtTOTAL, "queued");
     }
@@ -81,6 +94,8 @@ public:
     void
     jobRunning(JobType const& jt) override
     {
+        if (!logging())
+            return;
         job(jt, "running");
         job(jtTOTAL, "running");
     }
@@ -88,6 +103,8 @@ public:
     void
     jobFinished(JobType const& jt) override
     {
+        if (!logging())
+            return;
         job(jt, "finished");
         job(jtTOTAL, "finished");
     }
@@ -95,6 +112,8 @@ public:
     void
     ter(TER const& ter) override
     {
+        if (!logging())
+            return;
         {
             auto const &v = counters_.ter.find(ter);
             assert(v != counters_.ter.end());
@@ -136,6 +155,7 @@ private:
 
     std::string const perf_log_;
     unsigned int const log_interval_;
+    std::atomic<bool> logging_;
     Application& app_;
     bool rotate_ = false;
     bool stop_ = false;
@@ -226,6 +246,8 @@ private:
     void
     setNumberOfThreads(int const workers)
     {
+        if (!logging())
+            return;
         workers_ = workers;
     }
 

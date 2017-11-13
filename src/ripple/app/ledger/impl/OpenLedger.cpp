@@ -46,12 +46,12 @@ bool
 OpenLedger::empty() const
 {
 #if RIPPLED_PERF
-    Trace trace("modifylock", 2);
+    auto trace = perf::makeTrace("modifylock", 1);
 #endif
     std::lock_guard<
         std::mutex> lock(modify_mutex_);
 #if RIPPLED_PERF
-    trace.add("locked");
+    perf::add(trace, "locked");
 #endif
     return current_->txCount() == 0;
 }
@@ -60,13 +60,13 @@ std::shared_ptr<OpenView const>
 OpenLedger::current() const
 {
 #if RIPPLED_PERF
-    Trace trace("currentlock", 2);
+    auto trace = perf::makeTrace("currentlock", 1);
 #endif
     std::lock_guard<
         std::mutex> lock(
             current_mutex_);
 #if RIPPLED_PERF
-    trace.add("locked");
+    perf::add(trace, "locked");
 #endif
     return current_;
 }
@@ -75,12 +75,12 @@ bool
 OpenLedger::modify (modify_type const& f)
 {
 #if RIPPLED_PERF
-    Trace trace1("modifylock", 1);
+    auto trace1 = perf::makeTrace("modifylock", 2);
 #endif
     std::lock_guard<
         std::mutex> lock1(modify_mutex_);
 #if RIPPLED_PERF
-    trace1.add("locked");
+    perf::add(trace1, "locked");
 #endif
     auto next = std::make_shared<
         OpenView>(*current_);
@@ -88,13 +88,13 @@ OpenLedger::modify (modify_type const& f)
     if (changed)
     {
 #if RIPPLED_PERF
-        Trace trace2("currentlock", 1);
+        auto trace2 = perf::makeTrace("currentlock", 2);
 #endif
         std::lock_guard<
             std::mutex> lock2(
                 current_mutex_);
 #if RIPPLED_PERF
-        trace2.add("locked");
+        perf::add(trace2, "locked");
 #endif
         current_ = std::move(next);
     }
@@ -131,12 +131,12 @@ OpenLedger::accept(Application& app, Rules const& rules,
     // new tx going into the open ledger
     // would get lost.
 #if RIPPLED_PERF
-    Trace trace1("modifylock", 3);
+    auto trace1 = perf::makeTrace("modifylock", 3);
 #endif
     std::lock_guard<
         std::mutex> lock1(modify_mutex_);
 #if RIPPLED_PERF
-    trace1.add("locked");
+    perf::add(trace1, "locked");
 #endif
     // Apply tx from the current open view
     if (! current_->txs.empty())
@@ -196,12 +196,12 @@ OpenLedger::accept(Application& app, Rules const& rules,
 
     // Switch to the new open view
 #if RIPPLED_PERF
-    Trace trace2("currentlock", 3);
+    auto trace2 = perf::makeTrace("currentlock", 3);
 #endif
     std::lock_guard<
         std::mutex> lock2(current_mutex_);
 #if RIPPLED_PERF
-    trace2.add("locked");
+    perf::add(trace2, "locked");
 #endif
     current_ = std::move(next);
 }

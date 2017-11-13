@@ -30,6 +30,7 @@
 #endif
 
 namespace ripple {
+namespace perf {
 
 Trace::~Trace()
 {
@@ -38,48 +39,73 @@ Trace::~Trace()
         std::lock_guard<std::mutex> lock(mutex_);
         submit();
     }
-    catch(std::exception& e)
+    catch (std::exception &e)
     {
         std::cerr << "Trace ~ exception:\n" << e.what() << "\n";
         assert(false);
     }
 }
 
-Trace::Trace(Trace&& other)
+Trace::Trace(Trace &&other)
 {
     std::lock_guard<std::mutex> lock(other.mutex_);
     type_ = other.type_;
-    other.type_ = perf::TraceType::none;
+    other.type_ = TraceType::none;
     events_ = std::move(other.events_);
     timers_ = std::move(other.timers_);
 }
 
-void Trace::add(std::string const& name,
-        std::uint64_t const counter,
-        perf::EventType const type)
+Trace &
+Trace::operator=(Trace &&other)
+{
+    if (this == &other)
+        return *this;
+    std::lock_guard<std::mutex> lock(other.mutex_);
+    type_ = other.type_;
+    other.type_ = TraceType::none;
+    events_ = std::move(other.events_);
+    timers_ = std::move(other.timers_);
+    return *this;
+}
+
+void Trace::add(std::string const &name,
+                std::uint64_t const counter,
+                EventType const type)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (type_ == perf::TraceType::none)
-        lockedOpen(name, counter, perf::TraceType::trace);
-    type_ = perf::TraceType::trace;
-    lockedAdd(name, type, counter);
+    if (type_ == TraceType::none)
+    {
+        lockedOpen(name, counter, TraceType::trace);
+    } else
+    {
+        type_ = TraceType::trace;
+        lockedAdd(name, type, counter);
+    }
 }
 
 void
-Trace::start(std::string const& timer,
+Trace::start(std::string const &timer,
              std::uint64_t const counter,
-             std::chrono::time_point<std::chrono::system_clock> const& tp)
+             std::chrono::time_point<std::chrono::system_clock> const &tp)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (type_ == perf::TraceType::trace)
-        lockedStart(timer, counter, tp);
+    switch (type_)
+    {
+        case TraceType::none:
+            lockedOpen(timer, counter, TraceType::trace, tp);
+        case TraceType::trace:
+            lockedStart(timer, counter, tp);
+            break;
+        default:
+            assert(false);
+    }
 }
 
 void
-Trace::end(std::string const& timer)
+Trace::end(std::string const &timer)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (type_ == perf::TraceType::trace)
+    if (type_ == TraceType::trace)
         lockedEnd(timer);
 }
 
@@ -91,9 +117,9 @@ Trace::close()
 }
 
 void
-Trace::open(std::string const& name,
+Trace::open(std::string const &name,
             std::uint64_t const counter,
-            perf::TraceType const type)
+            TraceType const type)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     lockedOpen(name, counter, type);
@@ -103,11 +129,11 @@ Trace::open(std::string const& name,
 
 void
 Trace::lockedAdd(std::string const &name,
-          perf::EventType const type,
+          EventType const type,
           std::uint64_t const counter,
           std::chrono::time_point<std::chrono::system_clock> const &tp)
 {
-    assert(type_ != perf::TraceType::none);
+    assert(type_ != TraceType::none);
     if (events_)
     {
         events_->emplace(tp,
@@ -127,15 +153,15 @@ Trace::lockedStart(std::string const& timer,
                    std::uint64_t const counter,
                    std::chrono::time_point<std::chrono::system_clock> const& tp)
 {
-    assert(type_ == perf::TraceType::trace);
+    assert(type_ == TraceType::trace);
     timers_[timer] = tp;
-    lockedAdd(timer, perf::EventType::start, counter, tp);
+    lockedAdd(timer, EventType::start, counter, tp);
 }
 
 void
 Trace::lockedEnd(std::string const& timer)
 {
-    assert(type_ == perf::TraceType::trace);
+    assert(type_ == TraceType::trace);
 
     auto start = timers_.find (timer);
     if (start != timers_.end())
@@ -146,35 +172,35 @@ Trace::lockedEnd(std::string const& timer)
                 std::chrono::duration_cast<std::chrono::microseconds> (
                         endTime - start->second).count();
         timers_.erase (start);
-        lockedAdd(timer, perf::EventType::end, duration, endTime);
+        lockedAdd(timer, EventType::end, duration, endTime);
     }
 }
 
 bool
 Trace::submit()
 {
-    if (type_ == perf::TraceType::none)
+    if (type_ == TraceType::none)
         return false;
 
     switch (type_)
     {
-        case perf::TraceType::trace:
+        case TraceType::trace:
         {
             assert(events_ && !events_->empty());
             auto now = std::chrono::system_clock::now();
-            lockedAdd("END", perf::EventType::generic,
+            lockedAdd("END", EventType::generic,
                       std::chrono::duration_cast<std::chrono::microseconds>(
                               now - events_->begin()->first).count(), now);
         }
             break;
-        case perf::TraceType::trap:
+        case TraceType::trap:
             assert(events_ && !events_->empty());
             break;
         default:
             assert(false);
     }
 
-    perf::gPerfLog->addEvent(std::move(events_));
+    gPerfLog->addEvent(std::move(events_));
 
     return true;
 }
@@ -185,36 +211,24 @@ Trace::lockedClose()
     if (!submit())
         return;
     timers_.clear();
-    type_ = perf::TraceType::none;
+    type_ = TraceType::none;
 }
 
 void
 Trace::lockedOpen(std::string const& name,
                   std::uint64_t const counter,
-                  perf::TraceType const type)
+                  TraceType const type,
+                  std::chrono::time_point<std::chrono::system_clock> const& tp)
 {
-    if (type == perf::TraceType::none)
+    if (type == TraceType::none)
         return;
     lockedClose();
     type_ = type;
-    events_ = std::make_unique<perf::Events>();
-    lockedAdd(name, perf::EventType::generic, counter);
-    if (type == perf::TraceType::trap)
+    events_ = std::make_unique<Events>();
+    lockedAdd(name, EventType::generic, counter, tp);
+    if (type == TraceType::trap)
         lockedClose();
 }
 
-//-----------------------------------------------------------------------------
-
-std::shared_ptr<Trace>
-makeTrace(std::string const& name, std::uint64_t const counter)
-{
-    return std::make_shared<Trace>(name, counter, perf::TraceType::trace);
-}
-
-void
-sendTrap(std::string const& name, std::uint64_t const counter)
-{
-    Trace(name, counter, perf::TraceType::trap);
-}
-
+} // perf
 } // ripple

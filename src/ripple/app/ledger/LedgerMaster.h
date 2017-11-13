@@ -262,7 +262,7 @@ private:
     // Try to publish ledgers, acquire missing ledgers.  Always called with
     // m_mutex locked.  The passed ScopedLockType is a reminder to callers.
 #if RIPPLED_PERF
-    void doAdvance(ScopedLockType&, Trace& trace);
+    void doAdvance(ScopedLockType&, std::shared_ptr<perf::Trace>& trace);
 #else
     void doAdvance(ScopedLockType&);
 #endif
@@ -275,7 +275,7 @@ private:
 
     std::vector<std::shared_ptr<Ledger const>>
 #if RIPPLED_PERF
-    findNewLedgersToPublish(Trace& trace);
+    findNewLedgersToPublish(std::shared_ptr<perf::Trace>& trace);
 #else
     findNewLedgersToPublish();
 #endif

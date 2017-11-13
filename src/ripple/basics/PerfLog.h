@@ -71,6 +71,7 @@ public:
 
     /** Re-open logfile for RPC "logrotate". */
     virtual void rotate() = 0;
+    virtual bool logging() const = 0;
     virtual void addEvent(std::unique_ptr<Events> event) = 0;
     virtual void rpcRunning(std::string const &method) = 0;
     virtual void rpcFinished(std::string const &method) = 0;

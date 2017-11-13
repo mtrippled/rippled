@@ -24,9 +24,41 @@
 
 namespace ripple {
 
+void
+somefunc(std::unique_ptr<perf::Trace> const& trace=nullptr)
+{
+      perf::add(trace, "somefunc");
+}
+
 Json::Value doLogRotate (RPC::Context& context)
 {
 #if RIPPLED_PERF
+    /*
+    perf::Trace trace1("logrotation1");
+    std::shared_ptr<perf::Trace> trace2 =
+            std::make_shared<perf::Trace>("logrotation2");
+    std::shared_ptr<perf::Trace> trace3;
+    trace3.reset(new perf::Trace("logrotation3"));
+    std::shared_ptr<perf::Trace> trace4 = perf::sharedTrace();
+    perf::add(trace4, "crash");
+    perf::open(trace4, "logrotation4");
+    perf::close(trace4);
+    perf::start(trace4, "football");
+    perf::end(trace4, "football");
+    perf::start(trace4, "thirty");
+    perf::end(trace4, "fpar");
+    trace4.reset();
+    auto trace5 = perf::makeTrace("logrotation5");
+    somefunc(trace5);
+//    ripple::Trace trace6(std::move(trace1));
+//    ripple::Trace trace6 = std::move(trace1);
+//    trace6.add("hahahaha");
+    perf::Trace trace7;
+    trace7 = std::move(trace1);
+    trace7.add("yohoho");
+    perf::trap("itsatrap");
+     */
+
     perf::gPerfLog->rotate();
 #endif
     return RPC::makeObjectValue (context.app.logs().rotate());
