@@ -40,6 +40,7 @@
 namespace ripple {
 namespace perf {
 
+
 class PerfLogImpl
     : public PerfLog, Stoppable
 {
@@ -156,8 +157,8 @@ private:
     };
 
     std::string const perf_log_;
-    unsigned int const log_interval_;
-    std::atomic<bool> logging_;
+    unsigned int const log_interval_ {1};
+    std::atomic<bool> logging_ {false};
     Application& app_;
     bool rotate_ = false;
     bool stop_ = false;
@@ -263,6 +264,29 @@ private:
     // Called when all child Stoppable objects have stopped.
     void onChildrenStopped() override {}
 };
+
+class PerfLogTest
+    : public PerfLog
+{
+public:
+    PerfLogTest()
+    {
+        gPerfLog = this;
+    }
+
+    void rotate() override {}
+    bool logging() const override { return false; }
+    void addEvent(std::unique_ptr<Events> event) override {}
+    void rpcRunning(std::string const &method) override {}
+    void rpcFinished(std::string const &method) override {}
+    void rpcErrored(std::string const &method) override {}
+    void jobQueued(JobType const &jt) override {}
+    void jobRunning(JobType const &jt) override {}
+    void jobFinished(JobType const &jt) override {}
+    void ter(TER const &ter) override {}
+    void setNumberOfThreads(int const workers) override {}
+};
+
 
 } // perf
 } // ripple

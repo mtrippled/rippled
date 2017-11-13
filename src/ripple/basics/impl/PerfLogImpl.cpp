@@ -375,6 +375,12 @@ setup_PerfLog(Section const& section)
     return setup;
 }
 
+void
+make_PerfLogTest()
+{
+    new PerfLogTest();
+}
+
 std::unique_ptr<PerfLog>
 make_PerfLog(PerfLog::Setup const& setup,
     Stoppable& parent,

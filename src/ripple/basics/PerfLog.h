@@ -33,7 +33,10 @@
 namespace ripple {
 namespace perf {
 
-enum class EventType { generic, start, end };
+enum class EventType
+{
+    generic, start, end
+};
 
 using Event = std::tuple<std::string,
     EventType,
@@ -61,7 +64,8 @@ public:
         unsigned int log_interval{1};
     };
 
-    virtual ~PerfLog() {}
+    virtual ~PerfLog()
+    {}
 
     /** Re-open logfile for RPC "logrotate". */
     virtual void rotate() = 0;
@@ -73,21 +77,26 @@ public:
     virtual void jobQueued(JobType const &jt) = 0;
     virtual void jobRunning(JobType const &jt) = 0;
     virtual void jobFinished(JobType const &jt) = 0;
-    virtual void ter(TER const& ter) = 0;
+    virtual void ter(TER const &ter) = 0;
     virtual void setNumberOfThreads(int const workers) = 0;
 };
 
 //------------------------------------------------------------------------------
 
 // All Trace objects need to find this.
-extern PerfLog* gPerfLog;
+extern PerfLog *gPerfLog;
+
+} //perf
 
 class Section;
+class Stoppable;
+class Application;
+
+namespace perf {
 /** Build PerfLog::Setup from a config section. */
 PerfLog::Setup setup_PerfLog(Section const& section);
 
-class Stoppable;
-class Application;
+void make_PerfLogTest();
 std::unique_ptr<PerfLog> make_PerfLog(
     perf::PerfLog::Setup const& setup,
     Stoppable& parent,
