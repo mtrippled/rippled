@@ -34,29 +34,30 @@
 
 /** \brief JSON (JavaScript Object Notation).
  */
-namespace Json {
+namespace Json
+{
 
 /** \brief Type of the value held by a Value object.
  */
-    enum ValueType
-    {
-        nullValue = 0, ///< 'null' value
-        intValue,      ///< signed integer value
-        uintValue,     ///< unsigned integer value
-        realValue,     ///< double value
-        stringValue,   ///< UTF-8 string value
-        booleanValue,  ///< bool value
-        arrayValue,    ///< array value (ordered list)
-        objectValue    ///< object value (collection of name/value pairs).
-    };
+enum ValueType
+{
+    nullValue = 0, ///< 'null' value
+    intValue,      ///< signed integer value
+    uintValue,     ///< unsigned integer value
+    realValue,     ///< double value
+    stringValue,   ///< UTF-8 string value
+    booleanValue,  ///< bool value
+    arrayValue,    ///< array value (ordered list)
+    objectValue    ///< object value (collection of name/value pairs).
+};
 
-    enum CommentPlacement
-    {
-        commentBefore = 0,        ///< a comment placed on the line before a value
-        commentAfterOnSameLine,   ///< a comment just after a value on the same line
-        commentAfter,             ///< a comment on the line after a value (only make sense for root value)
-        numberOfCommentPlacement
-    };
+enum CommentPlacement
+{
+    commentBefore = 0,        ///< a comment placed on the line before a value
+    commentAfterOnSameLine,   ///< a comment just after a value on the same line
+    commentAfter,             ///< a comment on the line after a value (only make sense for root value)
+    numberOfCommentPlacement
+};
 
 /** \brief Lightweight wrapper to tag static string.
  *
@@ -76,7 +77,7 @@ namespace Json {
     {
     public:
         constexpr explicit StaticString(const char *czstring)
-                : str_(czstring)
+            : str_(czstring)
         {
         }
 
@@ -268,7 +269,7 @@ public:
 
     template <class T>
     Value ( std::unordered_map<StaticString*, T> const& m )
-            : type_ (nullValue)
+        : type_ (nullValue)
     {
         *this = Json::objectValue;
         for (auto const& i : m)

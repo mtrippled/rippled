@@ -40,15 +40,15 @@ namespace perf {
 PerfLog* gPerfLog {nullptr};
 
 PerfLogImpl::PerfLogImpl (Setup const& setup,
-                          Stoppable& parent,
-                          Application& app)
+    Stoppable& parent,
+    Application& app)
         : Stoppable ("PerfLogImpl", parent)
         , perf_log_ (setup.perf_log)
         , log_interval_ (setup.log_interval)
         , logging_ (setup.perf_log.size())
         , app_ (app)
 {
-    perf::gPerfLog = this;
+    gPerfLog = this;
     openLog();
 
     Fields fields;
@@ -63,47 +63,47 @@ PerfLogImpl::PerfLogImpl (Setup const& setup,
     for (auto const& i : fields.ter)
     {
         counters_.fields.emplace(i.second,
-                                 std::unique_ptr<Json::StaticString>());
+            std::unique_ptr<Json::StaticString>());
     }
     for (auto const& i : fields.job)
     {
         counters_.fields.emplace(i.second,
-                                 std::unique_ptr<Json::StaticString>());
+            std::unique_ptr<Json::StaticString>());
     }
     std::vector<std::string> subFields {
-            "queued",
-            "running",
-            "finished",
-            "errored",
-            "entries",
-            "counters",
-            "job_queue",
-            "ter",
-            "node_store",
-            "fetch_hits",
-            "fetches",
-            "fetches_size",
-            "stores",
-            "stores_size",
-            "rpc",
-            "time",
-            "hostname",
-            "pid",
-            "workers",
-            "trace",
-            "type",
-            "name",
-            "tid",
-            "counter",
-            "events",
-            "rpc"
+        "queued",
+        "running",
+        "finished",
+        "errored",
+        "entries",
+        "counters",
+        "job_queue",
+        "ter",
+        "node_store",
+        "fetch_hits",
+        "fetches",
+        "fetches_size",
+        "stores",
+        "stores_size",
+        "rpc",
+        "time",
+        "hostname",
+        "pid",
+        "workers",
+        "trace",
+        "type",
+        "name",
+        "tid",
+        "counter",
+        "events",
+        "rpc"
     };
     for (auto const& i : subFields)
         counters_.fields.emplace(i, std::unique_ptr<Json::StaticString>());
     for (auto const& i : counters_.fields)
     {
-        counters_.fields[i.first].reset(
-                new Json::StaticString(i.first.c_str()));
+        counters_.fields[i.first] =
+            std::make_unique<Json::StaticString>(i.first.c_str());
     }
 
     ssQueued_      = counters_.fields.at("queued").get();
@@ -133,7 +133,7 @@ PerfLogImpl::PerfLogImpl (Setup const& setup,
     for (auto const& i : fields.ter)
     {
         counters_.ter.emplace(i.first,
-                std::make_pair(counters_.fields.at(i.second).get(), 0));
+            std::make_pair(counters_.fields.at(i.second).get(), 0));
     }
     for (auto const& i : fields.job)
     {
@@ -141,10 +141,10 @@ PerfLogImpl::PerfLogImpl (Setup const& setup,
             std::make_pair(counters_.fields.at(i.second).get(),
                 std::unordered_map<Json::StaticString*,
                     ContainerAtomic<std::uint64_t>>{
-                       { counters_.fields["queued"].get(), 0 },
-                       { counters_.fields["running"].get(), 0 },
-                       { counters_.fields["finished"].get(), 0 },
-                    }
+                    { counters_.fields["queued"].get(), 0 },
+                    { counters_.fields["running"].get(), 0 },
+                    { counters_.fields["finished"].get(), 0 },
+                }
             )
         );
     }
@@ -154,10 +154,10 @@ PerfLogImpl::PerfLogImpl (Setup const& setup,
             std::make_pair(counters_.fields.at(i).get(),
                 std::unordered_map<Json::StaticString*,
                     ContainerAtomic<std::uint64_t>>{
-                       { counters_.fields["errored"].get(), 0 },
-                       { counters_.fields["running"].get(), 0 },
-                       { counters_.fields["finished"].get(), 0 },
-                    }
+                    { counters_.fields["errored"].get(), 0 },
+                    { counters_.fields["running"].get(), 0 },
+                    { counters_.fields["finished"].get(), 0 },
+                }
             )
         );
     }
@@ -202,28 +202,24 @@ PerfLogImpl::run()
     {
         {
             std::unique_lock<std::mutex> lock(mutex_);
-
             if (stop_)
             {
                 stopped();
                 return;
             }
-
             if (rotate_)
                 reOpenLog();
-
-            cond_.wait_until (lock, lastLog_ +
-                              std::chrono::seconds (log_interval_));
+            cond_.wait_until (lock,
+                lastLog_ + std::chrono::seconds(log_interval_));
         }
-
         report();
     }
 }
 
 void
 PerfLogImpl::reportHeader (
-        std::chrono::time_point<std::chrono::system_clock> const& now,
-        Json::Value& report)
+    std::chrono::time_point<std::chrono::system_clock> const& now,
+    Json::Value& report)
 {
     report[*ssTime_] = timeString(now);
     report[*ssHostname_] = cHostname_;
@@ -233,7 +229,7 @@ PerfLogImpl::reportHeader (
 
 std::string
 PerfLogImpl::timeString (
-        std::chrono::time_point<std::chrono::system_clock> const& tp)
+    std::chrono::time_point<std::chrono::system_clock> const& tp)
 {
     auto tpu = ::date::floor<std::chrono::microseconds> (tp);
     auto dp = ::date::floor<::date::days> (tpu);
@@ -241,7 +237,6 @@ PerfLogImpl::timeString (
     auto time = ::date::make_time (tpu - dp);
     std::stringstream ss;
     ss << ymd << 'T' << time << 'Z';
-
     return ss.str();
 }
 
@@ -262,7 +257,7 @@ PerfLogImpl::report()
         if (workers_)
             report[*ssWorkers_] = workers_.load();
         auto& entry = report[*counters_.fields.at("entries").get()].append(
-                Json::objectValue);
+            Json::objectValue);
         entry[*ssType_] = "counters";
         Json::Value jq(Json::objectValue);
         for (auto const& i : counters_.job)
@@ -279,7 +274,7 @@ PerfLogImpl::report()
     }
 
     std::multimap<std::chrono::time_point<std::chrono::system_clock>,
-            std::unique_ptr<Events>> perfEvents;
+        std::unique_ptr<Events>> perfEvents;
     {
         std::lock_guard<std::mutex> lock (eventsMutex_);
         if (perfEvents_.size())
@@ -340,7 +335,7 @@ PerfLogImpl::addEvent(std::unique_ptr<Events> event)
 {
     if (!logging())
         return;
-    if (perf_log_.size() && event)
+    if (event)
     {
         std::lock_guard<std::mutex> lock (eventsMutex_);
         perfEvents_.emplace(event->begin()->first, std::move(event));
@@ -350,7 +345,7 @@ PerfLogImpl::addEvent(std::unique_ptr<Events> event)
 void
 PerfLogImpl::onStart()
 {
-    if (perf_log_.size())
+    if (logging())
         thread_ = std::thread (&PerfLogImpl::run, this);
 }
 
@@ -371,23 +366,22 @@ PerfLogImpl::onStop()
     }
 }
 
-} // perf
-
-perf::PerfLog::Setup
+PerfLog::Setup
 setup_PerfLog(Section const& section)
 {
-    perf::PerfLog::Setup setup;
+    PerfLog::Setup setup;
     set (setup.perf_log, "perf_log", section);
     set (setup.log_interval, "log_interval", section);
     return setup;
 }
 
-std::unique_ptr<perf::PerfLog>
-make_PerfLog(perf::PerfLog::Setup const& setup,
-             Stoppable& parent,
-             Application& app)
+std::unique_ptr<PerfLog>
+make_PerfLog(PerfLog::Setup const& setup,
+    Stoppable& parent,
+    Application& app)
 {
-    return std::make_unique<perf::PerfLogImpl>(setup, parent, app);
+    return std::make_unique<PerfLogImpl>(setup, parent, app);
 }
 
+} // perf
 } // ripple

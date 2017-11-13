@@ -31,28 +31,22 @@
 #include <thread>
 
 namespace ripple {
-
 namespace perf {
 
-enum class EventType
-{
-    generic,
-    start,
-    end
-};
+enum class EventType { generic, start, end };
 
 using Event = std::tuple<std::string,
-        EventType,
+    EventType,
 #if BEAST_LINUX
-        int,
+    int,
 #else
-        std::thread::id,
+    std::thread::id,
 #endif
-        std::uint64_t>;
+    std::uint64_t>;
 
 using Events = std::multimap<
-        std::chrono::time_point<std::chrono::system_clock>,
-        Event>;
+    std::chrono::time_point<std::chrono::system_clock>,
+    Event>;
 
 /**
  * This class logs performance data, and also maintains configuration options
@@ -88,21 +82,18 @@ public:
 // All Trace objects need to find this.
 extern PerfLog* gPerfLog;
 
-} // perf
-
 class Section;
 /** Build PerfLog::Setup from a config section. */
-perf::PerfLog::Setup
-setup_PerfLog(Section const& section);
+PerfLog::Setup setup_PerfLog(Section const& section);
 
 class Stoppable;
 class Application;
+std::unique_ptr<PerfLog> make_PerfLog(
+    perf::PerfLog::Setup const& setup,
+    Stoppable& parent,
+    Application& app);
 
-std::unique_ptr<perf::PerfLog>
-make_PerfLog(perf::PerfLog::Setup const& setup,
-             Stoppable& parent,
-             Application& app);
-
+} // perf
 } // ripple
 
 #endif // RIPPLE_BASICS_PERFLOG_H_INCLUDED

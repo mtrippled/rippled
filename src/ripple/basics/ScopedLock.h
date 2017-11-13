@@ -93,12 +93,12 @@ public:
     }
 
     GenericScopedUnlock (MutexType& lock,
-                         std::shared_ptr<perf::Trace>& trace,
-                         std::string const& name, std::uint64_t const counter)
-        : lock_ (lock)
-        , trace_ (trace)
-        , name_ (name)
-        , counter_ (counter)
+        std::shared_ptr<perf::Trace>& trace,
+        std::string const& name, std::uint64_t const counter)
+            : lock_ (lock)
+            , trace_ (trace)
+            , name_ (name)
+            , counter_ (counter)
     {
         lock.unlock();
         if (trace_)

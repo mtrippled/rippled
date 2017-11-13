@@ -68,9 +68,10 @@ Trace::operator=(Trace &&other)
     return *this;
 }
 
-void Trace::add(std::string const &name,
-                std::uint64_t const counter,
-                EventType const type)
+void
+Trace::add(std::string const &name,
+    std::uint64_t const counter,
+    EventType const type)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     if (type_ == TraceType::none)
@@ -85,8 +86,8 @@ void Trace::add(std::string const &name,
 
 void
 Trace::start(std::string const &timer,
-             std::uint64_t const counter,
-             std::chrono::time_point<std::chrono::system_clock> const &tp)
+    std::uint64_t const counter,
+    std::chrono::time_point<std::chrono::system_clock> const &tp)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     switch (type_)
@@ -118,8 +119,8 @@ Trace::close()
 
 void
 Trace::open(std::string const &name,
-            std::uint64_t const counter,
-            TraceType const type)
+    std::uint64_t const counter,
+    TraceType const type)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     lockedOpen(name, counter, type);
@@ -129,9 +130,9 @@ Trace::open(std::string const &name,
 
 void
 Trace::lockedAdd(std::string const &name,
-          EventType const type,
-          std::uint64_t const counter,
-          std::chrono::time_point<std::chrono::system_clock> const &tp)
+    EventType const type,
+    std::uint64_t const counter,
+    std::chrono::time_point<std::chrono::system_clock> const &tp)
 {
     assert(type_ != TraceType::none);
     if (events_)
@@ -150,8 +151,8 @@ Trace::lockedAdd(std::string const &name,
 
 void
 Trace::lockedStart(std::string const& timer,
-                   std::uint64_t const counter,
-                   std::chrono::time_point<std::chrono::system_clock> const& tp)
+    std::uint64_t const counter,
+    std::chrono::time_point<std::chrono::system_clock> const& tp)
 {
     assert(type_ == TraceType::trace);
     timers_[timer] = tp;
@@ -167,10 +168,10 @@ Trace::lockedEnd(std::string const& timer)
     if (start != timers_.end())
     {
         std::chrono::time_point<std::chrono::system_clock> endTime =
-                std::chrono::system_clock::now();
+            std::chrono::system_clock::now();
         std::uint64_t duration =
-                std::chrono::duration_cast<std::chrono::microseconds> (
-                        endTime - start->second).count();
+            std::chrono::duration_cast<std::chrono::microseconds> (
+                endTime - start->second).count();
         timers_.erase (start);
         lockedAdd(timer, EventType::end, duration, endTime);
     }
@@ -189,8 +190,8 @@ Trace::submit()
             assert(events_ && !events_->empty());
             auto now = std::chrono::system_clock::now();
             lockedAdd("END", EventType::generic,
-                      std::chrono::duration_cast<std::chrono::microseconds>(
-                              now - events_->begin()->first).count(), now);
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    now - events_->begin()->first).count(), now);
         }
             break;
         case TraceType::trap:
@@ -216,9 +217,9 @@ Trace::lockedClose()
 
 void
 Trace::lockedOpen(std::string const& name,
-                  std::uint64_t const counter,
-                  TraceType const type,
-                  std::chrono::time_point<std::chrono::system_clock> const& tp)
+    std::uint64_t const counter,
+    TraceType const type,
+    std::chrono::time_point<std::chrono::system_clock> const& tp)
 {
     if (type == TraceType::none)
         return;

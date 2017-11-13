@@ -40,17 +40,18 @@
 namespace ripple {
 namespace perf {
 
-class PerfLogImpl : public PerfLog, Stoppable
+class PerfLogImpl
+    : public PerfLog, Stoppable
 {
 public:
     PerfLogImpl(Setup const& setup,
-                Stoppable& parent,
-                Application& app);
+        Stoppable& parent,
+        Application& app);
     ~PerfLogImpl() override;
-
     void rotate() override;
 
-    bool logging() const override
+    bool
+    logging() const override
     {
         return logging_;
     }
@@ -138,19 +139,20 @@ private:
     struct Counters
     {
         std::unordered_map<std::string,
-                std::unique_ptr<Json::StaticString>> fields;
+            std::unique_ptr<Json::StaticString>> fields;
 
         std::unordered_map<std::underlying_type_t <TER>,
-                std::pair<Json::StaticString*,
-                        ContainerAtomic<std::uint64_t>>> ter;
+            std::pair<Json::StaticString*, ContainerAtomic<std::uint64_t>>> ter;
+
         std::unordered_map<std::string,
-                std::pair<Json::StaticString*,
-                        std::unordered_map<Json::StaticString*,
-                                ContainerAtomic<std::uint64_t>>>> rpc;
+            std::pair<Json::StaticString*,
+                std::unordered_map<Json::StaticString*,
+                    ContainerAtomic<std::uint64_t>>>> rpc;
+
         std::unordered_map<std::underlying_type_t<JobType>,
-                std::pair<Json::StaticString*,
-                        std::unordered_map<Json::StaticString*,
-                                ContainerAtomic<std::uint64_t>>>> job;
+            std::pair<Json::StaticString*,
+                std::unordered_map<Json::StaticString*,
+                    ContainerAtomic<std::uint64_t>>>> job;
     };
 
     std::string const perf_log_;
@@ -204,7 +206,7 @@ private:
 
     void openLog()
     {
-        if (perf_log_.size())
+        if (logging())
             perfLog_.open(perf_log_, std::ios::out | std::ios::app);
     }
 
@@ -212,10 +214,10 @@ private:
     void run();
 
     void reportHeader(
-            std::chrono::time_point<std::chrono::system_clock> const &now,
-            Json::Value &report);
+        std::chrono::time_point<std::chrono::system_clock> const &now,
+        Json::Value &report);
     std::string timeString(
-            std::chrono::time_point<std::chrono::system_clock> const &tp);
+        std::chrono::time_point<std::chrono::system_clock> const &tp);
     void report();
     void addEvent(std::unique_ptr<Events> event) override;
 
@@ -227,7 +229,7 @@ private:
         if (v != counters_.rpc.end())
         {
             ++counters_.rpc.at(v->first).second.at(counters_.fields.at(
-                    type).get());
+                type).get());
         }
     }
 
@@ -239,7 +241,7 @@ private:
         if (v != counters_.job.end())
         {
             ++counters_.job.at(v->first).second.at(counters_.fields.at(
-                    type).get());
+                type).get());
         }
     }
 
@@ -264,5 +266,4 @@ private:
 
 } // perf
 } // ripple
-
 #endif // RIPPLE_BASICS_PERFLOGIMPL_H_INCLUDED

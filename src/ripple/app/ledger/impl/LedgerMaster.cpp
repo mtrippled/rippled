@@ -1553,7 +1553,7 @@ LedgerMaster::shouldAcquire (
 
 // Try to publish ledgers, acquire missing ledgers
 void LedgerMaster::doAdvance (ScopedLockType& sl,
-                              std::shared_ptr<perf::Trace>& trace)
+    std::shared_ptr<perf::Trace>& trace)
 {
     // TODO NIKB: simplify and unindent this a bit!
 
@@ -1590,7 +1590,7 @@ void LedgerMaster::doAdvance (ScopedLockType& sl,
                             << "advanceThread should acquire";
                         {
                             ScopedUnlockType sl(
-                                    m_mutex, trace, "masterlock", 8);
+                                m_mutex, trace, "masterlock", 8);
                             auto hash = getLedgerHashForHistory(missing);
                             if (hash)
                             {
@@ -1639,7 +1639,7 @@ void LedgerMaster::doAdvance (ScopedLockType& sl,
                                     int fillInProgress;
                                     {
                                         auto trace2 = perf::makeTrace(
-                                                "masterlock", 9);
+                                            "masterlock", 9);
                                         ScopedLockType lock(m_mutex);
                                         perf::add(trace2, "locked");
                                         mHistLedger = ledger;
@@ -1652,7 +1652,7 @@ void LedgerMaster::doAdvance (ScopedLockType& sl,
                                         {
                                             // Previous ledger is in DB
                                             auto trace2 = perf::makeTrace(
-                                                    "masterlock", 10);
+                                                "masterlock", 10);
                                             ScopedLockType lock(m_mutex);
                                             perf::add(trace2, "locked");
                                             mFillInProgress = ledger->info().seq;

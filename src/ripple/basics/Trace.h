@@ -26,7 +26,6 @@
 #include <memory>
 
 namespace ripple {
-
 namespace perf {
 
 enum class TraceType { none = 0, trace, trap };
@@ -34,22 +33,17 @@ enum class TraceType { none = 0, trace, trap };
 class Trace
 {
 public:
-    using pointer = std::shared_ptr<Trace>;
-    using ref = pointer const &;
-
     Trace() = default;
 
     Trace(std::string const &name,
-          std::uint64_t const counter = 0,
-          TraceType const type = TraceType::trace)
+        std::uint64_t const counter = 0,
+        TraceType const type = TraceType::trace)
     {
         lockedOpen(name, counter, type);
     }
 
     ~Trace();
-
     Trace(Trace &&other);
-
     Trace &operator=(Trace &&other);
 
     explicit operator bool() const
@@ -59,52 +53,43 @@ public:
     }
 
     void add(std::string const &name,
-             std::uint64_t const counter = 0,
-             EventType const type = EventType::generic);
-
+        std::uint64_t const counter = 0,
+        EventType const type = EventType::generic);
     void start(std::string const &timer,
-               std::uint64_t const counter = 0,
-               std::chrono::time_point<std::chrono::system_clock> const &tp =
-               std::chrono::system_clock::now());
-
+        std::uint64_t const counter = 0,
+        std::chrono::time_point<std::chrono::system_clock> const &tp =
+            std::chrono::system_clock::now());
     void end(std::string const &timer);
-
     void close();
-
     void open(std::string const &name,
-              std::uint64_t const counter = 0,
-              TraceType const type = TraceType::trace);
+        std::uint64_t const counter = 0,
+        TraceType const type = TraceType::trace);
 
 private:
     TraceType type_{TraceType::none};
     std::unique_ptr<Events> events_;
     std::unordered_map<std::string,
-            std::chrono::time_point<std::chrono::system_clock>> timers_;
+        std::chrono::time_point<std::chrono::system_clock>> timers_;
     mutable std::mutex mutex_;
 
     // These functions are called with mutex_ locked already as necessary.
     void lockedAdd(std::string const &name,
-                   EventType const type,
-                   std::uint64_t const counter,
-                   std::chrono::time_point<std::chrono::system_clock> const &tp =
-                   std::chrono::system_clock::now());
-
+        EventType const type,
+        std::uint64_t const counter,
+        std::chrono::time_point<std::chrono::system_clock> const &tp =
+        std::chrono::system_clock::now());
     void lockedStart(std::string const &timer,
-                     std::uint64_t const counter = 0,
-                     std::chrono::time_point<std::chrono::system_clock> const &tp =
-                     std::chrono::system_clock::now());
-
+        std::uint64_t const counter = 0,
+        std::chrono::time_point<std::chrono::system_clock> const &tp =
+        std::chrono::system_clock::now());
     void lockedEnd(std::string const &timer);
-
     bool submit();
-
     void lockedClose();
-
     void lockedOpen(std::string const &name,
-                    std::uint64_t const counter = 0,
-                    TraceType const type = TraceType::trace,
-                    std::chrono::time_point<std::chrono::system_clock> const &tp =
-                    std::chrono::system_clock::now());
+        std::uint64_t const counter = 0,
+        TraceType const type = TraceType::trace,
+        std::chrono::time_point<std::chrono::system_clock> const &tp =
+        std::chrono::system_clock::now());
 };
 
 inline std::unique_ptr<Trace>
@@ -118,11 +103,10 @@ makeTrace()
 
 inline std::unique_ptr<Trace>
 makeTrace(std::string const &name,
-        std::uint64_t const counter=0)
+    std::uint64_t const counter=0)
 {
     if (gPerfLog->logging())
-        return std::make_unique<Trace>(name, counter,
-                                               TraceType::trace);
+        return std::make_unique<Trace>(name, counter, TraceType::trace);
     else
         return nullptr;
 }
@@ -138,11 +122,10 @@ sharedTrace()
 
 inline std::shared_ptr<Trace>
 sharedTrace(std::string const &name,
-        std::uint64_t const counter=0)
+    std::uint64_t const counter=0)
 {
     if (gPerfLog->logging())
-        return std::make_shared<Trace>(name, counter,
-                TraceType::trace);
+        return std::make_shared<Trace>(name, counter, TraceType::trace);
     else
         return nullptr;
 }
@@ -156,8 +139,8 @@ trap(std::string const &name, std::uint64_t const counter = 0)
 template <class T>
 void
 open(T const& trace,
-        std::string const& name,
-        std::uint64_t const counter=0)
+    std::string const& name,
+    std::uint64_t const counter=0)
 {
     if (trace)
         trace->open(name, counter, TraceType::trace);
@@ -174,8 +157,8 @@ close(T const& trace)
 template <class T>
 void
 add(T const& trace,
-        std::string const& name,
-        std::uint64_t const counter=0)
+    std::string const& name,
+    std::uint64_t const counter=0)
 {
     if (trace)
         trace->add(name, counter, EventType::generic);
@@ -184,10 +167,10 @@ add(T const& trace,
 template <class T>
 void
 start(T const& trace,
-        std::string const& timer,
-        std::uint64_t const counter=0,
-        std::chrono::time_point<std::chrono::system_clock> const& tp =
-            std::chrono::system_clock::now())
+    std::string const& timer,
+    std::uint64_t const counter=0,
+    std::chrono::time_point<std::chrono::system_clock> const& tp =
+    std::chrono::system_clock::now())
 {
     if (trace)
         trace->start(timer, counter, tp);

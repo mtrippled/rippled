@@ -380,8 +380,8 @@ public:
         : RootStoppable ("Application")
         , BasicApp (numberOfThreads(*config))
         , config_ (std::move(config))
-        , perfLog_ (make_PerfLog(setup_PerfLog(config_->section("perf")),*this,
-                                 *this))
+        , perfLog_ (perf::make_PerfLog(
+            perf::setup_PerfLog(config_->section("perf")),*this, *this))
         , logs_ (std::move(logs))
         , timeKeeper_ (std::move(timeKeeper))
 

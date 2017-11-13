@@ -52,14 +52,14 @@ public:
     {
         if (orig.load())
             throw std::out_of_range(what("Can't copy non-zero ContainerAtomic",
-                                         orig.load()));
+                orig.load()));
     }
 
     ContainerAtomic(ContainerAtomic&& orig)
     {
         if (orig.load())
             throw std::out_of_range(what("Can't move non-zero ContainerAtomic",
-                                         orig.load()));
+                orig.load()));
     }
 
     ContainerAtomic&
@@ -67,7 +67,7 @@ public:
     {
         if (orig.load())
             throw std::out_of_range(what(
-                    "Can't copy assign non-zero ContainerAtomic", orig.load()));
+                "Can't copy assign non-zero ContainerAtomic", orig.load()));
         return *this;
     }
 
@@ -76,47 +76,47 @@ public:
     {
         if (orig.load())
             throw std::out_of_range(what(
-                    "Can't move assign non-zero ContainerAtomic", orig.load()));
+                "Can't move assign non-zero ContainerAtomic", orig.load()));
         return *this;
     }
 
     bool
     compare_exchange_strong(T& expected,
-            T val,
-            std::memory_order sync=std::memory_order_seq_cst) noexcept
+        T val,
+        std::memory_order sync=std::memory_order_seq_cst) noexcept
     {
         return val_.compare_exchange_strong(expected, val, sync);
     }
 
     bool
     compare_exchange_strong(T& expected,
-            T val,
-            std::memory_order success,
-            std::memory_order failure) noexcept
+        T val,
+        std::memory_order success,
+        std::memory_order failure) noexcept
     {
         return val_.compare_exchange_strong(expected, val, success, failure);
     }
 
     bool
     compare_exchange_weak(T& expected,
-            T val,
-            std::memory_order sync=std::memory_order_seq_cst) noexcept
+        T val,
+        std::memory_order sync=std::memory_order_seq_cst) noexcept
     {
         return val_.compare_exchange_weak(expected, val, sync);
     }
 
     bool
     compare_exchange_weak(T& expected,
-            T val,
-            std::memory_order success,
-            std::memory_order failure) noexcept
+        T val,
+        std::memory_order success,
+        std::memory_order failure) noexcept
     {
         return val_.compare_exchange_weak(expected, val, success, failure);
     }
 
     T
     exchange(T val,
-             std::memory_order sync=std::memory_order_seq_cst) noexcept
+        std::memory_order sync=std::memory_order_seq_cst) noexcept
     {
         return val_.exchange(val, sync);
     }

@@ -296,7 +296,7 @@ Value::Value ( std::uint64_t value )
 {
     std::string str(std::to_string(value));
     value_.string_ = valueAllocator ()->duplicateStringValue (
-            str.c_str (), str.size() );
+        str.c_str (), str.size() );
 }
 
 Value::Value ( std::int64_t value )
@@ -305,7 +305,7 @@ Value::Value ( std::int64_t value )
 {
     std::string str(std::to_string(value));
     value_.string_ = valueAllocator ()->duplicateStringValue (
-            str.c_str (), str.size() );
+        str.c_str (), str.size() );
 }
 
 Value::Value ( const Value& other )
