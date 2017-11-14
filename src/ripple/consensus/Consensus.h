@@ -416,6 +416,12 @@ public:
     Json::Value
     getJson(bool full) const;
 
+    std::unique_ptr<perf::Trace> const&
+    trace()
+    {
+        return trace_;
+    }
+
 private:
     void
     startRoundInternal(
@@ -585,7 +591,6 @@ Consensus<Adaptor>::startRound(
     Ledger_t prevLedger,
     bool proposing)
 {
-    perf::open(trace_, "consensus");
     if (firstRound_)
     {
         // take our initial view of closeTime_ from the seed ledger
@@ -628,6 +633,7 @@ Consensus<Adaptor>::startRoundInternal(
     Ledger_t const& prevLedger,
     ConsensusMode mode)
 {
+    perf::add(trace_, "open");
     phase_ = ConsensusPhase::open;
     mode_.set(mode, adaptor_);
     now_ = now;
@@ -857,6 +863,7 @@ Consensus<Adaptor>::simulate(
     result_->roundTime.tick(consensusDelay.value_or(100ms));
     result_->proposers = prevProposers_ = currPeerPositions_.size();
     prevRoundTime_ = result_->roundTime.read();
+    perf::add(trace_, "accepted");
     phase_ = ConsensusPhase::accepted;
     adaptor_.onForceAccept(
         *result_,
@@ -1138,6 +1145,7 @@ Consensus<Adaptor>::phaseEstablish()
                     << " participants)";
     prevProposers_ = currPeerPositions_.size();
     prevRoundTime_ = result_->roundTime.read();
+    perf::add(trace_, "accepted");
     phase_ = ConsensusPhase::accepted;
     adaptor_.onAccept(
         *result_,
@@ -1155,6 +1163,7 @@ Consensus<Adaptor>::closeLedger()
     // We should not be closing if we already have a position
     assert(!result_);
 
+    perf::add(trace_, "establish");
     phase_ = ConsensusPhase::establish;
     rawCloseTimes_.self = now_;
 

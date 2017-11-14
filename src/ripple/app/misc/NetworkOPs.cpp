@@ -1506,6 +1506,7 @@ bool NetworkOPsImp::beginConsensus (uint256 const& networkClosed)
     app_.validators().onConsensusStart (
         app_.getValidations().getCurrentPublicKeys ());
 
+    perf::open(mConsensus.trace(), "consensus", closingInfo.seq + 1);
     mConsensus.startRound (
         app_.timeKeeper().closeTime(),
         networkClosed,
