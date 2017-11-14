@@ -980,7 +980,7 @@ RCLConsensus::Adaptor::preStartRound(RCLCxLedger const & prevLgr)
     parms_.useRoundedCloseTime = prevLgr.ledger_->rules().enabled(fix1528);
 
     // propose only if we're in sync with the network (and validating)
-    return validating_ &&6
+    return validating_ &&
         (app_.getOPs().getOperatingMode() == NetworkOPs::omFULL);
 }
 
