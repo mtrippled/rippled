@@ -898,9 +898,9 @@ RCLConsensus::timerEntry(NetClock::time_point const& now)
 {
     try
     {
-//        auto trace = perf::makeTrace("consensuslock", 7);
+        auto trace = perf::makeTrace("consensuslock", 7);
         ScopedLockType _{mutex_};
-//        perf::add(trace, "locked");
+        perf::add(trace, "locked");
         consensus_.timerEntry(now);
     }
     catch (SHAMapMissingNode const& mn)
