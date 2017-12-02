@@ -884,9 +884,9 @@ RCLConsensus::getJson(bool full) const
 {
     Json::Value ret;
     {
-        auto trace = perf::makeTrace("consensuslock", 2);
+//        auto trace = perf::makeTrace("consensuslock", 2);
         ScopedLockType _{mutex_};
-        perf::add(trace, "locked");
+//        perf::add(trace, "locked");
         ret = consensus_.getJson(full);
     }
     ret["validating"] = adaptor_.validating();
@@ -898,9 +898,9 @@ RCLConsensus::timerEntry(NetClock::time_point const& now)
 {
     try
     {
-        auto trace = perf::makeTrace("consensuslock", 7);
+//        auto trace = perf::makeTrace("consensuslock", 7);
         ScopedLockType _{mutex_};
-        perf::add(trace, "locked");
+//        perf::add(trace, "locked");
         consensus_.timerEntry(now);
     }
     catch (SHAMapMissingNode const& mn)
@@ -916,9 +916,9 @@ RCLConsensus::gotTxSet(NetClock::time_point const& now, RCLTxSet const& txSet)
 {
     try
     {
-        auto trace = perf::makeTrace("consensuslock", 3);
+//        auto trace = perf::makeTrace("consensuslock", 3);
         ScopedLockType _{mutex_};
-        perf::add(trace, "locked");
+//        perf::add(trace, "locked");
         consensus_.gotTxSet(now, txSet);
     }
     catch (SHAMapMissingNode const& mn)
@@ -937,9 +937,9 @@ RCLConsensus::simulate(
     NetClock::time_point const& now,
     boost::optional<std::chrono::milliseconds> consensusDelay)
 {
-    auto trace = perf::makeTrace("consensuslock", 5);
+//    auto trace = perf::makeTrace("consensuslock", 5);
     ScopedLockType _{mutex_};
-    perf::add(trace, "locked");
+//    perf::add(trace, "locked");
     consensus_.simulate(now, consensusDelay);
 }
 
@@ -948,9 +948,9 @@ RCLConsensus::peerProposal(
     NetClock::time_point const& now,
     RCLCxPeerPos const& newProposal)
 {
-    auto trace = perf::makeTrace("consensuslock", 4);
+//    auto trace = perf::makeTrace("consensuslock", 4);
     ScopedLockType _{mutex_};
-    perf::add(trace, "locked");
+//    perf::add(trace, "locked");
     return consensus_.peerProposal(now, newProposal);
 }
 
@@ -990,9 +990,9 @@ RCLConsensus::startRound(
     RCLCxLedger::ID const& prevLgrId,
     RCLCxLedger const& prevLgr)
 {
-    auto trace = perf::makeTrace("consensuslock", 6);
+//    auto trace = perf::makeTrace("consensuslock", 6);
     ScopedLockType _{mutex_};
-    perf::add(trace, "locked");
+//    perf::add(trace, "locked");
     consensus_.startRound(
         now, prevLgrId, prevLgr, adaptor_.preStartRound(prevLgr));
 }
