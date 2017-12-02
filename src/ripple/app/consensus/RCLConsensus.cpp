@@ -937,9 +937,9 @@ RCLConsensus::simulate(
     NetClock::time_point const& now,
     boost::optional<std::chrono::milliseconds> consensusDelay)
 {
-//    auto trace = perf::makeTrace("consensuslock", 5);
+    auto trace = perf::makeTrace("consensuslock", 5);
     ScopedLockType _{mutex_};
-//    perf::add(trace, "locked");
+    perf::add(trace, "locked");
     consensus_.simulate(now, consensusDelay);
 }
 
