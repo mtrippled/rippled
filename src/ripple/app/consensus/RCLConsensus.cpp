@@ -990,9 +990,9 @@ RCLConsensus::startRound(
     RCLCxLedger::ID const& prevLgrId,
     RCLCxLedger const& prevLgr)
 {
-//    auto trace = perf::makeTrace("consensuslock", 6);
+    auto trace = perf::makeTrace("consensuslock", 6);
     ScopedLockType _{mutex_};
-//    perf::add(trace, "locked");
+    perf::add(trace, "locked");
     consensus_.startRound(
         now, prevLgrId, prevLgr, adaptor_.preStartRound(prevLgr));
 }
