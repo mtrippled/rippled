@@ -436,9 +436,9 @@ public:
     RCLCxLedger::ID
     prevLedgerID() const
     {
-//        auto trace = perf::makeTrace("consensuslock", 1);
+        auto trace = perf::makeTrace("consensuslock", 1);
         ScopedLockType _{mutex_};
-//        perf::add(trace, "locked");
+        perf::add(trace, "locked");
         return consensus_.prevLedgerID();
     }
 
