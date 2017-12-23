@@ -32,6 +32,7 @@ Json::Value doAccountTxOld (RPC::Context& context);
 // Temporary switching code until the old account_tx is removed
 Json::Value doAccountTxSwitch (RPC::Context& context)
 {
+    /*
     if (context.params.isMember(jss::offset) ||
         context.params.isMember(jss::count) ||
         context.params.isMember(jss::descending) ||
@@ -41,6 +42,8 @@ Json::Value doAccountTxSwitch (RPC::Context& context)
         return doAccountTxOld(context);
     }
     return doAccountTx(context);
+    */
+    return doAccountTxOld(context);
 }
 
 } // ripple
