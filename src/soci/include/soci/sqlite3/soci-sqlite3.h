@@ -204,7 +204,8 @@ struct sqlite3_statement_backend : details::statement_backend
     void reset_if_needed();
 
     virtual exec_fetch_result execute(int number);
-    virtual exec_fetch_result fetch(int number);
+    virtual exec_fetch_result fetch(int number,
+        std::shared_ptr<ripple::perf::Trace> const& trace=nullptr);
 
     virtual long long get_affected_rows();
     virtual int get_number_of_rows();
@@ -236,7 +237,8 @@ struct sqlite3_statement_backend : details::statement_backend
 private:
     exec_fetch_result load_rowset(int totalRows,
         std::shared_ptr<ripple::perf::Trace> const& trace=nullptr);
-    exec_fetch_result load_one();
+    exec_fetch_result load_one(
+        std::shared_ptr<ripple::perf::Trace> const& trace=nullptr);
     exec_fetch_result bind_and_execute(int number);
 };
 
