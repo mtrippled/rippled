@@ -233,3 +233,17 @@ Trace::lockedOpen(std::string const& name,
 
 } // perf
 } // ripple
+
+// C API
+
+extern "C" {
+void
+ripple_perf_add(void *trace, const char *name, uint64_t counter)
+{
+    if (trace)
+    {
+        static_cast<ripple::perf::Trace *>(trace)->add(
+            name, counter, ripple::perf::EventType::generic);
+    }
+}
+}

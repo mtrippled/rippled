@@ -4102,6 +4102,7 @@ SQLITE_API const void *sqlite3_column_decltype16(sqlite3_stmt*,int);
 ** then the more specific [error codes] are returned directly
 ** by sqlite3_step().  The use of the "v2" interface is recommended.
 */
+SQLITE_API int sqlite3_step2(sqlite3_stmt*, void*);
 SQLITE_API int sqlite3_step(sqlite3_stmt*);
 
 /*

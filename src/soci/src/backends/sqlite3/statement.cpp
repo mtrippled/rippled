@@ -215,7 +215,7 @@ sqlite3_statement_backend::load_one(
     statement_backend::exec_fetch_result retVal = ef_success;
 
     ripple::perf::start(trace, "sqlite3_step");
-    int const res = sqlite3_step(stmt_);
+    int const res = sqlite3_step2(stmt_, trace.get());
     ripple::perf::end(trace, "sqlite3_step");
 
     if (SQLITE_DONE == res)
