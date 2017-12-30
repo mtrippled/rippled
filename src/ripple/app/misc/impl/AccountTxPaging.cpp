@@ -127,6 +127,7 @@ accountTxPage (
 
     // SQL's BETWEEN uses a closed interval ([a,b])
 
+    bool filter = false;
     if (forward && (findLedger == 0))
     {
         sql = boost::str (boost::format(
@@ -142,21 +143,18 @@ accountTxPage (
     }
     else if (forward && (findLedger != 0))
     {
+        filter = true;
         sql = boost::str (boost::format(
             prefix +
             (R"(
-            AccountTransactions.LedgerSeq BETWEEN '%u' AND '%u' OR
-            ( AccountTransactions.LedgerSeq = '%u' AND
-              AccountTransactions.TxnSeq >= '%u' )
+            AccountTransactions.LedgerSeq BETWEEN '%u' AND '%u'
             ORDER BY AccountTransactions.LedgerSeq ASC,
             AccountTransactions.TxnSeq ASC
             LIMIT %u;
             )"))
         % idCache.toBase58(account)
-        % (findLedger + 1)
-        % maxLedger
         % findLedger
-        % findSeq
+        % maxLedger
         % queryLimit);
     }
     else if (!forward && (findLedger == 0))
@@ -225,6 +223,15 @@ accountTxPage (
         while (st.fetch (trace))
         {
             perf::add(trace, "fetchloop");
+            if (filter)
+            {
+                if (findLedger == ledgerSeq.value_or (0) &&
+                    findSeq > txnSeq.value_or (0))
+                {
+                    continue;
+                }
+                filter = false;
+            }
             if (lookingForMarker)
             {
                 if (findLedger == ledgerSeq.value_or (0) &&
