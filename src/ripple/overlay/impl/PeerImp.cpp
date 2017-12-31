@@ -824,8 +824,11 @@ PeerImp::onWriteMessage (error_code ec, std::size_t bytes_transferred)
             stream << "onWriteMessage";
     }
 
-    JLOG(p_journal_.debug()) << "sent " << txid << " to " <<
-            remote_address_.to_string();
+    if (txid != 0)
+    {
+        JLOG(p_journal_.debug()) << "sent " << txid << " to " <<
+                remote_address_.to_string();
+    }
 
     assert(! send_queue_.empty());
     send_queue_.pop();
