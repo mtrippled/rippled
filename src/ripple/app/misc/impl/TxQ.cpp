@@ -650,9 +650,12 @@ TxQ::apply(Application& app, OpenView& view,
     // or transaction replacement, so just pull it up now.
     // TODO: Do we want to avoid doing it again during
     //   preclaim?
-    auto const baseFee = calculateBaseFee(app, view, *tx, j);
+//    auto const baseFee = calculateBaseFee(app, view, *tx, j);
+    std::uint64_t baseFee = 10;
     auto const feeLevelPaid = getFeeLevelPaid(*tx,
         baseLevel, baseFee, setup_);
+    std::uint64_t requiredFeeLevel = 10;
+    /*
     auto const requiredFeeLevel = [&]()
     {
         auto feeLevel = FeeMetrics::scaleFeeLevel(metricsSnapshot, view);
@@ -662,6 +665,7 @@ TxQ::apply(Application& app, OpenView& view,
         }
         return feeLevel;
     }();
+     */
 
     auto accountIter = byAccount_.find(account);
     bool const accountExists = accountIter != byAccount_.end();
