@@ -753,6 +753,7 @@ RCLConsensus::Adaptor::buildLCL(
     std::chrono::milliseconds roundTime,
     CanonicalTXSet& retriableTxs)
 {
+    auto trace = perf::makeTrace("buildLCL");
     auto replay = ledgerMaster_.releaseReplay();
     if (replay)
     {
@@ -782,7 +783,6 @@ RCLConsensus::Adaptor::buildLCL(
     //   perform updates, extract changes
     JLOG(j_.debug()) << "Applying consensus set transactions to the"
                      << " last closed ledger";
-    auto trace = perf::gSharedTraceMap->get("consensus");
     perf::start(trace, "applying to lcl");
 
     {
