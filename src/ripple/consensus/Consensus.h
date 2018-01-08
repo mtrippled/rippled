@@ -416,12 +416,6 @@ public:
     Json::Value
     getJson(bool full) const;
 
-    std::shared_ptr<perf::Trace> const&
-    trace()
-    {
-        return trace_;
-    }
-
 private:
     void
     startRoundInternal(
@@ -566,9 +560,6 @@ private:
 
     // Journal for debugging
     beast::Journal j_;
-
-    // Performance tracing ledger lifecycle.
-    std::shared_ptr<perf::Trace> trace_ {nullptr};
 };
 
 template <class Adaptor>
@@ -581,7 +572,6 @@ Consensus<Adaptor>::Consensus(
     , j_{journal}
 {
     JLOG(j_.debug()) << "Creating consensus object";
-    trace_ = perf::sharedTrace();
 }
 
 template <class Adaptor>
@@ -634,7 +624,7 @@ Consensus<Adaptor>::startRoundInternal(
     Ledger_t const& prevLedger,
     ConsensusMode mode)
 {
-    perf::add(trace_, "open");
+    perf::add(perf::gSharedTraceMap->get("consensus"), "open");
     phase_ = ConsensusPhase::open;
     mode_.set(mode, adaptor_);
     now_ = now;
@@ -786,7 +776,7 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
 {
-    perf::add(trace_, "timerEntry");
+    perf::add(perf::gSharedTraceMap->get("consensus"), "timerEntry");
     // Nothing to do if we are currently working on a ledger
     if (phase_ == ConsensusPhase::accepted)
         return;
@@ -864,7 +854,7 @@ Consensus<Adaptor>::simulate(
     result_->roundTime.tick(consensusDelay.value_or(100ms));
     result_->proposers = prevProposers_ = currPeerPositions_.size();
     prevRoundTime_ = result_->roundTime.read();
-    perf::add(trace_, "accepted");
+    perf::add(perf::gSharedTraceMap->get("consensus"), "accepted");
     phase_ = ConsensusPhase::accepted;
     adaptor_.onForceAccept(
         *result_,
@@ -1126,10 +1116,11 @@ Consensus<Adaptor>::phaseEstablish()
     convergePercent_ = result_->roundTime.read() * 100 /
         std::max<milliseconds>(prevRoundTime_, parms.avMIN_CONSENSUS_TIME);
 
+    auto trace = perf::gSharedTraceMap->get("consensus");
     // Give everyone a chance to take an initial position
     if (result_->roundTime.read() < parms.ledgerMIN_CONSENSUS)
     {
-        perf::add(trace_, "wait");
+        perf::add(trace, "wait");
         return;
     }
 
@@ -1138,14 +1129,14 @@ Consensus<Adaptor>::phaseEstablish()
     // Nothing to do if we don't have consensus.
     if (!haveConsensus())
     {
-        perf::add(trace_, "no consensus");
+        perf::add(trace, "no consensus");
         return;
     }
 
     if (!haveCloseTimeConsensus_)
     {
         JLOG(j_.info()) << "We have TX consensus but not CT consensus";
-        perf::add(trace_, "no ct consensus");
+        perf::add(trace, "no ct consensus");
         return;
     }
 
@@ -1153,7 +1144,7 @@ Consensus<Adaptor>::phaseEstablish()
                     << " participants)";
     prevProposers_ = currPeerPositions_.size();
     prevRoundTime_ = result_->roundTime.read();
-    perf::add(trace_, "accepted");
+    perf::add(trace, "accepted");
     phase_ = ConsensusPhase::accepted;
     adaptor_.onAccept(
         *result_,
@@ -1171,7 +1162,7 @@ Consensus<Adaptor>::closeLedger()
     // We should not be closing if we already have a position
     assert(!result_);
 
-    perf::add(trace_, "establish");
+    perf::add(perf::gSharedTraceMap->get("consensus"), "establish");
     phase_ = ConsensusPhase::establish;
     rawCloseTimes_.self = now_;
 

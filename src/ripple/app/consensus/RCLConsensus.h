@@ -464,12 +464,6 @@ public:
         return adaptor_.parms();
     }
 
-    std::shared_ptr<perf::Trace> const&
-    trace()
-    {
-        return consensus_.trace();
-    }
-
 private:
     // Since Consensus does not provide intrinsic thread-safety, this mutex
     // guards all calls to consensus_. adaptor_ uses atomics internally

@@ -782,6 +782,8 @@ RCLConsensus::Adaptor::buildLCL(
     //   perform updates, extract changes
     JLOG(j_.debug()) << "Applying consensus set transactions to the"
                      << " last closed ledger";
+    auto trace = perf::gSharedTraceMap->get("consensus");
+    perf::start(trace, "applying to lcl");
 
     {
         OpenView accum(&*buildLCL);
@@ -805,21 +807,28 @@ RCLConsensus::Adaptor::buildLCL(
         app_.getTxQ().processClosedLedger(app_, accum, roundTime > 5s);
         accum.apply(*buildLCL);
     }
+    perf::end(trace, "applying to lcl");
 
     // retriableTxs will include any transactions that
     // made it into the consensus set but failed during application
     // to the ledger.
 
+    perf::start(trace, "updateSkipList");
     buildLCL->updateSkipList();
+    perf::end(trace, "updateSkipList");
 
     {
         // Write the final version of all modified SHAMap
         // nodes to the node store to preserve the new LCL
 
+        perf::start(trace, "flushDirty1");
         int asf = buildLCL->stateMap().flushDirty(
             hotACCOUNT_NODE, buildLCL->info().seq);
+        perf::end(trace, "flushDirty1");
+        perf::start(trace, "flushDirty2");
         int tmf = buildLCL->txMap().flushDirty(
             hotTRANSACTION_NODE, buildLCL->info().seq);
+        perf::end(trace, "flushDirty2");
         JLOG(j_.debug()) << "Flushed " << asf << " accounts and " << tmf
                          << " transaction nodes";
     }
