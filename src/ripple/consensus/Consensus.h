@@ -669,6 +669,8 @@ Consensus<Adaptor>::startRoundInternal(
     convergePercent_ = 0;
     haveCloseTimeConsensus_ = false;
     openTime_.reset(clock_.now());
+    JLOG(j_.debug()) << "startRoundInternal clearing currPeerPositions_ "
+        << "with " << currPeerPositions_.size();
     currPeerPositions_.clear();
     acquired_.clear();
     rawCloseTimes_.peers.clear();
@@ -715,9 +717,15 @@ Consensus<Adaptor>::peerProposalInternal(
     NetClock::time_point const& now,
     PeerPosition_t const& newPeerPos)
 {
+    JLOG(j_.debug()) << "peerProposalInternal Pos: "
+        << Json::Compact{newPeerPos.getJson()};
     // Nothing to do for now if we are currently working on a ledger
     if (phase_ == ConsensusPhase::accepted)
+    {
+        JLOG(j_.debug()) << "peerProposalInternal in phase accepted: "
+            << Json::Compact{newPeerPos.getJson()};
         return false;
+    }
 
     now_ = now;
 
@@ -728,14 +736,16 @@ Consensus<Adaptor>::peerProposalInternal(
     if (newPeerProp.prevLedger() != prevLedgerID_)
     {
         JLOG(j_.debug()) << "Got proposal for " << newPeerProp.prevLedger()
-                         << " but we are on " << prevLedgerID_;
+                         << " but we are on " << prevLedgerID_
+                         << " (" << Json::Compact{newPeerPos.getJson()} << ')';
         return false;
     }
 
     if (deadNodes_.find(peerID) != deadNodes_.end())
     {
         using std::to_string;
-        JLOG(j_.info()) << "Position from dead node: " << to_string(peerID);
+        JLOG(j_.info()) << "Position from dead node: " << to_string(peerID)
+                << " (" << Json::Compact{newPeerPos.getJson()} << ')';
         return false;
     }
 
@@ -748,6 +758,8 @@ Consensus<Adaptor>::peerProposalInternal(
             if (newPeerProp.proposeSeq() <=
                 peerPosIt->second.proposal().proposeSeq())
             {
+                JLOG(j_.info()) << "peerProposalInternal proposal past seq "
+                    << " (" << Json::Compact{newPeerPos.getJson()} << ')';
                 return false;
             }
         }
@@ -756,7 +768,8 @@ Consensus<Adaptor>::peerProposalInternal(
         {
             using std::to_string;
 
-            JLOG(j_.info()) << "Peer bows out: " << to_string(peerID);
+            JLOG(j_.info()) << "Peer bows out: " << to_string(peerID)
+                    << " (" << Json::Compact{newPeerPos.getJson()} << ')';
             if (result_)
             {
                 for (auto& it : result_->disputes)
@@ -770,9 +783,17 @@ Consensus<Adaptor>::peerProposalInternal(
         }
 
         if (peerPosIt != currPeerPositions_.end())
+        {
+            JLOG(j_.debug()) << "peerProposalInternal duplicate "
+                << " (" << Json::Compact{newPeerPos.getJson()} << ')';
             peerPosIt->second = newPeerPos;
+        }
         else
+        {
+            JLOG(j_.debug()) << "peerProposalInternal adding "
+                << " (" << Json::Compact{newPeerPos.getJson()} << ')';
             currPeerPositions_.emplace(peerID, newPeerPos);
+        }
     }
 
     if (newPeerProp.isInitial())
@@ -1018,6 +1039,8 @@ Consensus<Adaptor>::handleWrongLedger(typename Ledger_t::ID const& lgrId)
             result_->compares.clear();
         }
 
+        JLOG(j_.debug()) << "handleWrongLedger clearing currPeerPositions_ "
+            << "with " << currPeerPositions_.size();
         currPeerPositions_.clear();
         rawCloseTimes_.peers.clear();
         deadNodes_.clear();
@@ -1062,7 +1085,12 @@ Consensus<Adaptor>::checkLedger()
         handleWrongLedger(netLgr);
     }
     else if (previousLedger_.id() != prevLedgerID_)
+    {
+        JLOG(j_.warn()) << "checkLedger wrong previousLedger_.id() != "
+            << "prevLedgerID_: " << previousLedger_.id() << " != "
+            << prevLedgerID_ << ", netLgr: " << netLgr;
         handleWrongLedger(netLgr);
+    }
 }
 
 template <class Adaptor>
