@@ -54,6 +54,7 @@
 #include <ripple/protocol/BuildInfo.h>
 #include <ripple/resource/ResourceManager.h>
 #include <ripple/rpc/DeliveredAmount.h>
+#include <ripple/rpc/handlers/GetCounts.h>
 #include <ripple/beast/rfc2616.h>
 #include <ripple/beast/core/LexicalCast.h>
 #include <ripple/beast/utility/rngfill.h>
@@ -729,6 +730,8 @@ void NetworkOPsImp::setClusterTimer ()
 
 void NetworkOPsImp::processHeartbeatTimer ()
 {
+    JLOG(m_journal.debug()) << "GetCounts: "
+                            << Json::Compact{getCountsJson(app_, 0)};
     {
         auto lock = make_lock(app_.getMasterMutex());
 
