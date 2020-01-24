@@ -64,7 +64,8 @@ shouldCloseLedger(
     std::chrono::milliseconds openTime,
     std::chrono::milliseconds idleInterval,
     ConsensusParms const & parms,
-    beast::Journal j);
+    beast::Journal j,
+    bool haveValidated);
 
 /** Determine whether the network reached consensus and whether we joined.
 
@@ -855,6 +856,8 @@ Consensus<Adaptor>::gotTxSet(
     if (!acquired_.emplace(id, txSet).second)
         return;
 
+    JLOG(j_.debug()) << "syncprofile gotTxSet " << id;
+
     if (!result_)
     {
         JLOG(j_.debug()) << "Not creating disputes: no position yet.";
@@ -1135,7 +1138,8 @@ Consensus<Adaptor>::phaseOpen()
             openTime_.read(),
             idleInterval,
             adaptor_.parms(),
-            j_))
+            j_,
+            adaptor_.haveValidated()))
     {
         closeLedger();
     }
@@ -1275,22 +1279,26 @@ Consensus<Adaptor>::phaseEstablish()
 
     // Give everyone a chance to take an initial position
     if (result_->roundTime.read() < parms.ledgerMIN_CONSENSUS)
+    {
+        JLOG(j_.debug()) << "syncprofile phaseEstablish "
+            << "not enough time for initial position "
+            << result_->roundTime.read().count() << "ms needs to be at least "
+            << parms.ledgerMIN_CONSENSUS.count();
         return;
+    }
 
     updateOurPositions();
 
     // Nothing to do if too many laggards or we don't have consensus.
     if (shouldPause() || !haveConsensus())
-        return;
-
-    if (!haveCloseTimeConsensus_)
     {
-        JLOG(j_.info()) << "We have TX consensus but not CT consensus";
+        JLOG(j_.debug()) << "syncprofile phaseEstablish either "
+            "shouldPause is true or haveConsensus is false";
         return;
     }
 
-    JLOG(j_.info()) << "Converge cutoff (" << currPeerPositions_.size()
-                    << " participants)";
+    JLOG(j_.info()) << "syncprofile phaseEstablish Converge cutoff ("
+        << currPeerPositions_.size() << " participants)";
     adaptor_.updateOperatingMode(currPeerPositions_.size());
     prevProposers_ = currPeerPositions_.size();
     prevRoundTime_ = result_->roundTime.read();
@@ -1311,6 +1319,7 @@ Consensus<Adaptor>::closeLedger()
     // We should not be closing if we already have a position
     assert(!result_);
 
+    JLOG(j_.debug()) << "syncprofile closeLedger setting phase establish";
     phase_ = ConsensusPhase::establish;
     rawCloseTimes_.self = now_;
 
@@ -1586,6 +1595,18 @@ Consensus<Adaptor>::haveConsensus()
         adaptor_.parms(),
         mode_.get() == ConsensusMode::proposing,
         j_);
+
+    switch (result_->state)
+    {
+        case ConsensusState::No:
+            JLOG(j_.debug()) << "syncprofile haveConsensus state No";
+            break;
+        case ConsensusState::MovedOn:
+            JLOG(j_.debug()) << "syncprofile haveConsensus state MovedOn";
+            break;
+        case ConsensusState::Yes:
+            JLOG(j_.debug()) << "syncprofile haveConsensus state Yes";
+    }
 
     if (result_->state == ConsensusState::No)
         return false;

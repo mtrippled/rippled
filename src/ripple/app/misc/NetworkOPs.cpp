@@ -1290,12 +1290,16 @@ bool NetworkOPsImp::checkLastClosedLedger (
     // our last closed ledger? Or do sufficient nodes agree? And do we have no
     // better ledger available?  If so, we are either tracking or full.
 
-    JLOG(m_journal.trace()) << "NetworkOPsImp::checkLastClosedLedger";
+    JLOG(m_journal.debug()) << "syncprofile checkLastClosedLedger";
 
     auto const ourClosed = m_ledgerMaster.getClosedLedger ();
 
     if (!ourClosed)
+    {
+        JLOG(m_journal.debug()) << "syncprofile checkLastClosedLedger "
+                                   "no closed ledger";
         return false;
+    }
 
     uint256 closedLedger = ourClosed->info().hash;
     uint256 prevClosedLedger = ourClosed->info().parentHash;
@@ -1307,7 +1311,8 @@ bool NetworkOPsImp::checkLastClosedLedger (
 
     auto & validations = app_.getValidations();
     JLOG(m_journal.debug())
-        << "ValidationTrie " << Json::Compact(validations.getJsonTrie());
+        << "syncprofile checkLastClosedLedger ValidationTrie "
+        << Json::Compact(validations.getJsonTrie());
 
     // Will rely on peer LCL if no trusted validations exist
     hash_map<uint256, std::uint32_t> peerCounts;
@@ -1330,6 +1335,8 @@ bool NetworkOPsImp::checkLastClosedLedger (
         RCLValidatedLedger{ourClosed, validations.adaptor().journal()},
         m_ledgerMaster.getValidLedgerIndex(),
         peerCounts);
+    JLOG(m_journal.debug()) << "syncprofile checkLastClosedLedger preferredLCL "
+        << preferredLCL;
 
     bool switchLedgers = preferredLCL != closedLedger;
     if(switchLedgers)
@@ -1338,7 +1345,8 @@ bool NetworkOPsImp::checkLastClosedLedger (
     if (switchLedgers && (closedLedger == prevClosedLedger))
     {
         // don't switch to our own previous ledger
-        JLOG(m_journal.info()) << "We won't switch to our own previous ledger";
+        JLOG(m_journal.info()) << "syncprofile checkLastClosedLedger "
+                                  "We won't switch to our own previous ledger";
         networkClosed = ourClosed->info().hash;
         switchLedgers = false;
     }
@@ -1346,7 +1354,11 @@ bool NetworkOPsImp::checkLastClosedLedger (
         networkClosed = closedLedger;
 
     if (!switchLedgers)
+    {
+        JLOG(m_journal.debug()) << "syncprofile checkLastClosedLedger "
+                                   "switchLedgers is false";
         return false;
+    }
 
     auto consensus = m_ledgerMaster.getLedgerByHash(closedLedger);
 
@@ -1362,12 +1374,14 @@ bool NetworkOPsImp::checkLastClosedLedger (
         // Don't switch to a ledger not on the validated chain
         // or with an invalid close time or sequence
         networkClosed = ourClosed->info().hash;
+        JLOG(m_journal.debug()) << "syncprofile checkLastClosedLedger "
+                                   "not switching";
         return false;
     }
 
-    JLOG(m_journal.warn()) << "We are not running on the consensus ledger";
-    JLOG(m_journal.info()) << "Our LCL: " << getJson(*ourClosed);
-    JLOG(m_journal.info()) << "Net LCL " << closedLedger;
+    JLOG(m_journal.warn()) << "syncprofile checkLastClosedLedger We are not running on the consensus ledger";
+    JLOG(m_journal.info()) << "syncprofile checkLastClosedLedger Our LCL: " << getJson(*ourClosed);
+    JLOG(m_journal.info()) << "syncprofile checkLastClosedLedger Net LCL " << closedLedger;
 
     if ((mMode == OperatingMode::TRACKING)
         || (mMode == OperatingMode::FULL))
@@ -1547,9 +1561,15 @@ void NetworkOPsImp::endConsensus ()
     uint256 networkClosed;
     bool ledgerChange = checkLastClosedLedger (
         app_.overlay ().getActivePeers (), networkClosed);
+    JLOG(m_journal.debug()) << "syncprofile endConsensus ledgerChange "
+        << (ledgerChange ? "true" : "false") << " need network ledger "
+        << (needNetworkLedger_ ? "true" : "false");
 
     if (networkClosed.isZero ())
+    {
+        JLOG(m_journal.debug()) << "syncprofile endConsensus no closed ledger";
         return;
+    }
 
     // WRITEME: Unless we are in FULL and in the process of doing a consensus,
     // we must count how many nodes share our LCL, how many nodes disagree with
@@ -1572,7 +1592,7 @@ void NetworkOPsImp::endConsensus ()
     {
         // check if the ledger is good enough to go to FULL
         // Note: Do not go to FULL if we don't have the previous ledger
-        // check if the ledger is bad enough to go to CONNECTE  D -- TODO
+        // check if the ledger is bad enough to go to CONNECTED -- TODO
         auto current = m_ledgerMaster.getCurrentLedger();
         if (app_.timeKeeper().now() <
             (current->info().parentCloseTime + 2* current->info().closeTimeResolution))

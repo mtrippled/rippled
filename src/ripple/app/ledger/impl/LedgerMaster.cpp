@@ -933,6 +933,9 @@ LedgerMaster::checkAccept (
 
     auto const minVal = getNeededValidations();
     auto const tvc = app_.getValidations().numTrustedForLedger(ledger->info().hash);
+    JLOG(m_journal.debug()) << "syncprofile checkAccept needed validations ("
+        << tvc << ") >= minVal (" << minVal << ") advancing "
+        << (tvc >= minVal ? "true" : "false");
     if (tvc < minVal) // nothing we can do
     {
         JLOG (m_journal.trace()) <<

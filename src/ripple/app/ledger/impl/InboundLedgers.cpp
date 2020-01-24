@@ -164,16 +164,16 @@ public:
     {
         protocol::TMLedgerData& packet = *packet_ptr;
 
-        JLOG (j_.trace())
-            << "Got data (" << packet.nodes ().size ()
+        JLOG (j_.debug())
+            << "syncprofile gotLedgerData Got data (" << packet.nodes ().size ()
             << ") for acquiring ledger: " << hash;
 
         auto ledger = find (hash);
 
         if (!ledger)
         {
-            JLOG (j_.trace())
-                << "Got data for ledger we're no longer acquiring";
+            JLOG (j_.debug())
+                << "syncprofile gotLedgerData Got data for ledger we're no longer acquiring";
 
             // If it's state node data, stash it because it still might be
             // useful.
@@ -241,6 +241,7 @@ public:
 
     void doLedgerData (LedgerHash hash) override
     {
+        JLOG(j_.debug()) << "syncprofile doLedgerData hash " << hash;
         if (auto ledger = find (hash))
             ledger->runData ();
     }

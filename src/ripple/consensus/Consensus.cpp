@@ -34,38 +34,54 @@ shouldCloseLedger(
     std::chrono::milliseconds openTime,  // Time waiting to close this ledger
     std::chrono::milliseconds idleInterval,
     ConsensusParms const& parms,
-    beast::Journal j)
+    beast::Journal j,
+    bool haveValidated)
 {
     using namespace std::chrono_literals;
+    JLOG(j.warn()) << "syncprofile shouldCloseLedger Trans="
+                   << (anyTransactions ? "yes" : "no")
+                   << " Prop: " << prevProposers << "/" << proposersClosed
+                   << " Secs: " << timeSincePrevClose.count()
+                   << " (last: " << prevRoundTime.count() << ")";
     if ((prevRoundTime < -1s) || (prevRoundTime > 10min) ||
         (timeSincePrevClose > 10min))
     {
         // These are unexpected cases, we just close the ledger
-        JLOG(j.warn()) << "shouldCloseLedger Trans="
-                       << (anyTransactions ? "yes" : "no")
-                       << " Prop: " << prevProposers << "/" << proposersClosed
-                       << " Secs: " << timeSincePrevClose.count()
-                       << " (last: " << prevRoundTime.count() << ")";
+        JLOG(j.warn()) << "syncprofile shouldCloseLedger (true) "
+                          "unexpected cases";
         return true;
     }
 
     if ((proposersClosed + proposersValidated) > (prevProposers / 2))
     {
         // If more than half of the network has closed, we close
-        JLOG(j.trace()) << "Others have closed";
+        JLOG(j.debug()) << "syncprofile shouldCloseLedger (true) Others "
+                           "have closed";
         return true;
     }
 
     if (!anyTransactions)
     {
+        /*
+        if (! haveValidated)
+        {
+            JLOG(j.debug()) << "syncprofile shouldCloseLedger (true) "
+                               "initial startup";
+            return true;
+        }
+         */
         // Only close at the end of the idle interval
+        JLOG(j.debug()) << "syncprofile shouldCloseLedger ("
+            << (timeSincePrevClose >= idleInterval ? "true" : "false")
+            << ") only close at end of idle interval";
         return timeSincePrevClose >= idleInterval;  // normal idle
     }
 
     // Preserve minimum ledger open time
     if (openTime < parms.ledgerMIN_CLOSE)
     {
-        JLOG(j.debug()) << "Must wait minimum time before closing";
+        JLOG(j.debug()) << "syncprofile shouldCloseLedger (false) Must wait"
+                           "minimum time before closing";
         return false;
     }
 
@@ -74,11 +90,13 @@ shouldCloseLedger(
     // the network
     if (openTime < (prevRoundTime / 2))
     {
-        JLOG(j.debug()) << "Ledger has not been open long enough";
+        JLOG(j.debug()) << "syncprofile shouldCloseLedger (false) Ledger has "
+                           "not been open long enough";
         return false;
     }
 
     // Close the ledger
+    JLOG(j.debug()) << "syncprofile shouldCloseLedger (true) close ledger";
     return true;
 }
 
@@ -87,11 +105,15 @@ checkConsensusReached(
     std::size_t agreeing,
     std::size_t total,
     bool count_self,
-    std::size_t minConsensusPct)
+    std::size_t minConsensusPct,
+    beast::Journal j)
 {
     // If we are alone, we have a consensus
     if (total == 0)
+    {
+        JLOG(j.debug()) << "syncprofile checkConsensusReached true total 0";
         return true;
+    }
 
     if (count_self)
     {
@@ -100,6 +122,11 @@ checkConsensusReached(
     }
 
     std::size_t currentPercentage = (agreeing * 100) / total;
+    JLOG(j.debug()) << "syncprofile checkConsensusReached currentPercentage ("
+        << currentPercentage
+        << ") >= minConsensusPct (" << minConsensusPct
+        << ") returning "
+        << (currentPercentage >= minConsensusPct ? "true" : "false");
 
     return currentPercentage >= minConsensusPct;
 }
@@ -116,14 +143,17 @@ checkConsensus(
     bool proposing,
     beast::Journal j)
 {
-    JLOG(j.trace()) << "checkConsensus: prop=" << currentProposers << "/"
+    JLOG(j.debug()) << "syncprofile checkConsensus: prop=" << currentProposers << "/"
                     << prevProposers << " agree=" << currentAgree
                     << " validated=" << currentFinished
                     << " time=" << currentAgreeTime.count() << "/"
                     << previousAgreeTime.count();
 
     if (currentAgreeTime <= parms.ledgerMIN_CONSENSUS)
+    {
+        JLOG(j.debug()) << "syncprofile checkConsensus not enough elapsed time";
         return ConsensusState::No;
+    }
 
     if (currentProposers < (prevProposers * 3 / 4))
     {
@@ -131,7 +161,8 @@ checkConsensus(
         // rush: we may need more time.
         if (currentAgreeTime < (previousAgreeTime + parms.ledgerMIN_CONSENSUS))
         {
-            JLOG(j.trace()) << "too fast, not enough proposers";
+            JLOG(j.debug()) << "syncprofile checkConsensus too fast, not "
+                               "enough proposers";
             return ConsensusState::No;
         }
     }
@@ -139,23 +170,26 @@ checkConsensus(
     // Have we, together with the nodes on our UNL list, reached the threshold
     // to declare consensus?
     if (checkConsensusReached(
-            currentAgree, currentProposers, proposing, parms.minCONSENSUS_PCT))
+            currentAgree, currentProposers, proposing, parms.minCONSENSUS_PCT,
+            j))
     {
-        JLOG(j.debug()) << "normal consensus";
+        JLOG(j.debug()) << "syncprofile checkConsensus normal consensus";
         return ConsensusState::Yes;
     }
 
     // Have sufficient nodes on our UNL list moved on and reached the threshold
     // to declare consensus?
     if (checkConsensusReached(
-            currentFinished, currentProposers, false, parms.minCONSENSUS_PCT))
+            currentFinished, currentProposers, false, parms.minCONSENSUS_PCT,
+            j))
     {
-        JLOG(j.warn()) << "We see no consensus, but 80% of nodes have moved on";
+        JLOG(j.warn()) << "syncprofile checkConsensus We see no consensus, "
+                          "but 80% of nodes have moved on";
         return ConsensusState::MovedOn;
     }
 
     // no consensus yet
-    JLOG(j.trace()) << "no consensus";
+    JLOG(j.debug()) << "syncprofile checkConsensus no consensus";
     return ConsensusState::No;
 }
 

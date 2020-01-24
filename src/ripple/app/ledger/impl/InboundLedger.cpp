@@ -224,7 +224,13 @@ InboundLedger::neededTxHashes (
         if (mLedger->txMap().getHash().isZero ())
             ret.push_back (mLedger->info().txHash);
         else
-            ret = mLedger->txMap().getNeededHashes (max, filter);
+        {
+            JLOG(m_journal.debug()) << "syncprofile neededTxHashes "
+                                       "ledger " << mLedger->info().hash
+                                    << " tx map "
+                                    << mLedger->txMap().getHash();
+            ret = mLedger->txMap().getNeededHashes(max, filter);
+        }
     }
 
     return ret;
@@ -241,7 +247,13 @@ InboundLedger::neededStateHashes (
         if (mLedger->stateMap().getHash().isZero ())
             ret.push_back (mLedger->info().accountHash);
         else
-            ret = mLedger->stateMap().getNeededHashes (max, filter);
+        {
+            JLOG(m_journal.debug()) << "syncprofile neededStateHashes "
+                                       "ledger " << mLedger->info().hash
+                                    << " state "
+                                    << mLedger->stateMap().getHash();
+            ret = mLedger->stateMap().getNeededHashes(max, filter);
+        }
     }
 
     return ret;
@@ -669,6 +681,11 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason re
             sl.unlock();
             auto nodes = mLedger->stateMap().getMissingNodes (
                 missingNodesFind, &filter);
+            JLOG(m_journal.debug()) << "syncprofile InboundLedger::trigger "
+                                       "missing nodes " << nodes.size()
+                                    << " ledger " << mLedger->info().hash
+                                    << " state "
+                                    << mLedger->stateMap().getHash();
             sl.lock();
 
             // Make sure nothing happened while we released the lock
@@ -741,6 +758,10 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason re
 
             auto nodes = mLedger->txMap().getMissingNodes (
                 missingNodesFind, &filter);
+            JLOG(m_journal.debug()) << "syncprofile InboundLedger::trigger "
+                                       "missing nodes " << nodes.size()
+                                    << " ledger " << mLedger->info().hash
+                                    << " tx map " << mLedger->txMap().getHash();
 
             if (nodes.empty ())
             {
@@ -845,11 +866,15 @@ void InboundLedger::filterNodes (
 bool InboundLedger::takeHeader (std::string const& data)
 {
     // Return value: true=normal, false=bad data
-    JLOG (m_journal.trace()) <<
-        "got header acquiring ledger " << mHash;
+    JLOG (m_journal.debug()) <<
+        "syncprofile takeHeader got header acquiring ledger " << mHash;
 
     if (mComplete || mFailed || mHaveHeader)
+    {
+        JLOG (m_journal.debug()) << "syncprofile takeHeader don't need this "
+                                    "packet";
         return true;
+    }
 
     auto* f = mReason == Reason::SHARD ?
         app_.shardFamily() : &app_.family();
@@ -859,7 +884,7 @@ bool InboundLedger::takeHeader (std::string const& data)
         (mSeq != 0 && mSeq != mLedger->info().seq))
     {
         JLOG (m_journal.warn()) <<
-            "Acquire hash mismatch: " << mLedger->info().hash <<
+            "syncprofile takeHeader Acquire hash mismatch: " << mLedger->info().hash <<
             "!=" << mHash;
         mLedger.reset ();
         return false;
@@ -868,6 +893,8 @@ bool InboundLedger::takeHeader (std::string const& data)
         mSeq = mLedger->info().seq;
     mLedger->stateMap().setLedgerSeq(mSeq);
     mLedger->txMap().setLedgerSeq(mSeq);
+    JLOG (m_journal.debug()) << "syncprofile takeHeader setting mHaveHeader "
+                                "true " << mLedger->info().hash;
     mHaveHeader = true;
 
     Serializer s (data.size () + 4);
@@ -1145,6 +1172,9 @@ InboundLedger::gotData(std::weak_ptr<Peer> peer,
 int InboundLedger::processData (std::shared_ptr<Peer> peer,
     protocol::TMLedgerData& packet)
 {
+    JLOG(m_journal.debug()) << "syncprofile processData packet is liBASE: "
+        << (packet.type() == protocol::liBASE) << ", mHaveHeader: "
+        << mHaveHeader;
     ScopedLockType sl (mLock);
 
     if (packet.type () == protocol::liBASE)
@@ -1152,7 +1182,7 @@ int InboundLedger::processData (std::shared_ptr<Peer> peer,
         if (packet.nodes_size () < 1)
         {
             JLOG (m_journal.warn()) <<
-                "Got empty header data";
+                "syncprofile processData Got empty header data";
             peer->charge (Resource::feeInvalidRequest);
             return -1;
         }
@@ -1166,7 +1196,7 @@ int InboundLedger::processData (std::shared_ptr<Peer> peer,
             else
             {
                 JLOG (m_journal.warn()) <<
-                    "Got invalid header data";
+                    "syncprofile processData Got invalid header data";
                 peer->charge (Resource::feeInvalidRequest);
                 return -1;
             }
@@ -1177,14 +1207,14 @@ int InboundLedger::processData (std::shared_ptr<Peer> peer,
             !takeAsRootNode (makeSlice(packet.nodes(1).nodedata ()), san))
         {
             JLOG (m_journal.warn()) <<
-                "Included AS root invalid";
+                "syncprofile processData Included AS root invalid";
         }
 
         if (!mHaveTransactions && (packet.nodes ().size () > 2) &&
             !takeTxRootNode (makeSlice(packet.nodes(2).nodedata ()), san))
         {
             JLOG (m_journal.warn()) <<
-                "Included TX root invalid";
+                "syncprofile processData Included TX root invalid";
         }
 
         if (san.isUseful ())
@@ -1200,7 +1230,7 @@ int InboundLedger::processData (std::shared_ptr<Peer> peer,
         if (packet.nodes ().size () == 0)
         {
             JLOG (m_journal.info()) <<
-                "Got response with no nodes";
+                "syncprofile processData Got response with no nodes";
             peer->charge (Resource::feeInvalidRequest);
             return -1;
         }
@@ -1217,7 +1247,7 @@ int InboundLedger::processData (std::shared_ptr<Peer> peer,
             if (!node.has_nodeid () || !node.has_nodedata ())
             {
                 JLOG (m_journal.warn()) <<
-                    "Got bad node";
+                    "syncprofile processData Got bad node";
                 peer->charge (Resource::feeInvalidRequest);
                 return -1;
             }
@@ -1258,6 +1288,7 @@ int InboundLedger::processData (std::shared_ptr<Peer> peer,
 */
 void InboundLedger::runData ()
 {
+    JLOG(m_journal.debug()) << "syncprofile runData hash " << mLedger->info().hash;
     std::shared_ptr<Peer> chosenPeer;
     int chosenPeerCount = -1;
 
@@ -1278,6 +1309,8 @@ void InboundLedger::runData ()
             data.swap(mReceivedData);
         }
 
+        JLOG(m_journal.debug()) << "syncprofile runData hash " << mLedger->info().hash
+            << " entries: " << data.size();
         // Select the peer that gives us the most nodes that are useful,
         // breaking ties in favor of the peer that responded first.
         for (auto& entry : data)
