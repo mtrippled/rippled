@@ -164,16 +164,16 @@ public:
     {
         protocol::TMLedgerData& packet = *packet_ptr;
 
-        JLOG (j_.trace())
-            << "Got data (" << packet.nodes ().size ()
+        JLOG (j_.debug())
+            << "syncprofile gotLedgerData Got data (" << packet.nodes ().size ()
             << ") for acquiring ledger: " << hash;
 
         auto ledger = find (hash);
 
         if (!ledger)
         {
-            JLOG (j_.trace())
-                << "Got data for ledger we're no longer acquiring";
+            JLOG (j_.debug())
+                << "syncprofile gotLedgerData Got data for ledger we're no longer acquiring";
 
             // If it's state node data, stash it because it still might be
             // useful.
@@ -181,7 +181,11 @@ public:
             {
                 app_.getJobQueue().addJob(
                     jtLEDGER_DATA, "gotStaleData",
-                    [this, packet_ptr] (Job&) { gotStaleData(packet_ptr); });
+                    [this, packet_ptr] (Job&) {
+                        JLOG(this->j_.debug()) << "syncprofile jtLEDGER_DATA gotStaleData start";
+                        gotStaleData(packet_ptr);
+                        JLOG(this->j_.debug()) << "syncprofile jtLEDGER_DATA gotStaleData finish";
+                    });
             }
 
             return false;
@@ -191,7 +195,11 @@ public:
         if (ledger->gotData(std::weak_ptr<Peer>(peer), packet_ptr))
             app_.getJobQueue().addJob (
                 jtLEDGER_DATA, "processLedgerData",
-                [this, hash] (Job&) { doLedgerData(hash); });
+                [this, hash] (Job&) {
+                    JLOG(this->j_.debug()) << "syncprofile jtLEDGER_DATA processLedgerData start";
+                    doLedgerData(hash);
+                    JLOG(this->j_.debug()) << "syncprofile jtLEDGER_DATA processLedgerData finish";
+                });
 
         return true;
     }
@@ -241,6 +249,7 @@ public:
 
     void doLedgerData (LedgerHash hash) override
     {
+        JLOG(j_.debug()) << "syncprofile doLedgerData hash " << hash;
         if (auto ledger = find (hash))
             ledger->runData ();
     }

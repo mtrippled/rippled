@@ -100,6 +100,8 @@ public:
 
     virtual bool isDone () const
     {
+        JLOG(m_journal.debug()) << "syncprofile isDone mComplete,mFailed: "
+            << mComplete << ',' << mFailed;
         return mComplete || mFailed;
     }
 

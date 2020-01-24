@@ -415,6 +415,8 @@ SHAMap::getMissingNodes(int max, SHAMapSyncFilter* filter)
 std::vector<uint256> SHAMap::getNeededHashes (int max, SHAMapSyncFilter* filter)
 {
     auto ret = getMissingNodes(max, filter);
+    JLOG(journal_.debug()) << "syncprofile getNeededHashes missing nodes "
+        << ret.size();
 
     std::vector<uint256> hashes;
     hashes.reserve (ret.size());

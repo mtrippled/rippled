@@ -155,6 +155,9 @@ void TransactionAcquire::trigger (std::shared_ptr<Peer> const& peer)
     {
         ConsensusTransSetSF sf (app_, app_.getTempNodeCache ());
         auto nodes = mMap->getMissingNodes (256, &sf);
+        JLOG(j_.debug()) << "syncprofile TransactionAcquire::trigger missing "
+                            "nodes " << nodes.size()
+                         << " tx map " << mMap->getHash();
 
         if (nodes.empty ())
         {
