@@ -34,7 +34,8 @@ shouldCloseLedger(
     std::chrono::milliseconds openTime,  // Time waiting to close this ledger
     std::chrono::milliseconds idleInterval,
     ConsensusParms const& parms,
-    beast::Journal j)
+    beast::Journal j,
+    bool haveValidated)
 {
     using namespace std::chrono_literals;
     if ((prevRoundTime < -1s) || (prevRoundTime > 10min) ||
@@ -58,6 +59,11 @@ shouldCloseLedger(
 
     if (!anyTransactions)
     {
+        if (! haveValidated)
+        {
+            JLOG(j.debug()) << "closing fast upon initial startup";
+            return true;
+        }
         // Only close at the end of the idle interval
         return timeSincePrevClose >= idleInterval;  // normal idle
     }

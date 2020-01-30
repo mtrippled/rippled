@@ -64,7 +64,8 @@ shouldCloseLedger(
     std::chrono::milliseconds openTime,
     std::chrono::milliseconds idleInterval,
     ConsensusParms const & parms,
-    beast::Journal j);
+    beast::Journal j,
+    bool haveValidated = true);
 
 /** Determine whether the network reached consensus and whether we joined.
 
@@ -1135,7 +1136,8 @@ Consensus<Adaptor>::phaseOpen()
             openTime_.read(),
             idleInterval,
             adaptor_.parms(),
-            j_))
+            j_,
+            adaptor_.haveValidated()))
     {
         closeLedger();
     }
