@@ -678,12 +678,15 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason re
         }
         else if (mLedger->stateMap().getHash ().isZero ())
         {
+            JLOG(m_journal.debug()) << "syncprofile trigger 233 instance: " << instance;
             // we need the root node
             tmGL.set_itype (protocol::liAS_NODE);
+            JLOG(m_journal.debug()) << "syncprofile trigger 234 instance: " << instance;
             *tmGL.add_nodeids () = SHAMapNodeID ().getRawString ();
-            JLOG (m_journal.trace()) <<
-                "Sending AS root request to " <<
-                (peer ? "selected peer" : "all peers");
+            JLOG (m_journal.debug()) <<
+                "syncprofile trigger 235 Sending AS root request to " <<
+                (peer ? "selected peer" : "all peers")
+                << " instance: " << instance;
             sendRequest (tmGL, peer);
             JLOG(m_journal.debug()) << "syncprofile trigger 240 instance: " << instance;
             return;
