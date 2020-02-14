@@ -111,7 +111,8 @@ private:
         std::vector<std::pair<SHAMapNodeID, uint256>>& nodes,
         TriggerReason reason);
 
-    void trigger (std::shared_ptr<Peer> const&, TriggerReason);
+    void trigger (std::shared_ptr<Peer> const&, TriggerReason,
+        std::uint64_t const instance = 0);
 
     std::vector<neededHash_t> getNeededHashes ();
 

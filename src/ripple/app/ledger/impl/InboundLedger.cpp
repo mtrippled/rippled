@@ -521,10 +521,12 @@ void InboundLedger::done ()
 
 /** Request more nodes, perhaps from a specific peer
 */
-void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason reason)
+void InboundLedger::trigger (std::shared_ptr<Peer> const& peer,
+    TriggerReason reason,
+    std::uint64_t const instance)
 {
-    static std::atomic<std::uint64_t> instance = 0;
-    JLOG(m_journal.debug()) << "syncprofile trigger 1 instance: " << ++instance;
+//    static std::atomic<std::uint64_t> instance = 0;
+    JLOG(m_journal.debug()) << "syncprofile trigger 1 instance: " << instance;
     ScopedLockType sl (mLock);
 
     if (isDone ())
@@ -1344,8 +1346,10 @@ int InboundLedger::processData (std::shared_ptr<Peer> peer,
 */
 void InboundLedger::runData ()
 {
+    static std::atomic<std::uint64_t> instance = 0;
     JLOG(m_journal.debug()) << "syncprofile runData hash: " <<
-        (mLedger.get() ? mLedger->info().hash : uint256(0));
+        (mLedger.get() ? mLedger->info().hash : uint256(0))
+        << " instance: " << ++instance;
     std::shared_ptr<Peer> chosenPeer;
     int chosenPeerCount = -1;
 
@@ -1353,12 +1357,12 @@ void InboundLedger::runData ()
 
     for (;;)
     {
-        JLOG(m_journal.debug()) << "syncprofile runData 10";
+        JLOG(m_journal.debug()) << "syncprofile runData 10 instance: " << instance;
         data.clear();
-        JLOG(m_journal.debug()) << "syncprofile runData 20";
+        JLOG(m_journal.debug()) << "syncprofile runData 20 instance: " << instance;
         {
             std::lock_guard sl (mReceivedDataLock);
-            JLOG(m_journal.debug()) << "syncprofile runData 30";
+            JLOG(m_journal.debug()) << "syncprofile runData 30 instance: " << instance;
 
             if (mReceivedData.empty ())
             {
@@ -1367,39 +1371,39 @@ void InboundLedger::runData ()
             }
 
             data.swap(mReceivedData);
-            JLOG(m_journal.debug()) << "syncprofile runData 40";
+            JLOG(m_journal.debug()) << "syncprofile runData 40 instance: " << instance;
         }
 
         JLOG(m_journal.debug()) << "syncprofile runData 50 hash: "
             << (mLedger.get() ? mLedger->info().hash : uint256(0))
-            << " entries: " << data.size();
+            << " entries: " << data.size() << " instance: " << instance;
         // Select the peer that gives us the most nodes that are useful,
         // breaking ties in favor of the peer that responded first.
         for (auto& entry : data)
         {
-            JLOG(m_journal.debug()) << "syncprofile runData 60";
+            JLOG(m_journal.debug()) << "syncprofile runData 60 instance: " << instance;
             if (auto peer = entry.first.lock())
             {
-                JLOG(m_journal.debug()) << "syncprofile runData 70";
+                JLOG(m_journal.debug()) << "syncprofile runData 70 instance: " << instance;
                 int count = processData (peer, *(entry.second));
-                JLOG(m_journal.debug()) << "syncprofile runData 80 (processData returned)";
+                JLOG(m_journal.debug()) << "syncprofile runData 80 (processData returned) instance: " << instance;
                 if (count > chosenPeerCount)
                 {
                     chosenPeerCount = count;
                     chosenPeer = std::move (peer);
-                    JLOG(m_journal.debug()) << "syncprofile runData 90";
+                    JLOG(m_journal.debug()) << "syncprofile runData 90 instance: " << instance;
                 }
             }
         }
     }
 
-    JLOG(m_journal.debug()) << "syncprofile runData 100";
+    JLOG(m_journal.debug()) << "syncprofile runData 100 instance: " << instance;
     if (chosenPeer)
     {
-        JLOG(m_journal.debug()) << "syncprofile runData 110";
-        trigger(chosenPeer, TriggerReason::reply);
+        JLOG(m_journal.debug()) << "syncprofile runData 110 instance: " << instance;
+        trigger(chosenPeer, TriggerReason::reply, instance);
     }
-    JLOG(m_journal.debug()) << "syncprofile runData 120";
+    JLOG(m_journal.debug()) << "syncprofile runData 120 instance: " << instance;
 }
 
 Json::Value InboundLedger::getJson (int)
