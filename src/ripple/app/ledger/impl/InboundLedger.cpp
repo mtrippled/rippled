@@ -685,6 +685,7 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason re
                 "Sending AS root request to " <<
                 (peer ? "selected peer" : "all peers");
             sendRequest (tmGL, peer);
+            JLOG(m_journal.debug()) << "syncprofile trigger 240 instance: " << instance;
             return;
         }
         else
@@ -736,6 +737,7 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason re
                             nodes.size () << ") to " <<
                             (peer ? "selected peer" : "all peers");
                         sendRequest (tmGL, peer);
+                        JLOG(m_journal.debug()) << "syncprofile trigger 300 instance: " << instance;
                         return;
                     }
                     else
