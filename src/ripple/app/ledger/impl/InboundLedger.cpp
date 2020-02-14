@@ -705,7 +705,7 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer,
             sl.unlock();
             JLOG(m_journal.debug()) << "syncprofile trigger 275 instance: " << instance;
             auto nodes = mLedger->stateMap().getMissingNodes (
-                missingNodesFind, &filter);
+                missingNodesFind, &filter, instance);
             JLOG(m_journal.debug()) << "syncprofile trigger 276 "
                                        "missing nodes " << nodes.size()
                                     << " ledger " << mLedger->info().hash
@@ -790,7 +790,7 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer,
 
             JLOG(m_journal.debug()) << "syncprofile trigger 350 instance: " << instance;
             auto nodes = mLedger->txMap().getMissingNodes (
-                missingNodesFind, &filter);
+                missingNodesFind, &filter, instance);
             JLOG(m_journal.debug()) << "syncprofile trigger 351 "
                                        "missing nodes " << nodes.size()
                                     << " ledger " << mLedger->info().hash
