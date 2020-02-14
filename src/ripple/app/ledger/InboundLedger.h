@@ -113,7 +113,7 @@ private:
         TriggerReason reason);
 
     void trigger (std::shared_ptr<Peer> const&, TriggerReason,
-        std::string const instance = "");
+        std::string const& instance = "");
 
     std::vector<neededHash_t> getNeededHashes ();
 

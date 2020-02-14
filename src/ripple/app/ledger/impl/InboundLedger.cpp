@@ -525,7 +525,7 @@ void InboundLedger::done ()
 */
 void InboundLedger::trigger (std::shared_ptr<Peer> const& peer,
     TriggerReason reason,
-    std::string const instance)
+    std::string const& instance)
 {
     JLOG(m_journal.debug()) << "syncprofile trigger 1 instance: " << instance;
     ScopedLockType sl (mLock);

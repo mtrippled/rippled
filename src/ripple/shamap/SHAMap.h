@@ -208,7 +208,8 @@ public:
         @param return The nodes known to be missing
     */
     std::vector<std::pair<SHAMapNodeID, uint256>>
-    getMissingNodes (int maxNodes, SHAMapSyncFilter *filter);
+    getMissingNodes (int maxNodes, SHAMapSyncFilter *filter,
+        std::string const& instance = "");
 
     bool getNodeFat (SHAMapNodeID node,
         std::vector<SHAMapNodeID>& nodeIDs,

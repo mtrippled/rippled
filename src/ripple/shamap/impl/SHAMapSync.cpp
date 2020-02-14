@@ -304,7 +304,8 @@ void SHAMap::gmn_ProcessDeferredReads (MissingNodes& mn)
     nodes that are not permanently stored locally
 */
 std::vector<std::pair<SHAMapNodeID, uint256>>
-SHAMap::getMissingNodes(int max, SHAMapSyncFilter* filter)
+SHAMap::getMissingNodes(int max, SHAMapSyncFilter* filter,
+    std::string const& instance)
 {
     assert (root_->isValid ());
     assert (root_->getNodeHash().isNonZero ());
@@ -322,6 +323,7 @@ SHAMap::getMissingNodes(int max, SHAMapSyncFilter* filter)
         return std::move (mn.missingNodes_);
     }
 
+    JLOG(journal_.debug()) << "syncprofile getMissingNodes 100 instance: " << instance;
     // Start at the root.
     // The firstChild value is selected randomly so if multiple threads
     // are traversing the map, each thread will start at a different
@@ -334,10 +336,14 @@ SHAMap::getMissingNodes(int max, SHAMapSyncFilter* filter)
     auto& node = std::get<0>(pos);
     auto& nextChild = std::get<3>(pos);
     auto& fullBelow = std::get<4>(pos);
+    JLOG(journal_.debug()) << "syncprofile getMissingNodes 120 instance: " << instance;
+    std::uint64_t iter = 0;
 
     // Traverse the map without blocking
     do
     {
+        JLOG(journal_.debug()) << "syncprofile getMissingNodes 130 iter: "
+            << ++iter << " instance: " << instance;
 
         while ((node != nullptr) &&
             (mn.deferredReads_.size() <= mn.maxDefer_))
@@ -405,6 +411,7 @@ SHAMap::getMissingNodes(int max, SHAMapSyncFilter* filter)
         // and we have no nodes to resume
 
     } while (node != nullptr);
+    JLOG(journal_.debug()) << "syncprofile getMissingNodes 220 instance: " << instance;
 
     if (mn.missingNodes_.empty ())
         clearSynching ();
