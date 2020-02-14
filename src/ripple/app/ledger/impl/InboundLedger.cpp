@@ -695,20 +695,24 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer,
         }
         else
         {
+            JLOG(m_journal.debug()) << "syncprofile trigger 273 instance: " << instance;
             AccountStateSF filter(mLedger->stateMap().family().db(),
                 app_.getLedgerMaster());
+            JLOG(m_journal.debug()) << "syncprofile trigger 274 instance: " << instance;
 
             // Release the lock while we process the large state map
             sl.unlock();
+            JLOG(m_journal.debug()) << "syncprofile trigger 275 instance: " << instance;
             auto nodes = mLedger->stateMap().getMissingNodes (
                 missingNodesFind, &filter);
-            JLOG(m_journal.debug()) << "syncprofile trigger "
+            JLOG(m_journal.debug()) << "syncprofile trigger 276"
                                        "missing nodes " << nodes.size()
                                     << " ledger " << mLedger->info().hash
                                     << " state "
                                     << mLedger->stateMap().getHash()
                                     << " instance: " << instance;
             sl.lock();
+            JLOG(m_journal.debug()) << "syncprofile trigger 277 instance: " << instance;
 
             // Make sure nothing happened while we released the lock
             if (!mFailed && !mComplete && !mHaveState)
@@ -727,11 +731,13 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer,
                 }
                 else
                 {
+                    JLOG(m_journal.debug()) << "syncprofile trigger 297 instance: " << instance;
                     filterNodes (nodes, reason);
 
                     if (!nodes.empty ())
                     {
                         tmGL.set_itype (protocol::liAS_NODE);
+                        JLOG(m_journal.debug()) << "syncprofile trigger 298 instance: " << instance;
                         for (auto const& id : nodes)
                         {
                             * (tmGL.add_nodeids ()) = id.first.getRawString ();
@@ -741,6 +747,7 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer,
                             "Sending AS node request (" <<
                             nodes.size () << ") to " <<
                             (peer ? "selected peer" : "all peers");
+                        JLOG(m_journal.debug()) << "syncprofile trigger 299 instance: " << instance;
                         sendRequest (tmGL, peer);
                         JLOG(m_journal.debug()) << "syncprofile trigger 300 instance: " << instance;
                         return;
