@@ -34,6 +34,7 @@
 #include <ripple/nodestore/DatabaseShard.h>
 
 #include <algorithm>
+#include <atomic>
 
 namespace ripple {
 
@@ -522,7 +523,8 @@ void InboundLedger::done ()
 */
 void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason reason)
 {
-    JLOG(m_journal.debug()) << "syncprofile trigger 1";
+    static std::atomic<std::uint64_t> instance = 0;
+    JLOG(m_journal.debug()) << "syncprofile trigger 1 instance: " << ++instance;
     ScopedLockType sl (mLock);
 
     if (isDone ())
@@ -530,7 +532,7 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason re
         JLOG (m_journal.debug()) <<
             "syncprofile trigger Trigger on ledger: " << mHash <<
             (mComplete ? " completed" : "") <<
-            (mFailed ? " failed" : "");
+            (mFailed ? " failed" : "") << " instance: " << instance;
         return;
     }
 
@@ -551,7 +553,7 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason re
                 "header=" << mHaveHeader << " tx=" << mHaveTransactions <<
                     " as=" << mHaveState;
     }
-    JLOG(m_journal.debug()) << "syncprofile trigger 50";
+    JLOG(m_journal.debug()) << "syncprofile trigger 50 instance: " << instance;
 
     if (! mHaveHeader)
     {
@@ -560,7 +562,8 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason re
         if (mFailed)
         {
             JLOG (m_journal.warn()) <<
-                "syncprofile trigger failed local for " << mHash;
+                "syncprofile trigger failed local for " << mHash
+                    << " instance: " << instance;
             return;
         }
     }
@@ -568,7 +571,7 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason re
     protocol::TMGetLedger tmGL;
     tmGL.set_ledgerhash (mHash.begin (), mHash.size ());
 
-    JLOG(m_journal.debug()) << "syncprofile trigger 80";
+    JLOG(m_journal.debug()) << "syncprofile trigger 80 instance: " << instance;
     if (getTimeouts () != 0)
     { // Be more aggressive if we've timed out at least once
         tmGL.set_querytype (protocol::qtINDIRECT);
@@ -587,7 +590,8 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason re
                 for (auto const& p : need)
                 {
                     JLOG (m_journal.warn()) <<
-                        "syncprofile trigger Want: " << p.second;
+                        "syncprofile trigger Want: " << p.second
+                        << " instance: " << instance;
 
                     if (!typeSet)
                     {
@@ -619,7 +623,8 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason re
             else
             {
                 JLOG (m_journal.info()) <<
-                    "syncprofile trigger getNeededHashes says acquire is complete";
+                    "syncprofile trigger getNeededHashes says acquire is "
+                    "complete instance: " << instance;
                 mHaveHeader = true;
                 mHaveTransactions = true;
                 mHaveState = true;
@@ -627,7 +632,7 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason re
             }
         }
     }
-    JLOG(m_journal.debug()) << "syncprofile trigger 180";
+    JLOG(m_journal.debug()) << "syncprofile trigger 180 instance: " << instance;
 
     // We can't do much without the header data because we don't know the
     // state or transaction root hashes.
@@ -636,10 +641,11 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason re
         tmGL.set_itype (protocol::liBASE);
         if (mSeq != 0)
             tmGL.set_ledgerseq (mSeq);
-        JLOG (m_journal.trace()) <<
+        JLOG (m_journal.debug()) <<
             "syncprofile trigger Sending header request to " <<
-             (peer ? "selected peer" : "all peers");
+             (peer ? "selected peer" : "all peers") << " instance: " << instance;
         sendRequest (tmGL, peer);
+        JLOG(m_journal.debug()) << "syncprofile trigger 193 instance: " << instance;
         return;
     }
 
@@ -659,7 +665,7 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason re
     else
         tmGL.set_querydepth (1);
 
-    JLOG(m_journal.debug()) << "syncprofile trigger 220";
+    JLOG(m_journal.debug()) << "syncprofile trigger 220 instance: " << instance;
     // Get the state data first because it's the most likely to be useful
     // if we wind up abandoning this fetch.
     if (mHaveHeader && !mHaveState && !mFailed)
@@ -694,7 +700,8 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason re
                                        "missing nodes " << nodes.size()
                                     << " ledger " << mLedger->info().hash
                                     << " state "
-                                    << mLedger->stateMap().getHash();
+                                    << mLedger->stateMap().getHash()
+                                    << " instance: " << instance;
             sl.lock();
 
             // Make sure nothing happened while we released the lock
@@ -740,7 +747,7 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason re
             }
         }
     }
-    JLOG(m_journal.debug()) << "syncprofile trigger 320";
+    JLOG(m_journal.debug()) << "syncprofile trigger 320 instance: " << instance;
 
     if (mHaveHeader && !mHaveTransactions && !mFailed)
     {
@@ -771,7 +778,8 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason re
             JLOG(m_journal.debug()) << "syncprofile trigger "
                                        "missing nodes " << nodes.size()
                                     << " ledger " << mLedger->info().hash
-                                    << " tx map " << mLedger->txMap().getHash();
+                                    << " tx map " << mLedger->txMap().getHash()
+                                    << " instance: " << instance;
 
             if (nodes.empty ())
             {
@@ -811,7 +819,7 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason re
             }
         }
     }
-    JLOG(m_journal.debug()) << "syncprofile trigger 420";
+    JLOG(m_journal.debug()) << "syncprofile trigger 420 instance: " << instance;
 
     if (mComplete || mFailed)
     {
@@ -822,7 +830,7 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason re
         sl.unlock ();
         done ();
     }
-    JLOG(m_journal.debug()) << "syncprofile trigger 1000";
+    JLOG(m_journal.debug()) << "syncprofile trigger 1000 instance: " << instance;
 }
 
 void InboundLedger::filterNodes (
