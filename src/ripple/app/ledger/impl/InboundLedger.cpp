@@ -35,6 +35,8 @@
 
 #include <algorithm>
 #include <atomic>
+#include <sstream>
+#include <thread>
 
 namespace ripple {
 
@@ -523,9 +525,8 @@ void InboundLedger::done ()
 */
 void InboundLedger::trigger (std::shared_ptr<Peer> const& peer,
     TriggerReason reason,
-    std::uint64_t const instance)
+    std::string const instance)
 {
-//    static std::atomic<std::uint64_t> instance = 0;
     JLOG(m_journal.debug()) << "syncprofile trigger 1 instance: " << instance;
     ScopedLockType sl (mLock);
 
@@ -1354,10 +1355,14 @@ int InboundLedger::processData (std::shared_ptr<Peer> peer,
 */
 void InboundLedger::runData ()
 {
-    static std::atomic<std::uint64_t> instance = 0;
+    thread_local std::uint64_t threadInstance = 0;
+    std::stringstream ss;
+    ss << std::this_thread::get_id() << '-' << ++threadInstance;
+    std::string const instance = ss.str();
+
     JLOG(m_journal.debug()) << "syncprofile runData hash: " <<
         (mLedger.get() ? mLedger->info().hash : uint256(0))
-        << " instance: " << ++instance;
+        << " instance: " << instance;
     std::shared_ptr<Peer> chosenPeer;
     int chosenPeerCount = -1;
 

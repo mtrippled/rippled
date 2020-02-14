@@ -26,6 +26,7 @@
 #include <ripple/basics/CountedObject.h>
 #include <mutex>
 #include <set>
+#include <string>
 #include <utility>
 
 namespace ripple {
@@ -112,7 +113,7 @@ private:
         TriggerReason reason);
 
     void trigger (std::shared_ptr<Peer> const&, TriggerReason,
-        std::uint64_t const instance = 0);
+        std::string const instance = "");
 
     std::vector<neededHash_t> getNeededHashes ();
 
