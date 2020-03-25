@@ -31,10 +31,10 @@
 namespace ripple {
 
 // A ledger we are trying to acquire
-class InboundLedger
+class InboundLedger final
     : public PeerSet
-    , public std::enable_shared_from_this <InboundLedger>
-    , public CountedObject <InboundLedger>
+    , public std::enable_shared_from_this<InboundLedger>
+    , public CountedObject<InboundLedger>
 {
 public:
     static char const* getCountedObjectName () { return "InboundLedger"; }

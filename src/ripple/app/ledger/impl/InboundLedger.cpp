@@ -448,7 +448,7 @@ void InboundLedger::addPeers ()
 
 std::weak_ptr<PeerSet> InboundLedger::pmDowncast ()
 {
-    return std::dynamic_pointer_cast<PeerSet> (shared_from_this ());
+    return shared_from_this();
 }
 
 void InboundLedger::done ()

@@ -28,10 +28,10 @@ namespace ripple {
 
 // VFALCO TODO rename to PeerTxRequest
 // A transaction set we are trying to acquire
-class TransactionAcquire
+class TransactionAcquire final
     : public PeerSet
-    , public std::enable_shared_from_this <TransactionAcquire>
-    , public CountedObject <TransactionAcquire>
+    , public std::enable_shared_from_this<TransactionAcquire>
+    , public CountedObject<TransactionAcquire>
 {
 public:
     static char const* getCountedObjectName () { return "TransactionAcquire"; }

@@ -85,7 +85,7 @@ public:
     }
 
     /** Insert a peer to the managed set.
-        Calls the hook function newPeer.
+        Calls the hook function newPeer().
 
         @return `true` if the peer was added
     */
