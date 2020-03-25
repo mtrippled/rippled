@@ -66,12 +66,6 @@ public:
         return mTimeouts;
     }
 
-    bool
-    isActive() const
-    {
-        return !isDone();
-    }
-
     /** Insert a peer to the managed set.
         Calls the hook function newPeer().
 
