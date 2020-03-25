@@ -440,9 +440,10 @@ void InboundLedger::onTimer (bool wasProgress, ScopedLockType&)
 /** Add more peers to the set, if possible */
 void InboundLedger::addPeers ()
 {
-    app_.overlay().selectPeers (*this,
+    app_.overlay().selectPeers(
+        *this,
         (getPeerCount() == 0) ? peerCountStart : peerCountAdd,
-        ScoreHasLedger (getHash(), mSeq));
+        ScoreHasLedger(mHash, mSeq));
 }
 
 std::weak_ptr<PeerSet> InboundLedger::pmDowncast ()
@@ -492,13 +493,12 @@ void InboundLedger::done ()
         {
             if (self->mComplete && !self->mFailed)
             {
-                self->app().getLedgerMaster().checkAccept(
-                    self->getLedger());
-                self->app().getLedgerMaster().tryAdvance();
+                self->app_.getLedgerMaster().checkAccept(self->getLedger());
+                self->app_.getLedgerMaster().tryAdvance();
             }
             else
-                self->app().getInboundLedgers().logFailure (
-                    self->getHash(), self->getSeq());
+                self->app_.getInboundLedgers().logFailure(
+                    self->mHash, self->getSeq());
         });
 }
 

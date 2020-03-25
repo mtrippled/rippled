@@ -26,19 +26,22 @@ namespace ripple {
 
 using namespace std::chrono_literals;
 
-PeerSet::PeerSet (Application& app, uint256 const& hash,
-    std::chrono::milliseconds interval, clock_type& clock,
+PeerSet::PeerSet(
+    Application& app,
+    uint256 const& hash,
+    std::chrono::milliseconds interval,
+    clock_type& clock,
     beast::Journal journal)
-    : app_ (app)
-    , m_journal (journal)
-    , m_clock (clock)
-    , mHash (hash)
-    , mTimerInterval (interval)
-    , mTimeouts (0)
-    , mComplete (false)
-    , mFailed (false)
-    , mProgress (false)
-    , mTimer (app_.getIOService ())
+    : app_(app)
+    , m_journal(journal)
+    , mHash(hash)
+    , mTimeouts(0)
+    , mComplete(false)
+    , mFailed(false)
+    , m_clock(clock)
+    , mTimerInterval(interval)
+    , mTimer(app_.getIOService())
+    , mProgress(false)
 {
     mLastAction = m_clock.now();
     assert ((mTimerInterval > 10ms) && (mTimerInterval < 30s));
@@ -95,22 +98,11 @@ void PeerSet::invokeOnTimer ()
         setTimer ();
 }
 
-bool PeerSet::isActive ()
-{
-    ScopedLockType sl (mLock);
-    return !isDone ();
-}
-
 void PeerSet::sendRequest (const protocol::TMGetLedger& tmGL, std::shared_ptr<Peer> const& peer)
 {
-    if (!peer)
-        sendRequest (tmGL);
-    else
+    if (peer)
         peer->send (std::make_shared<Message> (tmGL, protocol::mtGET_LEDGER));
-}
 
-void PeerSet::sendRequest (const protocol::TMGetLedger& tmGL)
-{
     ScopedLockType sl (mLock);
 
     if (mPeers.empty ())

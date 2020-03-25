@@ -50,12 +50,6 @@ class PeerSet
 public:
     using clock_type = beast::abstract_clock <std::chrono::steady_clock>;
 
-    /** Returns the hash of the data we want. */
-    uint256 const& getHash () const
-    {
-        return mHash;
-    }
-
     /** Returns true if we got all the data. */
     bool isComplete () const
     {
@@ -74,12 +68,10 @@ public:
         return mTimeouts;
     }
 
-    bool isActive ();
-
-    /** Called to indicate that forward progress has been made. */
-    void progress ()
+    bool
+    isActive() const
     {
-        mProgress = true;
+        return !isDone();
     }
 
     void touch ()
@@ -98,17 +90,6 @@ public:
     */
     bool insert (std::shared_ptr<Peer> const&);
 
-    virtual bool isDone () const
-    {
-        return mComplete || mFailed;
-    }
-
-    Application&
-    app()
-    {
-        return app_;
-    }
-
 protected:
     using ScopedLockType = std::unique_lock <std::recursive_mutex>;
 
@@ -124,6 +105,19 @@ protected:
     virtual void execute () = 0;
 
     virtual std::weak_ptr<PeerSet> pmDowncast () = 0;
+
+    bool
+    isDone() const
+    {
+        return mComplete || mFailed;
+    }
+
+    /** Called to indicate that forward progress has been made. */
+    void
+    progress()
+    {
+        mProgress = true;
+    }
 
     bool isProgress ()
     {
@@ -141,34 +135,37 @@ protected:
 
     void invokeOnTimer ();
 
-    void sendRequest (const protocol::TMGetLedger& message);
-
     void sendRequest (const protocol::TMGetLedger& message, std::shared_ptr<Peer> const& peer);
 
     void setTimer ();
 
     std::size_t getPeerCount () const;
 
-protected:
+    // Used in this class for access to boost::asio::io_service and
+    // ripple::Overlay. Used in subtypes for the kitchen sink.
     Application& app_;
     beast::Journal m_journal;
-    clock_type& m_clock;
 
     std::recursive_mutex mLock;
 
-    uint256 mHash;
-    std::chrono::milliseconds mTimerInterval;
+    // The hash of the object (in practice, always a ledger) we are trying to
+    // fetch.
+    uint256 const mHash;
     int mTimeouts;
     bool mComplete;
     bool mFailed;
-    clock_type::time_point mLastAction;
-    bool mProgress;
 
+    // The identifiers of the peers we are tracking.
+    std::set<Peer::id_t> mPeers;
+
+private:
+    clock_type& m_clock;
+    std::chrono::milliseconds mTimerInterval;
+    clock_type::time_point mLastAction;
     // VFALCO TODO move the responsibility for the timer to a higher level
     boost::asio::basic_waitable_timer<std::chrono::steady_clock> mTimer;
 
-    // The identifiers of the peers we are tracking.
-    std::set <Peer::id_t> mPeers;
+    bool mProgress;
 };
 
 } // ripple
