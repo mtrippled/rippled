@@ -43,7 +43,7 @@ Cpp11BracedListStyle: true
 DerivePointerAlignment: false
 DisableFormat:   false
 ExperimentalAutoDetectBinPacking: false
-ForEachMacros:   [ foreach,   Q_FOREACH,  BOOST_FOREACH ]
+ForEachMacros:   [ Q_FOREACH,  BOOST_FOREACH ]
 IncludeCategories: 
   - Regex:           '^<(BeastConfig)'
     Priority:        0

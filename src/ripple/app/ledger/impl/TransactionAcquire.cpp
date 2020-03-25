@@ -239,9 +239,10 @@ SHAMapAddNode TransactionAcquire::takeNodes (const std::list<SHAMapNodeID>& node
     }
 }
 
-void TransactionAcquire::addPeers (int numPeers)
+void
+TransactionAcquire::addPeers(std::size_t limit)
 {
-    app_.overlay().selectPeers(*this, numPeers, ScoreHasTxSet(mHash));
+    PeerSet::addPeers(limit, ScoreHasTxSet(mHash));
 }
 
 void TransactionAcquire::init (int numPeers)

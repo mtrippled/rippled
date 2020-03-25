@@ -46,15 +46,41 @@ PeerSet::PeerSet(
 
 PeerSet::~PeerSet() = default;
 
-bool PeerSet::insert (std::shared_ptr<Peer> const& ptr)
+void
+PeerSet::addPeers(
+    std::size_t limit,
+    std::function<bool(std::shared_ptr<Peer> const&)> hasItem)
 {
-    ScopedLockType sl (mLock);
+    using ScoredPeer = std::pair<int, std::shared_ptr<Peer>>;
 
-    if (!mPeers.insert (ptr->id ()).second)
-        return false;
+    auto const& overlay = app_.overlay();
 
-    newPeer (ptr);
-    return true;
+    std::vector<ScoredPeer> pairs;
+    pairs.reserve(overlay.size());
+
+    overlay.foreach([&](auto const& peer) {
+        auto const score = peer->getScore(hasItem(peer));
+        pairs.emplace_back(score, std::move(peer));
+    });
+
+    std::sort(
+        pairs.begin(),
+        pairs.end(),
+        [](ScoredPeer const& lhs, ScoredPeer const& rhs) {
+            return lhs.first > rhs.first;
+        });
+
+    std::size_t accepted = 0;
+    ScopedLockType sl(mLock);
+    for (auto const& pair : pairs)
+    {
+        auto const peer = pair.second;
+        if (!mPeers.insert(peer->id()).second)
+            continue;
+        newPeer(peer);
+        if (++accepted >= limit)
+            break;
+    }
 }
 
 void PeerSet::setTimer ()
@@ -97,15 +123,18 @@ void PeerSet::invokeOnTimer ()
 
 void PeerSet::sendRequest (const protocol::TMGetLedger& tmGL, std::shared_ptr<Peer> const& peer)
 {
+    auto packet = std::make_shared<Message>(tmGL, protocol::mtGET_LEDGER);
+
     if (peer)
-        peer->send (std::make_shared<Message> (tmGL, protocol::mtGET_LEDGER));
+    {
+        peer->send(packet);
+        return;
+    }
 
     ScopedLockType sl (mLock);
 
     if (mPeers.empty ())
         return;
-
-    auto packet = std::make_shared<Message>(tmGL, protocol::mtGET_LEDGER);
 
     for (auto id : mPeers)
     {
