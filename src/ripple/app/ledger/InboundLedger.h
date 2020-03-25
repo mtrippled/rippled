@@ -37,6 +37,8 @@ class InboundLedger final
     , public CountedObject<InboundLedger>
 {
 public:
+    using clock_type = beast::abstract_clock<std::chrono::steady_clock>;
+
     static char const* getCountedObjectName () { return "InboundLedger"; }
 
     using PeerDataPairType = std::pair<
@@ -99,6 +101,18 @@ public:
     LedgerInfo
     deserializeHeader(Slice data, bool hasPrefix);
 
+    void
+    touch()
+    {
+        mLastAction = m_clock.now();
+    }
+
+    clock_type::time_point
+    getLastAction() const
+    {
+        return mLastAction;
+    }
+
 private:
     enum class TriggerReason
     {
@@ -156,6 +170,9 @@ private:
     std::vector<uint256>
     neededStateHashes (
         int max, SHAMapSyncFilter* filter) const;
+
+    clock_type& m_clock;
+    clock_type::time_point mLastAction;
 
     std::shared_ptr<Ledger> mLedger;
     bool mHaveHeader;

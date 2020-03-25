@@ -40,10 +40,9 @@ enum
     MAX_TIMEOUTS = 20,
 };
 
-TransactionAcquire::TransactionAcquire (Application& app, uint256 const& hash, clock_type& clock)
-    : PeerSet (app, hash, TX_ACQUIRE_TIMEOUT, clock,
-        app.journal("TransactionAcquire"))
-    , mHaveRoot (false)
+TransactionAcquire::TransactionAcquire(Application& app, uint256 const& hash)
+    : PeerSet(app, hash, TX_ACQUIRE_TIMEOUT, app.journal("TransactionAcquire"))
+    , mHaveRoot(false)
     , j_(app.journal("TransactionAcquire"))
 {
     mMap = std::make_shared<SHAMap> (SHAMapType::TRANSACTION, hash,

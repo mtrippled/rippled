@@ -48,8 +48,6 @@ namespace ripple {
 class PeerSet
 {
 public:
-    using clock_type = beast::abstract_clock <std::chrono::steady_clock>;
-
     /** Returns true if we got all the data. */
     bool isComplete () const
     {
@@ -74,16 +72,6 @@ public:
         return !isDone();
     }
 
-    void touch ()
-    {
-        mLastAction = m_clock.now();
-    }
-
-    clock_type::time_point getLastAction () const
-    {
-        return mLastAction;
-    }
-
     /** Insert a peer to the managed set.
         Calls the hook function newPeer().
 
@@ -94,8 +82,11 @@ public:
 protected:
     using ScopedLockType = std::unique_lock <std::recursive_mutex>;
 
-    PeerSet (Application& app, uint256 const& hash, std::chrono::milliseconds interval,
-        clock_type& clock, beast::Journal journal);
+    PeerSet(
+        Application& app,
+        uint256 const& hash,
+        std::chrono::milliseconds interval,
+        beast::Journal journal);
 
     virtual ~PeerSet() = 0;
 
@@ -138,6 +129,7 @@ protected:
 
     void sendRequest (const protocol::TMGetLedger& message, std::shared_ptr<Peer> const& peer);
 
+    /** Schedule a call to execute() after mTimerInterval. */
     void setTimer ();
 
     std::size_t getPeerCount () const;
@@ -160,9 +152,8 @@ protected:
     std::set<Peer::id_t> mPeers;
 
 private:
-    clock_type& m_clock;
+    // The minimum time to wait between calls to execute().
     std::chrono::milliseconds mTimerInterval;
-    clock_type::time_point mLastAction;
     // VFALCO TODO move the responsibility for the timer to a higher level
     boost::asio::basic_waitable_timer<std::chrono::steady_clock> mTimer;
 

@@ -66,20 +66,25 @@ enum
 // millisecond for each ledger timeout
 auto constexpr ledgerAcquireTimeout = 2500ms;
 
-InboundLedger::InboundLedger(Application& app, uint256 const& hash,
-    std::uint32_t seq, Reason reason, clock_type& clock)
-    : PeerSet (app, hash, ledgerAcquireTimeout, clock,
-        app.journal("InboundLedger"))
-    , mHaveHeader (false)
-    , mHaveState (false)
-    , mHaveTransactions (false)
-    , mSignaled (false)
-    , mByHash (true)
-    , mSeq (seq)
-    , mReason (reason)
-    , mReceiveDispatched (false)
+InboundLedger::InboundLedger(
+    Application& app,
+    uint256 const& hash,
+    std::uint32_t seq,
+    Reason reason,
+    clock_type& clock)
+    : PeerSet(app, hash, ledgerAcquireTimeout, app.journal("InboundLedger"))
+    , m_clock(clock)
+    , mHaveHeader(false)
+    , mHaveState(false)
+    , mHaveTransactions(false)
+    , mSignaled(false)
+    , mByHash(true)
+    , mSeq(seq)
+    , mReason(reason)
+    , mReceiveDispatched(false)
 {
     JLOG (m_journal.trace()) << "Acquiring ledger " << mHash;
+    touch();
 }
 
 void

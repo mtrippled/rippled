@@ -491,7 +491,7 @@ public:
             *m_jobQueue, m_collectorManager->collector ()))
 
         , m_inboundTransactions (make_InboundTransactions
-            ( *this, stopwatch()
+            ( *this
             , *m_jobQueue
             , m_collectorManager->collector ()
             , [this](std::shared_ptr <SHAMap> const& set,

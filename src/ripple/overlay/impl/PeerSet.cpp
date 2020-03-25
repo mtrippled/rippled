@@ -30,7 +30,6 @@ PeerSet::PeerSet(
     Application& app,
     uint256 const& hash,
     std::chrono::milliseconds interval,
-    clock_type& clock,
     beast::Journal journal)
     : app_(app)
     , m_journal(journal)
@@ -38,12 +37,10 @@ PeerSet::PeerSet(
     , mTimeouts(0)
     , mComplete(false)
     , mFailed(false)
-    , m_clock(clock)
     , mTimerInterval(interval)
     , mTimer(app_.getIOService())
     , mProgress(false)
 {
-    mLastAction = m_clock.now();
     assert ((mTimerInterval > 10ms) && (mTimerInterval < 30s));
 }
 
@@ -62,7 +59,7 @@ bool PeerSet::insert (std::shared_ptr<Peer> const& ptr)
 
 void PeerSet::setTimer ()
 {
-    mTimer.expires_from_now(mTimerInterval);
+    mTimer.expires_after(mTimerInterval);
     mTimer.async_wait (
         [wptr=pmDowncast()](boost::system::error_code const& ec)
         {
