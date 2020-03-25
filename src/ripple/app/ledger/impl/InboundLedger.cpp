@@ -149,6 +149,20 @@ InboundLedger::init(ScopedLockType& collectionLock)
         app_.getLedgerMaster().checkAccept(mLedger);
 }
 
+std::size_t
+InboundLedger::getPeerCount() const
+{
+    std::size_t ret(0);
+
+    for (auto id : mPeers)
+    {
+        if (app_.overlay().findPeerByShortID(id))
+            ++ret;
+    }
+
+    return ret;
+}
+
 void InboundLedger::execute ()
 {
     if (app_.getJobQueue ().getJobCountTotal (jtLEDGER_DATA) > 4)
@@ -166,6 +180,7 @@ void InboundLedger::execute ()
             ptr->invokeOnTimer ();
         });
 }
+
 void InboundLedger::update (std::uint32_t seq)
 {
     ScopedLockType sl (mLock);
@@ -414,7 +429,7 @@ void InboundLedger::onTimer (bool wasProgress, ScopedLockType&)
             JLOG (m_journal.warn()) <<
                 getTimeouts() << " timeouts for ledger " << mHash;
         }
-        setFailed ();
+        mFailed = true;
         done ();
         return;
     }
@@ -559,8 +574,8 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason re
     { // Be more aggressive if we've timed out at least once
         tmGL.set_querytype (protocol::qtINDIRECT);
 
-        if (! isProgress () && ! mFailed && mByHash &&
-            (getTimeouts () > ledgerBecomeAggressiveThreshold))
+        if (!mProgress && !mFailed && mByHash &&
+            (getTimeouts() > ledgerBecomeAggressiveThreshold))
         {
             auto need = getNeededHashes ();
 
@@ -1193,7 +1208,7 @@ int InboundLedger::processData (std::shared_ptr<Peer> peer,
         }
 
         if (san.isUseful ())
-            progress ();
+            mProgress = true;
 
         mStats += san;
         return san.getGood ();
@@ -1249,7 +1264,7 @@ int InboundLedger::processData (std::shared_ptr<Peer> peer,
         }
 
         if (san.isUseful ())
-            progress ();
+            mProgress = true;
 
         mStats += san;
         return san.getGood ();

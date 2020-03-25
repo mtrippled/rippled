@@ -94,6 +94,7 @@ protected:
 
     virtual void onTimer (bool progress, ScopedLockType&) = 0;
 
+    /** Schedule a job to call invokeOnTimer(). */
     virtual void execute () = 0;
 
     virtual std::weak_ptr<PeerSet> pmDowncast () = 0;
@@ -104,35 +105,13 @@ protected:
         return mComplete || mFailed;
     }
 
-    /** Called to indicate that forward progress has been made. */
-    void
-    progress()
-    {
-        mProgress = true;
-    }
-
-    bool isProgress ()
-    {
-        return mProgress;
-    }
-
-    void setComplete ()
-    {
-        mComplete = true;
-    }
-    void setFailed ()
-    {
-        mFailed = true;
-    }
-
+    /** Calls onTimer() if in the right state. */
     void invokeOnTimer ();
 
     void sendRequest (const protocol::TMGetLedger& message, std::shared_ptr<Peer> const& peer);
 
     /** Schedule a call to execute() after mTimerInterval. */
     void setTimer ();
-
-    std::size_t getPeerCount () const;
 
     // Used in this class for access to boost::asio::io_service and
     // ripple::Overlay. Used in subtypes for the kitchen sink.
@@ -141,23 +120,23 @@ protected:
 
     std::recursive_mutex mLock;
 
-    // The hash of the object (in practice, always a ledger) we are trying to
-    // fetch.
+    /** The hash of the object (in practice, always a ledger) we are trying to
+     * fetch. */
     uint256 const mHash;
     int mTimeouts;
     bool mComplete;
     bool mFailed;
+    /** Whether forward progress has been made. */
+    bool mProgress;
 
-    // The identifiers of the peers we are tracking.
+    /** The identifiers of the peers we are tracking. */
     std::set<Peer::id_t> mPeers;
 
 private:
-    // The minimum time to wait between calls to execute().
+    /** The minimum time to wait between calls to execute(). */
     std::chrono::milliseconds mTimerInterval;
     // VFALCO TODO move the responsibility for the timer to a higher level
     boost::asio::basic_waitable_timer<std::chrono::steady_clock> mTimer;
-
-    bool mProgress;
 };
 
 } // ripple

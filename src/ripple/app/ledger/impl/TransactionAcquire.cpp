@@ -93,24 +93,17 @@ void TransactionAcquire::done ()
 
 void TransactionAcquire::onTimer (bool progress, ScopedLockType& psl)
 {
-    bool aggressive = false;
-
-    if (getTimeouts () >= NORM_TIMEOUTS)
+    if (getTimeouts() > MAX_TIMEOUTS)
     {
-        aggressive = true;
-
-        if (getTimeouts () > MAX_TIMEOUTS)
-        {
-            mFailed = true;
-            done ();
-            return;
-        }
+        mFailed = true;
+        done();
+        return;
     }
 
-    if (aggressive)
-        trigger (nullptr);
+    if (getTimeouts() >= NORM_TIMEOUTS)
+        trigger(nullptr);
 
-    addPeers (1);
+    addPeers(1);
 }
 
 std::weak_ptr<PeerSet> TransactionAcquire::pmDowncast ()
@@ -236,7 +229,7 @@ SHAMapAddNode TransactionAcquire::takeNodes (const std::list<SHAMapNodeID>& node
         }
 
         trigger (peer);
-        progress ();
+        mProgress = true;
         return SHAMapAddNode::useful ();
     }
     catch (std::exception const&)

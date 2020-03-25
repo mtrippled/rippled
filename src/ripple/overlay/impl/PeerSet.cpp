@@ -37,9 +37,9 @@ PeerSet::PeerSet(
     , mTimeouts(0)
     , mComplete(false)
     , mFailed(false)
+    , mProgress(false)
     , mTimerInterval(interval)
     , mTimer(app_.getIOService())
-    , mProgress(false)
 {
     assert ((mTimerInterval > 10ms) && (mTimerInterval < 30s));
 }
@@ -78,7 +78,7 @@ void PeerSet::invokeOnTimer ()
     if (isDone ())
         return;
 
-    if (!isProgress())
+    if (!mProgress)
     {
         ++mTimeouts;
         JLOG (m_journal.debug()) << "Timeout(" << mTimeouts
@@ -112,19 +112,6 @@ void PeerSet::sendRequest (const protocol::TMGetLedger& tmGL, std::shared_ptr<Pe
         if (auto peer = app_.overlay ().findPeerByShortID (id))
             peer->send (packet);
     }
-}
-
-std::size_t PeerSet::getPeerCount () const
-{
-    std::size_t ret (0);
-
-    for (auto id : mPeers)
-    {
-        if (app_.overlay ().findPeerByShortID (id))
-            ++ret;
-    }
-
-    return ret;
 }
 
 } // ripple

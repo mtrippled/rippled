@@ -144,6 +144,9 @@ private:
             trigger (peer, TriggerReason::added);
     }
 
+    std::size_t
+    getPeerCount() const;
+
     std::weak_ptr <PeerSet> pmDowncast () override;
 
     int processData (std::shared_ptr<Peer> peer, protocol::TMLedgerData& data);
