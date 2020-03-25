@@ -130,7 +130,7 @@ InboundLedger::init(ScopedLockType& collectionLock)
     if (! mComplete)
     {
         addPeers();
-        execute();
+        queueJob();
         return;
     }
 
@@ -163,7 +163,8 @@ InboundLedger::getPeerCount() const
     return ret;
 }
 
-void InboundLedger::execute ()
+void
+InboundLedger::queueJob()
 {
     if (app_.getJobQueue ().getJobCountTotal (jtLEDGER_DATA) > 4)
     {

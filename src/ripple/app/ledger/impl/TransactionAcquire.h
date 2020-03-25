@@ -60,12 +60,13 @@ private:
     bool                    mHaveRoot;
     beast::Journal          j_;
 
-    void execute () override;
+    void
+    queueJob() override;
 
     void onTimer (bool progress, ScopedLockType& peerSetLock) override;
 
-
-    void newPeer (std::shared_ptr<Peer> const& peer) override
+    void
+    onPeerAdded(std::shared_ptr<Peer> const& peer) override
     {
         trigger (peer);
     }

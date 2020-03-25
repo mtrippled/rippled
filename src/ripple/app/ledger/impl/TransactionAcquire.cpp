@@ -50,7 +50,8 @@ TransactionAcquire::TransactionAcquire(Application& app, uint256 const& hash)
     mMap->setUnbacked ();
 }
 
-void TransactionAcquire::execute ()
+void
+TransactionAcquire::queueJob()
 {
     app_.getJobQueue ().addJob (
         jtTXN_DATA, "TransactionAcquire",

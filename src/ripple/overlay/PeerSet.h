@@ -84,13 +84,15 @@ protected:
         std::function<bool(std::shared_ptr<Peer> const&)> score);
 
     /** Hook called from addPeers(). */
-    virtual void newPeer (std::shared_ptr<Peer> const&) = 0;
+    virtual void
+    onPeerAdded(std::shared_ptr<Peer> const&) = 0;
 
     /** Hook called from invokeOnTimer(). */
     virtual void onTimer (bool progress, ScopedLockType&) = 0;
 
-    /** Schedule a job to call invokeOnTimer(). */
-    virtual void execute () = 0;
+    /** Queue a job to call invokeOnTimer(). */
+    virtual void
+    queueJob() = 0;
 
     /** Return a weak pointer to this. */
     virtual std::weak_ptr<PeerSet> pmDowncast () = 0;
@@ -107,7 +109,7 @@ protected:
     /** Send a GetLedger message to one or all peers. */
     void sendRequest (const protocol::TMGetLedger& message, std::shared_ptr<Peer> const& peer);
 
-    /** Schedule a call to execute() after mTimerInterval. */
+    /** Schedule a call to queueJob() after mTimerInterval. */
     void setTimer ();
 
     // Used in this class for access to boost::asio::io_service and
