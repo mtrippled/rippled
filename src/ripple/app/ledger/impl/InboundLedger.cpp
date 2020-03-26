@@ -225,12 +225,12 @@ InboundLedger::~InboundLedger ()
     }
     if (! isDone())
     {
-        JLOG (m_journal.debug()) <<
-            "Acquire " << mHash << " abort " <<
-            ((getTimeouts () == 0) ? std::string() :
-                (std::string ("timeouts:") +
-                 std::to_string (getTimeouts ()) + " ")) <<
-            mStats.get ();
+        JLOG(m_journal.debug())
+            << "Acquire " << mHash << " abort "
+            << ((mTimeouts == 0) ? std::string()
+                                 : (std::string("timeouts:") +
+                                    std::to_string(mTimeouts) + " "))
+            << mStats.get();
     }
 }
 
@@ -418,17 +418,17 @@ void InboundLedger::onTimer (bool wasProgress, ScopedLockType&)
         return;
     }
 
-    if (getTimeouts () > ledgerTimeoutRetriesMax)
+    if (mTimeouts > ledgerTimeoutRetriesMax)
     {
         if (mSeq != 0)
         {
-            JLOG (m_journal.warn()) <<
-                getTimeouts() << " timeouts for ledger " << mSeq;
+            JLOG(m_journal.warn())
+                << mTimeouts << " timeouts for ledger " << mSeq;
         }
         else
         {
-            JLOG (m_journal.warn()) <<
-                getTimeouts() << " timeouts for ledger " << mHash;
+            JLOG(m_journal.warn())
+                << mTimeouts << " timeouts for ledger " << mHash;
         }
         mFailed = true;
         done ();
@@ -479,13 +479,12 @@ void InboundLedger::done ()
     mSignaled = true;
     touch ();
 
-    JLOG (m_journal.debug()) <<
-        "Acquire " << mHash <<
-        (mFailed ? " fail " : " ") <<
-        ((getTimeouts () == 0) ? std::string() :
-            (std::string ("timeouts:") +
-             std::to_string (getTimeouts ()) + " ")) <<
-        mStats.get ();
+    JLOG(m_journal.debug())
+        << "Acquire " << mHash << (mFailed ? " fail " : " ")
+        << ((mTimeouts == 0)
+                ? std::string()
+                : (std::string("timeouts:") + std::to_string(mTimeouts) + " "))
+        << mStats.get();
 
     assert (mComplete || mFailed);
 
@@ -570,12 +569,12 @@ void InboundLedger::trigger (std::shared_ptr<Peer> const& peer, TriggerReason re
     protocol::TMGetLedger tmGL;
     tmGL.set_ledgerhash (mHash.begin (), mHash.size ());
 
-    if (getTimeouts () != 0)
+    if (mTimeouts != 0)
     { // Be more aggressive if we've timed out at least once
         tmGL.set_querytype (protocol::qtINDIRECT);
 
         if (!mProgress && !mFailed && mByHash &&
-            (getTimeouts() > ledgerBecomeAggressiveThreshold))
+            (mTimeouts > ledgerBecomeAggressiveThreshold))
         {
             auto need = getNeededHashes ();
 
@@ -1343,7 +1342,7 @@ Json::Value InboundLedger::getJson (int)
         ret[jss::have_transactions] = mHaveTransactions;
     }
 
-    ret[jss::timeouts] = getTimeouts ();
+    ret[jss::timeouts] = mTimeouts;
 
     if (mHaveHeader && !mHaveState)
     {

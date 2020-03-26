@@ -66,6 +66,27 @@ public:
     // Called when another attempt is made to fetch this same ledger
     void update (std::uint32_t seq);
 
+    /** Returns true if we got all the data. */
+    bool
+    isComplete() const
+    {
+        return mComplete;
+    }
+
+    /** Returns false if we failed to get the data. */
+    bool
+    isFailed() const
+    {
+        return mFailed;
+    }
+
+    /** Returns the number of times we timed out. */
+    int
+    getTimeouts() const
+    {
+        return mTimeouts;
+    }
+
     std::shared_ptr<Ledger const>
     getLedger() const
     {
