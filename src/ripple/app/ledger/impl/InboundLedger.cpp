@@ -269,14 +269,9 @@ InboundLedger::neededStateHashes (
 }
 
 LedgerInfo
-InboundLedger::deserializeHeader (
-    Slice data,
-    bool hasPrefix)
+deserializeHeader(Slice data)
 {
     SerialIter sit (data.data(), data.size());
-
-    if (hasPrefix)
-        sit.get32 ();
 
     LedgerInfo info;
 
@@ -305,8 +300,7 @@ InboundLedger::tryDB(Family& f)
                 JLOG(m_journal.trace()) <<
                     "Ledger header found in fetch pack";
                 mLedger = std::make_shared<Ledger>(
-                    deserializeHeader(makeSlice(data), true),
-                        app_.config(), f);
+                    deserializeHeader(makeSlice(data) + 4), app_.config(), f);
                 if (mLedger->info().hash != mHash ||
                     (mSeq != 0 && mSeq != mLedger->info().seq))
                 {
@@ -872,8 +866,8 @@ bool InboundLedger::takeHeader (std::string const& data)
 
     auto* f = mReason == Reason::SHARD ?
         app_.shardFamily() : &app_.family();
-    mLedger = std::make_shared<Ledger>(deserializeHeader(
-        makeSlice(data), false), app_.config(), *f);
+    mLedger = std::make_shared<Ledger>(
+        deserializeHeader(makeSlice(data)), app_.config(), *f);
     if (mLedger->info().hash != mHash ||
         (mSeq != 0 && mSeq != mLedger->info().seq))
     {

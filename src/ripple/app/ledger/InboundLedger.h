@@ -119,10 +119,6 @@ public:
 
     void runData ();
 
-    static
-    LedgerInfo
-    deserializeHeader(Slice data, bool hasPrefix);
-
     void
     touch()
     {
@@ -224,6 +220,10 @@ private:
     std::vector <PeerDataPairType> mReceivedData;
     bool mReceiveDispatched;
 };
+
+/** Deserialize a ledger header from a byte array. */
+LedgerInfo
+deserializeHeader(Slice data);
 
 } // ripple
 
