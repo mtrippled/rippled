@@ -19,6 +19,7 @@
 
 #include <ripple/app/main/Application.h>
 #include <ripple/core/DatabaseCon.h>
+#include <ripple/core/Pg.h>
 #include <ripple/core/Stoppable.h>
 #include <ripple/app/consensus/RCLValidations.h>
 #include <ripple/app/main/DBInit.h>
@@ -327,6 +328,7 @@ public:
     // Required by the SHAMapStore
     TransactionMaster m_txMaster;
 
+    std::shared_ptr<PgPool> pgPool_;
     NodeStoreScheduler m_nodeStoreScheduler;
     std::unique_ptr <SHAMapStore> m_shaMapStore;
     PendingSaves pendingSaves_;
@@ -434,6 +436,9 @@ public:
             *this, logs_->journal("PerfLog"), [this] () { signalStop(); }))
 
         , m_txMaster (*this)
+
+        , pgPool_ (make_PgPool(config_->section(ConfigSection::networkDb()),
+            logs_->journal("PgPool")))
 
         , m_nodeStoreScheduler (*this)
 
@@ -849,6 +854,12 @@ public:
         assert (mLedgerDB.get() != nullptr);
         return *mLedgerDB;
     }
+
+    std::shared_ptr<PgPool>& pgPool() override
+    {
+        return pgPool_;
+    }
+
     DatabaseCon& getWalletDB () override
     {
         assert (mWalletDB.get() != nullptr);
@@ -957,7 +968,8 @@ public:
                     0,
                     dummyRoot,
                     config_->section(ConfigSection::importNodeDatabase()),
-                    j);
+                    j,
+                    pgPool());
 
             JLOG(j.warn()) <<
                 "Starting node import from '" << source->getName() <<

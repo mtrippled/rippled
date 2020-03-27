@@ -60,6 +60,7 @@ class OrderBookDB;
 class Overlay;
 class PathRequests;
 class PendingSaves;
+class PgPool;
 class PublicKey;
 class SecretKey;
 class AccountIDCache;
@@ -175,6 +176,8 @@ public:
     virtual OpenLedger const&       openLedger() const = 0;
     virtual DatabaseCon&            getTxnDB () = 0;
     virtual DatabaseCon&            getLedgerDB () = 0;
+
+    virtual std::shared_ptr<PgPool>& pgPool() = 0;
 
     virtual
     std::chrono::milliseconds
