@@ -138,8 +138,8 @@ void PeerSet::sendRequest (const protocol::TMGetLedger& tmGL, std::shared_ptr<Pe
 
     for (auto id : mPeers)
     {
-        if (auto peer = app_.overlay ().findPeerByShortID (id))
-            peer->send (packet);
+        if (auto p = app_.overlay().findPeerByShortID(id))
+            p->send(packet);
     }
 }
 
