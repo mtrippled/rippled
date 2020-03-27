@@ -2585,6 +2585,8 @@ Json::Value NetworkOPsImp::getServerInfo (bool human, bool admin, bool counters)
                 else
                     l[jss::age] = 0;
             }
+            l["validated_age"] = Json::UInt(
+                m_ledgerMaster.getValidatedLedgerAge().count());
         }
 
         if (valid)

@@ -231,11 +231,12 @@ LedgerMaster::getValidatedLedgerAge()
     }
 
     std::chrono::seconds ret = app_.timeKeeper().closeTime().time_since_epoch();
-    ret -= valClose;
-    ret = (ret > 0s) ? ret : 0s;
+    auto age = ret - valClose;
+    age = (age > 0s) ? age : 0s;
 
-    JLOG (m_journal.trace()) << "Validated ledger age is " << ret.count();
-    return ret;
+    JLOG (m_journal.debug()) << "Validated ledger age is "
+        <<  ret.count() << " - " << valClose.count() << " = " << age.count();
+    return age;
 }
 
 bool
@@ -297,6 +298,8 @@ LedgerMaster::setValidLedger(
     }
 
     mValidLedger.set (l);
+    JLOG(m_journal.debug()) << "Validated ledger " << mValidLedger.get()->seq()
+        << ',' << signTime.time_since_epoch().count();
     mValidLedgerSign = signTime.time_since_epoch().count();
     assert (mValidLedgerSeq ||
             !app_.getMaxDisallowedLedger() ||
