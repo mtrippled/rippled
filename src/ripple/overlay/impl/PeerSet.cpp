@@ -133,9 +133,6 @@ void PeerSet::sendRequest (const protocol::TMGetLedger& tmGL, std::shared_ptr<Pe
 
     ScopedLockType sl (mLock);
 
-    if (mPeers.empty ())
-        return;
-
     for (auto id : mPeers)
     {
         if (auto p = app_.overlay().findPeerByShortID(id))
