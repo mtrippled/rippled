@@ -511,7 +511,7 @@ DatabaseShardImp::fetchLedger(uint256 const& hash, std::uint32_t seq)
     };
 
     auto ledger{std::make_shared<Ledger>(
-        deserializeHeader(makeSlice(nObj->getData()) + 4),
+        deserializePrefixedHeader(makeSlice(nObj->getData())),
         app_.config(),
         *app_.shardFamily())};
 

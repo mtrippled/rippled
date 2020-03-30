@@ -282,6 +282,12 @@ deserializeHeader(Slice data)
     return info;
 }
 
+LedgerInfo
+deserializePrefixedHeader(Slice data)
+{
+    return deserializeHeader(data + 4);
+}
+
 // See how much of the ledger data is stored locally
 // Data found in a fetch pack will be stored
 void
@@ -294,7 +300,9 @@ InboundLedger::tryDB(Family& f)
                 JLOG(m_journal.trace()) <<
                     "Ledger header found in fetch pack";
                 mLedger = std::make_shared<Ledger>(
-                    deserializeHeader(makeSlice(data) + 4), app_.config(), f);
+                    deserializePrefixedHeader(makeSlice(data)),
+                    app_.config(),
+                    f);
                 if (mLedger->info().hash != mHash ||
                     (mSeq != 0 && mSeq != mLedger->info().seq))
                 {

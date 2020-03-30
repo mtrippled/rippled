@@ -344,7 +344,7 @@ Shard::validate() const
             return fail("Invalid ledger");
 
         ledger = std::make_shared<Ledger>(
-            deserializeHeader(makeSlice(nObj->getData()) + 4),
+            deserializePrefixedHeader(makeSlice(nObj->getData())),
             app_.config(),
             *app_.shardFamily());
         if (ledger->info().seq != seq)

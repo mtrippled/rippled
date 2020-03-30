@@ -225,6 +225,10 @@ private:
 LedgerInfo
 deserializeHeader(Slice data);
 
+/** Deserialize a ledger header (prefixed with 4 bytes) from a byte array. */
+LedgerInfo
+deserializePrefixedHeader(Slice data);
+
 } // ripple
 
 #endif
