@@ -98,12 +98,6 @@ public:
         return mSeq;
     }
 
-    Reason
-    getReason() const
-    {
-        return mReason;
-    }
-
     bool checkLocal ();
     void init (ScopedLockType& collectionLock);
 
