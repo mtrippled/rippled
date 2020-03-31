@@ -125,12 +125,6 @@ public:
         return mLastAction;
     }
 
-    bool
-    isActive() const
-    {
-        return !isDone();
-    }
-
 private:
     enum class TriggerReason
     {
