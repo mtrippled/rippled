@@ -133,7 +133,7 @@ Database::fetchInternal(uint256 const& hash, Backend& srcBackend)
     switch(status)
     {
     case ok:
-        ++fetchHitCount_;
+        ++fetchNodeStoreHits_;
         if (nObj)
             fetchSz_ += nObj->getData().size();
         break;
@@ -194,12 +194,12 @@ Database::doFetch(uint256 const& hash, std::uint32_t seq,
 
     // See if the object already exists in the cache
     auto nObj = pCache.fetch(hash);
+    ++fetchTotalCount_;
     if (! nObj && ! nCache.touch_if_exists(hash))
     {
         // Try the database(s)
         report.wentToDisk = true;
         nObj = fetchFrom(hash, seq);
-        ++fetchTotalCount_;
         if (! nObj)
         {
             // Just in case a write occurred
@@ -218,6 +218,11 @@ Database::doFetch(uint256 const& hash, std::uint32_t seq,
                 "HOS: " << hash << " fetch: in db";
         }
     }
+    else
+    {
+        ++fetchCacheHits_;
+    }
+
     report.wasFound = static_cast<bool>(nObj);
     report.elapsed = duration_cast<milliseconds>(
         steady_clock::now() - before);
