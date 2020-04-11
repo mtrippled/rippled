@@ -29,6 +29,7 @@
 #include <ripple/nodestore/NodeObject.h>
 #include <ripple/protocol/SystemParameters.h>
 
+#include <string>
 #include <thread>
 
 namespace ripple {
@@ -189,20 +190,26 @@ public:
 
         @return The total read and written bytes.
      */
-    std::uint32_t
-    getStoreCount() const { return storeCount_; }
+    std::string
+    getStoreCount() const { return std::to_string(storeCount_); }
 
-    std::uint32_t
-    getFetchTotalCount() const { return fetchTotalCount_; }
+    std::string
+    getFetchTotalCount() const { return std::to_string(fetchTotalCount_); }
 
-    std::uint32_t
-    getFetchHitCount() const { return fetchHitCount_; }
+    std::string
+    getFetchCacheHits() const { return std::to_string(fetchCacheHits_); }
 
-    std::uint32_t
-    getStoreSize() const { return storeSz_; }
+    std::string
+    getFetchNodeStoreHits() const
+    {
+        return std::to_string(fetchNodeStoreHits_);
+    }
 
-    std::uint32_t
-    getFetchSize() const { return fetchSz_; }
+    std::string
+    getStoreSize() const { return std::to_string(storeSz_); }
+
+    std::string
+    getFetchSize() const { return std::to_string(fetchSz_); }
 
     /** Returns the number of file descriptors the database expects to need */
     int
@@ -266,11 +273,12 @@ protected:
         std::shared_ptr<Ledger const> next);
 
 private:
-    std::atomic<std::uint32_t> storeCount_ {0};
-    std::atomic<std::uint32_t> fetchTotalCount_ {0};
-    std::atomic<std::uint32_t> fetchHitCount_ {0};
-    std::atomic<std::uint32_t> storeSz_ {0};
-    std::atomic<std::uint32_t> fetchSz_ {0};
+    std::atomic<std::uint64_t> storeCount_ {0};
+    std::atomic<std::uint64_t> fetchTotalCount_ {0};
+    std::atomic<std::uint64_t> fetchCacheHits_ {0};
+    std::atomic<std::uint64_t> fetchNodeStoreHits_ {0};
+    std::atomic<std::uint64_t> storeSz_ {0};
+    std::atomic<std::uint64_t> fetchSz_ {0};
 
     std::mutex readLock_;
     std::condition_variable readCondVar_;

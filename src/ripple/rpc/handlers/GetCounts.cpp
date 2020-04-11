@@ -95,7 +95,6 @@ Json::Value getCountsJson(Application& app, int minObjectCount)
     ret[jss::historical_perminute] = static_cast<int>(
         app.getInboundLedgers().fetchRate());
     ret[jss::SLE_hit_rate] = app.cachedSLEs().rate();
-    ret[jss::node_hit_rate] = app.getNodeStore ().getCacheHitRate ();
     ret[jss::ledger_hit_rate] = app.getLedgerMaster ().getCacheHitRate ();
     ret[jss::AL_hit_rate] = app.getAcceptedLedgerCache ().getHitRate ();
 
@@ -115,7 +114,9 @@ Json::Value getCountsJson(Application& app, int minObjectCount)
 
     ret[jss::node_writes] = app.getNodeStore().getStoreCount();
     ret[jss::node_reads_total] = app.getNodeStore().getFetchTotalCount();
-    ret[jss::node_reads_hit] = app.getNodeStore().getFetchHitCount();
+    ret[jss::node_reads_cache_hits] = app.getNodeStore().getFetchCacheHits();
+    ret[jss::node_reads_nodestore_hits] =
+        app.getNodeStore().getFetchNodeStoreHits();
     ret[jss::node_written_bytes] = app.getNodeStore().getStoreSize();
     ret[jss::node_read_bytes] = app.getNodeStore().getFetchSize();
 
@@ -129,10 +130,11 @@ Json::Value getCountsJson(Application& app, int minObjectCount)
         jv[jss::treenode_track_size] =
             app.shardFamily()->treecache().getTrackSize();
         ret[jss::write_load] = shardStore->getWriteLoad();
-        ret[jss::node_hit_rate] = shardStore->getCacheHitRate();
         jv[jss::node_writes] = shardStore->getStoreCount();
         jv[jss::node_reads_total] = shardStore->getFetchTotalCount();
-        jv[jss::node_reads_hit] = shardStore->getFetchHitCount();
+        jv[jss::node_reads_cache_hits] = shardStore->getFetchCacheHits();
+        jv[jss::node_reads_nodestore_hits] =
+            shardStore->getFetchNodeStoreHits();
         jv[jss::node_written_bytes] = shardStore->getStoreSize();
         jv[jss::node_read_bytes] = shardStore->getFetchSize();
     }
