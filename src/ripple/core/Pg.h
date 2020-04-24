@@ -23,6 +23,7 @@
 #include <libpq-fe.h>
 #include <ripple/basics/BasicConfig.h>
 #include <ripple/basics/Log.h>
+#include <ripple/protocol/Protocol.h>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/io_context_strand.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -30,6 +31,7 @@
 #include <boost/system/error_code.hpp>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -45,8 +47,17 @@ namespace ripple {
 using pg_result_type = std::unique_ptr<PGresult, void(*)(PGresult*)>;
 using pg_connection_type = std::unique_ptr<PGconn, void(*)(PGconn*)>;
 
-/* first: command
- * second: parameter values */
+/** first: command
+ * second: parameter values
+ *
+ * The 2nd member takes an optional string is to
+ * distinguish between NULL parameters and empty strings. An empty
+ * item corresponds to a NULL parameter.
+ *
+ * Postgres reads each parameter as a c-string, regardless of actual type.
+ * Binary types (bytea) need to be converted to hex and prepended with
+ * \x ("\\x").
+ */
 using pg_params = std::pair<char const*,
     std::vector<std::optional<std::string>>>;
 
@@ -282,8 +293,9 @@ private:
     std::mutex batchMutex_;
     bool submitting_ {false};
     std::mutex submitMutex_;
+    std::condition_variable submitCv_;
 
-    void store(std::size_t const keyBytes);
+    void store(std::size_t const keyBytes, bool const sync);
 
 public:
     PgQuery(std::shared_ptr<PgPool>& pool)
@@ -298,11 +310,41 @@ public:
      * @param dbParams
      * @return PostgreSQL API result struct.
      */
-    pg_result_type querySync(pg_params const& dbParams);
-    pg_result_type querySync(char const* command);
+
+    pg_result_type querySync(pg_params const& dbParams,
+              std::shared_ptr<Pg>& conn);
+
+    pg_result_type
+    querySync(pg_params const& dbParams)
+    {
+        std::shared_ptr<Pg> conn;
+        return querySync(dbParams, conn);
+    }
+
+    pg_result_type
+    querySync(char const* command, std::shared_ptr<Pg>& conn)
+    {
+        return querySync(pg_params{command, {}}, conn);
+    }
+
+    pg_result_type
+    querySync(char const* command)
+    {
+        std::shared_ptr<Pg> conn;
+        return querySync(command, conn);
+    }
+
     void store(std::shared_ptr<NodeObject> const& no, size_t const keyBytes);
     void store(std::vector<std::shared_ptr<NodeObject>> const& nos,
         size_t const keyBytes);
+
+    void
+    sync(std::size_t const keyBytes)
+    {
+        store(keyBytes, true);
+    }
+    std::pair<std::shared_ptr<Pg>, std::optional<LedgerIndex>>
+    lockLedger(std::optional<LedgerIndex> seq = {});
 
 };
 
