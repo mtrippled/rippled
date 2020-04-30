@@ -31,6 +31,7 @@
 #include <boost/system/error_code.hpp>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -292,8 +293,9 @@ private:
     std::mutex batchMutex_;
     bool submitting_ {false};
     std::mutex submitMutex_;
+    std::condition_variable submitCv_;
 
-    void store(std::size_t const keyBytes);
+    void store(std::size_t const keyBytes, bool const sync);
 
 public:
     PgQuery(std::shared_ptr<PgPool>& pool)
@@ -335,6 +337,12 @@ public:
     void store(std::shared_ptr<NodeObject> const& no, size_t const keyBytes);
     void store(std::vector<std::shared_ptr<NodeObject>> const& nos,
         size_t const keyBytes);
+
+    void
+    sync(std::size_t const keyBytes)
+    {
+        store(keyBytes, true);
+    }
     std::pair<std::shared_ptr<Pg>, std::optional<LedgerIndex>>
     lockLedger(std::optional<LedgerIndex> seq = {});
 

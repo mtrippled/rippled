@@ -454,6 +454,9 @@ ReportingETL::flushLedger()
     JLOG(journal_.debug()) << "Flushed " << numTxFlushed
         << " nodes to nodestore from txMap";
 
+    app_.getNodeStore().sync();
+    JLOG(journal_.debug()) << "synced nodestore";
+
     assert(numFlushed != 0 or roundMetrics.objectCount == 0);
     assert(numTxFlushed!= 0 or roundMetrics.txnCount == 0);
     

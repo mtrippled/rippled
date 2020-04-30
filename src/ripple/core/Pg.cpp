@@ -34,7 +34,6 @@
 #include <boost/asio/strand.hpp>
 #include <algorithm>
 #include <cassert>
-#include <condition_variable>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
@@ -742,14 +741,17 @@ PgQuery::querySync(pg_params const& dbParams, std::shared_ptr<Pg>& conn)
 }
 
 void
-PgQuery::store(std::size_t const keyBytes)
+PgQuery::store(std::size_t const keyBytes, bool const sync)
 {
+    std::unique_lock<std::mutex> lock(submitMutex_);
+    if (submitting_)
     {
-        std::lock_guard<std::mutex> submitLock(submitMutex_);
-        if (submitting_)
+        if (! sync)
             return;
-        submitting_ = true;
+        submitCv_.wait(lock, [this]() { return ! submitting_; });
     }
+    submitting_ = true;
+    lock.unlock();
 
     static std::atomic<std::size_t> counter = 0;
     std::shared_ptr<PgQuery> self(shared_from_this());
@@ -823,9 +825,17 @@ PgQuery::store(std::size_t const keyBytes)
             {
                 std::lock_guard<std::mutex> submitLock(submitMutex_);
                 submitting_ = false;
+                submitCv_.notify_one();
             }
         }
     );
+
+    if (sync)
+    {
+        lock.lock();
+        if (submitting_)
+            submitCv_.wait(lock, [this]() { return !submitting_; });
+    }
 }
 
 void
@@ -835,7 +845,7 @@ PgQuery::store(std::shared_ptr<NodeObject> const& no, size_t const keyBytes)
         std::lock_guard<std::mutex> lock_(batchMutex_);
         batch_.push_back(no);
     }
-    store(keyBytes);
+    store(keyBytes, false);
 }
 
 void
@@ -846,7 +856,7 @@ PgQuery::store(std::vector<std::shared_ptr<NodeObject>> const& nos,
         std::lock_guard<std::mutex> lock(batchMutex_);
         batch_.insert(batch_.end(), nos.begin(), nos.end());
     }
-    store(keyBytes);
+    store(keyBytes, false);
 }
 
 std::pair<std::shared_ptr<Pg>, std::optional<LedgerIndex>>
