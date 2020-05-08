@@ -1269,6 +1269,7 @@ loadLedgerInfosPostgres(
         info.closeTimeResolution = duration{std::stoll(closeTimeRes)};
         info.seq = std::stoi(ledgerSeq);
         info.hash.SetHexExact(hash + 2);
+        info.validated = true;
         infos.push_back(info);
     }
 
