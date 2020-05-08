@@ -1658,9 +1658,17 @@ ApplicationImp::setup()
             return false;
         }
     }
-    if (config_->reporting() && !config_->reportingReadOnly())
+
+    if (config_->reporting())
     {
-        reportingETL_->run();
+        if (!config_->reportingReadOnly())
+        {
+            reportingETL_->run();
+        }
+        else
+        {
+            reportingETL_->runReadOnly();
+        }
     }
 
     return true;
