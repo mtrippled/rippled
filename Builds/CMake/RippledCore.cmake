@@ -133,6 +133,7 @@ target_include_directories (xrpl_core
 target_compile_options (xrpl_core
   PUBLIC
     $<$<BOOL:${is_gcc}>:-Wno-maybe-uninitialized>)
+target_link_directories(xrpl_core PUBLIC /usr/local/lib/x86_64-linux-gnu)
 target_link_libraries (xrpl_core
   PUBLIC
     PostgreSQL::PostgreSQL
@@ -142,7 +143,8 @@ target_link_libraries (xrpl_core
     NIH::secp256k1
     NIH::ed25519-donna
     date::date
-    Ripple::opts)
+    Ripple::opts
+    cassandra)
 #[=================================[
    main/core headers installation
 #]=================================]
@@ -510,6 +512,7 @@ target_sources (rippled PRIVATE
      main sources:
        subdir: nodestore
   #]===============================]
+  src/ripple/nodestore/backend/CassandraFactory.cpp
   src/ripple/nodestore/backend/MemoryFactory.cpp
   src/ripple/nodestore/backend/NuDBFactory.cpp
   src/ripple/nodestore/backend/NullFactory.cpp
