@@ -48,6 +48,7 @@ enum Status
     notFound,
     dataCorrupt,
     unknown,
+    backendError,
 
     customCode = 100
 };
