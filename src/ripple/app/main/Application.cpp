@@ -32,9 +32,7 @@
 #include <ripple/app/main/LoadManager.h>
 #include <ripple/app/main/NodeIdentity.h>
 #include <ripple/app/main/NodeStoreScheduler.h>
-#include <ripple/app/main/ReportingETL.h>
 #include <ripple/app/main/Tuning.h>
-#include <ripple/app/main/TxProxy.h>
 #include <ripple/app/misc/AmendmentTable.h>
 #include <ripple/app/misc/HashRouter.h>
 #include <ripple/app/misc/LoadFeeTrack.h>
@@ -44,6 +42,8 @@
 #include <ripple/app/misc/ValidatorKeys.h>
 #include <ripple/app/misc/ValidatorSite.h>
 #include <ripple/app/paths/PathRequests.h>
+#include <ripple/app/reporting/ReportingETL.h>
+#include <ripple/app/reporting/TxProxy.h>
 #include <ripple/app/tx/apply.h>
 #include <ripple/basics/ByteUtilities.h>
 #include <ripple/basics/PerfLog.h>
