@@ -1398,7 +1398,7 @@ ApplicationImp::setup()
     Pathfinder::initPathTable();
 
     auto const startUp = config_->START_UP;
-    if (startUp == Config::FRESH || config_->reporting())
+    if (startUp == Config::FRESH)
     {
         JLOG(m_journal.info()) << "Starting new Ledger";
 
@@ -1662,14 +1662,7 @@ ApplicationImp::setup()
 
     if (config_->reporting())
     {
-        if (!config_->reportingReadOnly())
-        {
-            reportingETL_->run();
-        }
-        else
-        {
-            reportingETL_->runReadOnly();
-        }
+        reportingETL_->run();
     }
 
     return true;
