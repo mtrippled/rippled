@@ -970,6 +970,7 @@ public:
                     0,
                     dummyRoot,
                     config_->section(ConfigSection::importNodeDatabase()),
+                    config_->reporting(),
                     j,
                     pgPool());
 
