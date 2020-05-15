@@ -98,8 +98,9 @@ public:
     make_Database (std::string const& name, Scheduler& scheduler,
         int readThreads, Stoppable& parent,
             Section const& backendParameters,
-                beast::Journal journal,
-                    std::shared_ptr<PgPool> pool) = 0;
+                bool const reporting,
+                    beast::Journal journal,
+                        std::shared_ptr<PgPool> pool) = 0;
 };
 
 //------------------------------------------------------------------------------

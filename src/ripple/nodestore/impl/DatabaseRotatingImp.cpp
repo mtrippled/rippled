@@ -32,6 +32,7 @@ DatabaseRotatingImp::DatabaseRotatingImp(
     std::unique_ptr<Backend> writableBackend,
     std::unique_ptr<Backend> archiveBackend,
     Section const& config,
+    bool const reporting,
     beast::Journal j)
     : DatabaseRotating(name, parent, scheduler, readThreads, config, j)
     , pCache_(std::make_shared<TaggedCache<uint256, NodeObject>>(
@@ -40,6 +41,7 @@ DatabaseRotatingImp::DatabaseRotatingImp(
         name, stopwatch(), cacheTargetSize, cacheTargetAge))
     , writableBackend_(std::move(writableBackend))
     , archiveBackend_(std::move(archiveBackend))
+    , reporting_(reporting)
 {
     if (writableBackend_)
         fdRequired_ += writableBackend_->fdRequired();
@@ -61,14 +63,15 @@ DatabaseRotatingImp::rotateBackends(
 
 void
 DatabaseRotatingImp::store(NodeObjectType type, Blob&& data,
-    uint256 const& hash, std::uint32_t seq)
+    uint256 const& hash, std::uint32_t seq, bool const etl)
 {
 #if RIPPLE_VERIFY_NODEOBJECT_KEYS
     assert(hash == sha512Hash(makeSlice(data)));
 #endif
     auto nObj = NodeObject::createObject(type, std::move(data), hash);
     pCache_->canonicalize(hash, nObj, true);
-    getWritableBackend()->store(nObj);
+    if (etl || !reporting_)
+        getWritableBackend()->store(nObj);
     nCache_->erase(hash);
     storeStats(nObj->getData().size());
 }

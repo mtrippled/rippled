@@ -26,14 +26,15 @@ namespace NodeStore {
 
 void
 DatabaseNodeImp::store(NodeObjectType type, Blob&& data,
-    uint256 const& hash, std::uint32_t seq)
+    uint256 const& hash, std::uint32_t seq, bool const etl)
 {
 #if RIPPLE_VERIFY_NODEOBJECT_KEYS
     assert(hash == sha512Hash(makeSlice(data)));
 #endif
     auto nObj = NodeObject::createObject(type, std::move(data), hash);
     pCache_->canonicalize(hash, nObj, true);
-    backend_->store(nObj);
+    if (etl || ! reporting_)
+        backend_->store(nObj);
     nCache_->erase(hash);
     storeStats(nObj->getData().size());
 }

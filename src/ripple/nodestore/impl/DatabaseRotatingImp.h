@@ -40,6 +40,7 @@ public:
         std::unique_ptr<Backend> writableBackend,
         std::unique_ptr<Backend> archiveBackend,
         Section const& config,
+        bool const reporting,
         beast::Journal j);
 
     ~DatabaseRotatingImp() override
@@ -79,7 +80,7 @@ public:
     }
 
     void store(NodeObjectType type, Blob&& data,
-        uint256 const& hash, std::uint32_t seq) override;
+        uint256 const& hash, std::uint32_t seq, bool const etl) override;
 
     void
     sync() override
@@ -135,6 +136,8 @@ private:
     std::unique_ptr<Backend> writableBackend_;
     std::unique_ptr<Backend> archiveBackend_;
     mutable std::mutex rotateMutex_;
+
+    bool const reporting_;
 
     struct Backends {
         std::unique_ptr<Backend> const& writableBackend;

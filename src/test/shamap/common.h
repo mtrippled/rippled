@@ -55,7 +55,7 @@ public:
         testSection.set("type", "memory");
         testSection.set("Path", "SHAMap_test");
         db_ = NodeStore::Manager::instance ().make_Database (
-            "test", scheduler_, 1, parent_, testSection, j,
+            "test", scheduler_, 1, parent_, testSection, false, j,
             std::shared_ptr<PgPool>());
         shardBacked_ =
             dynamic_cast<NodeStore::DatabaseShard*>(db_.get()) != nullptr;

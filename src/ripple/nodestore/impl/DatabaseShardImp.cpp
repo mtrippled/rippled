@@ -846,7 +846,7 @@ DatabaseShardImp::getWriteLoad() const
 
 void
 DatabaseShardImp::store(NodeObjectType type,
-    Blob&& data, uint256 const& hash, std::uint32_t seq)
+    Blob&& data, uint256 const& hash, std::uint32_t seq, bool const etl)
 {
 #if RIPPLE_VERIFY_NODEOBJECT_KEYS
     assert(hash == sha512Hash(makeSlice(data)));

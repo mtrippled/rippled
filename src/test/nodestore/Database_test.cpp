@@ -57,7 +57,7 @@ public:
         // Write to source db
         {
             std::unique_ptr <Database> src = Manager::instance().make_Database (
-                "test", scheduler, 2, parent, srcParams, journal_,
+                "test", scheduler, 2, parent, srcParams, false, journal_,
                 std::shared_ptr<PgPool>());
             storeBatch (*src, batch);
         }
@@ -67,7 +67,7 @@ public:
         {
             // Re-open the db
             std::unique_ptr <Database> src = Manager::instance().make_Database (
-                "test", scheduler, 2, parent, srcParams, journal_,
+                "test", scheduler, 2, parent, srcParams, false, journal_,
                 std::shared_ptr<PgPool>());
 
             // Set up the destination database
@@ -77,7 +77,7 @@ public:
             destParams.set ("path", dest_db.path());
 
             std::unique_ptr <Database> dest = Manager::instance().make_Database (
-                "test", scheduler, 2, parent, destParams, journal_,
+                "test", scheduler, 2, parent, destParams, false, journal_,
                 std::shared_ptr<PgPool>());
 
             testcase ("import into '" + destBackendType +
@@ -124,7 +124,7 @@ public:
         {
             // Open the database
             std::unique_ptr <Database> db = Manager::instance().make_Database (
-                "test", scheduler, 2, parent, nodeParams, journal_,
+                "test", scheduler, 2, parent, nodeParams, false, journal_,
                 std::shared_ptr<PgPool>());
 
             // Write the batch
@@ -153,7 +153,7 @@ public:
         {
             // Re-open the database without the ephemeral DB
             std::unique_ptr <Database> db = Manager::instance().make_Database (
-                "test", scheduler, 2, parent, nodeParams, journal_,
+                "test", scheduler, 2, parent, nodeParams, false, journal_,
                 std::shared_ptr<PgPool>());
 
             // Read it back in
@@ -173,8 +173,8 @@ public:
                 // Verify default earliest ledger sequence
                 std::unique_ptr<Database> db =
                     Manager::instance().make_Database(
-                        "test", scheduler, 2, parent, nodeParams, journal_,
-                        std::shared_ptr<PgPool>());
+                        "test", scheduler, 2, parent, nodeParams, false,
+                        journal_, std::shared_ptr<PgPool>());
                 BEAST_EXPECT(db->earliestSeq() == XRP_LEDGER_EARLIEST_SEQ);
             }
 
@@ -184,8 +184,8 @@ public:
                 nodeParams.set("earliest_seq", "0");
                 std::unique_ptr<Database> db =
                     Manager::instance().make_Database(
-                        "test", scheduler, 2, parent, nodeParams, journal_,
-                        std::shared_ptr<PgPool>());
+                        "test", scheduler, 2, parent, nodeParams, false,
+                        journal_, std::shared_ptr<PgPool>());
             }
             catch (std::runtime_error const& e)
             {
@@ -198,8 +198,8 @@ public:
                 nodeParams.set("earliest_seq", "1");
                 std::unique_ptr<Database> db =
                     Manager::instance().make_Database(
-                        "test", scheduler, 2, parent, nodeParams, journal_,
-                        std::shared_ptr<PgPool>());
+                        "test", scheduler, 2, parent, nodeParams, false,
+                        journal_, std::shared_ptr<PgPool>());
 
                 // Verify database uses the earliest ledger sequence setting
                 BEAST_EXPECT(db->earliestSeq() == 1);
@@ -214,8 +214,8 @@ public:
                     std::to_string(XRP_LEDGER_EARLIEST_SEQ));
                 std::unique_ptr<Database> db2 =
                     Manager::instance().make_Database(
-                        "test", scheduler, 2, parent, nodeParams, journal_,
-                        std::shared_ptr<PgPool>());
+                        "test", scheduler, 2, parent, nodeParams, false,
+                        journal_, std::shared_ptr<PgPool>());
             }
             catch (std::runtime_error const& e)
             {
