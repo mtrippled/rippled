@@ -165,6 +165,9 @@ public:
     void
     sweep() override;
 
+    Backend&
+    getBackend() override;
+
 private:
     Application& app_;
     mutable std::mutex m_;

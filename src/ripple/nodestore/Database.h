@@ -189,6 +189,9 @@ public:
     void
     sweep() = 0;
 
+    virtual Backend&
+    getBackend() = 0;
+
     /** Gather statistics pertaining to read and write activities.
 
         @return The total read and written bytes.

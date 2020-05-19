@@ -110,7 +110,8 @@ error_code_i conditionMet(Condition condition_required, T& context)
   }
 
   if ((condition_required & NEEDS_CLOSED_LEDGER) &&
-      !context.ledgerMaster.getClosedLedger ())
+      !context.ledgerMaster.getClosedLedger() &&
+      !context.app.config().reporting())
   {
       return rpcNO_CLOSED;
   }
