@@ -142,8 +142,8 @@ target_link_libraries (xrpl_core
     NIH::secp256k1
     NIH::ed25519-donna
     date::date
-    Ripple::opts
-    cassandra)
+    Ripple::opts)
+    #cassandra)
 #[=================================[
    main/core headers installation
 #]=================================]
@@ -510,7 +510,7 @@ target_sources (rippled PRIVATE
      main sources:
        subdir: nodestore
   #]===============================]
-  src/ripple/nodestore/backend/CassandraFactory.cpp
+#  src/ripple/nodestore/backend/CassandraFactory.cpp
   src/ripple/nodestore/backend/MemoryFactory.cpp
   src/ripple/nodestore/backend/NuDBFactory.cpp
   src/ripple/nodestore/backend/NullFactory.cpp
