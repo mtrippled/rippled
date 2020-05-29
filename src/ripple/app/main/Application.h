@@ -77,6 +77,7 @@ class Cluster;
 class DatabaseCon;
 class SHAMapStore;
 
+class ReportingETL;
 class TxProxy;
 
 using NodeCache     = TaggedCache <SHAMapHash, Blob>;
@@ -183,6 +184,8 @@ public:
     virtual DatabaseCon&            getLedgerDB () = 0;
     virtual TxProxy&
     getTxProxy() = 0;
+    virtual ReportingETL&
+    getReportingETL() = 0;
 
     virtual std::shared_ptr<PgPool>& pgPool() = 0;
 
