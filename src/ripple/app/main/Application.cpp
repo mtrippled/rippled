@@ -1577,10 +1577,20 @@ bool ApplicationImp::setup()
     //             move the instantiation inside a conditional:
     //
     //             if (!config_.standalone())
-    overlay_ = make_Overlay (*this, setup_Overlay(*config_), *m_jobQueue,
-        *serverHandler_, *m_resourceManager, *m_resolver, get_io_service(),
-        *config_, m_collectorManager->collector ());
-    add (*overlay_); // add to PropertyStream
+    if (!config_->reporting())
+    {
+        overlay_ = make_Overlay(
+            *this,
+            setup_Overlay(*config_),
+            *m_jobQueue,
+            *serverHandler_,
+            *m_resourceManager,
+            *m_resolver,
+            get_io_service(),
+            *config_,
+            m_collectorManager->collector());
+        add(*overlay_);  // add to PropertyStream
+    }
 
     if (!config_->standalone())
     {
@@ -1779,7 +1789,8 @@ int ApplicationImp::fdRequired() const
     int needed = 128;
 
     // 1.5 times the configured peer limit for peer connections:
-    needed += static_cast<int>(0.5 + (1.5 * overlay_->limit()));
+    if (overlay_)
+        needed += static_cast<int>(0.5 + (1.5 * overlay_->limit()));
 
     // the number of fds needed by the backend (internally
     // doubled if online delete is enabled).
