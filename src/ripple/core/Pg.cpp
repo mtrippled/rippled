@@ -285,6 +285,9 @@ Pg::query(yield_context yield, boost::asio::io_context::strand& strand,
     }
     catch (std::exception const& e)
     {
+        JLOG(j_.error()) << __func__ << " "
+            << "error, severing connection"
+            << "error = " << e.what();
         // Sever connection upon any error.
         disconnect();
         socket_.release();
@@ -532,7 +535,6 @@ PgPool::PgPool(Section const& network_db_config, beast::Journal const j)
         config_.keywords.push_back(option->keyword);
         config_.values.push_back(option->val);
     }
-
     config_.keywordsIdx.reserve(config_.keywords.size() + 1);
     config_.valuesIdx.reserve(config_.values.size() + 1);
     for (std::size_t n = 0; n < config_.keywords.size(); ++n)
@@ -777,6 +779,45 @@ PgQuery::querySyncVariant(pg_params const& dbParams, std::shared_ptr<Pg>& conn)
 
     std::unique_lock<std::mutex> lock(mtx);
     cv.wait(lock, [&finished]() { return finished; });
+
+    if (std::holds_alternative<pg_result_type>(result))
+    {
+        auto& ret = std::get<pg_result_type>(result);
+        if (PQresultStatus(ret.get()) == PGRES_TUPLES_OK &&
+            (PQntuples(ret.get()) == 0))
+        {
+            JLOG(pool_->j_.warn()) << __func__ << " No results returned."
+                                   << " Attempting to use cached connection";
+            if (!pool_->fallback.conn)
+            {
+                JLOG(pool_->j_.warn()) << __func__ << " No cached connection.";
+            }
+            else if (conn == pool_->fallback.conn)
+            {
+                JLOG(pool_->j_.warn())
+                    << __func__
+                    << " Already tried cached connection. Still no results";
+            }
+            else
+            {
+                JLOG(pool_->j_.warn())
+                    << __func__ << " Retrying with cached connection";
+                std::unique_lock<std::mutex> lck(pool_->fallback.mtx);
+                result = querySyncVariant(dbParams, pool_->fallback.conn);
+            }
+        }
+
+        if (conn == pool_->fallback.conn)
+        {
+            if (PQresultStatus(ret.get()) == PGRES_TUPLES_OK &&
+                PQntuples(ret.get()) != 0)
+            {
+                JLOG(pool_->j_.debug())
+                    << __func__
+                    << " Successfully fetched results with cached connection";
+            }
+        }
+    }
 
     return result;
 }

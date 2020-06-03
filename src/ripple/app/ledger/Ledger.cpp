@@ -1187,19 +1187,28 @@ loadLedgerInfosPostgres(
         "ledger_seq from ledgers ";
 
     uint32_t expNumResults = 1;
-
     if (auto ledgerSeq = std::get_if<uint32_t>(&whichLedger))
     {
+        JLOG(app.journal("Ledger").debug())
+            << __func__ << "Loading by sequence : "
+            << *ledgerSeq;
         sql += "WHERE ledger_seq = " + std::to_string(*ledgerSeq);
     }
     else if (auto ledgerHash = std::get_if<uint256>(&whichLedger))
     {
+        JLOG(app.journal("Ledger").debug())
+            << __func__ << "Loading by hash : "
+            << strHex(*ledgerHash);
         sql += ("WHERE ledger_hash = \'\\x" + strHex(*ledgerHash) + "\'");
     }
     else if (
         auto minAndMax =
             std::get_if<std::pair<uint32_t, uint32_t>>(&whichLedger))
     {
+        JLOG(app.journal("Ledger").debug())
+            << __func__ << "Loading range : "
+            << "min : " << minAndMax->first
+            << "max : " << minAndMax->second;
         expNumResults = minAndMax->second - minAndMax->first;
 
         sql +=
@@ -1208,7 +1217,8 @@ loadLedgerInfosPostgres(
     }
     else
     {
-        sql += ("ORDER BY ledger_seq desc LIMIT 1");
+        JLOG(app.journal("Ledger").debug())
+            << __func__ << "Loading most recent";
     }
     sql += ";";
 
@@ -1216,7 +1226,9 @@ loadLedgerInfosPostgres(
         << "loadLedgerHelperPostgres - sql : " << sql;
 
     assert(app.pgPool());
-    auto res = doQuery(app.pgPool(), sql.data());
+    std::shared_ptr<PgQuery> pg = std::make_shared<PgQuery>(app.pgPool());
+    std::shared_ptr<Pg> conn;
+    auto res = pg->querySync(sql.data(), conn);
     assert(res);
     auto result = PQresultStatus(res.get());
 
@@ -1233,6 +1245,16 @@ loadLedgerInfosPostgres(
         auto stream = app.journal("Ledger").debug();
         JLOG(stream) << "Ledger not found: " << sql;
         return {};
+    }
+    else if (auto seq = std::get_if<uint32_t>(&whichLedger))
+    {
+        // if we didn't pin this connection, check it in
+        if(!app.pgPool()->pin(conn, *seq))
+            app.pgPool()->checkin(conn);
+    }
+    else
+    {
+        app.pgPool()->checkin(conn);
     }
 
     std::vector<LedgerInfo> infos;

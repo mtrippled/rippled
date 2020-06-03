@@ -232,6 +232,15 @@ class PgPool
     std::multimap<std::chrono::time_point<clock_type>,
         std::shared_ptr<Pg>> idle_;
 
+    struct KnownUpToDateConnection
+    {
+        std::mutex mtx;
+        uint32_t ledgerSequence = 0;
+        std::shared_ptr<Pg> conn;
+    };
+
+    KnownUpToDateConnection fallback;
+
 public:
     beast::Journal const j_;
     std::mutex mutex_;
@@ -287,6 +296,37 @@ public:
      */
     void checkin(std::shared_ptr<Pg>& pg);
 
+    bool
+    pin(std::shared_ptr<Pg>& conn, uint32_t ledgerSequence)
+    {
+        std::unique_lock<std::mutex> lck(fallback.mtx);
+        if (ledgerSequence > fallback.ledgerSequence)
+        {
+            if (fallback.conn == conn)
+            {
+                fallback.ledgerSequence = ledgerSequence;
+                return true;
+            }
+            else
+            {
+                JLOG(j_.debug()) << __func__ << " "
+                                 << "overwriting fallback. ledger sequence = "
+                                 << ledgerSequence;
+                fallback.ledgerSequence = ledgerSequence;
+                if (fallback.conn)
+                {
+                    JLOG(j_.debug()) << __func__ << " "
+                                     << "checking in old fallback";
+                    checkin(fallback.conn);
+                }
+                fallback.conn = conn;
+                return true;
+            }
+        }
+        JLOG(j_.debug()) << __func__ << " Did not overwrite fallback"
+                         << " ledger sequence " << ledgerSequence;
+        return false;
+    }
 };
 
 //-----------------------------------------------------------------------------
@@ -366,7 +406,6 @@ public:
     {
         store(keyBytes, true);
     }
-
 };
 
 //-----------------------------------------------------------------------------

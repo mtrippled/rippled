@@ -456,6 +456,9 @@ ReportingETL::writeToPostgres(
     // and falls back to only publishing
     if (!writeToLedgersDB(info, pg, conn, *this))
     {
+        if (!app_.pgPool()->pin(conn, info.seq))
+            app_.pgPool()->checkin(conn);
+
         JLOG(journal_.warn()) << __func__ << " : "
                               << "Failed to write to ledgers database.";
         return false;
@@ -466,7 +469,9 @@ ReportingETL::writeToPostgres(
     executeUntilSuccess(pg, conn, "COMMIT", PGRES_COMMAND_OK, *this);
 
     PQsetnonblocking(conn->getConn(), 1);
-    app_.pgPool()->checkin(conn);
+
+    if (!app_.pgPool()->pin(conn, info.seq))
+        app_.pgPool()->checkin(conn);
 
     auto end = std::chrono::system_clock::now();
 
