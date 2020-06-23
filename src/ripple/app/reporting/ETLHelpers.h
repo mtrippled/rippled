@@ -28,6 +28,40 @@
 
 namespace ripple {
 
+// TODO handle stopping logic
+class NetworkValidatedLedgers
+{
+    uint32_t max = 0;
+
+    std::mutex mtx_;
+
+    std::condition_variable cv_;
+
+    void
+    push(uint32_t idx)
+    {
+        std::unique_lock<std::mutex> lck(mtx_);
+        if (idx > max)
+            max = idx;
+        cv_.notify_all();
+    }
+
+    uint32_t
+    getMostRecent()
+    {
+        std::unique_lock<std::mutex> lck(mtx_);
+        cv_.wait(lck, [this]() { return max != 0; });
+        return max;
+    }
+
+    void
+    waitUntilValidatedByNetwork(uint32_t sequence)
+    {
+        std::unique_lock<std::mutex> lck(mtx_);
+        cv.wait(lck, [sequence, this]() { return sequence <= max; });
+    }
+}
+
 class LedgerIndexQueue
 {
     std::queue<uint32_t> queue_;

@@ -36,7 +36,7 @@ ETLSource::ETLSource(std::string ip, std::string wsPort, ReportingETL& etl)
           boost::beast::websocket::stream<boost::beast::tcp_stream>>(
           boost::asio::make_strand(etl_.getIOContext())))
     , resolver_(boost::asio::make_strand(etl_.getIOContext()))
-    , indexQueue_(etl_.getLedgerIndexQueue())
+    , networkValidatedLedgers_(etl_.getNetworkValidatedLedgers())
     , journal_(etl_.getApplication().journal("ReportingETL::ETLSource"))
     , app_(etl_.getApplication())
     , timer_(etl_.getIOContext())
@@ -56,7 +56,7 @@ ETLSource::ETLSource(
           boost::beast::websocket::stream<boost::beast::tcp_stream>>(
           boost::asio::make_strand(etl_.getIOContext())))
     , resolver_(boost::asio::make_strand(etl_.getIOContext()))
-    , indexQueue_(etl_.getLedgerIndexQueue())
+    , networkValidatedLedgers_(etl_.getNetworkValidatedLedgers())
     , journal_(etl_.getApplication().journal("ReportingETL::ETLSource"))
     , app_(etl_.getApplication())
     , timer_(etl_.getIOContext())
@@ -346,7 +346,7 @@ ETLSource::handleMessage()
                 << __func__ << " : "
                 << "Pushing ledger sequence = " << ledgerIndex << " - "
                 << toString();
-            indexQueue_.push(ledgerIndex);
+            networkValidatedLedgers_.push(ledgerIndex);
         }
         return true;
     }

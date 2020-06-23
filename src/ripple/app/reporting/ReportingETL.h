@@ -63,7 +63,7 @@ private:
 
     ETLLoadBalancer loadBalancer_;
 
-    LedgerIndexQueue indexQueue_;
+    NetworkValidatedLedgers networkValidatedLedgers_;
 
     std::thread writer_;
 
@@ -144,6 +144,7 @@ private:
     // this will only be false if the etl mechanism is shutting down
     bool
     fetchLedger(
+        uint32_t sequence,
         org::xrpl::rpc::v1::GetLedgerResponse& out,
         bool getObjects = true);
 
@@ -194,10 +195,10 @@ public:
     {
     }
 
-    LedgerIndexQueue&
-    getLedgerIndexQueue()
+    NetworkValidatedLedgers&
+    getNetworkValidatedLedgers()
     {
-        return indexQueue_;
+        return networkValidatedLedgers_;
     }
 
     bool
@@ -251,7 +252,8 @@ public:
     {
         Json::Value result(Json::objectValue);
 
-        result["queue_size"] = std::to_string(indexQueue_.size());
+        result["most_recent_validated"] =
+            std::to_string(networkValidatedLedgers_.getMostRecent());
         result["etl_sources"] = loadBalancer_.toJson();
         result["is_writer"] = writing_;
         auto last = getLastPublish();
@@ -286,7 +288,6 @@ public:
         JLOG(journal_.info()) << "onStop called";
         JLOG(journal_.debug()) << "Stopping Reporting ETL";
         stopping_ = true;
-        indexQueue_.stop();
         loadBalancer_.stop();
 
         JLOG(journal_.debug()) << "Stopped loadBalancer";

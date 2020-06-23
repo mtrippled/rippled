@@ -77,7 +77,8 @@ ReportingETL::loadInitialLedger()
     }
 
     org::xrpl::rpc::v1::GetLedgerResponse response;
-    if (not fetchLedger(response, false))
+    uint32_t startingSequence = networkLedgers_.getMostRecent();
+    if (not fetchLedger(startingSequence, response, false))
         return;
     std::vector<TxMeta> metas;
     updateLedger(response, metas, false);
@@ -380,16 +381,10 @@ ReportingETL::publishLedger(uint32_t ledgerSequence, uint32_t maxAttempts)
 
 bool
 ReportingETL::fetchLedger(
+    uint32_t idx,
     org::xrpl::rpc::v1::GetLedgerResponse& out,
     bool getObjects)
 {
-    auto idx = indexQueue_.pop();
-    // 0 represents the queue is shutting down
-    if (idx == 0)
-    {
-        JLOG(journal_.debug()) << "Popped 0 from index queue. Stopping";
-        return false;
-    }
     /*
         if (ledger_ && idx != ledger_->info().seq + 1)
         {
@@ -682,17 +677,18 @@ ReportingETL::doContinousETLPipelined()
     writing_ = false;
 }
 
-
-void
-ReportingETL::runETLPipeline()
+uint32_t
+ReportingETL::runETLPipeline(uint32_t startSequence)
 {
     std::atomic_bool pipelineStopping = false;
-    extracter_ = std::thread{[this, &pipelineStopping]() {
+    std::atomic_uint32_t lastPublishedSequence = 0;
+    extracter_ = std::thread{[this, &pipelineStopping, startSequence]() {
+        uint32_t currentSequence = startSequence;
         while (!pipelineStopping)
         {
             org::xrpl::rpc::v1::GetLedgerResponse fetchResponse;
 
-            if (!fetchLedger(fetchResponse))
+            if (!fetchLedger(currentSequence, fetchResponse))
             {
                 // drain transform queue. this occurs when the server is shutting down
                 transformQueue_.push({});
@@ -700,6 +696,7 @@ ReportingETL::runETLPipeline()
             }
 
             transformQueue_.push(fetchResponse);
+            ++currentSequence;
         }
     }};
 
@@ -722,6 +719,7 @@ ReportingETL::runETLPipeline()
     }};
 
     loader_ = std::thread{[this]() {
+        size_t lastPublished = 0;
         while (!stopping_)
         {
             std::optional<
@@ -740,7 +738,9 @@ ReportingETL::runETLPipeline()
                 if (!writeToPostgres(ledger->info(), metas))
                     writeConflict = true;
 
+            // still publish even if we are relinquishing ETL control
             publishLedger(ledger);
+            lastPublishedSequence = ledger->info().seq;
             if (writeConflict)
                 break;
         }
@@ -750,16 +750,15 @@ ReportingETL::runETLPipeline()
     pipelineStopping = true;
     extracter_.join();
     transformer_.join();
-    
+    return lastPublishedSequence;
 }
 
 void
 ReportingETL::monitor()
 {
-    auto idx = 0;
+    auto idx = networkLedgers_.getMostRecent();
     bool success = true;
-    // when the indexQueue returns 0, ETL is shutting down
-    while ((idx = indexQueue_.front()) != 0)
+    while (networkLedgers_.waitUntilValidatedByNetwork(idx))
     {
         JLOG(journal_.info()) << __func__ << " : "
                               << "Ledger with sequence = " << idx
@@ -788,16 +787,11 @@ ReportingETL::monitor()
                 << __func__ << " : "
                 << "Failed to publish ledger with sequence = " << idx
                 << " . Beginning ETL";
-            ledger_ = std::const_pointer_cast<Ledger>(
-                app_.getLedgerMaster().getLedgerBySeq(idx - 1));
-            doContinousETLPipelined();
+            idx = doContinousETLPipelined();
             JLOG(journal_.info()) << __func__ << " : "
                                   << "Aborting ETL. Falling back to publishing";
         }
-        else
-        {
-            indexQueue_.pop();
-        }
+        ++idx;
     }
 }
 
@@ -825,7 +819,7 @@ ReportingETL::setup()
 
         if (startIndexPair.second)
         {
-            indexQueue_.push(std::stoi(startIndexPair.first));
+            networkValidatedLedgers_.push(std::stoi(startIndexPair.first));
         }
     }
     else if (!readOnly_)
@@ -840,7 +834,7 @@ ReportingETL::setup()
         {
             JLOG(journal_.info()) << "Loaded ledger successfully. "
                                   << "seq = " << ledger_->info().seq;
-            indexQueue_.push(ledger_->info().seq + 1);
+            networkValidatedLedgers_.push(ledger_->info().seq + 1);
         }
         else
         {
@@ -854,7 +848,6 @@ ReportingETL::ReportingETL(Application& app, Stoppable& parent)
     , app_(app)
     , journal_(app.journal("ReportingETL"))
     , loadBalancer_(*this)
-    , indexQueue_(journal_)
 {
     // if present, get endpoint from config
     if (app_.config().exists("reporting"))

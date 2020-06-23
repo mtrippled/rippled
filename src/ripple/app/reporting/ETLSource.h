@@ -56,7 +56,7 @@ struct ETLSource
     // TODO: make this not a string?
     std::string validatedLedgers;
 
-    LedgerIndexQueue& indexQueue_;
+    NetworkValidatedLedgers& networkValidatedLedgers_;
 
     beast::Journal journal_;
 
