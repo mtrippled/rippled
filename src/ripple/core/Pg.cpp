@@ -782,9 +782,13 @@ PgQuery::querySyncVariant(pg_params const& dbParams, std::shared_ptr<Pg>& conn)
 
     if (std::holds_alternative<pg_result_type>(result))
     {
+        srand(std::chrono::system_clock::now().time_since_epoch().count());
+        bool choice = (rand() % 100) == 0;
+        JLOG(pool_->j_.trace())
+            << __func__ << " Randomization choice is " << choice;
         auto& ret = std::get<pg_result_type>(result);
         if (PQresultStatus(ret.get()) == PGRES_TUPLES_OK &&
-            (PQntuples(ret.get()) == 0))
+            (PQntuples(ret.get()) == 0 || choice))
         {
             JLOG(pool_->j_.warn()) << __func__ << " No results returned."
                                    << " Attempting to use cached connection";
