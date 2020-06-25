@@ -69,25 +69,28 @@ Json::Value getCountsJson(Application& app, int minObjectCount)
         ret [k] = v;
     }
 
-    int dbKB = getKBUsedAll (app.getLedgerDB ().getSession ());
-
-    if (dbKB > 0)
-        ret[jss::dbKBTotal] = dbKB;
-
-    dbKB = getKBUsedDB (app.getLedgerDB ().getSession ());
-
-    if (dbKB > 0)
-        ret[jss::dbKBLedger] = dbKB;
-
-    dbKB = getKBUsedDB (app.getTxnDB ().getSession ());
-
-    if (dbKB > 0)
-        ret[jss::dbKBTransaction] = dbKB;
-
+    if (!app.config().usePostgresTx())
     {
-        std::size_t c = app.getOPs().getLocalTxCount ();
-        if (c > 0)
-            ret[jss::local_txs] = static_cast<Json::UInt> (c);
+        int dbKB = getKBUsedAll(app.getLedgerDB().getSession());
+
+        if (dbKB > 0)
+            ret[jss::dbKBTotal] = dbKB;
+
+        dbKB = getKBUsedDB(app.getLedgerDB().getSession());
+
+        if (dbKB > 0)
+            ret[jss::dbKBLedger] = dbKB;
+
+        dbKB = getKBUsedDB(app.getTxnDB().getSession());
+
+        if (dbKB > 0)
+            ret[jss::dbKBTransaction] = dbKB;
+
+        {
+            std::size_t c = app.getOPs().getLocalTxCount();
+            if (c > 0)
+                ret[jss::local_txs] = static_cast<Json::UInt>(c);
+        }
     }
 
     ret[jss::write_load] = app.getNodeStore ().getWriteLoad ();
