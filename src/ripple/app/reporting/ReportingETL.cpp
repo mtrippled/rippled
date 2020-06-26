@@ -335,6 +335,7 @@ ReportingETL::updateLedger(
     {
         next = std::make_shared<Ledger>(*parent, NetClock::time_point{});
         next->setLedgerInfo(lgrInfo);
+        assert(next->info().seq == parent->info().seq + 1);
     }
 
     next->stateMap().clearSynching();
@@ -561,7 +562,7 @@ ReportingETL::runETLPipeline(uint32_t startSequence)
             }
 
             std::vector<TxMeta> metas;
-            next = updateLedger(*fetchResponse, parent, metas);
+            next = updateLedger(*fetchResponse, next, metas);
             loadQueue.push(std::make_pair(next, metas));
         }
         // empty optional tells the loader to shutdown
@@ -596,6 +597,7 @@ ReportingETL::runETLPipeline(uint32_t startSequence)
                 // still publish even if we are relinquishing ETL control
                 publishLedger(ledger);
                 lastPublishedSequence = ledger->info().seq;
+                checkConsistency(*this);
             }
         }};
 
