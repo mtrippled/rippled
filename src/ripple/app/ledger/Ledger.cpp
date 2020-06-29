@@ -1228,7 +1228,7 @@ loadLedgerInfosPostgres(
     assert(app.pgPool());
     std::shared_ptr<PgQuery> pg = std::make_shared<PgQuery>(app.pgPool());
     std::shared_ptr<Pg> conn;
-    auto res = pg->querySync(sql.data(), conn);
+    auto res = pg->query(sql.data(), conn);
     assert(res);
     auto result = PQresultStatus(res.get());
 

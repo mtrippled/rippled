@@ -1358,6 +1358,9 @@ public:
             sFamily_->treecache().sweep();
         cachedSLEs_.expire();
 
+        if (config().usePostgresTx())
+            pgPool()->idleSweeper();
+
         // Set timer to do another sweep later.
         setSweepTimer();
     }
@@ -2292,7 +2295,7 @@ void ApplicationImp::setMaxDisallowedLedger()
 {
     if (config().usePostgresTx())
     {
-        auto seq = doQuery(pgPool(), "SELECT max_ledger()");
+        auto seq = PgQuery(pgPool()).query("SELECT max_ledger()");
         if (seq && !PQgetisnull(seq.get(), 0, 0))
             maxDisallowedLedger_ = std::atol(PQgetvalue(seq.get(), 0, 0));
     }
