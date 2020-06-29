@@ -1214,7 +1214,7 @@ loadLedgerInfosPostgres(
         << "loadLedgerHelperPostgres - sql : " << sql;
 
     assert(app.pgPool());
-    auto res = doQuery(app.pgPool(), sql.data());
+    auto res = PgQuery(app.pgPool()).query(sql.data());
     assert(res);
     auto result = PQresultStatus(res.get());
 
