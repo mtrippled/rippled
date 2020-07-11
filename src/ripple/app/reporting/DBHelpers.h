@@ -240,11 +240,12 @@ truncateDBs(ReportingETL& etl)
 }
 
 void
-writeToAccountTransactionsDB(
-    std::vector<TxMeta>& metas,
+bulkWriteToTable(
     std::shared_ptr<PgQuery>& pgQuery,
     std::shared_ptr<Pg>& conn,
-    ReportingETL& etl)
+    ReportingETL& etl,
+    char const* copyQuery,
+    std::string const bufString)
 {
     JLOG(etl.getJournal().debug()) << __func__;
     while (!etl.isStopping())
@@ -253,31 +254,10 @@ writeToAccountTransactionsDB(
         executeUntilSuccess(
             pgQuery,
             conn,
-            "COPY account_transactions from STDIN",
+            copyQuery,
             PGRES_COPY_IN,
             etl);
 
-        // Write data to stream
-        std::stringstream copyBuffer;
-        for (auto& m : metas)
-        {
-            std::string txHash = strHex(m.getTxID());
-            auto idx = m.getIndex();
-            auto ledgerSeq = m.getLgrSeq();
-
-            for (auto& a : m.getAffectedAccounts(etl.getJournal()))
-            {
-                std::string acct = strHex(a);
-                copyBuffer << "\\\\x" << acct << '\t'
-                           << std::to_string(ledgerSeq) << '\t'
-                           << std::to_string(idx) << '\t' << "\\\\x" << txHash
-                           << '\n';
-            }
-        }
-
-        PQsetnonblocking(conn->getConn(), 0);
-
-        std::string bufString = copyBuffer.str();
         JLOG(etl.getJournal().trace()) << "copy buffer = " << bufString;
         executeUntilSuccess(
             [&conn, &bufString]() {
