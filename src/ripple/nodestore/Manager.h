@@ -63,11 +63,11 @@ public:
     find(std::string const& name) = 0;
 
     /** Create a backend. */
-    virtual
-    std::unique_ptr <Backend>
-    make_Backend (Section const& parameters,
-        Scheduler& scheduler, beast::Journal journal,
-        std::shared_ptr<PgPool> pool) = 0;
+    virtual std::unique_ptr<Backend>
+    make_Backend(
+        Section const& parameters,
+        Scheduler& scheduler,
+        beast::Journal journal) = 0;
 
     /** Construct a NodeStore database.
 
@@ -93,14 +93,15 @@ public:
 
         @return The opened database.
     */
-    virtual
-    std::unique_ptr <Database>
-    make_Database (std::string const& name, Scheduler& scheduler,
-        int readThreads, Stoppable& parent,
-            Section const& backendParameters,
-                bool const reporting,
-                    beast::Journal journal,
-                        std::shared_ptr<PgPool> pool) = 0;
+    virtual std::unique_ptr<Database>
+    make_Database(
+        std::string const& name,
+        Scheduler& scheduler,
+        int readThreads,
+        Stoppable& parent,
+        Section const& backendParameters,
+        bool const reporting,
+        beast::Journal journal) = 0;
 };
 
 //------------------------------------------------------------------------------

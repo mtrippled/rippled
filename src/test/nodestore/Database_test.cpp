@@ -26,7 +26,6 @@
 
 namespace ripple {
 
-class PgPool;
 
 namespace NodeStore {
 
@@ -56,9 +55,8 @@ public:
 
         // Write to source db
         {
-            std::unique_ptr <Database> src = Manager::instance().make_Database (
-                "test", scheduler, 2, parent, srcParams, false, journal_,
-                std::shared_ptr<PgPool>());
+            std::unique_ptr<Database> src = Manager::instance().make_Database(
+                "test", scheduler, 2, parent, srcParams, false, journal_);
             storeBatch (*src, batch);
         }
 
@@ -66,9 +64,8 @@ public:
 
         {
             // Re-open the db
-            std::unique_ptr <Database> src = Manager::instance().make_Database (
-                "test", scheduler, 2, parent, srcParams, false, journal_,
-                std::shared_ptr<PgPool>());
+            std::unique_ptr<Database> src = Manager::instance().make_Database(
+                "test", scheduler, 2, parent, srcParams, false, journal_);
 
             // Set up the destination database
             beast::temp_dir dest_db;
@@ -76,9 +73,8 @@ public:
             destParams.set ("type", destBackendType);
             destParams.set ("path", dest_db.path());
 
-            std::unique_ptr <Database> dest = Manager::instance().make_Database (
-                "test", scheduler, 2, parent, destParams, false, journal_,
-                std::shared_ptr<PgPool>());
+            std::unique_ptr<Database> dest = Manager::instance().make_Database(
+                "test", scheduler, 2, parent, destParams, false, journal_);
 
             testcase ("import into '" + destBackendType +
                 "' from '" + srcBackendType + "'");
@@ -123,9 +119,8 @@ public:
 
         {
             // Open the database
-            std::unique_ptr <Database> db = Manager::instance().make_Database (
-                "test", scheduler, 2, parent, nodeParams, false, journal_,
-                std::shared_ptr<PgPool>());
+            std::unique_ptr<Database> db = Manager::instance().make_Database(
+                "test", scheduler, 2, parent, nodeParams, false, journal_);
 
             // Write the batch
             storeBatch (*db, batch);
@@ -152,9 +147,8 @@ public:
         if (testPersistence)
         {
             // Re-open the database without the ephemeral DB
-            std::unique_ptr <Database> db = Manager::instance().make_Database (
-                "test", scheduler, 2, parent, nodeParams, false, journal_,
-                std::shared_ptr<PgPool>());
+            std::unique_ptr<Database> db = Manager::instance().make_Database(
+                "test", scheduler, 2, parent, nodeParams, false, journal_);
 
             // Read it back in
             Batch copy;
@@ -173,8 +167,13 @@ public:
                 // Verify default earliest ledger sequence
                 std::unique_ptr<Database> db =
                     Manager::instance().make_Database(
-                        "test", scheduler, 2, parent, nodeParams, false,
-                        journal_, std::shared_ptr<PgPool>());
+                        "test",
+                        scheduler,
+                        2,
+                        parent,
+                        nodeParams,
+                        false,
+                        journal_);
                 BEAST_EXPECT(db->earliestSeq() == XRP_LEDGER_EARLIEST_SEQ);
             }
 
@@ -184,8 +183,13 @@ public:
                 nodeParams.set("earliest_seq", "0");
                 std::unique_ptr<Database> db =
                     Manager::instance().make_Database(
-                        "test", scheduler, 2, parent, nodeParams, false,
-                        journal_, std::shared_ptr<PgPool>());
+                        "test",
+                        scheduler,
+                        2,
+                        parent,
+                        nodeParams,
+                        false,
+                        journal_);
             }
             catch (std::runtime_error const& e)
             {
@@ -198,8 +202,13 @@ public:
                 nodeParams.set("earliest_seq", "1");
                 std::unique_ptr<Database> db =
                     Manager::instance().make_Database(
-                        "test", scheduler, 2, parent, nodeParams, false,
-                        journal_, std::shared_ptr<PgPool>());
+                        "test",
+                        scheduler,
+                        2,
+                        parent,
+                        nodeParams,
+                        false,
+                        journal_);
 
                 // Verify database uses the earliest ledger sequence setting
                 BEAST_EXPECT(db->earliestSeq() == 1);
@@ -214,8 +223,13 @@ public:
                     std::to_string(XRP_LEDGER_EARLIEST_SEQ));
                 std::unique_ptr<Database> db2 =
                     Manager::instance().make_Database(
-                        "test", scheduler, 2, parent, nodeParams, false,
-                        journal_, std::shared_ptr<PgPool>());
+                        "test",
+                        scheduler,
+                        2,
+                        parent,
+                        nodeParams,
+                        false,
+                        journal_);
             }
             catch (std::runtime_error const& e)
             {

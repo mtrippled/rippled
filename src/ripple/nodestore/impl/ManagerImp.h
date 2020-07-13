@@ -55,23 +55,21 @@ public:
     void
     erase (Factory& factory) override;
 
-    std::unique_ptr <Backend>
-    make_Backend (
+    std::unique_ptr<Backend>
+    make_Backend(
         Section const& parameters,
         Scheduler& scheduler,
-        beast::Journal journal,
-        std::shared_ptr<PgPool> pool) override;
+        beast::Journal journal) override;
 
-    std::unique_ptr <Database>
-    make_Database (
+    std::unique_ptr<Database>
+    make_Database(
         std::string const& name,
         Scheduler& scheduler,
         int readThreads,
         Stoppable& parent,
         Section const& config,
         bool const reporting,
-        beast::Journal journal,
-        std::shared_ptr<PgPool> pool) override;
+        beast::Journal journal) override;
 };
 
 }

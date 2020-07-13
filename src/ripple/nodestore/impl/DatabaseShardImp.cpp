@@ -160,8 +160,8 @@ DatabaseShardImp::init()
     // Check if backend uses permanent storage
     if (auto factory = Manager::instance().find(backendName_))
     {
-        auto backend {factory->createInstance(
-            NodeObject::keyBytes, section, scheduler_, j_, app_.pgPool())};
+        auto backend{factory->createInstance(
+            NodeObject::keyBytes, section, scheduler_, j_)};
         backed_ = backend->backed();
         if (!backed_)
         {

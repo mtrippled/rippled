@@ -62,9 +62,8 @@ public:
 
         {
             // Open the backend
-            std::unique_ptr <Backend> backend =
-                Manager::instance().make_Backend (
-                    params, scheduler, journal, std::shared_ptr<PgPool>());
+            std::unique_ptr<Backend> backend =
+                Manager::instance().make_Backend(params, scheduler, journal);
             backend->open();
 
             // Write the batch
@@ -91,8 +90,8 @@ public:
 
         {
             // Re-open the backend
-            std::unique_ptr <Backend> backend = Manager::instance().make_Backend (
-                params, scheduler, journal, std::shared_ptr<PgPool>());
+            std::unique_ptr<Backend> backend =
+                Manager::instance().make_Backend(params, scheduler, journal);
             backend->open();
 
             // Read it back in
