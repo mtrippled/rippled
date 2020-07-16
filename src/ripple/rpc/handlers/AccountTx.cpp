@@ -513,7 +513,7 @@ std::pair<AccountTxResult, RPC::Status>
 doAccountTxHelp(RPC::Context& context, AccountTxArgs const& args)
 {
     context.loadType = Resource::feeMediumBurdenRPC;
-    if (context.app.config().usePostgresTx())
+    if (context.app.config().usePostgresLedgerTx())
         return doAccountTxStoredProcedure(args, context);
 
     AccountTxResult result;
@@ -760,6 +760,9 @@ populateJsonResponse(
 Json::Value
 doAccountTxJson(RPC::JsonContext& context)
 {
+    if (!context.app.config().useTxTables())
+        return rpcError(rpcNOT_ENABLED);
+
     auto& params = context.params;
     AccountTxArgs args;
     Json::Value response;
@@ -817,6 +820,13 @@ doAccountTxGrpc(
     RPC::GRPCContext<org::xrpl::rpc::v1::GetAccountTransactionHistoryRequest>&
         context)
 {
+    if (!context.app.config().useTxTables())
+    {
+        return {
+            {},
+            {grpc::StatusCode::UNIMPLEMENTED, "Not enabled in configuration."}};
+    }
+
     // return values
     org::xrpl::rpc::v1::GetAccountTransactionHistoryResponse response;
     grpc::Status status = grpc::Status::OK;

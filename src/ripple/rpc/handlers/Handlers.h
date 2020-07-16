@@ -30,8 +30,6 @@ Json::Value doAccountLines          (RPC::JsonContext&);
 Json::Value doAccountChannels       (RPC::JsonContext&);
 Json::Value doAccountObjects        (RPC::JsonContext&);
 Json::Value doAccountOffers         (RPC::JsonContext&);
-Json::Value doAccountTxSwitch       (RPC::JsonContext&);
-Json::Value doAccountTxOld          (RPC::JsonContext&);
 Json::Value doAccountTxJson         (RPC::JsonContext&);
 Json::Value doBookOffers            (RPC::JsonContext&);
 Json::Value doBlackList             (RPC::JsonContext&);

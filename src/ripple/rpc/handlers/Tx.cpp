@@ -105,7 +105,7 @@ struct TxArgs
 std::pair<TxResult, RPC::Status>
 doTxReporting(RPC::Context& context, TxArgs const& args)
 {
-    assert(context.app.config().usePostgresTx());
+    assert(context.app.config().usePostgresLedgerTx());
     TxResult res;
     res.searchedAll = SearchedAll::unknown;
     auto where = Transaction::getLedgerSeq(args.hash, context.app);
@@ -168,7 +168,7 @@ doTxReporting(RPC::Context& context, TxArgs const& args)
 std::pair<TxResult, RPC::Status>
 doTxHelp(RPC::Context& context, TxArgs const& args)
 {
-    if (context.app.config().usePostgresTx())
+    if (context.app.config().usePostgresLedgerTx())
         return doTxReporting(context, args);
     TxResult result;
 
@@ -419,6 +419,9 @@ populateJsonResponse(
 Json::Value
 doTxJson(RPC::JsonContext& context)
 {
+    if (!context.app.config().useTxTables())
+        return rpcError(rpcNOT_ENABLED);
+
     // Deserialize and validate JSON arguments
 
     if (!context.params.isMember(jss::transaction))
@@ -457,6 +460,13 @@ doTxJson(RPC::JsonContext& context)
 std::pair<org::xrpl::rpc::v1::GetTransactionResponse, grpc::Status>
 doTxGrpc(RPC::GRPCContext<org::xrpl::rpc::v1::GetTransactionRequest>& context)
 {
+    if (!context.app.config().useTxTables())
+    {
+        return {
+            {},
+            {grpc::StatusCode::UNIMPLEMENTED, "Not enabled in configuration."}};
+    }
+
     // return values
     org::xrpl::rpc::v1::GetTransactionResponse response;
     grpc::Status status = grpc::Status::OK;

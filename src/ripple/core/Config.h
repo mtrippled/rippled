@@ -100,9 +100,11 @@ private:
 
     bool RUN_REPORTING = false;
 
-    bool USE_POSTGRES_TX = false;
+    bool USE_POSTGRES_LEDGER_TX = false;
 
     bool REPORTING_READ_ONLY = false;
+
+    bool USE_TX_TABLES = true;
 
     /** Determines if the server will sign a tx, given an account's secret seed.
 
@@ -221,15 +223,15 @@ public:
     }
 
     bool
-    usePostgresTx() const
+    usePostgresLedgerTx() const
     {
-        return USE_POSTGRES_TX;
+        return USE_POSTGRES_LEDGER_TX;
     }
 
-    void
-    setUsePostgresTx(bool b)
+    bool
+    useTxTables() const
     {
-        USE_POSTGRES_TX = b;
+        return USE_TX_TABLES;
     }
 
     bool
