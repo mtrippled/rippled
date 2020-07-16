@@ -41,9 +41,9 @@ LedgerHandler::LedgerHandler (JsonContext& context) : context_ (context)
 Status LedgerHandler::check()
 {
     auto const& params = context_.params;
-    bool needsLedger = params.isMember (jss::ledger) ||
-            params.isMember (jss::ledger_hash) ||
-            params.isMember (jss::ledger_index);
+    bool needsLedger = params.isMember(jss::ledger) ||
+        params.isMember(jss::ledger_hash) ||
+        params.isMember(jss::ledger_index) || context_.app.config().reporting();
     if (! needsLedger)
         return Status::OK;
 
