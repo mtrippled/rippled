@@ -217,6 +217,19 @@ Status doCommand (
                     context.headers.forwardedFor;
 
             auto ret = callMethod (context, method, handler->name_, result);
+            if (context.app.config().reporting())
+            {
+                Json::Value warnings{Json::arrayValue};
+                Json::Value& w = warnings.append(Json::objectValue);
+                w[jss::id] = warnRPC_REPORTING;
+                w[jss::message] =
+                    "This is a reporting server. "
+                    " The default behavior of a reporting server is to only "
+                    " return validated data. If you are looking for not yet "
+                    " validated data, include \"ledger_index : current\" "
+                    " in your request";
+                result[jss::warnings] = std::move(warnings);
+            }
 
             JLOG(context.j.debug()) << "finish command: " << handler->name_ <<
                 ", user: " << context.headers.user << ", forwarded for: " <<
