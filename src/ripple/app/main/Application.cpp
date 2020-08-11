@@ -886,7 +886,7 @@ public:
 
         try
         {
-            auto setup = setup_DatabaseCon(*config_);
+            auto setup = setup_DatabaseCon(*config_, m_journal);
             if (!config_->usePostgresLedgerTx())
             {
                 if (config_->useTxTables())
