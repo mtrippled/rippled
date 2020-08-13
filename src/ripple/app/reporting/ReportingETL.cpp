@@ -240,6 +240,7 @@ ReportingETL::flushLedger(std::shared_ptr<Ledger>& ledger)
             << "Expected hash = " << strHex(accountHash) << "Actual hash = "
             << strHex(ledger->stateMap().getHash().as_uint256());
         assert(false);
+        Throw<std::runtime_error>("state map miscalculation");
     }
 
     if (ledger->txMap().getHash().as_uint256() != txHash)
