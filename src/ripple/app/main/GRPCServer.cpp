@@ -149,37 +149,37 @@ GRPCServerImpl::CallData<Request, Response>::process(
                                                InfoSub::pointer(),
                                                apiVersion},
                                               request_};
-            if (shouldForwardToTx(context, requiredCondition_))
+            try
             {
-                forwardToTx(context);
-                return;
-            }
+                if (shouldForwardToTx(context, requiredCondition_))
+                {
+                    forwardToTx(context);
+                    return;
+                }
 
-            // Make sure we can currently handle the rpc
-            error_code_i conditionMetRes =
-                RPC::conditionMet(requiredCondition_, context);
+                // Make sure we can currently handle the rpc
+                error_code_i conditionMetRes =
+                    RPC::conditionMet(requiredCondition_, context);
 
-            if (conditionMetRes != rpcSUCCESS)
-            {
-                RPC::ErrorInfo errorInfo = RPC::get_error_info(conditionMetRes);
-                grpc::Status status{
-                    grpc::StatusCode::FAILED_PRECONDITION,
-                    errorInfo.message.c_str()};
-                responder_.FinishWithError(status, this);
-            }
-            else
-            {
-                try
+                if (conditionMetRes != rpcSUCCESS)
+                {
+                    RPC::ErrorInfo errorInfo =
+                        RPC::get_error_info(conditionMetRes);
+                    grpc::Status status{grpc::StatusCode::FAILED_PRECONDITION,
+                                        errorInfo.message.c_str()};
+                    responder_.FinishWithError(status, this);
+                }
+                else
                 {
                     std::pair<Response, grpc::Status> result =
                         handler_(context);
                     responder_.Finish(result.first, result.second, this);
                 }
-                catch (ReportingShouldProxy& e)
-                {
-                    forwardToTx(context);
-                    return;
-                }
+            }
+            catch (ReportingShouldProxy& e)
+            {
+                forwardToTx(context);
+                return;
             }
         }
     }

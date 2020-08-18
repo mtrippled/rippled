@@ -195,11 +195,6 @@ callMethod(
         perfLog.rpcFinish(name, curId);
         return ret;
     }
-    catch (ReportingShouldProxy& e)
-    {
-        result = forwardToTx(context);
-        return rpcSUCCESS;
-    }
     catch (std::exception& e)
     {
         perfLog.rpcError(name, curId);
@@ -238,45 +233,55 @@ injectReportingWarning(RPC::JsonContext& context, Json::Value& result)
 Status
 doCommand(RPC::JsonContext& context, Json::Value& result)
 {
-    if (shouldForwardToTx(context))
+    try
+    {
+        if (shouldForwardToTx(context))
+        {
+            result = forwardToTx(context);
+            injectReportingWarning(context, result);
+            // this return value is ignored
+            return rpcSUCCESS;
+        }
+        Handler const* handler = nullptr;
+        if (auto error = fillHandler(context, handler))
+        {
+            inject_error(error, result);
+            return error;
+        }
+
+        if (auto method = handler->valueMethod_)
+        {
+            if (!context.headers.user.empty() ||
+                !context.headers.forwardedFor.empty())
+            {
+                JLOG(context.j.debug())
+                    << "start command: " << handler->name_
+                    << ", user: " << context.headers.user
+                    << ", forwarded for: " << context.headers.forwardedFor;
+
+                auto ret = callMethod(context, method, handler->name_, result);
+
+                JLOG(context.j.debug())
+                    << "finish command: " << handler->name_
+                    << ", user: " << context.headers.user
+                    << ", forwarded for: " << context.headers.forwardedFor;
+
+                return ret;
+            }
+            else
+            {
+                auto ret = callMethod(context, method, handler->name_, result);
+                injectReportingWarning(context, result);
+                return ret;
+            }
+        }
+    }
+    catch (ReportingShouldProxy& e)
     {
         result = forwardToTx(context);
         injectReportingWarning(context, result);
         // this return value is ignored
         return rpcSUCCESS;
-    }
-    Handler const * handler = nullptr;
-    if (auto error = fillHandler (context, handler))
-    {
-        inject_error(error, result);
-        return error;
-    }
-
-    if (auto method = handler->valueMethod_)
-    {
-        if (!context.headers.user.empty() ||
-            !context.headers.forwardedFor.empty())
-        {
-            JLOG(context.j.debug())
-                << "start command: " << handler->name_
-                << ", user: " << context.headers.user
-                << ", forwarded for: " << context.headers.forwardedFor;
-
-            auto ret = callMethod (context, method, handler->name_, result);
-
-            JLOG(context.j.debug())
-                << "finish command: " << handler->name_
-                << ", user: " << context.headers.user
-                << ", forwarded for: " << context.headers.forwardedFor;
-
-            return ret;
-        }
-        else
-        {
-            auto ret = callMethod(context, method, handler->name_, result);
-            injectReportingWarning(context, result);
-            return ret;
-        }
     }
 
     return rpcUNKNOWN_COMMAND;
