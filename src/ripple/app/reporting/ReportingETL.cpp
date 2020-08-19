@@ -86,7 +86,7 @@ ReportingETL::insertTransactions(
             << "Inserting transaction = " << sttx.getTransactionID();
         ledger->rawTxInsert(
             sttx.getTransactionID(), txSerializer, metaSerializer);
-        accountTxData.emplace_back(txMeta, journal_);
+        accountTxData.emplace_back(txMeta, raw, txn.metadata_blob(), journal_);
     }
     return accountTxData;
 }

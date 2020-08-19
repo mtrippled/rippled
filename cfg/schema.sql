@@ -33,11 +33,15 @@ SET default_with_oids = false;
 CREATE TABLE public.transactions (
     ledger_seq bigint NOT NULL,
     transaction_index bigint NOT NULL,
-    trans_id bytea NOT NULL
+    trans_id bytea NOT NULL,
+    trans_raw bytea NOT NULL,
+    trans_meta bytea NOT NULL
 );
 
-ALTER TABLE public.transactions ADD CONSTRAINT transactions_pkey PRIMARY KEY (
-    ledger_seq, transaction_index);
+--ALTER TABLE public.transactions ADD CONSTRAINT transactions_pkey PRIMARY KEY (
+--    ledger_seq, transaction_index);
+CREATE UNIQUE INDEX transactions_key ON public.transactions
+    (ledger_seq DESC, transaction_index DESC);
 
 CREATE INDEX transactions_trans_id_idx ON public.transactions
     USING hash (trans_id);
@@ -53,7 +57,7 @@ CREATE TABLE public.account_transactions (
 --
 
 CREATE TABLE public.ledgers (
-    ledger_seq        bigint PRIMARY KEY,
+    ledger_seq        bigint NOT NULL,
     ledger_hash       bytea  NOT NULL,
     prev_hash         bytea  NOT NULL,
     total_coins       bigint NOT NULL,
@@ -65,6 +69,8 @@ CREATE TABLE public.ledgers (
     trans_set_hash    bytea  NOT NULL
 );
 
+CREATE UNIQUE INDEX ledgers_key ON public.ledgers (ledger_seq DESC);
+
 CREATE INDEX ledgers_ledger_hash_idx ON public.ledgers
     USING hash (ledger_hash);
 
@@ -73,9 +79,11 @@ CREATE INDEX ledgers_ledger_hash_idx ON public.ledgers
 -- Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.account_transactions
-    ADD CONSTRAINT account_transactions_pkey PRIMARY KEY (
-    account, ledger_seq, transaction_index);
+--ALTER TABLE ONLY public.account_transactions
+--    ADD CONSTRAINT account_transactions_pkey PRIMARY KEY (
+--    account, ledger_seq, transaction_index);
+CREATE UNIQUE INDEX account_transactions_key ON public.account_transactions
+    (account, ledger_seq DESC, transaction_index DESC);
 
 --
 -- Name: ledgers ledgers_hash_unique; Type: CONSTRAINT;
@@ -121,7 +129,7 @@ CREATE RULE account_transactions_update_protect AS ON UPDATE TO
 --
 
 CREATE INDEX fki_account_transactions_fkey ON public.account_transactions
-    USING btree (ledger_seq, transaction_index);
+    USING btree (ledger_seq DESC, transaction_index DESC);
 
 
 --

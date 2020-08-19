@@ -958,7 +958,9 @@ saveValidatedLedger(
                     acceptedLedgerTx->getAffected(),
                     seq,
                     acceptedLedgerTx->getTxnSeq(),
-                    transactionID));
+                    transactionID,
+                    acceptedLedgerTx->getTxn()->raw(),
+                    acceptedLedgerTx->rawMeta()));
             }
             writeToPostgres(
                 ledger->info(),

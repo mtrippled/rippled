@@ -88,6 +88,8 @@ DECLARE
 			             FOR SHARE);
     _max_seq           bigint := max_ledger();
     _ledger_seq        bigint;
+    _trans_raw         bytea;
+    _trans_meta        bytea;
 BEGIN
 
     IF _min_seq IS NULL THEN
@@ -98,15 +100,19 @@ BEGIN
             || to_char(length(_in_trans_id), '999'));
     END IF;
 
-    EXECUTE 'SELECT ledger_seq
+    EXECUTE 'SELECT ledger_seq, trans_raw, trans_meta
                FROM transactions
 	      WHERE trans_id = $1
                 AND ledger_seq BETWEEN $2 AND $3
-    ' INTO _ledger_seq USING _in_trans_id, _min_seq, _max_seq;
+    '  INTO _ledger_seq, _trans_raw, _trans_meta
+      USING _in_trans_id, _min_seq, _max_seq;
     IF _ledger_seq IS NULL THEN
         RETURN jsonb_build_object('min_seq', _min_seq, 'max_seq', _max_seq);
     END IF;
-    RETURN jsonb_build_object('ledger_seq', _ledger_seq);
+    RETURN jsonb_build_object(
+        'ledger_seq', _ledger_seq,
+        'trans_raw', _trans_raw,
+        'trans_meta', _trans_meta);
 END;
 $$ LANGUAGE plpgsql;
 
@@ -312,7 +318,8 @@ BEGIN
 
     _sql := format('
 	SELECT transactions.ledger_seq, transactions.transaction_index,
-	       transactions.trans_id
+	       transactions.trans_id, transactions.trans_raw,
+               transactions, trans_meta
 	  FROM transactions
                INNER JOIN account_transactions
                        ON transactions.ledger_seq =
@@ -356,7 +363,9 @@ BEGIN
         _transactions := _transactions || jsonb_build_object(
             'ledger_seq', _record.ledger_seq,
             'transaction_index', _record.transaction_index,
-            'trans_id', _record.trans_id);
+            'trans_id', _record.trans_id,
+            'trans_raw', _record.trans_raw,
+            'trans_meta', _record.trans_meta);
 
     END LOOP;
     CLOSE _cursor;

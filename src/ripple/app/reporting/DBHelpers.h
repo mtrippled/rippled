@@ -18,9 +18,12 @@
 //==============================================================================
 
 #include <ripple/app/reporting/ReportingETL.h>
+#include <ripple/basics/Blob.h>
 #include <ripple/basics/Log.h>
+#include <ripple/basics/strHex.h>
 #include <ripple/core/Pg.h>
 #include <boost/container/flat_set.hpp>
+#include <string>
 
 #ifndef RIPPLE_CORE_DBHELPERS_H_INCLUDED
 #define RIPPLE_CORE_DBHELPERS_H_INCLUDED
@@ -39,12 +42,19 @@ struct AccountTransactionsData
     uint32_t ledgerSequence;
     uint32_t transactionIndex;
     uint256 txHash;
+    std::string txHex;
+    std::string metaHex;
 
-    AccountTransactionsData(TxMeta& meta, beast::Journal& j)
+    AccountTransactionsData(TxMeta& meta,
+                            std::string const& txStr,
+                            std::string const& metaStr,
+                            beast::Journal& j)
         : accounts(meta.getAffectedAccounts(j))
         , ledgerSequence(meta.getLgrSeq())
         , transactionIndex(meta.getIndex())
         , txHash(meta.getTxID())
+        , txHex(strHex(txStr))
+        , metaHex(strHex(metaStr))
     {
     }
 
@@ -52,11 +62,15 @@ struct AccountTransactionsData
         boost::container::flat_set<AccountID> const& accts,
         std::uint32_t seq,
         std::uint32_t idx,
-        uint256 const& hash)
+        uint256 const& hash,
+        Blob const& rawTx,
+        Blob const& rawMeta)
         : accounts(accts)
         , ledgerSequence(seq)
         , transactionIndex(idx)
         , txHash(hash)
+        , txHex(strHex(rawTx))
+        , metaHex(strHex(rawMeta))
     {
     }
 };

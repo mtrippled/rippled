@@ -249,7 +249,10 @@ writeToPostgres(
 
             transactionsCopyBuffer << std::to_string(ledgerSeq) << '\t'
                                    << std::to_string(idx) << '\t' << "\\\\x"
-                                   << txHash << '\n';
+                                   << txHash
+                                   << '\t' << "\\\\x" << data.txHex
+                                   << '\t' << "\\\\x" << data.metaHex
+                                   << '\n';
 
             for (auto& a : data.accounts)
             {

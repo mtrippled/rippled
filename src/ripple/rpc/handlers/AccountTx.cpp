@@ -21,6 +21,7 @@
 #include <ripple/app/main/Application.h>
 #include <ripple/app/misc/NetworkOPs.h>
 #include <ripple/app/misc/Transaction.h>
+#include <ripple/basics/StringUtilities.h>
 #include <ripple/core/Pg.h>
 #include <ripple/json/json_reader.h>
 #include <ripple/json/json_value.h>
@@ -29,13 +30,14 @@
 #include <ripple/protocol/ErrorCodes.h>
 #include <ripple/protocol/UintTypes.h>
 #include <ripple/protocol/jss.h>
+#include <ripple/protocol/STTx.h>
 #include <ripple/resource/Fees.h>
 #include <ripple/rpc/Context.h>
 #include <ripple/rpc/DeliveredAmount.h>
 #include <ripple/rpc/Role.h>
 #include <ripple/rpc/impl/GRPCHelpers.h>
 #include <ripple/rpc/impl/RPCHelpers.h>
-
+#include <boost/optional.hpp>
 #include <grpcpp/grpcpp.h>
 
 namespace ripple {
@@ -301,6 +303,10 @@ processAccountTxStoredProcedureResult(
                 {
                     std::string idHex = t["trans_id"].asString();
                     idHex.erase(0, 2);
+                    std::string txHex = t["trans_raw"].asString();
+                    txHex.erase(0, 2);
+                    std::string metaHex = t["trans_meta"].asString();
+                    metaHex.erase(0, 2);
                     uint32_t ledgerSequence = t["ledger_seq"].asUInt();
                     if (RPC::isHexTxID(idHex))
                     {
@@ -318,6 +324,10 @@ processAccountTxStoredProcedureResult(
                         }
                         if (args.binary)
                         {
+                            blobs.push_back(std::make_tuple(
+                                *strUnHex(txHex),
+                                *strUnHex(metaHex),
+                                ledgerSequence));
                             auto const item = ledger->txMap().peekItem(txID);
                             JLOG(context.j.debug())
                                 << "doAccountTxStoredProcedure - "
@@ -350,11 +360,13 @@ processAccountTxStoredProcedureResult(
                                 continue;
                             }
 
-                            std::string reason;
-                            auto txnRet = std::make_shared<Transaction>(
-                                txn, reason, context.app);
+                            boost::optional<std::string> stat("V");
+                            auto txnRet = Transaction::transactionFromSQL(
+                                ledgerSequence, stat,
+                                *strUnHex(txHex), context.app);
                             auto txMeta = std::make_shared<TxMeta>(
-                                txID, ledgerSequence, *meta);
+                                         txID, ledgerSequence,
+                                         *strUnHex(metaHex));
                             transactions.push_back(
                                 std::make_pair(txnRet, txMeta));
                         }

@@ -163,6 +163,14 @@ public:
         char status,
         std::string const& escapedMetaData) const;
 
+    Blob
+    raw() const
+    {
+        Serializer s;
+        add(s);
+        return s.peekData();
+    }
+
 private:
     std::pair<bool, std::string>
     checkSingleSign(RequireFullyCanonicalSig requireCanonicalSig) const;
