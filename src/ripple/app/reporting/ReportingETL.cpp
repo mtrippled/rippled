@@ -154,7 +154,7 @@ ReportingETL::loadInitialLedger(uint32_t startingSequence)
     {
         //TODO handle write conflict
         flushLedger(ledger);
-        if (app_.config().usePostgresLedgerTx())
+        if (app_.config().reporting())
         {
             writeToPostgres(
                 ledger->info(),
@@ -613,7 +613,7 @@ ReportingETL::runETLPipeline(uint32_t startSequence)
                 // write to RDBMS
                 // if there is a write conflict, some other process has already
                 // written this ledger and has taken over as the ETL writer
-                if (app_.config().usePostgresLedgerTx())
+                if (app_.config().reporting())
                     if (!writeToPostgres(
                             ledger->info(),
                             accountTxData,
@@ -917,7 +917,7 @@ ReportingETL::ReportingETL(Application& app, Stoppable& parent)
                 checkConsistency_ = false;
             // if we are not using postgres in place of SQLite, we don't
             // check for consistency
-            if (!app_.config().usePostgresLedgerTx())
+            if (!app_.config().reporting())
                 checkConsistency_ = false;
         }
     }

@@ -36,7 +36,7 @@ namespace ripple {
 Json::Value
 doTxHistoryReporting(RPC::JsonContext& context)
 {
-    assert(context.app.config().usePostgresLedgerTx());
+    assert(context.app.config().reporting());
     context.loadType = Resource::feeMediumBurdenRPC;
 
     if (!context.params.isMember(jss::start))
@@ -115,7 +115,7 @@ doTxHistory(RPC::JsonContext& context)
     if (!context.app.config().useTxTables())
         return rpcError(rpcNOT_ENABLED);
 
-    if (context.app.config().usePostgresLedgerTx())
+    if (context.app.config().reporting())
         return doTxHistoryReporting(context);
     context.loadType = Resource::feeMediumBurdenRPC;
 
