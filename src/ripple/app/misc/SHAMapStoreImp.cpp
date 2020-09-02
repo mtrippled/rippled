@@ -313,7 +313,7 @@ SHAMapStoreImp::run()
     ledgerMaster_ = &app_.getLedgerMaster();
     fullBelowCache_ = &(*app_.getNodeFamily().getFullBelowCache(0));
     treeNodeCache_ = &(*app_.getNodeFamily().getTreeNodeCache(0));
-    if (!app_.config().usePostgresLedgerTx())
+    if (!app_.config().reporting())
     {
         transactionDb_ = &app_.getTxnDB();
         ledgerDb_ = &app_.getLedgerDB();
@@ -652,7 +652,7 @@ SHAMapStoreImp::clearPrior(LedgerIndex lastRotated)
     if (health())
         return;
 
-    if (app_.config().usePostgresLedgerTx())
+    if (app_.config().reporting())
     {
         assert(app_.pgPool());
         assert(!reportingReadOnly_);

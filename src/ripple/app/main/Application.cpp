@@ -79,6 +79,8 @@
 #include <iostream>
 #include <limits>
 #include <mutex>
+#include <utility>
+#include <variant>
 
 namespace ripple {
 
@@ -276,7 +278,7 @@ public:
 
         , m_txMaster(*this)
         , pgPool_(make_PgPool(
-              config_->usePostgresLedgerTx()
+              config_->reporting()
                   ? config_->section("ledger_tx_tables")
                   : Section(),
               logs_->journal("PgPool")))
@@ -887,7 +889,7 @@ public:
         try
         {
             auto setup = setup_DatabaseCon(*config_, m_journal);
-            if (!config_->usePostgresLedgerTx())
+            if (!config_->reporting())
             {
                 if (config_->useTxTables())
                 {
@@ -944,6 +946,10 @@ public:
                     boost::format("PRAGMA cache_size=-%d;") %
                     kilobytes(config_->getValueFor(SizedItem::lgrDBCache)));
             }
+            else if (!config_->reportingReadOnly()) // use pg
+            {
+                initSchema(pgPool_);
+            }
 
             // wallet database
             setup.useGlobalPragma = false;
@@ -956,7 +962,7 @@ public:
         catch (std::exception const& e)
         {
             JLOG(m_journal.fatal())
-                << "Failed to initialize SQLite databases: " << e.what();
+                << "Failed to initialize SQL databases: " << e.what();
             return false;
         }
 
@@ -1191,7 +1197,7 @@ public:
                 signalStop();
             }
 
-            if (!config_->usePostgresLedgerTx() && config_->useTxTables())
+            if (!config_->reporting() && config_->useTxTables())
             {
                 DatabaseCon::Setup dbSetup = setup_DatabaseCon(*config_);
                 boost::filesystem::path dbPath = dbSetup.dataDir / TxDBName;
@@ -1264,7 +1270,7 @@ public:
         m_acceptedLedgerCache.sweep();
         cachedSLEs_.expire();
 
-        if (config().usePostgresLedgerTx())
+        if (config().reporting())
             pgPool()->idleSweeper();
 
         // Set timer to do another sweep later.
@@ -2264,7 +2270,7 @@ ApplicationImp::validateShards()
 void
 ApplicationImp::setMaxDisallowedLedger()
 {
-    if (config().usePostgresLedgerTx())
+    if (config().reporting())
     {
         auto seq = PgQuery(pgPool()).query("SELECT max_ledger()");
         if (seq && !PQgetisnull(seq.get(), 0, 0))

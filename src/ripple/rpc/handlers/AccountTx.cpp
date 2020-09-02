@@ -533,7 +533,7 @@ std::pair<AccountTxResult, RPC::Status>
 doAccountTxHelp(RPC::Context& context, AccountTxArgs const& args)
 {
     context.loadType = Resource::feeMediumBurdenRPC;
-    if (context.app.config().usePostgresLedgerTx())
+    if (context.app.config().reporting())
         return doAccountTxStoredProcedure(args, context);
 
     AccountTxResult result;

@@ -276,6 +276,13 @@ public:
     pg_variant_type
     queryVariant(pg_params const& dbParams, std::shared_ptr<Pg>& conn);
 
+    pg_variant_type
+    queryVariant(pg_params const& dbParams)
+    {
+        auto conn = pool_->checkout();
+        return queryVariant(dbParams, conn);
+    }
+
     pg_result_type
     query(pg_params const& dbParams, std::shared_ptr<Pg>& conn)
     {
@@ -315,6 +322,9 @@ public:
 
 std::shared_ptr<PgPool> make_PgPool(Section const& network_db_config,
     beast::Journal const j);
+
+void
+initSchema(std::shared_ptr<PgPool> const& pool);
 
 } // ripple
 
