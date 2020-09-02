@@ -337,7 +337,6 @@ run(int argc, char** argv)
         "quorum",
         po::value<std::size_t>(),
         "Override the minimum validation quorum.")(
-        "reporting,r", "Run in reporting mode")(
         "reportingReadOnly", "Run in read-only reporting mode")(
         "silent", "No output to the console after startup.")(
         "standalone,a", "Run with no peers.")("verbose,v", "Verbose logging.")(
@@ -511,8 +510,7 @@ run(int argc, char** argv)
         configFile,
         bool(vm.count("quiet")),
         bool(vm.count("silent")),
-        bool(vm.count("standalone")),
-        bool(vm.count("reporting")));
+        bool(vm.count("standalone")));
 
     if (vm.count("vacuum"))
     {

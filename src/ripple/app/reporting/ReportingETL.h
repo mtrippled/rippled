@@ -315,8 +315,6 @@ public:
         return result;
     }
 
-    void
-    setup();
 
     // start all of the necessary components and begin ETL
     void
@@ -328,8 +326,6 @@ public:
         assert(app_.config().reportingReadOnly() == readOnly_);
 
         stopping_ = false;
-
-        setup();
 
         loadBalancer_.start();
         doWork();

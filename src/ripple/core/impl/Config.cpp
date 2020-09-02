@@ -197,13 +197,11 @@ void
 Config::setupControl(
     bool bQuiet,
     bool bSilent,
-    bool bStandalone,
-    bool bReporting)
+    bool bStandalone)
 {
     QUIET = bQuiet || bSilent;
     SILENT = bSilent;
-    RUN_STANDALONE = bStandalone || bReporting;
-    RUN_REPORTING = bReporting;
+    RUN_STANDALONE = bStandalone;
 }
 
 void
@@ -211,8 +209,7 @@ Config::setup(
     std::string const& strConf,
     bool bQuiet,
     bool bSilent,
-    bool bStandalone,
-    bool bReporting)
+    bool bStandalone)
 {
     boost::filesystem::path dataDir;
     std::string strDbPath, strConfFile;
@@ -223,7 +220,7 @@ Config::setup(
     // config directory and that with "db" as the data
     // directory.
 
-    setupControl(bQuiet, bSilent, bStandalone, bReporting);
+    setupControl(bQuiet, bSilent, bStandalone);
 
     strDbPath = databaseDirName;
 
@@ -288,6 +285,11 @@ Config::setup(
 
     // Update default values
     load();
+    if(exists("reporting"))
+    {
+        RUN_REPORTING = true;
+        RUN_STANDALONE = true;
+    }
     {
         // load() may have set a new value for the dataDir
         std::string const dbPath(legacy("database_path"));

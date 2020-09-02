@@ -724,11 +724,10 @@ ReportingETL::monitor()
     }
     else
     {
-        if (app_.config().START_UP == Config::FRESH)
+        if (startSequence_)
         {
             Throw<std::runtime_error>(
-                "--startReporting passed via command line but db is already "
-                "populated");
+                "start sequence specified but db is already populated");
         }
         JLOG(journal_.info()) << __func__ << " : "
             << "Database already populated. Picking up from the tip of history";
@@ -801,6 +800,7 @@ ReportingETL::monitor()
 void
 ReportingETL::monitorReadOnly()
 {
+    JLOG(journal_.debug()) << "Starting reporting in strict read only mode";
     std::optional<uint32_t> mostRecent =
         networkValidatedLedgers_.getMostRecent();
     if (!mostRecent)
@@ -827,14 +827,6 @@ ReportingETL::doWork()
     });
 }
 
-void
-ReportingETL::setup()
-{
-    if (app_.config().START_UP == Config::StartUpType::FRESH && !readOnly_)
-    {
-        startSequence_ = std::stol(app_.config().START_LEDGER);
-    }
-}
 
 ReportingETL::ReportingETL(Application& app, Stoppable& parent)
     : Stoppable("ReportingETL", parent)
@@ -881,11 +873,36 @@ ReportingETL::ReportingETL(Application& app, Stoppable& parent)
                 ipPair.first, wsPortPair.first, grpcPortPair.first);
         }
 
+        // this is true iff --reportingReadOnly was passed via command line
         readOnly_ = app_.config().reportingReadOnly();
 
-        // don't need to do any more work if we are in read only mode
-        if (readOnly_)
-            return;
+        // if --reportingReadOnly was not passed via command line, check config
+        // file. Command line takes precedence
+        if(!readOnly_)
+        {
+            std::pair<std::string, bool> ro = section.find("read_only");
+            if (ro.second)
+            {
+                readOnly_ = (ro.first == "true" || ro.first == "1");
+                app_.config().setReportingReadOnly(readOnly_);
+            }
+        }
+
+        // handle command line arguments
+        if (app_.config().START_UP == Config::StartUpType::FRESH && !readOnly_)
+        {
+            startSequence_ = std::stol(app_.config().START_LEDGER);
+        }
+        // if not passed via command line, check config for start sequence
+        if (!startSequence_)
+        {
+            std::pair<std::string, bool> start = section.find("start_sequence");
+            if (start.second)
+            {
+                startSequence_ = std::stoi(start.first);
+            }
+        }
+
 
         std::pair<std::string, bool> flushInterval =
             section.find("flush_interval");

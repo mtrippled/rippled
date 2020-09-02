@@ -627,14 +627,6 @@ public:
                 numFinished, numHashes));
             read(*cbs[i]);
         }
-        /*
-        for (size_t i = 0; i < n; ++i)
-        {
-            cbs[i] = std::make_shared<ReadCallbackData>(
-                *this, keys[i], results[i], cv, numFinished, n);
-            read(*cbs[i]);
-        }
-         */
         assert(results.size() == cbs.size());
 
         std::unique_lock<std::mutex> lck(mtx);

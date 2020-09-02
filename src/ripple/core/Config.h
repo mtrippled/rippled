@@ -202,14 +202,13 @@ public:
         std::string const& strConf,
         bool bQuiet,
         bool bSilent,
-        bool bStandalone,
-        bool bReporting = false);
+        bool bStandalone);
+
     void
     setupControl(
         bool bQuiet,
         bool bSilent,
-        bool bStandalone,
-        bool bReporting = false);
+        bool bStandalone);
 
     /**
      *  Load the config from the contents of the string.
