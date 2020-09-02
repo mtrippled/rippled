@@ -177,14 +177,15 @@ fillJsonTx(Object& json, LedgerFill const& fill)
 
     try
     {
-        if (fill.context && fill.context->app.config().usePostgresLedgerTx())
+        if (fill.context && fill.context->app.config().reporting())
         {
             std::vector<uint256> nodestoreHashes;
             std::vector<uint256> txIDs;
             std::vector<uint32_t> ledgerSequences;
             std::string query =
-                "select ledger_seq, trans_id, nodestore_hash from transactions "
-                "where ledger_seq = " +
+                "SELECT ledger_seq, trans_id, nodestore_hash"
+                "  FROM transactions"
+                " WHERE ledger_seq = " +
                 std::to_string(fill.ledger.info().seq);
             auto res = PgQuery(fill.context->app.pgPool()).query(query.c_str());
             assert(res);

@@ -73,7 +73,7 @@ getCountsJson(Application& app, int minObjectCount)
         ret[k] = v;
     }
 
-    if (!app.config().usePostgresLedgerTx() && app.config().useTxTables())
+    if (!app.config().reporting() && app.config().useTxTables())
     {
         int dbKB = getKBUsedAll(app.getLedgerDB().getSession());
 

@@ -101,7 +101,7 @@ struct TxArgs
 std::pair<TxResult, RPC::Status>
 doTxReporting(RPC::Context& context, TxArgs const& args)
 {
-    assert(context.app.config().usePostgresLedgerTx());
+    assert(context.app.config().reporting());
     TxResult res;
     res.searchedAll = SearchedAll::unknown;
 
@@ -206,7 +206,7 @@ doTxReporting(RPC::Context& context, TxArgs const& args)
 std::pair<TxResult, RPC::Status>
 doTxHelp(RPC::Context& context, TxArgs const& args)
 {
-    if (context.app.config().usePostgresLedgerTx())
+    if (context.app.config().reporting())
         return doTxReporting(context, args);
     TxResult result;
 

@@ -104,8 +104,6 @@ private:
 
     bool RUN_REPORTING = false;
 
-    bool USE_POSTGRES_LEDGER_TX = false;
-
     bool REPORTING_READ_ONLY = false;
 
     bool USE_TX_TABLES = true;
@@ -240,12 +238,6 @@ public:
     reporting() const
     {
         return RUN_REPORTING;
-    }
-
-    bool
-    usePostgresLedgerTx() const
-    {
-        return USE_POSTGRES_LEDGER_TX;
     }
 
     bool
