@@ -30,30 +30,38 @@ SET default_with_oids = false;
 -- Name: account_transactions; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.transactions (
+CREATE TABLE IF NOT EXISTS public.transactions (
     ledger_seq bigint NOT NULL,
     transaction_index bigint NOT NULL,
     trans_id bytea NOT NULL,
-    nodestore_hash bytea NOT NULL
+    nodestore_hash bytea NOT NULL,
+    constraint transactions_pkey PRIMARY KEY (ledger_seq, transaction_index),
+    constraint transactions_fkey FOREIGN KEY (ledger_seq)
+        REFERENCES public.transactions (ledger_seq) ON DELETE CASCADE
 );
 
-ALTER TABLE public.transactions ADD CONSTRAINT transactions_pkey PRIMARY KEY (
-    ledger_seq, transaction_index);
+--ALTER TABLE public.transactions ADD CONSTRAINT transactions_pkey PRIMARY KEY (
+--    ledger_seq, transaction_index);
 
-CREATE INDEX transactions_trans_id_idx ON public.transactions
+CREATE INDEX IF NOT EXISTS transactions_trans_id_idx ON public.transactions
     USING hash (trans_id);
 
-CREATE TABLE public.account_transactions (
+CREATE TABLE IF NOT EXISTS public.account_transactions (
     account           bytea  NOT NULL,
     ledger_seq        bigint NOT NULL,
-    transaction_index bigint NOT NULL
+    transaction_index bigint NOT NULL,
+    constraint account_transactions_pkey PRIMARY KEY (account, ledger_seq,
+        transaction_index),
+    constraint account_transactions_fkey FOREIGN KEY (ledger_seq,
+        transaction_index) REFERENCES public.account_transactions (
+        ledger_seq, transaction_index) ON DELETE CASCADE
 );
 
 --
 -- Name: ledgers; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.ledgers (
+CREATE TABLE IF NOT EXISTS public.ledgers (
     ledger_seq        bigint PRIMARY KEY,
     ledger_hash       bytea  NOT NULL,
     prev_hash         bytea  NOT NULL,
@@ -66,7 +74,7 @@ CREATE TABLE public.ledgers (
     trans_set_hash    bytea  NOT NULL
 );
 
-CREATE INDEX ledgers_ledger_hash_idx ON public.ledgers
+CREATE INDEX IF NOT EXISTS ledgers_ledger_hash_idx ON public.ledgers
     USING hash (ledger_hash);
 
 --
@@ -74,9 +82,9 @@ CREATE INDEX ledgers_ledger_hash_idx ON public.ledgers
 -- Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.account_transactions
-    ADD CONSTRAINT account_transactions_pkey PRIMARY KEY (
-    account, ledger_seq, transaction_index);
+--ALTER TABLE ONLY public.account_transactions
+--    ADD CONSTRAINT account_transactions_pkey PRIMARY KEY (
+--    account, ledger_seq, transaction_index);
 
 --
 -- Name: ledgers ledgers_hash_unique; Type: CONSTRAINT;
@@ -96,13 +104,13 @@ ALTER TABLE ONLY public.account_transactions
 --ALTER TABLE ONLY public.ledgers
 --    ADD CONSTRAINT ledgers_pkey PRIMARY KEY (ledger_seq);
 
-CREATE RULE ledgers_update_protect AS ON UPDATE TO
+CREATE OR REPLACE RULE ledgers_update_protect AS ON UPDATE TO
     public.ledgers DO INSTEAD NOTHING;
 
-CREATE RULE transactions_update_protect AS ON UPDATE TO
+CREATE OR REPLACE RULE transactions_update_protect AS ON UPDATE TO
     public.transactions DO INSTEAD NOTHING;
 
-CREATE RULE account_transactions_update_protect AS ON UPDATE TO
+CREATE OR REPLACE RULE account_transactions_update_protect AS ON UPDATE TO
     public.account_transactions DO INSTEAD NOTHING;
 
 --
@@ -121,8 +129,8 @@ CREATE RULE account_transactions_update_protect AS ON UPDATE TO
 -- Name: fki_account_transactions_fkey; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX fki_account_transactions_fkey ON public.account_transactions
-    USING btree (ledger_seq, transaction_index);
+CREATE INDEX IF NOT EXISTS fki_account_transactions_idx ON
+    public.account_transactions USING btree (ledger_seq, transaction_index);
 
 
 --
@@ -151,14 +159,14 @@ CREATE INDEX fki_account_transactions_fkey ON public.account_transactions
 -- Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.transactions
-    ADD CONSTRAINT transactions_fkey FOREIGN KEY (ledger_seq)
-    REFERENCES public.ledgers(ledger_seq)
-    ON DELETE CASCADE;
+--ALTER TABLE ONLY public.transactions
+--    ADD CONSTRAINT transactions_fkey FOREIGN KEY (ledger_seq)
+--    REFERENCES public.ledgers(ledger_seq)
+--    ON DELETE CASCADE;
 
-ALTER TABLE ONLY public.account_transactions
-    ADD CONSTRAINT account_transactions_fkey FOREIGN KEY (
-        ledger_seq, transaction_index)
-    REFERENCES public.transactions(ledger_seq, transaction_index)
-    ON DELETE CASCADE;
+--ALTER TABLE ONLY public.account_transactions
+--    ADD CONSTRAINT account_transactions_fkey FOREIGN KEY (
+--        ledger_seq, transaction_index)
+--    REFERENCES public.transactions(ledger_seq, transaction_index)
+--    ON DELETE CASCADE;
 

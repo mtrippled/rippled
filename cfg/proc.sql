@@ -54,7 +54,6 @@ BEGIN
 END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS errors_label_idx on errors (label);
-VACUUM ANALYZE errors;
 
 -- Return json error object based on error type.
 CREATE OR REPLACE FUNCTION return_error (
@@ -192,7 +191,7 @@ $$ LANGUAGE plpgsql;
  * For _in_ledger_index_min and _in_ledger_index_max, if passed in the
  * request, verify that their type is int and pass through as is.
  * For _ledger_hash, verify and convert from hex length 32 bytes and
- * prepend with \x ("\\x" C++).
+ * prepend with \x (\\x C++).
  *
  * For _in_ledger_index, if the input type is integer, then pass through
  * as is. If the type is string and contents = validated, then do not
@@ -203,12 +202,12 @@ $$ LANGUAGE plpgsql;
  * things, including error responses if bad input. Only the above must
  * be done to set the correct search range.
  *
- * If a marker is present in the request, verify the members "ledger"
- * and "seq" are integers and they correspond to _in_marker_seq
+ * If a marker is present in the request, verify the members 'ledger'
+ * and 'seq' are integers and they correspond to _in_marker_seq
  * _in_marker_index.
  * To reiterate:
- * JSON input field "ledger" corresponds to _in_marker_seq
- * JSON input field "seq" corresponds to _in_marker_index
+ * JSON input field 'ledger' corresponds to _in_marker_seq
+ * JSON input field 'seq' corresponds to _in_marker_index
  */
 
 CREATE OR REPLACE FUNCTION account_tx (
@@ -593,19 +592,28 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS ancestry_trigger ON ledgers;
-CREATE TRIGGER ancestry_trigger BEFORE INSERT ON ledgers
+DROP TRIGGER IF EXISTS ancestry_insert_trigger ON ledgers;
+CREATE TRIGGER ancestry_insert_trigger BEFORE INSERT ON ledgers
     FOR EACH ROW EXECUTE PROCEDURE insert_ancestry();
 
--- Function to delete old data. All data belonging to ledgers prior to the
--- _in_seq parameter will be deleted.
-CREATE OR REPLACE FUNCTION truncate_ledgers (
-    _in_seq bigint
-) RETURNS void AS $$
+CREATE OR REPLACE FUNCTION delete_ancestry () RETURNS TRIGGER AS $$
 BEGIN
-    DELETE FROM LEDGERS WHERE ledger_seq < _in_seq;
+    IF EXISTS (SELECT 1
+	         FROM ledgers
+                WHERE ledger_seq = OLD.ledger_seq + 1)
+            AND EXISTS (SELECT 1
+                          FROM ledgers
+                         WHERE ledger_seq = OLD.ledger_seq - 1) THEN
+        RAISE 'Ledger Ancestry error: Can only delete the least or greatest '
+	      'ledger.';
+    END IF;
+    RETURN OLD;
 END;
 $$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS ancestry_delete_trigger ON ledgers;
+CREATE TRIGGER ancestry_delete_trigger BEFORE DELETE ON ledgers
+    FOR EACH ROW EXECUTE PROCEDURE delete_ancestry();
 
 -- Track the minimum sequence that should be used for ranged queries
 -- with protection against deletion during the query. This should
@@ -614,21 +622,6 @@ $$ LANGUAGE plpgsql;
 CREATE TABLE IF NOT EXISTS min_seq (
     ledger_seq bigint NOT NULL
 );
-
--- Trigger to replace existing upon insert to min_seq table.
--- Ensures only 1 row in that table.
-CREATE OR REPLACE FUNCTION delete_min_seq() RETURNS TRIGGER AS $$
-BEGIN
-    IF EXISTS (SELECT 1 FROM min_seq) THEN
-        DELETE FROM min_seq;
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS min_seq_trigger ON min_seq;
-CREATE TRIGGER min_seq_trigger BEFORE INSERT ON min_seq
-    FOR EACH ROW EXECUTE PROCEDURE delete_min_seq();
 
 -- Set the minimum sequence for use in ranged queries with protection
 -- against deletion greater than or equal to the input parameter. This
@@ -641,6 +634,9 @@ CREATE OR REPLACE FUNCTION prepare_delete (
     _in_last_rotated bigint
 ) RETURNS void AS $$
 BEGIN
+    IF EXISTS (SELECT 1 FROM min_seq) THEN
+        DELETE FROM min_seq;
+    END IF;
     INSERT INTO min_seq VALUES (_in_last_rotated + 1);
 END;
 $$ LANGUAGE plpgsql;
@@ -657,9 +653,24 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION delete_above (
+    _in_seq bigint
+) RETURNS void AS $$
+DECLARE
+    _max_seq bigint := max_ledger();
+    _i bigint := _max_seq;
+BEGIN
+    IF _max_seq IS NULL THEN RETURN; END IF;
+    LOOP
+	IF _i <= _in_seq THEN RETURN; END IF;
+        EXECUTE 'DELETE FROM ledgers WHERE ledger_seq = $1' USING _i;
+	_i := _i - 1;
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;
 
 -- Verify correct ancestry of ledgers in database:
--- Database to persist last-confirmed latest ledger with proper ancestry.
+-- Table to persist last-confirmed latest ledger with proper ancestry.
 CREATE TABLE IF NOT EXISTS ancestry_verified (
     ledger_seq bigint NOT NULL
 );
@@ -695,7 +706,7 @@ CREATE OR REPLACE FUNCTION check_ancestry (
     _in_persist bool = FALSE,
     _in_min      bigint = NULL,
     _in_max      bigint = NULL
-) RETURNS void AS $$
+) RETURNS bigint AS $$
 DECLARE
     _min                 bigint;
     _max                 bigint;
@@ -744,6 +755,7 @@ BEGIN
         IF _parent IS NOT NULL THEN
             IF _current.prev_hash != _parent.ledger_hash THEN
                 CLOSE _cursor;
+                RETURN _current.ledger_seq;
                 RAISE 'Ledger ancestry failure current, parent:% %',
                     _current, _parent;
             END IF;
@@ -755,6 +767,8 @@ BEGIN
     IF _in_persist IS TRUE AND _parent IS NOT NULL THEN
         INSERT INTO ancestry_verified VALUES (_parent.ledger_seq);
     END IF;
+
+    RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -781,6 +795,54 @@ BEGIN
     IF _min IS NULL THEN RETURN 'empty'; END IF;
     IF _min = _max THEN RETURN _min; END IF;
     RETURN _min || '-' || _max;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TABLE IF NOT EXISTS version (version int NOT NULL);
+
+CREATE OR REPLACE FUNCTION schema_version (
+    _in_version int = NULL
+) RETURNS int AS $$
+DECLARE
+    _current_version int;
+BEGIN
+    IF _in_version IS NULL THEN
+        RETURN (SELECT version FROM version LIMIT 1);
+    END IF;
+    IF EXISTS (SELECT 1 FROM version) THEN DELETE FROM version; END IF;
+    INSERT INTO version VALUES (_in_version);
+    RETURN _in_version;
+END;
+$$ LANGUAGE plpgsql;
+
+--DROP TYPE IF EXISTS mode_enum;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'mode_enum') THEN
+        CREATE TYPE mode_enum AS ENUM ('tx', 'reporting');
+    END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS mode (mode mode_enum NOT NULL);
+
+CREATE OR REPLACE FUNCTION set_mode (
+    _in_mode mode_enum
+) RETURNS bigint AS $$
+DECLARE
+    _current_mode mode_enum := (SELECT mode FROM mode LIMIT 1);
+    _ancestry bigint;
+BEGIN
+    IF _in_mode = _current_mode THEN RETURN NULL; END IF;
+
+    IF _in_mode = 'reporting' and _current_mode = 'tx' THEN
+        _ancestry := check_ancestry(FALSE);
+	IF _ancestry IS NOT NULL THEN RETURN _ancestry; END IF;
+    END IF;
+
+    DELETE FROM mode;
+    INSERT INTO mode VALUES (_in_mode);
+    RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
 
