@@ -150,7 +150,7 @@ ReportingETL::loadInitialLedger(uint32_t startingSequence)
     // TODO handle case when there is a network error (other side dies)
     // Shouldn't try to flush in that scenario
     // Retry? Or just die?
-    if (not stopping_)
+    if (!stopping_)
     {
         //TODO handle write conflict
         flushLedger(ledger);
@@ -272,7 +272,7 @@ ReportingETL::publishLedger(std::shared_ptr<Ledger>& ledger)
 {
     app_.getOPs().pubLedger(ledger);
 
-    lastPublish_ = std::chrono::system_clock::now();
+    setLastPublish();
 }
 
 bool
@@ -330,12 +330,13 @@ ReportingETL::publishLedger(uint32_t ledgerSequence, uint32_t maxAttempts)
             continue;
         }
 
-        publishStrand_.post(
-            [this, ledger]() { app_.getOPs().pubLedger(ledger); });
-        lastPublish_ = std::chrono::system_clock::now();
-        JLOG(journal_.info())
-            << __func__ << " : "
-            << "Published ledger. " << toString(ledger->info());
+        publishStrand_.post([this, ledger]() {
+            app_.getOPs().pubLedger(ledger);
+            setLastPublish();
+            JLOG(journal_.info())
+                << __func__ << " : "
+                << "Published ledger. " << toString(ledger->info());
+        });
         return true;
     }
     return false;
@@ -349,13 +350,11 @@ ReportingETL::fetchLedgerData(uint32_t idx)
                            << "Attempting to fetch ledger with sequence = "
                            << idx;
 
-    org::xrpl::rpc::v1::GetLedgerResponse response;
-    auto res = loadBalancer_.fetchLedger(response, idx, false);
+    std::optional<org::xrpl::rpc::v1::GetLedgerResponse> response =
+        loadBalancer_.fetchLedger(idx, false);
     JLOG(journal_.trace()) << __func__ << " : "
-                           << "GetLedger reply = " << response.DebugString();
-    if (!res)
-        return {};
-    return {std::move(response)};
+                           << "GetLedger reply = " << response->DebugString();
+    return response;
 }
 
 std::optional<org::xrpl::rpc::v1::GetLedgerResponse>
@@ -365,13 +364,11 @@ ReportingETL::fetchLedgerDataAndDiff(uint32_t idx)
                            << "Attempting to fetch ledger with sequence = "
                            << idx;
 
-    org::xrpl::rpc::v1::GetLedgerResponse response;
-    auto res = loadBalancer_.fetchLedger(response, idx, true);
+    std::optional<org::xrpl::rpc::v1::GetLedgerResponse> response =
+        loadBalancer_.fetchLedger(idx, true);
     JLOG(journal_.trace()) << __func__ << " : "
-                           << "GetLedger reply = " << response.DebugString();
-    if (!res)
-        return {};
-    return {std::move(response)};
+                           << "GetLedger reply = " << response->DebugString();
+    return response;
 }
 
 std::pair<std::shared_ptr<Ledger>, std::vector<AccountTransactionsData>>
@@ -473,16 +470,17 @@ ReportingETL::runETLPipeline(uint32_t startSequence)
      * if the load thread encounters a write conflict. In this case, the load
      * thread sets writeConflict, an atomic bool, to true, which signals the
      * other threads to stop. The second termination condition is when the
-     * entire server is shutting down, which is detected in one of two ways:
-     * either the networkValidatedLedgers_.waitUntilValidatedByNetwork returns
-     * false, signaling the wait was aborted. Or fetchLedgerDataAndDiff returns
-     * an empty optional, signaling the fetch was aborted. In both cases, the
-     * extract thread detects this condition, and pushes an empty optional onto
-     * the transform queue. The transform thread, upon popping an empty
-     * optional, pushes an empty optional onto the load queue, and then returns.
-     * The load thread, upon popping an empty optional, returns. Note however,
-     * each thread will first process any data pushed prior to the empty
-     * optional before returning.
+     * entire server is shutting down, which is detected in one of three ways:
+     * 1. isStopping() returns true if the server is shutting down
+     * 2. networkValidatedLedgers_.waitUntilValidatedByNetwork returns
+     * false, signaling the wait was aborted.
+     * 3. fetchLedgerDataAndDiff returns an empty optional, signaling the fetch
+     * was aborted.
+     * In all cases, the extract thread detects this condition,
+     * and pushes an empty optional onto the transform queue. The transform
+     * thread, upon popping an empty optional, pushes an empty optional onto the
+     * load queue, and then returns. The load thread, upon popping an empty
+     * optional, returns.
      */
 
     JLOG(journal_.debug()) << __func__ << " : "
@@ -493,6 +491,7 @@ ReportingETL::runETLPipeline(uint32_t startSequence)
             app_.getLedgerMaster().getLedgerBySeq(startSequence-1));
     if(!parent)
     {
+        assert(false);
         Throw<std::runtime_error>("runETLPipeline: parent ledger is null");
     }
 
@@ -511,8 +510,9 @@ ReportingETL::runETLPipeline(uint32_t startSequence)
             // there are two stopping conditions here.
             // First, if there is a write conflict in the load thread, the ETL
             // mechanism should stop.
-            // Second, if the entire server is shutting down,
-            // waitUntilValidatedByNetwork() is going to return false.
+            // The other stopping condition is if the entire server is shutting
+            // down. This can be detected in a variety of ways. See the comment
+            // at the top of the function
             while (networkValidatedLedgers_.waitUntilValidatedByNetwork(
                        currentSequence) &&
                    !writeConflict && !isStopping())
@@ -531,8 +531,11 @@ ReportingETL::runETLPipeline(uint32_t startSequence)
                                        << " . Extract phase tps = " << tps;
                 // if the fetch is unsuccessful, stop. fetchLedger only returns
                 // false if the server is shutting down, or if the ledger was
-                // found in the database. otherwise, fetchLedger will continue
-                // trying to fetch the specified ledger until successful
+                // found in the database (which means another process already
+                // wrote the ledger that this process was trying to extract;
+                // this is a form of a write conflict). Otherwise,
+                // fetchLedgerDataAndDiff will keep trying to fetch the
+                // specified ledger until successful
                 if (!fetchResponse)
                 {
                     break;
@@ -571,8 +574,13 @@ ReportingETL::runETLPipeline(uint32_t startSequence)
             if (isStopping())
                 continue;
 
+            auto start = std::chrono::system_clock::now();
             auto [next, accountTxData] =
                 buildNextLedger(parent, *fetchResponse);
+            auto end = std::chrono::system_clock::now();
+
+            auto duration = ((end - start).count()) / 1000000000.0;
+            JLOG(journal_.debug()) << "transform time = " << duration;
             // The below line needs to execute before pushing to the queue, in
             // order to prevent this thread and the loader thread from accessing
             // the same SHAMap concurrently
@@ -627,8 +635,6 @@ ReportingETL::runETLPipeline(uint32_t startSequence)
                 // still publish even if we are relinquishing ETL control
                 publishLedger(ledger);
                 lastPublishedSequence = ledger->info().seq;
-                if (checkConsistency_)
-                    assert(checkConsistency(app_.pgPool(), journal_));
 
                 // print some performance numbers
                 auto kvTime = ((mid - start).count()) / 1000000000.0;
@@ -828,11 +834,6 @@ ReportingETL::setup()
     {
         startSequence_ = std::stol(app_.config().START_LEDGER);
     }
-    else if (!readOnly_)
-    {
-        if (checkConsistency_)
-            assert(checkConsistency(app_.pgPool(), journal_));
-    }
 }
 
 ReportingETL::ReportingETL(Application& app, Stoppable& parent)
@@ -897,29 +898,6 @@ ReportingETL::ReportingETL(Application& app, Stoppable& parent)
         if (numMarkers.second)
             numMarkers_ = std::stoi(numMarkers.first);
 
-        std::pair<std::string, bool> checkConsistency =
-            section.find("check_consistency");
-        if (checkConsistency.second)
-        {
-            checkConsistency_ = (checkConsistency.first == "true");
-        }
-
-        if (checkConsistency_)
-        {
-            Section nodeDb = app_.config().section("node_db");
-
-            std::pair<std::string, bool> postgresNodestore =
-                nodeDb.find("type");
-            // if the node_db is not using Postgres, we don't check for
-            // consistency
-            if (!postgresNodestore.second ||
-                !boost::beast::iequals(postgresNodestore.first, "Postgres"))
-                checkConsistency_ = false;
-            // if we are not using postgres in place of SQLite, we don't
-            // check for consistency
-            if (!app_.config().usePostgresLedgerTx())
-                checkConsistency_ = false;
-        }
     }
 }
 

@@ -20,7 +20,7 @@
 #include <ripple/app/ledger/LedgerMaster.h>
 #include <ripple/app/main/Application.h>
 #include <ripple/app/misc/NetworkOPs.h>
-#include <ripple/app/reporting/TxProxy.h>
+#include <ripple/app/reporting/P2pProxy.h>
 #include <ripple/basics/Log.h>
 #include <ripple/basics/PerfLog.h>
 #include <ripple/basics/contract.h>
@@ -203,7 +203,7 @@ callMethod(
     }
     catch (ReportingShouldProxy& e)
     {
-        result = forwardToTx(context);
+        result = forwardToP2p(context);
         return rpcSUCCESS;
     }
     catch (std::exception& e)
@@ -244,9 +244,9 @@ injectReportingWarning(RPC::JsonContext& context, Json::Value& result)
 Status
 doCommand(RPC::JsonContext& context, Json::Value& result)
 {
-    if (shouldForwardToTx(context))
+    if (shouldForwardToP2p(context))
     {
-        result = forwardToTx(context);
+        result = forwardToP2p(context);
         injectReportingWarning(context, result);
         // this return value is ignored
         return rpcSUCCESS;

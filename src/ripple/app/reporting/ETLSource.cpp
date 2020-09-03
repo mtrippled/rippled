@@ -345,7 +345,7 @@ ETLSource::handleMessage()
         {
             if (response.isMember(jss::transaction))
             {
-                if (etl_.getLoadBalancer().shouldPropagateTxnStream(this))
+                if (etl_.getETLLoadBalancer().shouldPropagateTxnStream(this))
                 {
                     etl_.getApplication().getOPs().forwardProposedTransaction(
                         response);
@@ -581,14 +581,13 @@ ETLSource::loadInitialLedger(
     return !abort;
 }
 
-grpc::Status
-ETLSource::fetchLedger(
-    org::xrpl::rpc::v1::GetLedgerResponse& out,
-    uint32_t ledgerSequence,
-    bool getObjects)
+std::pair<grpc::Status, org::xrpl::rpc::v1::GetLedgerResponse>
+ETLSource::fetchLedger(uint32_t ledgerSequence, bool getObjects)
 {
+
+    org::xrpl::rpc::v1::GetLedgerResponse response;
     if (!stub_)
-        return {grpc::StatusCode::INTERNAL, "No Stub"};
+        return {{grpc::StatusCode::INTERNAL, "No Stub"}, response};
 
     // ledger header with txns and metadata
     org::xrpl::rpc::v1::GetLedgerRequest request;
@@ -597,7 +596,8 @@ ETLSource::fetchLedger(
     request.set_transactions(true);
     request.set_expand(true);
     request.set_get_objects(getObjects);
-    return stub_->GetLedger(&context, request, &out);
+    grpc::Status status = stub_->GetLedger(&context, request, &response);
+    return {status, std::move(response)};
 }
 
 ETLLoadBalancer::ETLLoadBalancer(ReportingETL& etl)
@@ -648,17 +648,18 @@ ETLLoadBalancer::loadInitialLedger(
         sequence);
 }
 
-bool
+std::optional<org::xrpl::rpc::v1::GetLedgerResponse>
 ETLLoadBalancer::fetchLedger(
-    org::xrpl::rpc::v1::GetLedgerResponse& out,
     uint32_t ledgerSequence,
     bool getObjects)
 {
-    return execute(
-        [&out, ledgerSequence, getObjects, this](auto& source) {
-            grpc::Status status =
-                source->fetchLedger(out, ledgerSequence, getObjects);
-            if (status.ok() and out.validated())
+   org::xrpl::rpc::v1::GetLedgerResponse response;
+   bool success = execute(
+        [&response, ledgerSequence, getObjects, this](auto& source) {
+           auto [status, data] =
+                source->fetchLedger(ledgerSequence, getObjects);
+                response = std::move(data);
+            if (status.ok() and response.validated())
             {
                 JLOG(journal_.info())
                     << "Successfully fetched ledger = " << ledgerSequence
@@ -669,7 +670,7 @@ ETLLoadBalancer::fetchLedger(
             {
                 JLOG(journal_.warn())
                     << "Error getting ledger = " << ledgerSequence
-                    << " Reply : " << out.DebugString()
+                    << " Reply : " << response.DebugString()
                     << " error_code : " << status.error_code()
                     << " error_msg : " << status.error_message()
                     << " source = " << source->toString();
@@ -677,10 +678,14 @@ ETLLoadBalancer::fetchLedger(
             }
         },
         ledgerSequence);
+   if(success)
+       return response;
+   else
+       return {};
 }
 
 std::unique_ptr<org::xrpl::rpc::v1::XRPLedgerAPIService::Stub>
-ETLLoadBalancer::getForwardingStub(RPC::Context& context)
+ETLLoadBalancer::getP2pForwardingStub(RPC::Context& context)
 {
     if (sources_.size() == 0)
         return nullptr;
@@ -689,7 +694,7 @@ ETLLoadBalancer::getForwardingStub(RPC::Context& context)
     auto numAttempts = 0;
     while (numAttempts < sources_.size())
     {
-        auto stub = sources_[sourceIdx]->getForwardingStub(context);
+        auto stub = sources_[sourceIdx]->getP2pForwardingStub(context);
         if (!stub)
         {
             sourceIdx = (sourceIdx + 1) % sources_.size();
@@ -702,7 +707,7 @@ ETLLoadBalancer::getForwardingStub(RPC::Context& context)
 }
 
 Json::Value
-ETLLoadBalancer::forwardToTx(RPC::JsonContext& context)
+ETLLoadBalancer::forwardToP2p(RPC::JsonContext& context)
 {
     Json::Value res;
     if (sources_.size() == 0)
@@ -712,7 +717,7 @@ ETLLoadBalancer::forwardToTx(RPC::JsonContext& context)
     auto numAttempts = 0;
     while (numAttempts < sources_.size())
     {
-        res = sources_[sourceIdx]->forwardToTx(context);
+        res = sources_[sourceIdx]->forwardToP2p(context);
         if (!res.isMember("forwarded") || res["forwarded"] != true)
         {
             sourceIdx = (sourceIdx + 1) % sources_.size();
@@ -727,7 +732,7 @@ ETLLoadBalancer::forwardToTx(RPC::JsonContext& context)
 }
 
 std::unique_ptr<org::xrpl::rpc::v1::XRPLedgerAPIService::Stub>
-ETLSource::getForwardingStub(RPC::Context& context)
+ETLSource::getP2pForwardingStub(RPC::Context& context)
 {
     if (!connected)
         return nullptr;
@@ -748,7 +753,7 @@ ETLSource::getForwardingStub(RPC::Context& context)
 }
 
 Json::Value
-ETLSource::forwardToTx(RPC::JsonContext& context)
+ETLSource::forwardToP2p(RPC::JsonContext& context)
 {
     JLOG(journal_.debug()) << "Attempting to forward request to tx. "
                            << "request = " << context.params.toStyledString();

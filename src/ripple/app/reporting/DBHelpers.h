@@ -72,9 +72,6 @@ bulkWriteToTable(
     beast::Journal& j);
 
 bool
-checkConsistency(std::shared_ptr<PgPool> const& pgPool, beast::Journal& j);
-
-bool
 writeToPostgres(
     LedgerInfo const& info,
     std::vector<AccountTransactionsData>& accountTxData,

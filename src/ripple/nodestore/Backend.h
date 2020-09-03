@@ -146,14 +146,6 @@ public:
     {
         return fdRequired();
     }
-
-    // returns false on error. For derived classes that don't implement this
-    // method, return true to indicate no error
-    virtual bool
-    truncate()
-    {
-        return true;
-    }
 };
 
 }  // namespace NodeStore

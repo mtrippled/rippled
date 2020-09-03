@@ -18,7 +18,7 @@
 //==============================================================================
 
 #include <ripple/app/main/GRPCServer.h>
-#include <ripple/app/reporting/TxProxy.h>
+#include <ripple/app/reporting/P2pProxy.h>
 #include <ripple/beast/core/CurrentThreadName.h>
 #include <ripple/resource/Fees.h>
 
@@ -149,9 +149,9 @@ GRPCServerImpl::CallData<Request, Response>::process(
                                                InfoSub::pointer(),
                                                apiVersion},
                                               request_};
-            if (shouldForwardToTx(context, requiredCondition_))
+            if (shouldForwardToP2p(context, requiredCondition_))
             {
-                forwardToTx(context);
+                forwardToP2p(context);
                 return;
             }
 
@@ -177,7 +177,7 @@ GRPCServerImpl::CallData<Request, Response>::process(
                 }
                 catch (ReportingShouldProxy& e)
                 {
-                    forwardToTx(context);
+                    forwardToP2p(context);
                     return;
                 }
             }
@@ -192,7 +192,7 @@ GRPCServerImpl::CallData<Request, Response>::process(
 
 template <class Request, class Response>
 void
-GRPCServerImpl::CallData<Request, Response>::forwardToTx(
+GRPCServerImpl::CallData<Request, Response>::forwardToP2p(
     RPC::GRPCContext<Request>& context)
 {
     auto descriptor = Request::GetDescriptor()->FindFieldByName("client_ip");
@@ -210,7 +210,7 @@ GRPCServerImpl::CallData<Request, Response>::forwardToTx(
             "Attempting to forward but no client_ip field in "
             "protobuf message");
     }
-    auto stub = getForwardingStub(context);
+    auto stub = getP2pForwardingStub(context);
     if (stub)
     {
         grpc::ClientContext clientContext;

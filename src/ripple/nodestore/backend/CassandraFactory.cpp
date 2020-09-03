@@ -64,6 +64,8 @@ readCallback(CassFuture* fut, void* cbData);
 class CassandraBackend : public Backend
 {
 private:
+    // convenience function for one-off queries. For normal reads and writes,
+    // use the prepared statements insert_ and select_
     CassStatement*
     makeStatement(char const* query, std::size_t params)
     {
@@ -81,11 +83,16 @@ private:
     }
 
     beast::Journal const j_;
+    // size of a key
     size_t const keyBytes_;
+
     Section const config_;
+
     std::atomic<bool> open_{false};
 
+    // mutex used for open() and close()
     std::mutex mutex_;
+
     std::unique_ptr<CassSession, void (*)(CassSession*)> session_{
         nullptr,
         [](CassSession* session) {
@@ -95,19 +102,33 @@ private:
             cass_future_free(fut);
             cass_session_free(session);
         }};
+
+    // Database statements cached server side. Using these is more efficient
+    // than making a new statement
     const CassPrepared* insert_ = nullptr;
     const CassPrepared* select_ = nullptr;
+    
+    // io_context used for exponential backoff for write retries
     boost::asio::io_context ioContext_;
     std::optional<boost::asio::io_context::work> work_;
     std::thread ioThread_;
-    std::atomic_uint32_t numRequestsOutstanding_ = 0;
-    uint32_t maxRequestsOutstanding = 10000000;
 
+
+    // maximum number of concurrent in flight requests. New requests will wait
+    // for earlier requests to finish if this limit is exceeded
+    uint32_t maxRequestsOutstanding = 10000000;
+    std::atomic_uint32_t numRequestsOutstanding_ = 0;
+
+    // mutex and condition_variable to limit the number of concurrent in flight
+    // requests
     std::mutex throttleMutex_;
     std::condition_variable throttleCv_;
 
+    // writes are asynchronous. This mutex and condition_variable is used to
+    // wait for all writes to finish
     std::mutex syncMutex_;
     std::condition_variable syncCv_;
+
     Counters counters_;
 
 public:
@@ -130,6 +151,9 @@ public:
         return "cassandra";
     }
 
+    // Setup all of the necessary components for talking to the database.
+    // Create the objects table if it doesn't exist already
+    // @param createIfMissing ignored
     void
     open(bool createIfMissing) override
     {
@@ -287,18 +311,6 @@ public:
             cass_ssl_free(context);
         }
 
-        /*
-        rc = cass_cluster_set_consistency(cluster,
-                                          CASS_CONSISTENCY_LOCAL_QUORUM);
-        if (rc != CASS_OK)
-        {
-            std::stringstream ss;
-            ss << "nodestore: Error setting Cassandra cluster consistency: "
-               << rc
-               << ", " << cass_error_desc(rc);
-            Throw<std::runtime_error> (ss.str());
-        }
-*/
         std::string keyspace = get<std::string>(config_, "keyspace");
         if (keyspace.empty())
         {
@@ -447,13 +459,7 @@ public:
         }
     }
 
-    // TODO remove this
-    bool
-    truncate() override
-    {
-        return true;
-    }
-
+    // Close the connection to the database
     void
     close() override
     {
@@ -475,7 +481,10 @@ public:
         open_ = false;
     }
 
-    // TODO : retry logic?
+    // Synchronously fetch the object with key key and store the result in pno
+    // @param key the key of the object
+    // @param pno object in which to store the result
+    // @return result status of query
     Status
     fetch(void const* key, std::shared_ptr<NodeObject>* pno) override
     {
@@ -742,9 +751,9 @@ public:
     void
     store(std::shared_ptr<NodeObject> const& no) override
     {
-
         JLOG(j_.trace()) << "Writing to cassandra";
-        WriteCallbackData* data = new WriteCallbackData(this, no, counters_.writeRetries);
+        WriteCallbackData* data =
+            new WriteCallbackData(this, no, counters_.writeRetries);
 
         ++numRequestsOutstanding_;
         write(*data, false);
@@ -812,6 +821,10 @@ public:
     readCallback(CassFuture* fut, void* cbData);
 };
 
+
+// Process the result of an asynchronous read. Retry on error
+// @param fut cassandra future associated with the read
+// @param cbData struct that holds the request parameters
 void
 readCallback(CassFuture* fut, void* cbData)
 {
@@ -823,6 +836,7 @@ readCallback(CassFuture* fut, void* cbData)
 
     if (rc != CASS_OK)
     {
+        ++(requestParams.backend.counters_.readRetries);
         JLOG(requestParams.backend.j_.warn()) << "Cassandra fetch error : "
             << rc << " : " << cass_error_desc(rc) << " - retrying";
         // Retry right away. The only time the cluster should ever be overloaded
@@ -884,6 +898,10 @@ readCallback(CassFuture* fut, void* cbData)
         finish();
     }
 }
+
+// Process the result of an asynchronous write. Retry on error
+// @param fut cassandra future associated with the write
+// @param cbData struct that holds the request parameters
 void
 writeCallback(CassFuture* fut, void* cbData)
 {

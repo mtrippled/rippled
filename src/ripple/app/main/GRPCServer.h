@@ -243,7 +243,7 @@ private:
 
         // forward request to a p2p node
         void
-        forwardToTx(RPC::GRPCContext<Request>& context);
+        forwardToP2p(RPC::GRPCContext<Request>& context);
 
     };  // CallData
 

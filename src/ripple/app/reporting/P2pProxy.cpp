@@ -18,30 +18,30 @@
 //==============================================================================
 
 #include <ripple/app/reporting/ReportingETL.h>
-#include <ripple/app/reporting/TxProxy.h>
+#include <ripple/app/reporting/P2pProxy.h>
 #include <ripple/json/json_reader.h>
 #include <ripple/json/json_writer.h>
 
 namespace ripple {
 
 Json::Value
-forwardToTx(RPC::JsonContext& context)
+forwardToP2p(RPC::JsonContext& context)
 {
-    return context.app.getReportingETL().getETLLoadBalancer().forwardToTx(
+    return context.app.getReportingETL().getETLLoadBalancer().forwardToP2p(
         context);
 }
 
 std::unique_ptr<org::xrpl::rpc::v1::XRPLedgerAPIService::Stub>
-getForwardingStub(RPC::Context& context)
+getP2pForwardingStub(RPC::Context& context)
 {
-    return context.app.getReportingETL().getETLLoadBalancer().getForwardingStub(
+    return context.app.getReportingETL().getETLLoadBalancer().getP2pForwardingStub(
         context);
 }
 
 // We only forward requests where ledger_index is "current" or "closed"
 // otherwise, attempt to handle here
 bool
-shouldForwardToTx(RPC::JsonContext& context)
+shouldForwardToP2p(RPC::JsonContext& context)
 {
     if (!context.app.config().reporting())
         return false;
