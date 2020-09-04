@@ -79,6 +79,8 @@
 #include <iostream>
 #include <limits>
 #include <mutex>
+#include <utility>
+#include <variant>
 
 namespace ripple {
 
@@ -944,6 +946,48 @@ public:
                     boost::format("PRAGMA cache_size=-%d;") %
                     kilobytes(config_->getValueFor(SizedItem::lgrDBCache)));
             }
+            else if (!config_->reportingReadOnly()) // use pg
+            {
+                initSchema(pgPool_);
+
+                pg_variant_type res;
+                std::string mode;
+                if (config_->reporting())
+                    mode = "reporting";
+                else
+                    mode = "tx";
+
+                res = PgQuery(pgPool_).queryVariant(
+                    {"SELECT set_mode($1::mode_enum)", {mode.c_str()}});
+                if (std::holds_alternative<pg_result_type>(res))
+                {
+                    if (! PQgetisnull(
+                            std::get<pg_result_type>(res).get(), 0, 0))
+                    {
+                        std::stringstream ss;
+                        ss << "Ledger gap or ancestry error found in "
+                              "postgres while setting mode to reporting "
+                              "for ledger "
+                            << PQgetvalue(
+                                  std::get<pg_result_type>(res).get(), 0, 0)
+                            << ". If this is because of a gap in ledgers, "
+                               "restart rippled in tx processing mode and "
+                               "run until the host's entire range of "
+                               "ledgers have been back-filled. Otherwise, "
+                               "part of the database has likely become "
+                               "corrupted.";
+                        Throw<std::runtime_error>(ss.str());
+                    }
+                    if (std::holds_alternative<pg_error_type>(res))
+                    {
+                        std::stringstream ss;
+                        ss << "Error setting database to " << mode
+                           << "mode: "
+                           << std::get<pg_error_type>(res).second;
+                        Throw<std::runtime_error>(ss.str());
+                    }
+                }
+            }
 
             // wallet database
             setup.useGlobalPragma = false;
@@ -956,7 +1000,7 @@ public:
         catch (std::exception const& e)
         {
             JLOG(m_journal.fatal())
-                << "Failed to initialize SQLite databases: " << e.what();
+                << "Failed to initialize SQL databases: " << e.what();
             return false;
         }
 
