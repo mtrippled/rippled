@@ -155,10 +155,10 @@ private:
     std::shared_ptr<NodeObject> fetchFrom(
         uint256 const& hash, std::uint32_t seq) override;
 
-    std::vector<std::shared_ptr<NodeObject>>
-    fetchBatch(std::size_t n, void const* const* keys) override
+    std::pair<std::vector<std::shared_ptr<NodeObject>>, Status>
+    fetchBatch(std::vector<uint256 const*> const& hashes) override
     {
-        return writableBackend_->fetchBatch(n, keys);
+        return writableBackend_->fetchBatch(hashes);
     }
 
     void

@@ -320,8 +320,8 @@ private:
     virtual std::shared_ptr<NodeObject>
     fetchFrom(uint256 const& hash, std::uint32_t seq) = 0;
 
-    virtual std::vector<std::shared_ptr<NodeObject>>
-    fetchBatch(std::size_t n, void const* const* keys) = 0;
+    virtual std::pair<std::vector<std::shared_ptr<NodeObject>>, Status>
+    fetchBatch(std::vector<uint256 const*> const& hashes) = 0;
 
     /** Visit every object in the database
         This is usually called during import.

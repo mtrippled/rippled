@@ -251,21 +251,20 @@ Database::doFetchBatch(
 */
     using namespace std::chrono;
     auto const before = steady_clock::now();
-    std::unordered_map<void const*, size_t> indexMap;
-    std::vector<void const*> cacheMisses;
+    std::unordered_map<uint256 const*, size_t> indexMap;
+    std::vector<uint256 const*> cacheMisses;
     for (size_t i = 0; i < hashes.size(); ++i)
     {
-        auto& hash = hashes[i];
+        auto const& hash = hashes[i];
         // See if the object already exists in the cache
         auto nObj = pCache.fetch(hash);
         ++fetchTotalCount_;
         if (!nObj && !nCache.touch_if_exists(hash))
         {
-            void const* data = static_cast<void const*>(hash.data());
             // Try the database(s)
             // report.wentToDisk = true;
-            indexMap[data] = i;
-            cacheMisses.push_back(data);
+            indexMap[&hash] = i;
+            cacheMisses.push_back(&hash);
         }
         else
         {
@@ -275,14 +274,14 @@ Database::doFetchBatch(
         }
     }
 
-    auto dbResults = fetchBatch(cacheMisses.size(), cacheMisses.data());
+    auto dbResults = fetchBatch(cacheMisses).first;
 
     for (size_t i = 0; i < dbResults.size(); ++i)
     {
         auto nObj = dbResults[i];
         size_t index = indexMap[cacheMisses[i]];
         results[index] = nObj;
-        auto& hash = hashes[index];
+        auto const& hash = hashes[index];
 
         if (!nObj)
         {
