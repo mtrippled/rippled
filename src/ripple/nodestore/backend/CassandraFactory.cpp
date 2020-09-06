@@ -599,28 +599,42 @@ public:
         ReadCallbackData(ReadCallbackData const& other) = default;
     };
 
-    std::vector<std::shared_ptr<NodeObject>>
-    fetchBatch(std::size_t n, void const* const* keys) override
+    std::pair<std::vector<std::shared_ptr<NodeObject>>, Status>
+    fetchBatch(std::vector<uint256 const*> const& hashes) override
     {
-        JLOG(j_.trace()) << "Fetching " << n << " records from Cassandra";
+        std::size_t const numHashes = hashes.size();
+        JLOG(j_.trace()) << "Fetching " << numHashes
+                         << " records from Cassandra";
         std::atomic_uint32_t numFinished = 0;
         std::condition_variable cv;
         std::mutex mtx;
-        std::vector<std::shared_ptr<NodeObject>> results{n};
-        std::vector<std::shared_ptr<ReadCallbackData>> cbs{n};
+        std::vector<std::shared_ptr<NodeObject>> results{numHashes};
+        std::vector<std::shared_ptr<ReadCallbackData>> cbs;
+        cbs.reserve(numHashes);
+        for (std::size_t i = 0; i < hashes.size(); ++i)
+        {
+            cbs.push_back(std::make_shared<ReadCallbackData>(
+                *this, static_cast<void const*>(hashes[i]), results[i], cv,
+                numFinished, numHashes));
+            read(*cbs[i]);
+        }
+        /*
         for (size_t i = 0; i < n; ++i)
         {
             cbs[i] = std::make_shared<ReadCallbackData>(
                 *this, keys[i], results[i], cv, numFinished, n);
             read(*cbs[i]);
         }
+         */
         assert(results.size() == cbs.size());
 
         std::unique_lock<std::mutex> lck(mtx);
-        cv.wait(lck, [&numFinished, &n]() { return numFinished == n; });
+        cv.wait(lck, [&numFinished, &numHashes]()
+                { return numFinished == numHashes; });
 
-        JLOG(j_.trace()) << "Fetched " << n << " records from Cassandra";
-        return results;
+        JLOG(j_.trace()) << "Fetched " << numHashes
+                         << " records from Cassandra";
+        return {results, ok};
     }
 
     void

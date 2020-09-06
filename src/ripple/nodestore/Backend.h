@@ -91,8 +91,8 @@ public:
     canFetchBatch() = 0;
 
     /** Fetch a batch synchronously. */
-    virtual std::vector<std::shared_ptr<NodeObject>>
-    fetchBatch(std::size_t n, void const* const* keys) = 0;
+    virtual std::pair<std::vector<std::shared_ptr<NodeObject>>, Status>
+    fetchBatch(std::vector<uint256 const*> const& hashes) = 0;
 
     /** Store a single object.
         Depending on the implementation this may happen immediately

@@ -166,10 +166,10 @@ private:
         return fetchInternal(hash, backend_);
     }
 
-    std::vector<std::shared_ptr<NodeObject>>
-    fetchBatch(std::size_t n, void const* const* keys) override
+    std::pair<std::vector<std::shared_ptr<NodeObject>>, Status>
+    fetchBatch(std::vector<uint256 const*> const& hashes) override
     {
-        return backend_->fetchBatch(n, keys);
+        return backend_->fetchBatch(hashes);
     }
 
     void
