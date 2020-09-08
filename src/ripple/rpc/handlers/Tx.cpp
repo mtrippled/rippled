@@ -142,27 +142,12 @@ doTxPostgres(RPC::Context& context, TxArgs const& args)
         else
         {
             JLOG(context.j.error()) << "Failed to fetch from db";
+            assert(false);
+            Throw<std::runtime_error>("tx : missing data");
         }
         auto end = std::chrono::system_clock::now();
         JLOG(context.j.debug())
-            << "Flat fetch time : " << ((end - start).count() / 1000000000.0);
-    }
-    // database returned ledger sequence instead of nodestore hash. Get the
-    // ledger then traverse the transaction SHAMap to get the txn
-    else if (uint32_t* ledgerSequence = locator.getLedgerSequence())
-    {
-        auto start = std::chrono::system_clock::now();
-        auto ledger = context.ledgerMaster.getLedgerBySeq(*ledgerSequence);
-        if (!ledger)
-            return {
-                res,
-                {rpcLGR_NOT_FOUND,
-                 "The ledger containing the transaction was not found"}};
-
-        pair = ledger->txRead(args.hash);
-        auto end = std::chrono::system_clock::now();
-        JLOG(context.j.debug()) << "traverse fetch time : "
-                                << ((end - start).count() / 1000000000.0);
+            << "tx flat fetch time : " << ((end - start).count() / 1000000000.0);
     }
     // database did not find the transaction, and returned the ledger range
     // that was searched

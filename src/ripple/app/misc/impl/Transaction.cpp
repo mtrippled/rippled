@@ -221,10 +221,6 @@ Transaction::locate(uint256 const& id, Application& app)
             if(nodestoreHash.isNonZero())
                 return {nodestoreHash};
         }
-        if (v.isMember("ledger_seq"))
-        {
-            return {v["ledger_seq"].asUInt()};
-        }
         if(v.isMember("min_seq") && v.isMember("max_seq"))
         {
             return {std::make_pair(v["min_seq"].asUInt(), v["max_seq"].asUInt())};

@@ -308,7 +308,6 @@ public:
         std::variant<
             std::monostate,
             uint256,
-            uint32_t,
             std::pair<uint32_t, uint32_t>>
             locator;
 
@@ -317,17 +316,10 @@ public:
             return std::get_if<uint256>(&locator);
         }
 
-        uint32_t* getLedgerSequence()
-        {
-            return std::get_if<uint32_t>(&locator);
-        }
-
         std::pair<uint32_t, uint32_t>* getLedgerRange()
         {
             return std::get_if<std::pair<uint32_t, uint32_t>>(&locator);
         }
-
-
     };
 
     static Locator
