@@ -249,11 +249,17 @@ public:
     // TxsRawView
     //
 
-    uint256
+    void
     rawTxInsert(
         uint256 const& key,
         std::shared_ptr<Serializer const> const& txn,
         std::shared_ptr<Serializer const> const& metaData) override;
+
+    uint256
+    rawTxInsertWithHash(
+        uint256 const& key,
+        std::shared_ptr<Serializer const> const& txn,
+        std::shared_ptr<Serializer const> const& metaData);
 
     //--------------------------------------------------------------------------
 

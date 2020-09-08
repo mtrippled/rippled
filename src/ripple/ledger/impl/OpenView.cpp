@@ -234,7 +234,7 @@ OpenView::rawDestroyXRP(XRPAmount const& fee)
 
 //---
 
-uint256
+void
 OpenView::rawTxInsert(
     key_type const& key,
     std::shared_ptr<Serializer const> const& txn,
@@ -243,7 +243,6 @@ OpenView::rawTxInsert(
     auto const result = txs_.emplace(key, std::make_pair(txn, metaData));
     if (!result.second)
         LogicError("rawTxInsert: duplicate TX id" + to_string(key));
-    return {};
 }
 
 }  // namespace ripple

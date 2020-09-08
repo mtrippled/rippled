@@ -84,7 +84,7 @@ ReportingETL::insertTransactions(
         JLOG(journal_.trace())
             << __func__ << " : "
             << "Inserting transaction = " << sttx.getTransactionID();
-        uint256 nodestoreHash = ledger->rawTxInsert(
+        uint256 nodestoreHash = ledger->rawTxInsertWithHash(
             sttx.getTransactionID(), txSerializer, metaSerializer);
         accountTxData.emplace_back(txMeta, nodestoreHash, journal_);
     }
