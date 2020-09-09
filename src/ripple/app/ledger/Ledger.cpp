@@ -237,6 +237,7 @@ Ledger::Ledger(
         JLOG(j.warn()) << "Don't have transaction root for ledger" << info_.seq;
         if(config.reporting())
         {
+            // Reporting should never have incomplete data
             Throw<std::runtime_error>("Missing tx map root for ledger");
         }
     }
@@ -248,6 +249,7 @@ Ledger::Ledger(
         JLOG(j.warn()) << "Don't have state data root for ledger" << info_.seq;
         if (config.reporting())
         {
+            // Reporting should never have incomplete data
             Throw<std::runtime_error>("Missing state map root for ledger");
         }
     }
@@ -1303,16 +1305,18 @@ finishLoadByIndexOrHash(
     ledger->setFull();
 }
 
-// TODO: make an abstract class that represents the ledgers db
-// Implement two derived classes: one for SQLite, one for Postgres
-// Maybe also do this for the transaction (or account_transactions) db
-
-// if whichLedger is a bool, will simply load the latest ledger
-// TODO create a struct for these args
+// Load the ledger info for the specified ledger/s from the database
+// @param whichLedger specifies the ledger to load via ledger sequence, ledger
+// hash, a range of ledgers, or std::monostate (which loads the most recent)
+// @param app Application
+// @return vector of LedgerInfos
 std::vector<LedgerInfo>
 loadLedgerInfosPostgres(
-    std::variant<uint256, uint32_t, bool, std::pair<uint32_t, uint32_t>> const&
-        whichLedger,
+    std::variant<
+        std::monostate,
+        uint256,
+        uint32_t,
+        std::pair<uint32_t, uint32_t>> const& whichLedger,
     Application& app)
 {
     assert(app.config().usePostgresLedgerTx());
@@ -1350,7 +1354,7 @@ loadLedgerInfosPostgres(
     sql += ";";
 
     JLOG(app.journal("Ledger").debug())
-        << "loadLedgerHelperPostgres - sql : " << sql;
+        << "loadLedgerInfosPostgres - sql : " << sql;
 
     assert(app.pgPool());
     std::shared_ptr<PgQuery> pg = std::make_shared<PgQuery>(app.pgPool());
@@ -1361,7 +1365,7 @@ loadLedgerInfosPostgres(
     app.pgPool()->checkin(conn);
 
     JLOG(app.journal("Ledger").debug())
-        << "loadLedgerHelperPostgres - result: " << result;
+        << "loadLedgerInfosPostgres - result: " << result;
     assert(result == PGRES_TUPLES_OK);
 
     // assert(PQntuples(res.get()) == expNumResults);
@@ -1391,7 +1395,7 @@ loadLedgerInfosPostgres(
         char const* ledgerSeq = PQgetvalue(res.get(), i, 9);
 
         JLOG(app.journal("Ledger").debug())
-            << "loadLedgerHelperPostgres - data = " << hash << " , " << prevHash
+            << "loadLedgerInfosPostgres - data = " << hash << " , " << prevHash
             << " , " << accountHash << " , " << txHash << " , " << totalCoins
             << ", " << closeTime << ", " << parentCloseTime << ", "
             << closeTimeRes << ", " << closeFlags << ", " << ledgerSeq;
@@ -1418,21 +1422,16 @@ loadLedgerInfosPostgres(
     return infos;
 }
 
-LedgerInfo
-getLatestLedger(Application& app)
-{
-    auto infos = loadLedgerInfosPostgres(false, app);
-    if (infos.size())
-        return infos[0];
-    else
-        return LedgerInfo{};
-}
 
+// Load a ledger from Postgres
+// @param whichLedger specifies sequence or hash of ledger. Passing std::monostate
+// loads the most recent ledger
+// @param app the Application
+// @return tuple of (ledger, sequence, hash)
 std::tuple<std::shared_ptr<Ledger>, std::uint32_t, uint256>
 loadLedgerHelperPostgres(
-    std::variant<uint256, uint32_t, bool> const& whichLedger,
-    Application& app,
-    bool acquire)
+    std::variant<std::monostate, uint256, uint32_t> const& whichLedger,
+    Application& app)
 {
     std::vector<LedgerInfo> infos;
     std::visit(
@@ -1448,7 +1447,7 @@ loadLedgerHelperPostgres(
     auto ledger = std::make_shared<Ledger>(
         info,
         loaded,
-        acquire,
+        false,
         app.config(),
         app.getNodeFamily(),
         app.journal("Ledger"));
@@ -1459,20 +1458,37 @@ loadLedgerHelperPostgres(
     return std::make_tuple(ledger, info.seq, info.hash);
 }
 
+std::tuple<std::shared_ptr<Ledger>, std::uint32_t, uint256>
+getLatestLedger(Application& app)
+{
+    if(app.config().usePostgresLedgerTx())
+        return loadLedgerHelperPostgres({}, app);
+    else
+        return loadLedgerHelper("order by LedgerSeq desc limit 1", app);
+}
+
+// Load a ledger by index (AKA sequence) from Postgres
+// @param ledgerIndex the ledger index (or sequence) to load
+// @param app reference to Application
+// @return the loaded ledger
 std::shared_ptr<Ledger>
-loadByIndexPostgres(std::uint32_t ledgerIndex, Application& app, bool acquire)
+loadByIndexPostgres(std::uint32_t ledgerIndex, Application& app)
 {
     auto [ledger, seq, hash] =
-        loadLedgerHelperPostgres(uint32_t{ledgerIndex}, app, acquire);
+        loadLedgerHelperPostgres(uint32_t{ledgerIndex}, app);
     finishLoadByIndexOrHash(ledger, app.config(), app.journal("Ledger"));
     return ledger;
 }
 
+// Load a ledger by hash from Postgres
+// @param hash hash of the ledger to load
+// @param app reference to Application
+// @return the loaded ledger
 std::shared_ptr<Ledger>
-loadByHashPostgres(uint256 const& ledgerHash, Application& app, bool acquire)
+loadByHashPostgres(uint256 const& ledgerHash, Application& app)
 {
     auto [ledger, seq, hash] =
-        loadLedgerHelperPostgres(uint256{ledgerHash}, app, acquire);
+        loadLedgerHelperPostgres(uint256{ledgerHash}, app);
 
     finishLoadByIndexOrHash(ledger, app.config(), app.journal("Ledger"));
 
@@ -1481,6 +1497,10 @@ loadByHashPostgres(uint256 const& ledgerHash, Application& app, bool acquire)
     return ledger;
 }
 
+// Given a ledger sequence, return the ledger hash
+// @param ledgerIndex ledger sequence
+// @param app Application
+// @return hash of ledger
 uint256
 getHashByIndexPostgres(std::uint32_t ledgerIndex, Application& app)
 {
@@ -1493,6 +1513,12 @@ getHashByIndexPostgres(std::uint32_t ledgerIndex, Application& app)
     return {};
 }
 
+// Given a ledger sequence, return the ledger hash and the parent hash
+// @param ledgerIndex ledger sequence
+// @param[out] ledgerHash hash of ledger
+// @param[out] parentHash hash of parent ledger
+// @param app Application
+// @return true if the data was found
 bool
 getHashesByIndexPostgres(
     std::uint32_t ledgerIndex,
@@ -1511,6 +1537,12 @@ getHashesByIndexPostgres(
     return false;
 }
 
+// Given a contiguous range of sequences, return a map of
+// sequence -> (hash, parent hash)
+// @param minSeq lower bound of range
+// @param maxSeq upper bound of range
+// @param app Application
+// @return mapping of all found ledger sequences to their hash and parent hash
 std::map<std::uint32_t, std::pair<uint256, uint256>>
 getHashesByIndexPostgres(
     std::uint32_t minSeq,
@@ -1531,7 +1563,7 @@ loadByIndex (std::uint32_t ledgerIndex,
     Application& app, bool acquire)
 {
     if (app.config().usePostgresLedgerTx())
-        return loadByIndexPostgres(ledgerIndex, app, acquire);
+        return loadByIndexPostgres(ledgerIndex, app);
     std::shared_ptr<Ledger> ledger;
     {
         std::ostringstream s;
@@ -1548,7 +1580,7 @@ std::shared_ptr<Ledger>
 loadByHash(uint256 const& ledgerHash, Application& app, bool acquire)
 {
     if (app.config().usePostgresLedgerTx())
-        return loadByHashPostgres(ledgerHash, app, acquire);
+        return loadByHashPostgres(ledgerHash, app);
     std::shared_ptr<Ledger> ledger;
     {
         std::ostringstream s;

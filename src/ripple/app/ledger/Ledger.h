@@ -255,6 +255,13 @@ public:
         std::shared_ptr<Serializer const> const& txn,
         std::shared_ptr<Serializer const> const& metaData) override;
 
+    // Insert the transaction, and return the hash of the SHAMap leaf node
+    // holding the transaction. The hash can be used to fetch the transaction
+    // directly, instead of traversing the SHAMap
+    // @param key transaction ID
+    // @param txn transaction
+    // @param metaData transaction metadata
+    // @return hash of SHAMap leaf node that holds the transaction
     uint256
     rawTxInsertWithHash(
         uint256 const& key,
@@ -450,24 +457,6 @@ loadLedgerHelper(
 extern std::shared_ptr<Ledger>
 loadByHash(uint256 const& ledgerHash, Application& app, bool acquire = true);
 
-extern std::tuple<std::shared_ptr<Ledger>, std::uint32_t, uint256>
-loadLedgerHelperPostgres(
-    std::variant<uint256, uint32_t, bool> const& whichLedger,
-    Application& app,
-    bool acquire = true);
-
-extern std::shared_ptr<Ledger>
-loadByHashPostgres(
-    uint256 const& ledgerHash,
-    Application& app,
-    bool acquire = true);
-
-extern std::shared_ptr<Ledger>
-loadByIndexPostgres(
-    std::uint32_t ledgerIndex,
-    Application& app,
-    bool acquire = true);
-
 extern
 uint256
 getHashByIndex(std::uint32_t index, Application& app);
@@ -482,13 +471,22 @@ getHashesByIndex(
 extern std::map<std::uint32_t, std::pair<uint256, uint256>>
 getHashesByIndex(std::uint32_t minSeq, std::uint32_t maxSeq, Application& app);
 
-extern LedgerInfo
+// Fetch the ledger with the highest sequence contained in the database
+extern std::tuple<std::shared_ptr<Ledger>, std::uint32_t, uint256>
 getLatestLedger(Application& app);
 
-extern
-std::vector<std::pair<std::shared_ptr<STTx const>, std::shared_ptr<STObject const>>>
+// *** Reporting Mode Only ***
+// Fetch all of the transactions contained in ledger from the nodestore.
+// The transactions are fetched directly as a batch, instead of traversing the
+// transaction SHAMap. Fetching directly is significantly faster than
+// traversing, as there are less database reads, and all of the reads can
+// executed concurrently. This function only works in reporting mode.
+// @param ledger the ledger for which to fetch the contained transactions
+// @param app reference to the Application
+// @return vector of (transaction, metadata) pairs
+extern std::vector<
+    std::pair<std::shared_ptr<STTx const>, std::shared_ptr<STObject const>>>
 flatFetchTransactions(ReadView const& ledger, Application& app);
-
 
 /** Deserialize a SHAMapItem containing a single STTx
 
