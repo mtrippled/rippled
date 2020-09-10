@@ -1,12 +1,11 @@
 Reporting mode is a special operating mode of rippled, designed to handle RPCs
 for validated data. A server running in reporting mode does not connect to the
 p2p network, but rather extracts validated data from a node that is connected
-to the p2p network. Often, this node is referred to as the "tx" node, short for
-transaction processing. Multiple reporting nodes can share access to the same
+to the p2p network.  Multiple reporting nodes can share access to the same
 network accessible databases (Postgres and Cassandra); at any given time, only
 one reporting node will be performing ETL and writing to the databases, while the
 others simply read from the databases. A server running in reporting mode will
-forward any requests that require access to the p2p network to a tx node.
+forward any requests that require access to the p2p network to a p2p node.
 
 # Reporting ETL
 A single reporting node has one or more ETL sources, specified in the config
@@ -47,26 +46,20 @@ Attempting to write a ledger to a non-empty database where the previous ledger
 does not exist will return an error.
 
 The databases must be set up prior to running reporting mode. This requires
-loading the schema and stored procedures into Postgres, and setting up the
-Cassandra keyspace. Reporting mode will create the objects table in Cassandra if
-the table does not yet exist.
+creating the Postgres database, and setting up the Cassandra keyspace. Reporting
+mode will create the objects table in Cassandra if the table does not yet exist. 
 
 Creating the Postgres database:
-
+```
 $ psql -h [host] -U [user]
 postgres=# create database [database];
-
-Loading the schema into Postgres:
-
-$ psql -h [host] -U [user] -d [database] -f cfg/schema.sql
-$ psql -h [host] -U [user] -d [database] -f cfg/proc.sql
-
+```
 Creating the keyspace:
-
+```
 $ cqlsh [host] [port]
 > CREATE KEYSPACE rippled WITH REPLICATION =
   {'class' : 'SimpleStrategy', 'replication_factor' : 3    };
-
+```
 A replication factor of 3 is recommended. However, when running locally, only a
 replication factor of 1 is supported.
 
@@ -78,13 +71,14 @@ the command line). Once this node is caught up, the other databases can be
 deleted.
 
 To delete:
-
+```
 $ psql -h [host] -U [user] -d [database]
 reporting=$ truncate table ledgers cascade;
-
+```
+```
 $ cqlsh [host] [port]
 > truncate table objects;
-
+```
 # Proxy
 RPCs that require access to the p2p network and/or the open ledger are forwarded
 from the reporting node to one of the ETL sources. The request is not processed
@@ -92,8 +86,8 @@ prior to forwarding, and the response is delivered as-is to the client.
 Reporting will forward any requests that always require p2p/open ledger access
 (fee and submit, for instance). In addition, any request that explicitly
 requests data from the open or closed ledger (via setting
-"ledger_index":"current" or "ledger_index":"closed"), will be forwarded to a tx
-node. 
+"ledger_index":"current" or "ledger_index":"closed"), will be forwarded to a
+p2p node. 
 
 For the stream "transactions_proposed" (AKA "rt_transactions"), reporting
 subscribes to the "transactions_proposed" streams of each ETL source, and then
@@ -110,15 +104,3 @@ the normal rippled behavior, where the open ledger is used by default.
 Reporting will reject all subscribe requests for streams "server", "manifests",
 "validations", "peer_status" and "consensus".
 
-## Code Organization
-
-All of the ETL related code is under "src/ripple/app/reporting/".
-ETLSource.cpp contains all of the code for communicating with the ETL sources,
-including a class that load balances requests across all of the available ETL
-sources. ReportingETL.h and ReportingETL.cpp contain a ReportingETL class, which
-is the entry point to the ETL process. ReportingETL processes any extracted
-data, determines when to become the ETL writer and when to fallback to read-only
-mode, and publishes ledgers as they are written to the database. DBHelpers.cpp
-contains several free functions that are used to write to Postgres and process
-any errors. TxProxy.h and TxProxy.cpp contain logic for determining whether a
-request needs to be forward to a tx node, and code to do the actual forwarding.
