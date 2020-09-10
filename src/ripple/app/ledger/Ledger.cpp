@@ -1723,9 +1723,33 @@ flatFetchTransactions(ReadView const& ledger, Application& app)
         {
             auto node = SHAMapAbstractNode::makeFromPrefix(
                 makeSlice(obj->getData()), SHAMapHash{nodestoreHash});
+            if(!node)
+            {
+                assert(false);
+                Throw<std::runtime_error>(
+                    "flatFetchTransactions : Error making SHAMap node");
+            }
             auto item = (static_cast<SHAMapTreeNode*>(node.get()))->peekItem();
+            if(!item)
+            {
+                assert(false);
+                Throw<std::runtime_error>(
+                    "flatFetchTransactions : Error reading SHAMap node");
+            }
             auto txnPlusMeta = deserializeTxPlusMeta(*item);
+            if(!txnPlusMeta.first || !txnPlusMeta.second)
+            {
+                assert(false);
+                Throw<std::runtime_error>(
+                    "flatFetchTransactions : Error deserializing SHAMap node");
+            }
             txns.push_back(std::move(txnPlusMeta));
+        }
+        else
+        {
+            assert(false);
+            Throw<std::runtime_error>(
+                "flatFetchTransactions : Containing SHAMap node not found");
         }
     }
     return txns;
