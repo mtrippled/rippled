@@ -66,8 +66,7 @@ shouldForwardToP2p(RPC::JsonContext& context)
     {
         return true;
     }
-    // TODO consider forwarding sequence values greater than the
-    // latest sequence we have
+
     if (params.isMember(jss::ledger_index))
     {
         auto indexValue = params[jss::ledger_index];

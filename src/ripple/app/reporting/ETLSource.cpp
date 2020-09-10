@@ -87,7 +87,7 @@ ETLSource::ETLSource(
 void
 ETLSource::reconnect(boost::beast::error_code ec)
 {
-    connected = false;
+    connected_ = false;
     // These are somewhat normal errors. operation_aborted occurs on shutdown,
     // when the timer is cancelled. connection_refused will occur repeatedly
     // if we cannot connect to the transaction processing process
@@ -111,8 +111,8 @@ ETLSource::reconnect(boost::beast::error_code ec)
     }
 
     // exponentially increasing timeouts, with a max of 30 seconds
-    size_t waitTime = std::min(pow(2, numFailures), 30.0);
-    numFailures++;
+    size_t waitTime = std::min(pow(2, numFailures_), 30.0);
+    numFailures_++;
     timer_.expires_after(boost::asio::chrono::seconds(waitTime));
     timer_.async_wait([this](auto ec) {
         bool startAgain = (ec != boost::asio::error::operation_aborted);
@@ -126,15 +126,15 @@ ETLSource::close(bool startAgain)
 {
     timer_.cancel();
     ioc_.post([this, startAgain]() {
-        if (closing)
+        if (closing_)
             return;
 
         if (ws_->is_open())
         {
             // onStop() also calls close(). If the async_close is called twice,
-            // an assertion fails. Using closing makes sure async_close is only
+            // an assertion fails. Using closing_ makes sure async_close is only
             // called once
-            closing = true;
+            closing_ = true;
             ws_->async_close(
                 boost::beast::websocket::close_code::normal,
                 [this, startAgain](auto ec) {
@@ -144,7 +144,7 @@ ETLSource::close(bool startAgain)
                             << __func__ << " async_close : "
                             << "error code = " << ec << " - " << toString();
                     }
-                    closing = false;
+                    closing_ = false;
                     if (startAgain)
                         start();
                 });
@@ -203,7 +203,7 @@ ETLSource::onConnect(
     }
     else
     {
-        numFailures = 0;
+        numFailures_ = 0;
         // Turn off timeout on the tcp stream, because websocket stream has it's
         // own timeout system
         boost::beast::get_lowest_layer(*ws_).expires_never();
@@ -307,7 +307,7 @@ ETLSource::handleMessage()
     JLOG(journal_.trace()) << __func__ << " : " << toString();
 
     setLastMsgTime();
-    connected = true;
+    connected_ = true;
     try
     {
         Json::Value response;
@@ -323,7 +323,6 @@ ETLSource::handleMessage()
         }
 
         uint32_t ledgerIndex = 0;
-        // TODO is this index always validated?
         if (response.isMember("result"))
         {
             if (response["result"].isMember(jss::ledger_index))
@@ -387,19 +386,21 @@ ETLSource::handleMessage()
     }
 }
 
-struct AsyncCallData
+class AsyncCallData
 {
-    std::unique_ptr<org::xrpl::rpc::v1::GetLedgerDataResponse> cur;
-    std::unique_ptr<org::xrpl::rpc::v1::GetLedgerDataResponse> next;
+    std::unique_ptr<org::xrpl::rpc::v1::GetLedgerDataResponse> cur_;
+    std::unique_ptr<org::xrpl::rpc::v1::GetLedgerDataResponse> next_;
 
-    org::xrpl::rpc::v1::GetLedgerDataRequest request;
-    std::unique_ptr<grpc::ClientContext> context;
+    org::xrpl::rpc::v1::GetLedgerDataRequest request_;
+    std::unique_ptr<grpc::ClientContext> context_;
 
-    grpc::Status status;
+    grpc::Status status_;
 
-    unsigned char nextPrefix;
+    unsigned char nextPrefix_;
 
     beast::Journal journal_;
+
+    public:
 
     AsyncCallData(
         uint256& marker,
@@ -408,29 +409,29 @@ struct AsyncCallData
         beast::Journal& j)
         : journal_(j)
     {
-        request.mutable_ledger()->set_sequence(seq);
+        request_.mutable_ledger()->set_sequence(seq);
         if (marker.isNonZero())
         {
-            request.set_marker(marker.data(), marker.size());
+            request_.set_marker(marker.data(), marker.size());
         }
-        nextPrefix = 0x00;
+        nextPrefix_ = 0x00;
         if (nextMarker)
-            nextPrefix = nextMarker->data()[0];
+            nextPrefix_ = nextMarker->data()[0];
 
         unsigned char prefix = marker.data()[0];
 
         JLOG(journal_.debug())
             << "Setting up AsyncCallData. marker = " << strHex(marker)
             << " . prefix = " << strHex(prefix)
-            << " . nextPrefix = " << strHex(nextPrefix);
+            << " . nextPrefix_ = " << strHex(nextPrefix_);
 
-        assert(nextPrefix > prefix || nextPrefix == 0x00);
+        assert(nextPrefix_ > prefix || nextPrefix_ == 0x00);
 
-        cur = std::make_unique<org::xrpl::rpc::v1::GetLedgerDataResponse>();
+        cur_ = std::make_unique<org::xrpl::rpc::v1::GetLedgerDataResponse>();
 
-        next = std::make_unique<org::xrpl::rpc::v1::GetLedgerDataResponse>();
+        next_ = std::make_unique<org::xrpl::rpc::v1::GetLedgerDataResponse>();
 
-        context = std::make_unique<grpc::ClientContext>();
+        context_ = std::make_unique<grpc::ClientContext>();
     }
 
     enum Status { MORE, DONE, ERROR };
@@ -447,35 +448,35 @@ struct AsyncCallData
             JLOG(journal_.error()) << "AsyncCallData aborted";
             return Status::ERROR;
         }
-        if (!status.ok())
+        if (!status_.ok())
         {
-            JLOG(journal_.debug()) << "AsyncCallData status not ok: "
-                                   << " code = " << status.error_code()
-                                   << " message = " << status.error_message();
+            JLOG(journal_.debug()) << "AsyncCallData status_ not ok: "
+                                   << " code = " << status_.error_code()
+                                   << " message = " << status_.error_message();
             return Status::ERROR;
         }
 
-        std::swap(cur, next);
+        std::swap(cur_, next_);
 
         bool more = true;
 
         // if no marker returned, we are done
-        if (cur->marker().size() == 0)
+        if (cur_->marker().size() == 0)
             more = false;
 
         // if returned marker is greater than our end, we are done
-        unsigned char prefix = cur->marker()[0];
-        if (nextPrefix != 0x00 and prefix >= nextPrefix)
+        unsigned char prefix = cur_->marker()[0];
+        if (nextPrefix_ != 0x00 and prefix >= nextPrefix_)
             more = false;
 
         // if we are not done, make the next async call
         if (more)
         {
-            request.set_marker(std::move(cur->marker()));
+            request_.set_marker(std::move(cur_->marker()));
             call(stub, cq);
         }
 
-        for (auto& state : cur->state_objects())
+        for (auto& state : cur_->state_objects())
         {
             auto& index = state.index();
             auto& data = state.data();
@@ -496,15 +497,23 @@ struct AsyncCallData
         std::unique_ptr<org::xrpl::rpc::v1::XRPLedgerAPIService::Stub>& stub,
         grpc::CompletionQueue& cq)
     {
-        context = std::make_unique<grpc::ClientContext>();
+        context_ = std::make_unique<grpc::ClientContext>();
 
         std::unique_ptr<grpc::ClientAsyncResponseReader<
             org::xrpl::rpc::v1::GetLedgerDataResponse>>
-            rpc(stub->PrepareAsyncGetLedgerData(context.get(), request, &cq));
+            rpc(stub->PrepareAsyncGetLedgerData(context_.get(), request_, &cq));
 
         rpc->StartCall();
 
-        rpc->Finish(next.get(), &status, this);
+        rpc->Finish(next_.get(), &status_, this);
+    }
+
+    std::string getMarkerPrefix()
+    {
+        if(next_->marker().size() == 0)
+            return "";
+        else
+            return strHex(std::string{next_->marker().data()[0]});
     }
 };
 
@@ -555,15 +564,7 @@ ETLSource::loadInitialLedger(
         }
         else
         {
-            if (ptr->next->marker().size() != 0)
-            {
-                std::string prefix{ptr->next->marker().data()[0]};
-                JLOG(journal_.debug()) << "Marker prefix = " << strHex(prefix);
-            }
-            else
-            {
-                JLOG(journal_.debug()) << "Empty marker";
-            }
+            JLOG(journal_.debug()) << "Marker prefix = " << ptr->getMarkerPrefix();
             auto result = ptr->process(stub_, cq, writeQueue, abort);
             if (result != AsyncCallData::Status::MORE)
             {
@@ -734,7 +735,7 @@ ETLLoadBalancer::forwardToP2p(RPC::JsonContext& context)
 std::unique_ptr<org::xrpl::rpc::v1::XRPLedgerAPIService::Stub>
 ETLSource::getP2pForwardingStub(RPC::Context& context)
 {
-    if (!connected)
+    if (!connected_)
         return nullptr;
     try
     {
@@ -759,7 +760,7 @@ ETLSource::forwardToP2p(RPC::JsonContext& context)
                            << "request = " << context.params.toStyledString();
 
     Json::Value response;
-    if (!connected)
+    if (!connected_)
     {
         JLOG(journal_.error())
             << "Attempted to proxy but failed to connect to tx";
@@ -846,7 +847,6 @@ ETLLoadBalancer::execute(Func f, uint32_t ledgerSequence)
     auto sourceIdx = rand() % sources_.size();
     auto numAttempts = 0;
 
-    // TODO make sure this stopping logic is correct. Maybe return a bool?
     while (!etl_.isStopping())
     {
         auto& source = sources_[sourceIdx];

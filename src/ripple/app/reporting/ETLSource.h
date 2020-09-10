@@ -42,8 +42,7 @@ class ReportingETL;
 // and keeps track of which ledgers the p2p node has. This class also has
 // methods for extracting said ledgers. Lastly this class forwards transactions
 // received on the transactions_proposed streams to any subscribers.
-
-struct ETLSource
+class ETLSource
 {
     std::string ip_;
 
@@ -64,9 +63,9 @@ struct ETLSource
 
     boost::beast::flat_buffer readBuffer_;
 
-    std::vector<std::pair<uint32_t, uint32_t>> validatedLedgers;
+    std::vector<std::pair<uint32_t, uint32_t>> validatedLedgers_;
 
-    std::string validatedLedgersRaw;
+    std::string validatedLedgersRaw_;
 
     NetworkValidatedLedgers& networkValidatedLedgers_;
 
@@ -76,38 +75,46 @@ struct ETLSource
 
     std::mutex mtx_;
 
-    size_t numFailures = 0;
+    size_t numFailures_ = 0;
 
-    std::atomic_bool closing = false;
+    std::atomic_bool closing_ = false;
 
-    std::atomic_bool connected = false;
+    std::atomic_bool connected_ = false;
 
     // true if this ETL source is forwarding transactions received on the 
     // transactions_proposed stream. There are usually multiple ETL sources,
     // so to avoid forwarding the same transaction multiple times, we only 
     // forward from one particular ETL source at a time.
-    std::atomic_bool forwardingStream = false;
+    std::atomic_bool forwardingStream_ = false;
 
     // The last time a message was received on the ledgers stream
-    std::chrono::time_point<std::chrono::system_clock> lastMsgTime;
+    std::chrono::time_point<std::chrono::system_clock> lastMsgTime_;
     std::mutex lastMsgTimeMtx_;
+
+    // used for retrying connections
+    boost::asio::steady_timer timer_;
+
+    public:
+
+    bool isConnected()
+    {
+        return connected_;
+    }
 
     std::chrono::time_point<std::chrono::system_clock>
     getLastMsgTime()
     {
         std::unique_lock<std::mutex> lck(lastMsgTimeMtx_);
-        return lastMsgTime;
+        return lastMsgTime_;
     }
 
     void
     setLastMsgTime()
     {
         std::unique_lock<std::mutex> lck(lastMsgTimeMtx_);
-        lastMsgTime = std::chrono::system_clock::now();
+        lastMsgTime_ = std::chrono::system_clock::now();
     }
 
-    // used for retrying connections
-    boost::asio::steady_timer timer_;
 
     // Create ETL source without gRPC endpoint
     // Fetch ledger and load initial ledger will fail for this source
@@ -130,7 +137,7 @@ struct ETLSource
     hasLedger(uint32_t sequence)
     {
         std::lock_guard<std::mutex> lck(mtx_);
-        for (auto& pair : validatedLedgers)
+        for (auto& pair : validatedLedgers_)
         {
             if (sequence >= pair.first && sequence <= pair.second)
             {
@@ -138,7 +145,7 @@ struct ETLSource
             }
             else if (sequence < pair.first)
             {
-                // validatedLedgers is a sorted list of disjoint ranges
+                // validatedLedgers_ is a sorted list of disjoint ranges
                 // if the sequence comes before this range, the sequence will
                 // come before all subsequent ranges
                 return false;
@@ -181,8 +188,8 @@ struct ETLSource
 
         // we only hold the lock here, to avoid blocking while string processing
         std::unique_lock<std::mutex> lck(mtx_);
-        validatedLedgers = std::move(pairs);
-        validatedLedgersRaw = range;
+        validatedLedgers_ = std::move(pairs);
+        validatedLedgersRaw_ = range;
     }
 
     // @return the validated range of this source
@@ -192,7 +199,7 @@ struct ETLSource
     {
         std::lock_guard<std::mutex> lck(mtx_);
 
-        return validatedLedgersRaw;
+        return validatedLedgersRaw_;
     }
 
     // Close the underlying websocket
@@ -229,7 +236,7 @@ struct ETLSource
     toJson()
     {
         Json::Value result(Json::objectValue);
-        result["connected"] = connected.load();
+        result["connected"] = connected_.load();
         result["validated_ledgers_range"] = getValidatedRange();
         result["ip"] = ip_;
         result["websocket_port"] = wsPort_;
@@ -383,7 +390,7 @@ public:
         {
             assert(src);
             // We pick the first ETLSource encountered that is connected
-            if (src->connected.load())
+            if (src->isConnected())
             {
                 if (src.get() == in)
                     return true;

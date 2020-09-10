@@ -37,6 +37,7 @@ namespace ripple {
 // it's lifetime.
 class NetworkValidatedLedgers
 {
+    // max sequence validated by network
     std::optional<uint32_t> max_;
 
     std::mutex mtx_;
@@ -46,6 +47,9 @@ class NetworkValidatedLedgers
     bool stopping_ = false;
 
 public:
+
+    // Notify the datastructure that idx has been validated by the network
+    // @param idx sequence validated by network
     void
     push(uint32_t idx)
     {
@@ -55,9 +59,10 @@ public:
         cv_.notify_all();
     }
 
-    // @return sequence of most recently validated ledger. will wait until a
-    // sequence is available. empty optional indicates the datastructure has
-    // been stopped
+    // Get most recently validated sequence. If no ledgers are known to have
+    // been validated, this function waits until the next ledger is validated
+    // @return sequence of most recently validated ledger. empty optional if
+    // the datastructure has been stopped
     std::optional<uint32_t>
     getMostRecent()
     {
@@ -68,7 +73,7 @@ public:
 
     // Waits for the sequence to be validated by the network
     // @param sequence to wait for
-    // @returns true if sequence was validated, false otherwise
+    // @return true if sequence was validated, false otherwise
     // a return value of false means the datastructure has been stopped
     bool
     waitUntilValidatedByNetwork(uint32_t sequence)
@@ -92,9 +97,9 @@ public:
     }
 };
 
-// TODO move this to a diff folder
+// Generic thread-safe queue with an optional maximum size
 template <class T>
-struct ThreadSafeQueue
+class ThreadSafeQueue
 {
     std::queue<T> queue_;
 
@@ -102,15 +107,19 @@ struct ThreadSafeQueue
     std::condition_variable cv_;
     std::optional<uint32_t> maxSize_;
 
+    public:
+    // @param maxSize maximum size of the queue. Calls that would cause the
+    // queue to exceed this size will block until free space is available
     ThreadSafeQueue(uint32_t maxSize) : maxSize_(maxSize)
     {
     }
 
+    // Create a queue with no maximum size
     ThreadSafeQueue()
     {
     }
 
-    // @param element to push onto queue
+    // @param elt element to push onto queue
     // if maxSize is set, this method will block until free space is available
     void
     push(T const& elt)
@@ -123,6 +132,8 @@ struct ThreadSafeQueue
         cv_.notify_all();
     }
 
+    // @param elt element to push onto queue. elt is moved from
+    // if maxSize is set, this method will block until free space is available
     void
     push(T&& elt)
     {
@@ -134,12 +145,11 @@ struct ThreadSafeQueue
         cv_.notify_all();
     }
 
-    // @returns element popped from queue
+    // @return element popped from queue. Will block until queue is non-empty
     T
     pop()
     {
         std::unique_lock<std::mutex> lck(m_);
-        // TODO: is this able to be aborted?
         cv_.wait(lck, [this]() { return !queue_.empty(); });
         T ret = std::move(queue_.front());
         queue_.pop();
@@ -150,6 +160,7 @@ struct ThreadSafeQueue
     }
 };
 
+// Convenience function for printing out basic ledger info
 inline std::string
 toString(LedgerInfo const& info)
 {
@@ -161,102 +172,8 @@ toString(LedgerInfo const& info)
     return ss.str();
 }
 
-struct Metrics
-{
-    size_t txnCount = 0;
-
-    size_t objectCount = 0;
-
-    double flushTime = 0;
-
-    double updateTime = 0;
-
-    double postgresTime = 0;
-
-    void
-    printMetrics(beast::Journal& j, LedgerInfo const& info)
-    {
-        auto totalTime = updateTime + flushTime + postgresTime;
-        auto kvTime = updateTime + flushTime;
-        auto dbTime = flushTime + postgresTime;
-        JLOG(j.info()) << toString(info) << " Metrics: "
-                       << " txnCount = " << txnCount
-                       << " objectCount = " << objectCount
-                       << " updateTime = " << updateTime
-                       << " flushTime = " << flushTime
-                       << " postgresTime = " << postgresTime
-                       << " dbTime = " << dbTime
-                       << " update tps = " << txnCount / updateTime
-                       << " flush tps = " << txnCount / flushTime
-                       << " postgres tps = " << txnCount / postgresTime
-                       << " update ops = " << objectCount / updateTime
-                       << " flush ops = " << objectCount / flushTime
-                       << " postgres ops = " << objectCount / postgresTime
-                       << " total tps = " << txnCount / totalTime
-                       << " total ops = " << objectCount / totalTime
-                       << " key-value tps = " << txnCount / kvTime
-                       << " key-value ops = " << objectCount / kvTime
-                       << " db tps = " << txnCount / dbTime
-                       << " db ops = " << objectCount / dbTime
-                       << " (All times in seconds)";
-    }
-
-    void
-    printMetrics(beast::Journal& j)
-    {
-        auto totalTime = updateTime + flushTime + postgresTime;
-        auto kvTime = updateTime + flushTime;
-        auto dbTime = flushTime + postgresTime;
-        JLOG(j.info()) << " Metrics: "
-                       << " txnCount = " << txnCount
-                       << " objectCount = " << objectCount
-                       << " updateTime = " << updateTime
-                       << " flushTime = " << flushTime
-                       << " postgresTime = " << postgresTime
-                       << " dbTime = " << dbTime
-                       << " update tps = " << txnCount / updateTime
-                       << " flush tps = " << txnCount / flushTime
-                       << " postgres tps = " << txnCount / postgresTime
-                       << " update ops = " << objectCount / updateTime
-                       << " flush ops = " << objectCount / flushTime
-                       << " postgres ops = " << objectCount / postgresTime
-                       << " total tps = " << txnCount / totalTime
-                       << " total ops = " << objectCount / totalTime
-                       << " key-value tps = " << txnCount / kvTime
-                       << " key-value ops = " << objectCount / kvTime
-                       << " db tps = " << txnCount / dbTime
-                       << " db ops = " << objectCount / dbTime
-                       << " (All times in seconds)";
-    }
-
-    Json::Value
-    toJson()
-    {
-        Json::Value res(Json::objectValue);
-        auto totalTime = updateTime + flushTime + postgresTime;
-        auto dbTime = flushTime + postgresTime;
-        res["total_time"] = totalTime;
-        res["kv_flush_time"] = flushTime;
-        res["total_db_time"] = dbTime;
-        res["update_time"] = updateTime;
-        res["total_tps"] = txnCount / totalTime;
-        res["kv_flush_tps"] = txnCount / flushTime;
-        res["total_db_tps"] = txnCount / dbTime;
-        res["update_tps"] = txnCount / updateTime;
-        return res;
-    }
-
-    void
-    addMetrics(Metrics& round)
-    {
-        txnCount += round.txnCount;
-        objectCount += round.objectCount;
-        flushTime += round.flushTime;
-        updateTime += round.updateTime;
-        postgresTime += round.postgresTime;
-    }
-};
-
+// Parititions the uint256 keyspace into numMarkers partitions, each of equal
+// size.
 inline std::vector<uint256>
 getMarkers(size_t numMarkers)
 {

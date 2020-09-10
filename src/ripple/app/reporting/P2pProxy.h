@@ -66,8 +66,6 @@ template <
 bool
 needCurrentOrClosed(RPC::GRPCContext<Request>& context)
 {
-    // TODO consider forwarding sequence values greater than the latest
-    // sequence we have
     if (context.params.ledger().ledger_case() ==
         org::xrpl::rpc::v1::LedgerSpecifier::LedgerCase::kShortcut)
     {

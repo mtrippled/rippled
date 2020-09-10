@@ -41,11 +41,9 @@ ReportingETL::consumeLedgerData(
 {
     std::shared_ptr<SLE> sle;
     size_t num = 0;
-    // TODO: if this call blocks, flushDirty in the meantime
     while (not stopping_ and (sle = writeQueue.pop()))
     {
         assert(sle);
-        // TODO get rid of this conditional
         if (!ledger->exists(sle->key()))
             ledger->rawInsert(sle);
 
@@ -69,7 +67,6 @@ ReportingETL::insertTransactions(
     {
         auto& raw = txn.transaction_blob();
 
-        // TODO can this be done faster? Move?
         SerialIter it{raw.data(), raw.size()};
         STTx sttx{it};
 
@@ -142,17 +139,15 @@ ReportingETL::loadInitialLedger(uint32_t startingSequence)
     // consumes from the queue and inserts the data into the Ledger object.
     // Once the below call returns, all data has been pushed into the queue
     loadBalancer_.loadInitialLedger(startingSequence, writeQueue);
+
     // null is used to respresent the end of the queue
     std::shared_ptr<SLE> null;
     writeQueue.push(null);
     // wait for the writer to finish
     asyncWriter.join();
-    // TODO handle case when there is a network error (other side dies)
-    // Shouldn't try to flush in that scenario
-    // Retry? Or just die?
+
     if (!stopping_)
     {
-        //TODO handle write conflict
         flushLedger(ledger);
         if (app_.config().reporting())
         {
@@ -414,13 +409,9 @@ ReportingETL::buildNextLedger(
         }
         else
         {
-            // TODO maybe better way to construct the SLE?
-            // Is there any type of move ctor? Maybe use Serializer?
-            // Or maybe just use the move cto?
             SerialIter it{data.data(), data.size()};
             std::shared_ptr<SLE> sle = std::make_shared<SLE>(it, key);
 
-            // TODO maybe remove this conditional
             if (next->exists(key))
             {
                 JLOG(journal_.trace()) << __func__ << " : "
