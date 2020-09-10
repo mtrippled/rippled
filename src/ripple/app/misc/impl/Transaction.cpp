@@ -125,7 +125,6 @@ Transaction::load(
     return load(id, app, op{range}, ec);
 }
 
-
 Transaction::Locator
 Transaction::locate(uint256 const& id, Application& app)
 {
@@ -138,25 +137,18 @@ Transaction::locate(uint256 const& id, Application& app)
     auto res = PgQuery(app.pgPool()).query(sql.data());
 
     assert(res);
-    assert(PQntuples(res.get()) == 1);
-    assert(PQnfields(res.get()) == 1);
-    assert(
-        PQresultStatus(res.get()) == PGRES_TUPLES_OK ||
-        PQresultStatus(res.get()) == PGRES_SINGLE_TUPLE);
+    assert(res.ntuples() == 1);
+    assert(res.nfields() == 1);
 
-    if (!res ||
-        (PQresultStatus(res.get()) != PGRES_TUPLES_OK &&
-         PQresultStatus(res.get()) != PGRES_SINGLE_TUPLE) ||
-        PQgetisnull(res.get(), 0, 0))
+    if (!res || res.isNull())
     {
         JLOG(app.journal("Transaction::Locator").error())
             << "Bad postgres result"
-            << (res ? PQresultErrorMessage(res.get()) : "res is null");
+            << (res ? res.msg() : "res is null");
         return {};
     }
 
-    char const* resultStr = PQgetvalue(res.get(), 0, 0);
-
+    char const* resultStr = res.c_str();
     JLOG(app.journal("Transaction").debug())
         << "postgres result = " << resultStr;
 

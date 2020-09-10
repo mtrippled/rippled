@@ -24,22 +24,15 @@
 #include <ripple/basics/BasicConfig.h>
 #include <ripple/basics/Log.h>
 #include <ripple/protocol/Protocol.h>
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/io_context_strand.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/spawn.hpp>
-#include <boost/system/error_code.hpp>
+#include <boost/lexical_cast.hpp>
 #include <atomic>
 #include <chrono>
-#include <condition_variable>
 #include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
-#include <thread>
 #include <utility>
-#include <variant>
 #include <vector>
 
 namespace ripple {
@@ -48,14 +41,10 @@ namespace ripple {
 using pg_result_type = std::unique_ptr<PGresult, void(*)(PGresult*)>;
 using pg_connection_type = std::unique_ptr<PGconn, void(*)(PGconn*)>;
 
-using pg_error_type = std::pair<ExecStatusType, std::string>;
-using pg_variant_type = std::variant<std::monostate,
-                                     pg_result_type, pg_error_type>;
-
 /** first: command
  * second: parameter values
  *
- * The 2nd member takes an optional string is to
+ * The 2nd member takes an optional string to
  * distinguish between NULL parameters and empty strings. An empty
  * item corresponds to a NULL parameter.
  *
@@ -66,7 +55,7 @@ using pg_variant_type = std::variant<std::monostate,
 using pg_params = std::pair<char const*,
     std::vector<std::optional<std::string>>>;
 
-/* parameter values for pg API. */
+/** Parameter values for pg API. */
 using pg_formatted_params = std::vector<char const*>;
 
 /** Parameters for managing postgres connections. */
@@ -85,20 +74,190 @@ struct PgConfig
     std::vector<char const*> valuesIdx;
     /** DB connection parameter values. */
     std::vector<std::string> values;
-
 };
 
 //-----------------------------------------------------------------------------
+
+/** Class that operates on postgres query results.
+ *
+ * The functions that return results do not check first whether the
+ * expected results are actually there. Therefore, the caller first needs
+ * to check whether or not a valid response was returned using the operator
+ * bool() overload. If number of tuples or fields are unknown, then check
+ * those. Each result field should be checked for null before attempting
+ * to return results. Finally, the caller must know the type of the field
+ * before calling the corresponding function to return a field. Postgres
+ * internally stores each result field as null-terminated strings.
+ */
+class PgResult
+{
+    pg_result_type result_ { nullptr, [](PGresult* result){ PQclear(result); }};
+    std::optional<std::pair<ExecStatusType, std::string>> error_;
+
+public:
+    PgResult() = delete;
+
+    /** Constructor for successful query results.
+     *
+     * @param result Query result.
+     */
+    PgResult(pg_result_type&& result)
+        : result_ (std::move(result))
+    {}
+
+    /** Constructor for failed query results.
+     *
+     * @param result Query result that contains error information.
+     * @param conn Postgres connection that contains error information.
+     */
+    PgResult(PGresult* result, PGconn* conn)
+        : error_ ({PQresultStatus(result), PQerrorMessage(conn)})
+    {}
+
+    /** Return field as a null-terminated string pointer.
+     *
+     * Note that this function does not guarantee that the result struct
+     * exists, or that the row and fields exist, or that the field is
+     * not null.
+     *
+     * @param ntuple Row number.
+     * @param nfield Field number.
+     * @return Field contents.
+     */
+    char const*
+    c_str(int ntuple = 0, int nfield = 0) const
+    {
+        return PQgetvalue(result_.get(), ntuple, nfield);
+    }
+
+    /** Return field as equivalent to Postgres' INT type (32 bit signed).
+     *
+     * Note that this function does not guarantee that the result struct
+     * exists, or that the row and fields exist, or that the field is
+     * not null, or that the type is that requested.
+
+     * @param ntuple Row number.
+     * @param nfield Field number.
+     * @return Field contents.
+     */
+    std::int32_t
+    asInt(int ntuple = 0, int nfield = 0) const
+    {
+        return boost::lexical_cast<std::int32_t>(
+            PQgetvalue(result_.get(), ntuple, nfield));
+    }
+
+    /** Return field as equivalent to Postgres' BIGINT type (64 bit signed).
+     *
+     * Note that this function does not guarantee that the result struct
+     * exists, or that the row and fields exist, or that the field is
+     * not null, or that the type is that requested.
+
+     * @param ntuple Row number.
+     * @param nfield Field number.
+     * @return Field contents.
+     */
+    std::int64_t
+    asBigInt(int ntuple = 0, int nfield = 0) const
+    {
+        return boost::lexical_cast<std::int64_t>(
+            PQgetvalue(result_.get(), ntuple, nfield));
+    }
+
+    /** Returns whether the field is NULL or not.
+     *
+     * Note that this function does not guarantee that the result struct
+     * exists, or that the row and fields exist.
+     *
+     * @param ntuple Row number.
+     * @param nfield Field number.
+     * @return Whether field is NULL.
+     */
+    bool
+    isNull(int ntuple = 0, int nfield = 0) const
+    {
+        return PQgetisnull(result_.get(), ntuple, nfield);
+    }
+
+    /** Check whether a valid response occurred.
+     *
+     * @return Whether or not the query returned a valid response.
+     */
+    operator bool() const
+    {
+        return result_ != nullptr;
+    }
+
+    /** Message describing the query results suitable for diagnostics.
+     *
+     * If error, then the postgres error type and message are returned.
+     * Otherwise, "ok"
+     *
+     * @return Query result message.
+     */
+    std::string
+    msg() const;
+
+    /** Get number of rows in result.
+     *
+     * Note that this function does not guarantee that the result struct
+     * exists.
+     *
+     * @return Number of result rows.
+     */
+    int
+    ntuples() const
+    {
+        return PQntuples(result_.get());
+    }
+
+    /** Get number of fields in result.
+     *
+     * Note that this function does not guarantee that the result struct
+     * exists.
+     *
+     * @return Number of result fields.
+     */
+    int
+    nfields() const
+    {
+        return PQnfields(result_.get());
+    }
+
+    /** Return result status of the command.
+     *
+     * Note that this function does not guarantee that the result struct
+     * exists.
+     *
+     * @return
+     */
+    ExecStatusType
+    status() const
+    {
+        return PQresultStatus(result_.get());
+    }
+};
 
 /* Class that contains and operates upon a postgres connection. */
 class Pg
     : public std::enable_shared_from_this<Pg>
 {
+    friend class PgPool;
+
     PgConfig const& config_;
     beast::Journal const j_;
 
-    pg_connection_type conn_ {
-        nullptr, [](PGconn* conn){PQfinish(conn);}};
+    pg_connection_type conn_ {nullptr, [](PGconn* conn){ PQfinish(conn); }};
+
+    /** Clear results from the connection.
+     *
+     * Results from previous commands must be cleared before new commands
+     * can be processed. This function should be called on connections
+     * that weren't processed completely before being reused, such as
+     * when being checked-in.
+     */
+    void
+    clear();
 
 public:
     /** Constructor for Pg class.
@@ -137,17 +296,17 @@ public:
 
     /** Execute postgres query.
      *
-     * See: https://www.postgresql.org/docs/10/libpq-async.html
-     *
-     * The API supports multiple response objects per command but this
-     * implementation only returns 0 or 1 response objects.
+     * If parameters are included, then the command should contain only a
+     * single SQL statement. If no parameters, then multiple SQL statements
+     * delimited by semi-colons can be processed. The response is from
+     * the last command executed.
      *
      * @param command postgres API command string.
      * @param nParams postgres API number of parameters.
      * @param values postgres API array of parameter.
      * @return Postgres API result struct if successful.
      */
-    pg_variant_type
+    PgResult
     query(char const* command, std::size_t nParams, char const* const* values);
 
     /** Execute postgres query with no parameters.
@@ -155,7 +314,7 @@ public:
      * @param command Query string.
      * @return Postgres API result struct.
      */
-    pg_variant_type
+    PgResult
     query(char const* command)
     {
         return query(command, 0, nullptr);
@@ -166,15 +325,16 @@ public:
      * @param dbParams Database command and parameter values.
      * @return PostgreSQL API result struct.
      */
-    pg_variant_type
+    PgResult
     query(pg_params const& dbParams);
 
-    PGconn*
-    getConn()
-    {
-        return conn_.get();
-    }
-
+    /** Insert multiple records into a table using Postgres' bulk COPY.
+     *
+     * @param table Name of table for import.
+     * @param records Records in the COPY IN format.
+     */
+    void
+    bulkInsert(char const* table, std::string const& records);
 };
 
 //-----------------------------------------------------------------------------
@@ -195,10 +355,11 @@ class PgPool
     friend class PgQuery;
     using clock_type = std::chrono::steady_clock;
 
-    // TODO the asio worker threads and io context need to be external for GA.
-    boost::asio::io_context io_;
+    /** Idle database connections ordered by timestamp to allow
+     * timing out.
+     */
     std::multimap<std::chrono::time_point<clock_type>,
-        std::shared_ptr<Pg>> idle_;
+                  std::shared_ptr<Pg>> idle_;
 
 public:
     beast::Journal const j_;
@@ -214,8 +375,7 @@ public:
      * @param io Asio io service.
      * @param dbConfig Config params.
      */
-    PgPool(Section const& network_db_config,
-        beast::Journal const j);
+    PgPool(Section const& network_db_config, beast::Journal const j);
 
     /** Initiate idle connection timer.
      *
@@ -251,9 +411,7 @@ public:
 
 //-----------------------------------------------------------------------------
 
-class NodeObject;
-
-/** Class to query postgres both synchronously and asynchronously. */
+/** Class to query postgres. */
 class PgQuery
     : public std::enable_shared_from_this<PgQuery>
 {
@@ -273,41 +431,23 @@ public:
      * @param dbParams
      * @return PostgreSQL API result struct.
      */
-    pg_variant_type
-    queryVariant(pg_params const& dbParams, std::shared_ptr<Pg>& conn);
+    PgResult
+    query(pg_params const& dbParams, std::shared_ptr<Pg>& conn);
 
-    pg_variant_type
-    queryVariant(pg_params const& dbParams)
-    {
-        auto conn = pool_->checkout();
-        return queryVariant(dbParams, conn);
-    }
-
-    pg_result_type
-    query(pg_params const& dbParams, std::shared_ptr<Pg>& conn)
-    {
-        auto result = queryVariant(dbParams, conn);
-        if (std::holds_alternative<pg_result_type>(result))
-            return std::move(std::get<pg_result_type>(result));
-        return {nullptr, [](PGresult* result){ PQclear(result); }};
-    }
-
-    pg_result_type
+    PgResult
     query(pg_params const& dbParams)
     {
-        std::shared_ptr<Pg> conn;
-        auto ret = query(dbParams, conn);
-        pool_->checkin(conn);
-        return ret;
+        auto conn = pool_->checkout();
+        return query(dbParams, conn);
     }
 
-    pg_result_type
+    PgResult
     query(char const* command, std::shared_ptr<Pg>& conn)
     {
         return query(pg_params{command, {}}, conn);
     }
 
-    pg_result_type
+    PgResult
     query(char const* command)
     {
         std::shared_ptr<Pg> conn;
@@ -323,6 +463,13 @@ public:
 std::shared_ptr<PgPool> make_PgPool(Section const& network_db_config,
     beast::Journal const j);
 
+/** Initialize the Postgres schema.
+ *
+ * This function ensures that the database is running the latest version
+ * of the schema.
+ *
+ * @param pool Postgres connection pool manager.
+ */
 void
 initSchema(std::shared_ptr<PgPool> const& pool);
 

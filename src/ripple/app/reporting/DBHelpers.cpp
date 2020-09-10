@@ -32,8 +32,7 @@ writeToLedgersDB(
     JLOG(j.debug()) << __func__;
     auto cmd = boost::format(
         R"(INSERT INTO ledgers
-                VALUES(%u,'\x%s', '\x%s',%u,%u,%u,%u,%u,'\x%s','\x%s')
-                )");
+           VALUES (%u,'\x%s', '\x%s',%u,%u,%u,%u,%u,'\x%s','\x%s'))");
 
     auto ledgerInsert = boost::str(
         cmd % info.seq % strHex(info.hash) % strHex(info.parentHash) %
@@ -45,94 +44,9 @@ writeToLedgersDB(
                     << " : "
                     << "query string = " << ledgerInsert;
 
-    auto res = pgQuery->queryVariant({ledgerInsert.data(), {}}, conn);
+    auto res = pgQuery->query({ledgerInsert.data(), {}}, conn);
 
-    return !std::holds_alternative<pg_error_type>(res);
-}
-
-void
-bulkWriteToTable(
-    std::shared_ptr<PgQuery>& pgQuery,
-    std::shared_ptr<Pg>& conn,
-    char const* copyQuery,
-    std::string const bufString,
-    beast::Journal& j)
-{
-    JLOG(j.debug()) << __func__;
-    //    while (!etl.isStopping())
-        // Initiate COPY operation
-
-    auto res = pgQuery->queryVariant({copyQuery, {}}, conn);
-    if (!std::holds_alternative<pg_result_type>(res) ||
-        PQresultStatus(std::get<pg_result_type>(res).get()) != PGRES_COPY_IN)
-    {
-        std::stringstream msg;
-        msg << "bulkWriteToTable : Postgres insert error: ";
-        msg << PQerrorMessage(conn->getConn());
-        Throw<std::runtime_error>(msg.str());
-    }
-
-    auto rawRes =
-        PQputCopyData(conn->getConn(), bufString.c_str(), bufString.size());
-    if(rawRes == 0 || rawRes == -1)
-    {
-        std::stringstream msg;
-        msg << "bulkWriteToTable : Postgres insert error: ";
-        msg << PQerrorMessage(conn->getConn());
-        msg << " : rawRes = " << rawRes;
-        Throw<std::runtime_error>(msg.str());
-    }
-    auto pqResult = PQgetResult(conn->getConn());
-    auto pqResultStatus = PQresultStatus(pqResult);
-   
-    if(pqResultStatus != PGRES_COPY_IN)
-    {
-        std::stringstream msg;
-        msg << "bulkWriteToTable : Postgres insert error: ";
-        msg << PQerrorMessage(conn->getConn());
-        msg << " : result status = ";
-        msg << pqResultStatus;
-        Throw<std::runtime_error>(msg.str());
-    }
-
-    PQclear(pqResult);
-
-    rawRes = PQputCopyEnd(conn->getConn(), nullptr);
-    if(rawRes == 0 || rawRes == -1)
-    {
-        std::stringstream msg;
-        msg << "bulkWriteToTable : Postgres insert error: ";
-        msg << PQerrorMessage(conn->getConn());
-        msg << " : rawRes = " << rawRes;
-        Throw<std::runtime_error>(msg.str());
-    }
-    pqResult = PQgetResult(conn->getConn());
-    pqResultStatus = PQresultStatus(pqResult);
-    if(pqResultStatus != PGRES_COMMAND_OK)
-    {
-        std::stringstream msg;
-        msg << "bulkWriteToTable : Postgres insert error: ";
-        msg << PQerrorMessage(conn->getConn());
-        msg << " : result status = " << pqResultStatus;
-        Throw<std::runtime_error>(msg.str());
-    }
-    PQclear(pqResult);
-    //        while (!etl.isStopping())
-    while (true)
-    {
-        pqResult = PQgetResult(conn->getConn());
-        if (!pqResult)
-            break;
-        pqResultStatus = PQresultStatus(pqResult);
-    }
-    if(pqResultStatus != PGRES_COMMAND_OK)
-    {
-        std::stringstream msg;
-        msg << "bulkWriteToTable : Postgres insert error: ";
-        msg << PQerrorMessage(conn->getConn());
-        msg << " : result status = " << pqResultStatus;
-        Throw<std::runtime_error>(msg.str());
-    }
+    return res;
 }
 
 bool
@@ -153,13 +67,12 @@ writeToPostgres(
     std::shared_ptr<PgQuery> pg = std::make_shared<PgQuery>(pgPool);
     std::shared_ptr<Pg> conn;
 
-    auto res = pg->queryVariant({"BEGIN", {}}, conn);
-    if (!std::holds_alternative<pg_result_type>(res) ||
-        PQresultStatus(std::get<pg_result_type>(res).get()) != PGRES_COMMAND_OK)
+    auto res = pg->query({"BEGIN", {}}, conn);
+    if (!res)
     {
         std::stringstream msg;
-        msg << "bulkWriteToTable : Postgres insert error: ";
-        msg << PQerrorMessage(conn->getConn());
+        msg << "bulkWriteToTable : Postgres insert error: "
+            << res.msg();
         Throw<std::runtime_error>(msg.str());
     }
 
@@ -200,27 +113,16 @@ writeToPostgres(
     JLOG(j.debug()) << "account_transactions: "
                     << accountTransactionsCopyBuffer.str();
 
-    bulkWriteToTable(
-        pg,
-        conn,
-        "COPY transactions FROM stdin",
-        transactionsCopyBuffer.str(),
-        j);
-    bulkWriteToTable(
-        pg,
-        conn,
-        "COPY account_transactions FROM stdin",
-        accountTransactionsCopyBuffer.str(),
-        j);
+    conn->bulkInsert("transactions", transactionsCopyBuffer.str());
+    conn->bulkInsert("account_transactions",
+                     accountTransactionsCopyBuffer.str());
 
-    res = pg->queryVariant({"COMMIT", {}}, conn);
-    if(!std::holds_alternative<pg_result_type>(res) ||
-        PQresultStatus(std::get<pg_result_type>(res).get()) !=
-        PGRES_COMMAND_OK)
+    res = pg->query("COMMIT", conn);
+    if (!res)
     {
         std::stringstream msg;
-        msg << "bulkWriteToTable : Postgres insert error: ";
-        msg << PQerrorMessage(conn->getConn());
+        msg << "bulkWriteToTable : Postgres insert error: "
+            << res.msg();
         Throw<std::runtime_error>(msg.str());
     }
 

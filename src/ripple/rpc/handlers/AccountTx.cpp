@@ -471,8 +471,7 @@ doAccountTxStoredProcedure(AccountTxArgs const& args, RPC::Context& context)
         {
             values[6] = std::to_string(*sequence);
         }
-        else if (
-            auto shortcut = std::get_if<LedgerShortcut>(&args.ledger.value()))
+        else if (std::get_if<LedgerShortcut>(&args.ledger.value()))
         {
             // current, closed and validated are all treated as validated
             values[7] = "true";
@@ -497,26 +496,22 @@ doAccountTxStoredProcedure(AccountTxArgs const& args, RPC::Context& context)
     }
 
     auto res = PgQuery(context.app.pgPool()).query(dbParams);
-    assert(PQntuples(res.get()) == 1);
-    assert(PQnfields(res.get()) == 1);
+    assert(res);
+    assert(res.ntuples() == 1);
+    assert(res.nfields() == 1);
 
-    assert(
-        PQresultStatus(res.get()) == PGRES_TUPLES_OK ||
-        PQresultStatus(res.get()) == PGRES_SINGLE_TUPLE);
     JLOG(context.j.debug()) << "doAccountTxStoredProcedure - "
-                            << "result status = " << PQresultStatus(res.get());
-    if (PQgetisnull(res.get(), 0, 0))
+                            << "result status = " << res.msg();
+    if (res.isNull())
     {
         JLOG(context.j.debug()) << "doAccountTxStoredProcedure - "
                                 << "result is null";
         return {};
     }
 
-    char const* resultStr = PQgetvalue(res.get(), 0, 0);
-
+    char const* resultStr = res.c_str();
     JLOG(context.j.trace()) << "doAccountTxStoredProcedure - "
                             << "postgres result = " << resultStr;
-
 
     Json::Value v;
     Json::Reader reader;

@@ -275,12 +275,12 @@ LedgerMaster::getValidatedLedgerAge()
     if (app_.config().reporting())
     {
         auto age = PgQuery(app_.pgPool()).query("SELECT age()");
-        if (!age || PQgetisnull(age.get(), 0, 0))
+        if (!age || age.isNull())
         {
             JLOG(m_journal.debug()) << "No ledgers in database";
             return weeks{2};
         }
-        return std::chrono::seconds{std::atoi(PQgetvalue(age.get(), 0, 0))};
+        return std::chrono::seconds{age.asInt()};
     }
     else
     {
@@ -1587,14 +1587,12 @@ LedgerMaster::getValidatedLedger ()
     if (app_.config().reporting())
     {
         auto seq = PgQuery(app_.pgPool()).query("SELECT max_ledger()");
-        if (!seq || PQgetisnull(seq.get(), 0, 0))
+        if (!seq || seq.isNull())
             return {};
-        return getLedgerBySeq(std::atoi(PQgetvalue(seq.get(), 0, 0)));
+        return getLedgerBySeq(seq.asInt());
     }
     return mValidLedger.get();
 }
-
-
 
 Rules
 LedgerMaster::getValidatedRules()
@@ -1626,7 +1624,7 @@ LedgerMaster::getCompleteLedgers()
         auto range = PgQuery(app_.pgPool()).query("SELECT complete_ledgers()");
         if (!range)
             return "error";
-        return (PQgetvalue(range.get(), 0, 0));
+        return range.c_str();
     }
     else
     {
@@ -2273,9 +2271,9 @@ LedgerMaster::minSqlSeq()
                 << "Error querying minimum ledger sequence.";
             return {};
         }
-        if (PQgetisnull(seq.get(), 0, 0))
+        if (seq.isNull())
             return {};
-        return std::atol(PQgetvalue(seq.get(), 0, 0));
+        return seq.asInt();
     }
     else
     {

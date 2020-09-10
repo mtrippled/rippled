@@ -29,6 +29,7 @@
 #include <ripple/resource/Fees.h>
 #include <ripple/rpc/Context.h>
 #include <ripple/rpc/Role.h>
+#include <ripple/rpc/Status.h>
 #include <boost/format.hpp>
 
 namespace ripple {
@@ -61,18 +62,15 @@ doTxHistoryReporting(RPC::JsonContext& context)
 
     auto res = pg->query(sql.data());
     assert(res);
-    auto result = PQresultStatus(res.get());
-
-    JLOG(context.j.debug()) << "txHistory - result: " << result;
-    assert(result == PGRES_TUPLES_OK);
+    JLOG(context.j.debug()) << "txHistory - result: " << res.msg();
 
     Json::Value txs;
 
     std::vector<uint256> nodestoreHashes;
-    for (size_t i = 0; i < PQntuples(res.get()); ++i)
+    for (size_t i = 0; i < res.ntuples(); ++i)
     {
         nodestoreHashes.push_back(
-            from_hex_text<uint256>(PQgetvalue(res.get(), i, 0) + 2));
+            from_hex_text<uint256>(res.c_str(i, 0) + 2));
     }
 
     auto objs = context.app.getNodeFamily().db().fetchBatch(nodestoreHashes);

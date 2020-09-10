@@ -3,8 +3,6 @@
    core functionality, useable by some client software perhaps
 #]===================================================================]
 
-set(CMAKE_VERBOSE_MAKEFILE ON)
-
 file (GLOB_RECURSE rb_headers
   src/ripple/beast/*.h
   src/ripple/beast/*.hpp)
@@ -16,11 +14,9 @@ if (unity)
 endif ()
 
 find_package(PostgreSQL REQUIRED)
-message("postgresql include,libs ${PostgreSQL_INCLUDE_DIRS} ${PostgreSQL_LIBRARIES}")
 
 if (reporting)
   find_library(cassandra NAMES cassandra cassandra-cpp-driver REQUIRED)
-  message(${cassandra})
   find_path(cassandra_includes NAMES cassandra.h REQUIRED)
 endif()
 

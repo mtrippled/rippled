@@ -234,7 +234,7 @@ private:
     clearCaches(LedgerIndex validatedSeq);
     void
     freshenCaches();
-    void
+    bool
     clearPrior(LedgerIndex lastRotated);
 
     // If rippled is not healthy, defer rotate-delete.

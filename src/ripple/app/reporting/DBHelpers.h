@@ -63,14 +63,6 @@ struct AccountTransactionsData
     }
 };
 
-void
-bulkWriteToTable(
-    std::shared_ptr<PgQuery>& pgQuery,
-    std::shared_ptr<Pg>& conn,
-    char const* copyQuery,
-    std::string const bufString,
-    beast::Journal& j);
-
 bool
 writeToPostgres(
     LedgerInfo const& info,

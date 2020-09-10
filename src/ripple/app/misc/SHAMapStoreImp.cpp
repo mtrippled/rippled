@@ -362,7 +362,8 @@ SHAMapStoreImp::run()
                 << app_.getOPs().strOperatingMode(false) << " age "
                 << ledgerMaster_->getValidatedLedgerAge().count() << 's';
 
-            clearPrior(lastRotated);
+            if (! clearPrior(lastRotated))
+                return;
             switch (health())
             {
                 case Health::stopping:
@@ -638,7 +639,7 @@ SHAMapStoreImp::freshenCaches()
         return;
 }
 
-void
+bool
 SHAMapStoreImp::clearPrior(LedgerIndex lastRotated)
 {
     // Do not allow ledgers to be acquired from the network
@@ -650,7 +651,7 @@ SHAMapStoreImp::clearPrior(LedgerIndex lastRotated)
     JLOG(journal_.trace()) << "End: Clear internal ledgers up to "
                            << lastRotated;
     if (health())
-        return;
+        return false;
 
     if (app_.config().reporting())
     {
@@ -661,16 +662,16 @@ SHAMapStoreImp::clearPrior(LedgerIndex lastRotated)
             "SELECT prepare_delete(" + std::to_string(lastRotated) + ");";
 
         auto res = PgQuery(app_.pgPool()).query(sql.data());
-        auto result = PQresultStatus(res.get());
-        journal_.debug() << "clearPrior - postgres result = " << result;
-        assert(result == PGRES_TUPLES_OK);
+        journal_.debug() << "clearPrior - postgres result = " << res.msg();
+        if (!res)
+            return false;
 
         sql = "SELECT online_delete(" + std::to_string(lastRotated) + ");";
 
         res = PgQuery(app_.pgPool()).query(sql.data());
-        result = PQresultStatus(res.get());
-        journal_.debug() << "clearPrior - postgres result = " << result;
-        assert(result == PGRES_TUPLES_OK);
+        journal_.debug() << "clearPrior - postgres result = " << res.msg();
+        if (!res)
+            return false;
     }
     else
     {
@@ -680,7 +681,7 @@ SHAMapStoreImp::clearPrior(LedgerIndex lastRotated)
             "SELECT MIN(LedgerSeq) FROM Ledgers;",
             "DELETE FROM Ledgers WHERE LedgerSeq < %u;");
         if (health())
-            return;
+            return false;
 
         clearSql(
             *transactionDb_,
@@ -688,7 +689,7 @@ SHAMapStoreImp::clearPrior(LedgerIndex lastRotated)
             "SELECT MIN(LedgerSeq) FROM Transactions;",
             "DELETE FROM Transactions WHERE LedgerSeq < %u;");
         if (health())
-            return;
+            return false;
 
         clearSql(
             *transactionDb_,
@@ -696,8 +697,10 @@ SHAMapStoreImp::clearPrior(LedgerIndex lastRotated)
             "SELECT MIN(LedgerSeq) FROM AccountTransactions;",
             "DELETE FROM AccountTransactions WHERE LedgerSeq < %u;");
         if (health())
-            return;
+            return false;
     }
+
+    return true;
 }
 
 SHAMapStoreImp::Health

@@ -2262,8 +2262,8 @@ ApplicationImp::setMaxDisallowedLedger()
     if (config().reporting())
     {
         auto seq = PgQuery(pgPool()).query("SELECT max_ledger()");
-        if (seq && !PQgetisnull(seq.get(), 0, 0))
-            maxDisallowedLedger_ = std::atol(PQgetvalue(seq.get(), 0, 0));
+        if (seq && !seq.isNull())
+            maxDisallowedLedger_ = seq.asBigInt();
     }
     else
     {

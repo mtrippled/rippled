@@ -17,23 +17,22 @@
 */
 //==============================================================================
 
-#include <ripple/basics/Slice.h>
-#include <ripple/protocol/digest.h>
+// Need raw socket manipulation to determine if postgres socket IPv4 or 6.
+#if defined(_WIN32)
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#endif
+
 #include <ripple/basics/contract.h>
-#include <ripple/basics/strHex.h>
-#include <ripple/basics/StringUtilities.h>
-#include <ripple/beast/core/CurrentThreadName.h>
 #include <ripple/core/Pg.h>
-#include <ripple/nodestore/impl/codec.h>
-#include <ripple/nodestore/impl/DecodedBlob.h>
-#include <ripple/nodestore/impl/EncodedBlob.h>
-#include <ripple/nodestore/NodeObject.h>
-#include <nudb/nudb.hpp>
-#include <boost/asio/error.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/strand.hpp>
 #include <boost/format.hpp>
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
@@ -44,6 +43,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -53,9 +53,30 @@ static void
 noticeReceiver(void* arg, PGresult const* res)
 {
     beast::Journal& j = *static_cast<beast::Journal*>(arg);
-    JLOG(j.error()) << "server message: "
+    JLOG(j.info()) << "server message: "
                          << PQresultErrorMessage(res);
 }
+
+//-----------------------------------------------------------------------------
+
+std::string
+PgResult::msg() const
+{
+    if (error_.has_value())
+    {
+        std::stringstream ss;
+        ss << error_->first << ": " << error_->second;
+        return ss.str();
+    }
+    if (result_ != nullptr)
+        return "ok";
+    // This object should either have an error or a valid result.
+    assert(false);
+    return "no result";
+}
+
+
+//-----------------------------------------------------------------------------
 
 /*
  Connecting described in:
@@ -97,7 +118,7 @@ Pg::connect()
         conn_.get(), noticeReceiver, const_cast<beast::Journal*>(&j_));
 }
 
-pg_variant_type
+PgResult
 Pg::query(char const* command, std::size_t nParams, char const* const* values)
 {
     pg_result_type ret { nullptr, [](PGresult* result){ PQclear(result); }};
@@ -109,6 +130,7 @@ Pg::query(char const* command, std::size_t nParams, char const* const* values)
             connect();
             if (nParams)
             {
+                // PQexecParams can process only a single command.
                 ret.reset(PQexecParams(
                     conn_.get(),
                     command,
@@ -121,6 +143,9 @@ Pg::query(char const* command, std::size_t nParams, char const* const* values)
             }
             else
             {
+                // PQexec can process multiple commands separated by
+                // semi-colons. Returns the response from the last
+                // command processed.
                 ret.reset(PQexec(conn_.get(), command));
             }
             if (!ret)
@@ -158,12 +183,11 @@ Pg::query(char const* command, std::size_t nParams, char const* const* values)
                << PQnfields(ret.get());
             JLOG(j_.error()) << ss.str();
             disconnect();
-            return pg_error_type{
-                PQresultStatus(ret.get()), PQerrorMessage(conn_.get())};
+            return PgResult(ret.get(), conn_.get());
         }
     }
 
-    return ret;
+    return PgResult(std::move(ret));
 }
 
 static pg_formatted_params
@@ -199,7 +223,7 @@ formatParams(pg_params const& dbParams, beast::Journal const j)
     return valuesIdx;
 }
 
-pg_variant_type
+PgResult
 Pg::query(pg_params const& dbParams)
 {
     char const* const& command = dbParams.first;
@@ -210,6 +234,80 @@ Pg::query(pg_params const& dbParams)
         formattedParams.size()
             ? reinterpret_cast<char const* const*>(&formattedParams[0])
             : nullptr);
+}
+
+void
+Pg::bulkInsert(char const* table, std::string const& records)
+{
+    // https://www.postgresql.org/docs/12/libpq-copy.html#LIBPQ-COPY-SEND
+    assert(conn_.get());
+    static auto copyCmd = boost::format(R"(COPY %s FROM stdin)");
+    auto res = query(boost::str(copyCmd % table).c_str());
+    if (!res || res.status() != PGRES_COPY_IN)
+    {
+        std::stringstream ss;
+        ss << "bulkInsert to " << table
+           << ". Postgres insert error: " << res.msg();
+        if (res)
+            ss << ". Query status not PGRES_COPY_IN: " << res.status();
+        Throw<std::runtime_error>(ss.str());
+    }
+
+    if (PQputCopyData(conn_.get(), records.c_str(), records.size()) == -1)
+    {
+        std::stringstream ss;
+        ss << "bulkInsert to " << table
+           << ". PQputCopyData error: " << PQerrorMessage(conn_.get());
+        Throw<std::runtime_error>(ss.str());
+    }
+
+    if (PQputCopyEnd(conn_.get(), nullptr) == -1)
+    {
+        std::stringstream ss;
+        ss << "bulkInsert to " << table
+           << ". PQputCopyEnd error: " << PQerrorMessage(conn_.get());
+        Throw<std::runtime_error>(ss.str());
+    }
+
+    pg_result_type copyEndResult {
+        nullptr, [](PGresult* result){ PQclear(result); }};
+    copyEndResult.reset(PQgetResult(conn_.get()));
+    ExecStatusType status = PQresultStatus(copyEndResult.get());
+    if (status != PGRES_COMMAND_OK)
+    {
+        std::stringstream ss;
+        ss << "bulkInsert to " << table
+           << ". PQputCopyEnd status not PGRES_COMMAND_OK: "
+           << status;
+        Throw<std::runtime_error>(ss.str());
+    }
+}
+
+void
+Pg::clear()
+{
+    pg_result_type res {
+        nullptr, [](PGresult* result){ PQclear(result); }};
+    while (true)
+    {
+        res.reset(PQgetResult(conn_.get()));
+        if (!res)
+            break;
+        // Pending bulk copy operations may leave the connection in such a
+        // state that it must be disconnected.
+        switch (PQresultStatus(res.get()))
+        {
+            case PGRES_COPY_IN:
+                if (PQputCopyEnd(conn_.get(), nullptr) != -1)
+                    break;
+                [[fallthrough]]; // avoids compiler warning
+            case PGRES_COPY_OUT:
+            case PGRES_COPY_BOTH:
+                conn_.reset();
+            default:
+                ;
+        }
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -449,21 +547,9 @@ PgPool::checkin(std::shared_ptr<Pg>& pg)
     }
     else
     {
-        PGresult* res;
-        while ((res = PQgetResult(pg->getConn())) != nullptr)
-        {
-            ExecStatusType const status = PQresultStatus(res);
-            if (status == PGRES_COPY_IN)
-            {
-                if (PQputCopyEnd(pg->getConn(), nullptr) == -1)
-                    pg.reset();
-            }
-            else if (status == PGRES_COPY_OUT || status == PGRES_COPY_BOTH)
-            {
-                pg.reset();
-            }
-        }
-
+        pg->clear();
+        // It's possible that the connection was severed while results were
+        // cleared.
         if (pg)
             idle_.emplace(clock_type::now(), pg);
     }
@@ -472,8 +558,8 @@ PgPool::checkin(std::shared_ptr<Pg>& pg)
 
 //-----------------------------------------------------------------------------
 
-pg_variant_type
-PgQuery::queryVariant(pg_params const& dbParams, std::shared_ptr<Pg>& conn)
+PgResult
+PgQuery::query(pg_params const& dbParams, std::shared_ptr<Pg>& conn)
 {
     while (!conn)
         conn = pool_->checkout();
@@ -490,46 +576,132 @@ make_PgPool(Section const& network_db_config, beast::Journal const j)
     return ret;
 }
 
-void
-initSchema(std::shared_ptr<PgPool> const& pool)
-{
-    assert(pool);
-    static std::uint32_t const latest_schema_version = 1;
+//-----------------------------------------------------------------------------
 
-    static char const* version_query = R"(
-CREATE TABLE IF NOT EXISTS version (version int NOT NULL);
+/** Postgres Schema Management
+ *
+ * The postgres schema has several properties to facilitate
+ * consistent deployments, including upgrades. It is not recommended to
+ * upgrade the schema concurrently.
+ *
+ * Initial deployment should be against a completely fresh database. The
+ * postgres user must have the CREATE TABLE privilege.
+ *
+ * With postgres configured, the first step is to apply the version_query
+ * schema and consume the results. This script returns the currently
+ * installed schema version, if configured, or 0 if not. It is idempotent.
+ *
+ * If the version installed on the database is equal to the
+ * LATEST_SCHEMA_VERSION, then no action should take place.
+ *
+ * If the version on the database is 0, then the entire latest schema
+ * should be deployed with the applySchema() function.
+ * Each version that is developed is fully
+ * represented in the full_schemata array with each version equal to the
+ * text in the array's index position. For example, index position 1
+ * contains the full schema version 1. Position 2 contains schema version 2.
+ * Index 0 should never be referenced and its value only a placeholder.
+ * If a fresh installation is aborted, then subsequent fresh installations
+ * should install the same version previously attempted, even if there
+ * exists a newer version. The initSchema() function performs this task.
+ * Therefore, previous schema versions should remain in the array
+ * without modification as new versions are developed and placed after them.
+ * Once the schema is succesffuly deployed, applySchema() persists the
+ * schema version to the database.
+ *
+ * If the current version of the database is greater than 0, then it means
+ * that a previous schema version is already present. In this case, the database
+ * schema needs to be updated incrementally for each subsequent version.
+ * Again, applySchema() is used to upgrade the schema. Schema upgrades are
+ * in the upgrade_schemata array. Each entry by index position represents
+ * the database schema version from which the upgrade begins. Each upgrade
+ * sets the database to the next version. Schema upgrades can only safely
+ * happen from one version to the next. To upgrade several versions of schema,
+ * upgrade incrementally for each version that separates the current from the
+ * latest. For example, to upgrade from version 5 to version 6 of the schema,
+ * use upgrade_schemata[5]. To upgrade from version 1 to version 4, use
+ * upgrade_schemata[1], upgrade_schemata[2], and upgrade_schemata[3] in
+ * sequence.
+ *
+ * To upgrade the schema past version 1, the following variables must be
+ * updated:
+ * 1) LATEST_SCHEMA_VERSION must be set to the new version.
+ * 2) A new entry must be placed at the end of the full_schemata array. This
+ *    entry should have the entire schema so that fresh installations can
+ *    be performed with it. The index position must be equal to the
+ *    LATEST_SCHEMA_VERSION.
+ * 3) A new entry must be placed at the end of the upgrade_schemata array.
+ *    This entry should only contain commands to upgrade the schema from
+ *    the immediately previous version to the new version.
+ *
+ * It is up to the developer to ensure that all schema commands are idempotent.
+ * This protects against 2 things:
+ * 1) Resuming schema installation after a problem.
+ * 2) Concurrent schema updates from multiple processes.
+ *
+ * There are several things that must considered for upgrading existing
+ * schemata to avoid stability and performance problems. Some examples and
+ * suggestions follow.
+ * - Schema changes such as creating new columns and indices can consume
+ *   a lot of time. Therefore, before such changes, a separate script should
+ *   be executed by the user to perform the schema upgrade prior to restarting
+ *   rippled.
+ * - Stored functions cannot be dropped while being accessed. Also,
+ *   dropping stored functions can be ambiguous if multiple functions with
+ *   the same name but different signatures exist. Further, stored function
+ *   behavior from one schema version to the other would likely be handled
+ *   differently by rippled. In this case, it is likely that the functions
+ *   themselves should be versioned such as by appending a number to the
+ *   end of the name (abcf becomes abcf_2, abcf_3, etc.)
+ *
+ * Essentially, each schema upgrade will have its own factors to impact
+ * service availability and function.
+ */
 
+#define LATEST_SCHEMA_VERSION 1
+
+char const* version_query = R"(
+CREATE TABLE IF NOT EXISTS version (version int NOT NULL,
+    fresh_pending int NOT NULL);
+
+-- Version 0 means that no schema has been fully deployed.
 DO $$
 BEGIN
-IF NOT EXISTS (SELECT 1 FROM version) THEN
-INSERT INTO version VALUES (0);
+    IF NOT EXISTS (SELECT 1 FROM version) THEN
+    INSERT INTO version VALUES (0, 0);
 END IF;
 END $$;
 
-SELECT version FROM version;
-    )";
+-- Function to set the schema version. _in_pending should only be set to
+-- non-zero prior to an attempt to initialize the schema from scratch.
+-- After successful initialization, this should set to 0.
+-- _in_version should be set to the version of schema that has been applied
+-- once successful application has occurred.
+CREATE OR REPLACE FUNCTION set_schema_version (
+    _in_version int,
+    _in_pending int
+) RETURNS void AS $$
+DECLARE
+    _current_version int;
+BEGIN
+    IF _in_version IS NULL OR _in_pending IS NULL THEN RETURN; END IF;
+    IF EXISTS (SELECT 1 FROM version) THEN DELETE FROM version; END IF;
+    INSERT INTO version VALUES (_in_version, _in_pending);
+    RETURN;
+END;
+$$ LANGUAGE plpgsql;
 
-    auto res = PgQuery(pool).queryVariant({version_query, {}});
-    if (std::holds_alternative<pg_error_type>(res))
-    {
-        std::stringstream ss;
-        ss << "Error getting database schema version: "
-            << std::get<pg_error_type>(res).second;
-        Throw<std::runtime_error>(ss.str());
-    }
-    std::uint32_t const currentSchemaVersion =
-        std::atoi(PQgetvalue(std::get<pg_result_type>(res).get(), 0, 0));
-    std::cerr << "version: " << currentSchemaVersion << '\n';
+-- PQexec() returns the output of the last statement in its response.
+SELECT * FROM version;
+)";
 
-    // Nothing to do if we are on the latest schema;
-    if (currentSchemaVersion == latest_schema_version)
-        return;
+std::array<char const*, LATEST_SCHEMA_VERSION + 1> full_schemata = {
+    // version 0:
+    "There is no such thing as schema version 0."
 
-    switch (currentSchemaVersion)
-    {
-        case 0: // Install schema from scratch.
-        {
-            static char const* full_schema = R"(
+    // version 1:
+    , R"(
+-- Table to store ledger headers.
 CREATE TABLE IF NOT EXISTS ledgers (
     ledger_seq        bigint PRIMARY KEY,
     ledger_hash       bytea  NOT NULL,
@@ -543,9 +715,12 @@ CREATE TABLE IF NOT EXISTS ledgers (
     trans_set_hash    bytea  NOT NULL
 );
 
+-- Index for lookups by ledger hash.
 CREATE INDEX IF NOT EXISTS ledgers_ledger_hash_idx ON ledgers
     USING hash (ledger_hash);
 
+-- Transactions table. Deletes from the ledger table
+-- cascade here based on ledger_seq.
 CREATE TABLE IF NOT EXISTS transactions (
     ledger_seq bigint NOT NULL,
     transaction_index bigint NOT NULL,
@@ -556,9 +731,12 @@ CREATE TABLE IF NOT EXISTS transactions (
         REFERENCES ledgers (ledger_seq) ON DELETE CASCADE
 );
 
+-- Index for lookups by transaction hash.
 CREATE INDEX IF NOT EXISTS transactions_trans_id_idx ON transactions
     USING hash (trans_id);
 
+-- Table that maps accounts to transactions affecting them. Deletes from the
+-- ledger table by way of transactions table cascade here based on ledger_seq.
 CREATE TABLE IF NOT EXISTS account_transactions (
     account           bytea  NOT NULL,
     ledger_seq        bigint NOT NULL,
@@ -570,28 +748,21 @@ CREATE TABLE IF NOT EXISTS account_transactions (
         ledger_seq, transaction_index) ON DELETE CASCADE
 );
 
+-- Index to allow for fast cascading deletions and referential integrity.
 CREATE INDEX IF NOT EXISTS fki_account_transactions_idx ON
     account_transactions USING btree (ledger_seq, transaction_index);
 
+-- Avoid inadvertent administrative tampering with committed data.
 CREATE OR REPLACE RULE ledgers_update_protect AS ON UPDATE TO
     ledgers DO INSTEAD NOTHING;
-
 CREATE OR REPLACE RULE transactions_update_protect AS ON UPDATE TO
     transactions DO INSTEAD NOTHING;
-
 CREATE OR REPLACE RULE account_transactions_update_protect AS ON UPDATE TO
     account_transactions DO INSTEAD NOTHING;
 
-CREATE OR REPLACE FUNCTION set_version (
-    _in_version int
-) RETURNS void AS $$
-BEGIN
-    if _in_version IS NULL THEN RETURN; END IF;
-    DELETE FROM version;
-    EXECUTE 'INSERT INTO version VALUES ($1)' USING _in_version;
-END;
-$$ LANGUAGE plpgsql;
-
+-- Stored procedure to assist with the tx() RPC call. Takes transaction hash
+-- as input. If found, returns the ledger sequence in which it was applied.
+-- If not, returns the range of ledgers searched.
 CREATE OR REPLACE FUNCTION tx (
     _in_trans_id bytea
 ) RETURNS jsonb AS $$
@@ -648,36 +819,34 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-/*
- * account_tx helper. From the rippled reporting process, only the
- * parameters without defaults are required. For the parameters with
- * defaults, validation should be done by rippled, such as:
- * _in_account_id should be a valid xrp base58 address.
- * _in_forward either true or false according to the published api
- * _in_limit should be validated and not simply passed through from
- *     client.
- *
- * For _in_ledger_index_min and _in_ledger_index_max, if passed in the
- * request, verify that their type is int and pass through as is.
- * For _ledger_hash, verify and convert from hex length 32 bytes and
- * prepend with \x (\\x C++).
- *
- * For _in_ledger_index, if the input type is integer, then pass through
- * as is. If the type is string and contents = validated, then do not
- * set _in_ledger_index. Instead set _in_invalidated to TRUE.
- *
- * There is no need for rippled to do any type of lookup on max/min
- * ledger range, lookup of hash, or the like. This functions does those
- * things, including error responses if bad input. Only the above must
- * be done to set the correct search range.
- *
- * If a marker is present in the request, verify the members 'ledger'
- * and 'seq' are integers and they correspond to _in_marker_seq
- * _in_marker_index.
- * To reiterate:
- * JSON input field 'ledger' corresponds to _in_marker_seq
- * JSON input field 'seq' corresponds to _in_marker_index
- */
+-- account_tx() RPC helper. From the rippled reporting process, only the
+-- parameters without defaults are required. For the parameters with
+-- defaults, validation should be done by rippled, such as:
+-- _in_account_id should be a valid xrp base58 address.
+-- _in_forward either true or false according to the published api
+-- _in_limit should be validated and not simply passed through from
+-- client.
+--
+-- For _in_ledger_index_min and _in_ledger_index_max, if passed in the
+-- request, verify that their type is int and pass through as is.
+-- For _ledger_hash, verify and convert from hex length 32 bytes and
+-- prepend with \x (\\x C++).
+--
+-- For _in_ledger_index, if the input type is integer, then pass through
+-- as is. If the type is string and contents = validated, then do not
+-- set _in_ledger_index. Instead set _in_invalidated to TRUE.
+--
+-- There is no need for rippled to do any type of lookup on max/min
+-- ledger range, lookup of hash, or the like. This functions does those
+-- things, including error responses if bad input. Only the above must
+-- be done to set the correct search range.
+--
+-- If a marker is present in the request, verify the members 'ledger'
+-- and 'seq' are integers and they correspond to _in_marker_seq
+-- _in_marker_index.
+-- To reiterate:
+-- JSON input field 'ledger' corresponds to _in_marker_seq
+-- JSON input field 'seq' corresponds to _in_marker_index
 CREATE OR REPLACE FUNCTION account_tx (
     _in_account_id bytea,
     _in_forward bool,
@@ -884,6 +1053,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Trigger function prior to delete on ledgers table. Disallow gaps from
+-- forming. Do not allow deletions if both the previous and next ledgers
+-- are present. In other words, only allow either the least or greatest
+-- to be deleted.
 CREATE OR REPLACE FUNCTION delete_ancestry () RETURNS TRIGGER AS $$
 BEGIN
     IF EXISTS (SELECT 1
@@ -937,6 +1110,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Function to delete data from the top of the ledger range. Delete
+-- everything greater than the input parameter.
+-- It doesn't do a normal range delete because of the trigger protecting
+-- deletions causing gaps. Instead, it walks back from the greatest ledger.
 CREATE OR REPLACE FUNCTION delete_above (
     _in_seq bigint
 ) RETURNS void AS $$
@@ -959,23 +1136,9 @@ CREATE TABLE IF NOT EXISTS ancestry_verified (
     ledger_seq bigint NOT NULL
 );
 
--- Trigger to replace existing upon insert to ancestry_verified table.
--- Ensures only 1 row in that table.
-CREATE OR REPLACE FUNCTION delete_verified() RETURNS TRIGGER AS $$
-BEGIN
-    IF EXISTS (SELECT 1 FROM ancestry_verified) THEN
-        DELETE FROM ancestry_verified;
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS ancestry_verified_trigger ON ancestry_verified;
-CREATE TRIGGER ancestry_verified_trigger BEFORE INSERT ON ancestry_verified
-    FOR EACH ROW EXECUTE PROCEDURE delete_verified();
-
 -- Function to verify ancestry of ledgers based on ledger_hash and prev_hash.
--- Raises exception upon failure and prints current and parent rows.
+-- Upon failure, returns ledger sequence failing ancestry check.
+-- Otherwise, returns NULL.
 -- _in_full: If TRUE, verify entire table. Else verify starting from
 --           value in ancestry_verfied table. If no value, then start
 --           from lowest ledger.
@@ -986,7 +1149,7 @@ CREATE TRIGGER ancestry_verified_trigger BEFORE INSERT ON ancestry_verified
 --          to verify.
 -- _in_max: If set and _in_full is not true, the latest ledger to verify.
 CREATE OR REPLACE FUNCTION check_ancestry (
-    _in_full    bool = TRUE,
+    _in_full    bool = FALSE,
     _in_persist bool = TRUE,
     _in_min      bigint = NULL,
     _in_max      bigint = NULL
@@ -1049,6 +1212,7 @@ BEGIN
     CLOSE _cursor;
 
     IF _in_persist IS TRUE AND _parent IS NOT NULL THEN
+        DELETE FROM ancestry_verified;
         INSERT INTO ancestry_verified VALUES (_parent.ledger_seq);
     END IF;
 
@@ -1057,10 +1221,11 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Return number of whole seconds since the latest ledger was inserted, based
--- on ledger close time, not wall-clock of the insert.
+-- on ledger close time (not wall clock) of the insert.
 -- Note that ledgers.closing_time is number of seconds since the XRP
 -- epoch, which is 01/01/2000 00:00:00. This in turn is 946684800 seconds
--- after the UNIX epoch.
+-- after the UNIX epoch. This conforms to the "age" field in the
+-- server_info RPC call.
 CREATE OR REPLACE FUNCTION age () RETURNS bigint AS $$
 BEGIN
     RETURN (EXTRACT(EPOCH FROM (now())) -
@@ -1071,6 +1236,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Return range of ledgers, or empty if none. This conforms to the
+-- "complete_ledgers" field of the server_info RPC call. Note
+-- that ledger gaps are prevented for reporting mode so the range
+-- is simply the set between the least and greatest ledgers.
 CREATE OR REPLACE FUNCTION complete_ledgers () RETURNS text AS $$
 DECLARE
     _min bigint := min_ledger();
@@ -1082,68 +1251,140 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TABLE IF NOT EXISTS version (version int NOT NULL);
+)"
 
-CREATE OR REPLACE FUNCTION schema_version (
-    _in_version int = NULL
-) RETURNS int AS $$
-DECLARE
-    _current_version int;
-BEGIN
-    IF _in_version IS NULL THEN
-        RETURN (SELECT version FROM version LIMIT 1);
-    END IF;
-    IF EXISTS (SELECT 1 FROM version) THEN DELETE FROM version; END IF;
-    INSERT INTO version VALUES (_in_version);
-    RETURN _in_version;
-END;
-$$ LANGUAGE plpgsql;
-            )";
+    // version 2:
+//  , R"(Full idempotent text of schema version 2)"
 
-            res = PgQuery(pool).queryVariant({full_schema, {}});
-            if (std::holds_alternative<pg_error_type>(res))
-            {
-                std::stringstream ss;
-                ss << "Error applying schema: "
-                   << std::get<pg_error_type>(res).second;
-                Throw<std::runtime_error>(ss.str());
-            }
+    // version 3:
+//  , R"(Full idempotent text of schema version 3)"
 
-            auto cmd = boost::format(R"(SELECT set_version(%u))");
-            res = PgQuery(pool).queryVariant(
-                {boost::str(cmd % latest_schema_version).c_str(), {}});
-            if (std::holds_alternative<pg_error_type>(res))
-            {
-                std::stringstream ss;
-                ss << "Error setting schema version to "
-                   << latest_schema_version << ": "
-                   << std::get<pg_error_type>(res).second;
-                Throw<std::runtime_error>(ss.str());
-            }
+    // version 4:
+//  , R"(Full idempotent text of schema version 4)"
 
+//  ...
 
-            break;
-        }
-            /*
-        case 1:
-            ;
-        case 2:
-            ;
-        case 3:
-            ;
-        case 4:
-            ;
-            break;
-             */
-        default:
+    // version n:
+//  , R"(Full idempotent text of schema version n)"
+};
+
+std::array<char const*, LATEST_SCHEMA_VERSION> upgrade_schemata = {
+    // upgrade from version 0:
+    "There is no upgrade path from version 0. Instead, install "
+    "from full_schemata."
+    // upgrade from version 1 to 2:
+    //, R"(Text to idempotently upgrade from version 1 to 2)"
+    // upgrade from version 2 to 3:
+    //, R"(Text to idempotently upgrade from version 2 to 3)"
+    // upgrade from version 3 to 4:
+    //, R"(Text to idempotently upgrade from version 3 to 4)"
+    // ...
+    // upgrade from version n-1 to n:
+    //, R"(Text to idempotently upgrade from version n-1 to n)"
+};
+
+/** Apply schema to postgres.
+ *
+ * The schema text should contain idempotent SQL & plpgSQL statements.
+ * Once completed, the version of the schema will be persisted.
+ *
+ * Throws upon error.
+ *
+ * @param pool Postgres connection pool manager.
+ * @param schema SQL commands separated by semi-colon.
+ * @param currentVersion The current version of the schema on the database.
+ * @param schemaVersion The version that will be in place once the schema
+ *        has been applied.
+ */
+void
+applySchema(std::shared_ptr<PgPool> const& pool,
+            char const* schema, std::uint32_t currentVersion,
+            std::uint32_t schemaVersion)
+{
+    if (currentVersion != 0 && schemaVersion != currentVersion + 1)
+    {
+        assert(false);
+        std::stringstream ss;
+        ss << "Schema upgrade versions past initial deployment must increase "
+              "monotonically. Versions: current, target: "
+            << currentVersion << ", " << schemaVersion;
+        Throw<std::runtime_error>(ss.str());
+    }
+
+    auto res = PgQuery(pool).query({schema, {}});
+    if (!res)
+    {
+        std::stringstream ss;
+        ss << "Error applying schema from version " << currentVersion
+           << "to " << schemaVersion << ": "
+           << res.msg();
+        Throw<std::runtime_error>(ss.str());
+    }
+
+    auto cmd = boost::format(R"(SELECT set_schema_version(%u, 0))");
+    res = PgQuery(pool).query(
+        {boost::str(cmd % schemaVersion).c_str(), {}});
+    if (!res)
+    {
+        std::stringstream ss;
+        ss << "Error setting schema version from " << currentVersion
+           << " to " << schemaVersion << ": "
+           << res.msg();
+        Throw<std::runtime_error>(ss.str());
+    }
+}
+
+void
+initSchema(std::shared_ptr<PgPool> const& pool)
+{
+    // Figure out what schema version, if any, is already installed.
+    auto res = PgQuery(pool).query({version_query, {}});
+    if (!res)
+    {
+        std::stringstream ss;
+        ss << "Error getting database schema version: "
+           << res.msg();
+        Throw<std::runtime_error>(ss.str());
+    }
+    std::uint32_t currentSchemaVersion = res.asInt();
+    std::uint32_t const pendingSchemaVersion = res.asInt(0, 1);
+
+    // Nothing to do if we are on the latest schema;
+    if (currentSchemaVersion == LATEST_SCHEMA_VERSION)
+        return;
+
+    if (currentSchemaVersion == 0)
+    {
+        // If a fresh install has not been completed, then re-attempt
+        // the install of the same schema version.
+        std::uint32_t const freshVersion =
+            pendingSchemaVersion ? pendingSchemaVersion : LATEST_SCHEMA_VERSION;
+        // Persist that we are attempting a fresh install to the latest version.
+        // This protects against corruption in an aborted install that is
+        // followed by a fresh installation attempt with a new schema.
+        auto cmd = boost::format(R"(SELECT set_schema_version(0, %u))");
+        res = PgQuery(pool).query(
+            {boost::str(cmd % freshVersion).c_str(), {}});
+        if (!res)
         {
             std::stringstream ss;
-            ss << "Postgres server schema version " << currentSchemaVersion
-                << " has no case to determine whether to upgrade.";
-            assert(false);
+            ss << "Error setting schema version from " << currentSchemaVersion
+               << " to " << freshVersion << ": "
+               << res.msg();
             Throw<std::runtime_error>(ss.str());
         }
 
+        // Install the full latest schema.
+        applySchema(pool, full_schemata[freshVersion], currentSchemaVersion,
+                    freshVersion);
+        currentSchemaVersion = freshVersion;
+    }
+
+    // Incrementally upgrade one version at a time until latest.
+    for (; currentSchemaVersion < LATEST_SCHEMA_VERSION; ++currentSchemaVersion)
+    {
+        applySchema(pool, upgrade_schemata[currentSchemaVersion],
+                    currentSchemaVersion, currentSchemaVersion + 1);
     }
 }
 

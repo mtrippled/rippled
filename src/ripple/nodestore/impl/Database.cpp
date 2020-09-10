@@ -243,12 +243,6 @@ Database::doFetchBatch(
     KeyCache<uint256>& nCache)
 {
     std::vector<std::shared_ptr<NodeObject>> results{hashes.size()};
-    /*
-    FetchReport report;
-    report.isAsync = isAsync;
-    report.wentToDisk = false;
-
-*/
     using namespace std::chrono;
     auto const before = steady_clock::now();
     std::unordered_map<uint256 const*, size_t> indexMap;

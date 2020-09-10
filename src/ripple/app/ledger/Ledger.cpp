@@ -257,14 +257,6 @@ Ledger::Ledger(
     txMap_->setImmutable();
     stateMap_->setImmutable();
 
-    // TODO mtravis this intermittently fails in read-only reporting mode,
-    // so bypassing it in that mode improves stability. Bypassing this way
-    // should have no bearing on data integrity, but not confirmed.
-    if (! config.reporting() && ! setup(config))
-    {
-        loaded = false;
-    }
-
     if (!loaded)
     {
         info_.hash = calculateLedgerHash(info_);
@@ -1334,18 +1326,15 @@ loadLedgerInfosPostgres(
     std::shared_ptr<Pg> conn;
     auto res = pg->query(sql.data(), conn);
     assert(res);
-    auto result = PQresultStatus(res.get());
     app.pgPool()->checkin(conn);
 
     JLOG(app.journal("Ledger").debug())
-        << "loadLedgerInfosPostgres - result: " << result;
-    assert(result == PGRES_TUPLES_OK);
+        << "loadLedgerInfosPostgres - result: " << res.msg();
 
-    // assert(PQntuples(res.get()) == expNumResults);
-    if (PQntuples(res.get()) > 0)
-        assert(PQnfields(res.get()) == 10);
+    if (res.ntuples() > 0)
+        assert(res.nfields() == 10);
 
-    if (PQntuples(res.get()) == 0)
+    if (res.ntuples() == 0)
     {
         auto stream = app.journal("Ledger").debug();
         JLOG(stream) << "Ledger not found: " << sql;
@@ -1353,19 +1342,18 @@ loadLedgerInfosPostgres(
     }
 
     std::vector<LedgerInfo> infos;
-    for (size_t i = 0; i < PQntuples(res.get()); ++i)
+    for (size_t i = 0; i < res.ntuples(); ++i)
     {
-        char const* hash = PQgetvalue(res.get(), i, 0);
-        char const* prevHash = PQgetvalue(res.get(), i, 1);
-
-        char const* accountHash = PQgetvalue(res.get(), i, 2);
-        char const* txHash = PQgetvalue(res.get(), i, 3);
-        char const* totalCoins = PQgetvalue(res.get(), i, 4);
-        char const* closeTime = PQgetvalue(res.get(), i, 5);
-        char const* parentCloseTime = PQgetvalue(res.get(), i, 6);
-        char const* closeTimeRes = PQgetvalue(res.get(), i, 7);
-        char const* closeFlags = PQgetvalue(res.get(), i, 8);
-        char const* ledgerSeq = PQgetvalue(res.get(), i, 9);
+        char const* hash = res.c_str(i, 0);
+        char const* prevHash = res.c_str(i, 1);
+        char const* accountHash = res.c_str(i, 2);
+        char const* txHash = res.c_str(i, 3);
+        std::int64_t totalCoins = res.asBigInt(i, 4);
+        std::int64_t closeTime = res.asBigInt(i, 5);
+        std::int64_t parentCloseTime = res.asBigInt(i, 6);
+        std::int64_t closeTimeRes = res.asBigInt(i, 7);
+        std::int64_t closeFlags = res.asBigInt(i, 8);
+        std::int64_t ledgerSeq = res.asBigInt(i, 9);
 
         JLOG(app.journal("Ledger").debug())
             << "loadLedgerInfosPostgres - data = " << hash << " , " << prevHash
@@ -1380,13 +1368,13 @@ loadLedgerInfosPostgres(
         info.parentHash.SetHexExact(prevHash + 2);
         info.txHash.SetHexExact(txHash + 2);
         info.accountHash.SetHexExact(accountHash + 2);
-        info.drops = std::stoll(totalCoins);
-        info.closeTime = time_point{duration{std::stoll(closeTime)}};
+        info.drops = totalCoins;
+        info.closeTime = time_point{duration{closeTime}};
         info.parentCloseTime =
-            time_point{duration{std::stoll(parentCloseTime)}};
-        info.closeFlags = std::stoi(closeFlags);
-        info.closeTimeResolution = duration{std::stoll(closeTimeRes)};
-        info.seq = std::stoi(ledgerSeq);
+            time_point{duration{parentCloseTime}};
+        info.closeFlags = closeFlags;
+        info.closeTimeResolution = duration{closeTimeRes};
+        info.seq = ledgerSeq;
         info.hash.SetHexExact(hash + 2);
         info.validated = true;
         infos.push_back(info);
@@ -1690,18 +1678,19 @@ flatFetchTransactions(ReadView const& ledger, Application& app)
     std::vector<uint256> txIDs;
     std::vector<uint32_t> ledgerSequences;
     std::string query =
-        "select ledger_seq, trans_id, nodestore_hash from transactions "
-        "where ledger_seq = " +
+        "SELECT ledger_seq, trans_id, nodestore_hash"
+        "  FROM transactions "
+        " WHERE ledger_seq = " +
         std::to_string(ledger.info().seq);
     auto res = PgQuery(app.pgPool()).query(query.c_str());
     assert(res);
 
-    for (size_t i = 0; i < PQntuples(res.get()); ++i)
+    for (size_t i = 0; i < res.ntuples(); ++i)
     {
-        assert(PQnfields(res.get()) == 3);
+        assert(res.nfields() == 3);
 
-        char const* txID = PQgetvalue(res.get(), i, 1);
-        char const* nodestoreHash = PQgetvalue(res.get(), i, 2);
+        char const* txID = res.c_str(i, 1);
+        char const* nodestoreHash = res.c_str(i, 2);
 
         txIDs.push_back(from_hex_text<uint256>(txID + 2));
         nodestoreHashes.push_back(from_hex_text<uint256>(nodestoreHash + 2));

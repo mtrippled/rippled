@@ -156,7 +156,7 @@ class ThreadSafeQueue
         // if queue has a max size, unblock any possible pushers
         if (maxSize_)
             cv_.notify_all();
-        return std::move(ret);
+        return ret;
     }
 };
 

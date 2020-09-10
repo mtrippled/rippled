@@ -17,7 +17,10 @@
     OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 //==============================================================================
+
+#include <ripple/app/ledger/LedgerMaster.h>
 #include <ripple/beast/unit_test.h>
+#include <ripple/rpc/impl/Tuning.h>
 
 #include <test/jtx.h>
 #include <test/jtx/Env.h>

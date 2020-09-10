@@ -891,18 +891,14 @@ ReportingETL::ReportingETL(Application& app, Stoppable& parent)
             }
         }
 
-
         std::pair<std::string, bool> flushInterval =
             section.find("flush_interval");
         if (flushInterval.second)
-        {
             flushInterval_ = std::stoi(flushInterval.first);
-        }
 
         std::pair<std::string, bool> numMarkers = section.find("num_markers");
         if (numMarkers.second)
             numMarkers_ = std::stoi(numMarkers.first);
-
     }
 }
 
