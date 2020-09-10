@@ -133,17 +133,51 @@ doTxPostgres(RPC::Context& context, TxArgs const& args)
         {
             auto node = SHAMapAbstractNode::makeFromPrefix(
                 makeSlice(obj->getData()), SHAMapHash{*nodestoreHash});
+            if(!node)
+            {
+                assert(false);
+                return {res, {rpcINTERNAL, "Error making SHAMap node"}};
+            }
             auto item = (static_cast<SHAMapTreeNode*>(node.get()))->peekItem();
+            if(!item)
+            {
+                assert(false);
+                return {res, {rpcINTERNAL, "Error reading SHAMap node"}};
+            }
 
-            auto result = deserializeTxPlusMeta(*item);
-            pair = {std::move(result.first), std::move(result.second)};
+            auto [sttx, meta] = deserializeTxPlusMeta(*item);
             JLOG(context.j.debug()) << "Successfully fetched from db";
+
+            if (!sttx || !meta)
+            {
+                assert(false);
+                return {
+                    res,
+                    {rpcINTERNAL,
+                     "Error deserializing SHAMap node"}};
+            }
+            std::string reason;
+            res.txn = std::make_shared<Transaction>(sttx, reason, context.app);
+            if (args.binary)
+            {
+                SerialIter it(item->slice());
+                it.skip(it.getVLDataLength());  // skip transaction
+                Blob blob = it.getVL();
+                res.meta = std::move(blob);
+            }
+            else
+            {
+                res.meta = std::make_shared<TxMeta>(
+                    args.hash, res.txn->getLedger(), *meta);
+            }
+            res.validated = true;
+            return {res, rpcSUCCESS};
         }
         else
         {
             JLOG(context.j.error()) << "Failed to fetch from db";
             assert(false);
-            Throw<std::runtime_error>("tx : missing data");
+            return {res, {rpcINTERNAL, "Containing SHAMap node not found"}};
         }
         auto end = std::chrono::system_clock::now();
         JLOG(context.j.debug())
@@ -172,33 +206,9 @@ doTxPostgres(RPC::Context& context, TxArgs const& args)
     else
     {
         assert(false);
-        return {res, rpcINTERNAL};
+        return {res, {rpcINTERNAL, "unexpected Postgres response"}};
     }
 
-    JLOG(context.j.debug()) << "Deserializing data";
-    auto& [sttx, meta] = pair;
-    if (!sttx || !meta)
-    {
-        return {
-            res,
-            {rpcTXN_NOT_FOUND,
-             "Transaction was present in account_transactions, but "
-             "was not found in the database"}};
-    }
-    std::string reason;
-    res.txn = std::make_shared<Transaction>(sttx, reason, context.app);
-    if (args.binary)
-    {
-        // TODO this is not the most efficient
-        Serializer s = meta->getSerializer();
-        res.meta = s.peekData();
-    }
-    else
-    {
-        res.meta = std::make_shared<TxMeta>(args.hash, res.txn->getLedger(), *meta);
-    }
-    res.validated = true;
-    return {res, rpcSUCCESS};
 }
 
 std::pair<TxResult, RPC::Status>

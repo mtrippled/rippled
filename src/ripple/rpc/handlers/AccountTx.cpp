@@ -303,6 +303,11 @@ flatFetchTransactions(
         {
             auto node = SHAMapAbstractNode::makeFromPrefix(
                 makeSlice(obj->getData()), SHAMapHash{nodestoreHash});
+            if (!node)
+            {
+                assert(false);
+                Throw<std::runtime_error>("Error making SHAMap node");
+            }
             auto item = (static_cast<SHAMapTreeNode*>(node.get()))->peekItem();
             if (item)
             {
@@ -330,13 +335,13 @@ flatFetchTransactions(
             else
             {
                 assert(false);
-                Throw<std::runtime_error>("account_tx : missing data");
+                Throw<std::runtime_error>("Error reading SHAMap node");
             }
         }
         else
         {
             assert(false);
-            Throw<std::runtime_error>("account_tx : missing data");
+            Throw<std::runtime_error>("Containing SHAMap node not found");
         }
     }
     return ret;
@@ -378,15 +383,13 @@ processAccountTxStoredProcedureResult(
                     else
                     {
                         assert(false);
-                        Throw<std::runtime_error>(
-                            "account_tx : nodestoreHash is zero");
+                        return {ret, {rpcINTERNAL, "nodestoreHash is zero"}};
                     }
                 }
                 else
                 {
                     assert(false);
-                    Throw<std::runtime_error>(
-                        "account_tx :  missing Postgres fields");
+                    return {ret, {rpcINTERNAL, "missing postgres fields"}};
                 }
             }
 
@@ -419,14 +422,14 @@ processAccountTxStoredProcedureResult(
         }
         else
         {
-            return {ret, rpcINTERNAL};
+            return {ret, {rpcINTERNAL, "unexpected Postgres response"}};
         }
     }
     catch (std::exception& e)
     {
         JLOG(context.j.debug()) << __func__ << " : "
                                 << "Caught exception : " << e.what();
-        return {ret, rpcINTERNAL};
+        return {ret, {rpcINTERNAL, e.what()}};
     }
 }
 
@@ -514,12 +517,10 @@ doAccountTxStoredProcedure(AccountTxArgs const& args, RPC::Context& context)
     JLOG(context.j.trace()) << "doAccountTxStoredProcedure - "
                             << "postgres result = " << resultStr;
 
-    // TODO this is probably not the most efficient way to do this
-    std::string str{resultStr};
 
     Json::Value v;
     Json::Reader reader;
-    bool success = reader.parse(str, v);
+    bool success = reader.parse(resultStr,resultStr+strlen(resultStr), v);
     if (success)
     {
         return processAccountTxStoredProcedureResult(args, v, context);
