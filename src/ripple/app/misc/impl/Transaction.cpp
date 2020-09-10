@@ -125,53 +125,6 @@ Transaction::load(
     return load(id, app, op{range}, ec);
 }
 
-std::variant<uint32_t, std::pair<uint32_t, uint32_t>>
-Transaction::getLedgerSeq(uint256 const& id, Application& app)
-{
-    auto baseCmd = boost::format(
-        R"(SELECT tx('%s');)");
-
-    std::string txHash = "\\x" + strHex(id);
-    std::string sql = boost::str(baseCmd % txHash);
-
-    auto res = PgQuery(app.pgPool()).query(sql.data());
-
-    assert(PQntuples(res.get()) == 1);
-    // TODO this should be two
-    assert(PQnfields(res.get()) == 1);
-
-    assert(
-        PQresultStatus(res.get()) == PGRES_TUPLES_OK ||
-        PQresultStatus(res.get()) == PGRES_SINGLE_TUPLE);
-    if (PQgetisnull(res.get(), 0, 0))
-        return 0;
-
-    char const* resultStr = PQgetvalue(res.get(), 0, 0);
-
-    JLOG(app.journal("Transaction").debug())
-        << "postgres result = " << resultStr;
-
-    std::string str{resultStr};
-
-    Json::Value v;
-    Json::Reader reader;
-    bool success = reader.parse(str, v);
-    if (success)
-    {
-        if (v.isMember("ledger_seq"))
-        {
-            return v["ledger_seq"].asUInt();
-        }
-        else
-        {
-            return std::make_pair(v["min_seq"].asUInt(), v["max_seq"].asUInt());
-        }
-    }
-    else
-    {
-        return 0;
-    }
-}
 
 Transaction::Locator
 Transaction::locate(uint256 const& id, Application& app)
@@ -207,11 +160,9 @@ Transaction::locate(uint256 const& id, Application& app)
     JLOG(app.journal("Transaction").debug())
         << "postgres result = " << resultStr;
 
-    std::string str{resultStr};
-
     Json::Value v;
     Json::Reader reader;
-    bool success = reader.parse(str, v);
+    bool success = reader.parse(resultStr, resultStr+strlen(resultStr), v);
     if (success)
     {
         if(v.isMember("nodestore_hash"))

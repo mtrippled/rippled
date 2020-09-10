@@ -74,7 +74,6 @@ constexpr static ErrorInfo unorderedErrorInfos[]{
      "Destination issuer is malformed."},
     {rpcEXCESSIVE_LGR_RANGE, "excessiveLgrRange", "Ledger range exceeds 1000."},
     {rpcFORBIDDEN, "forbidden", "Bad credentials."},
-    // TODO maybe a better error message?
     {rpcFAILED_TO_FORWARD,
      "failedToForward",
      "Failed to forward request to p2p node"},

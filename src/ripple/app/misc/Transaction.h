@@ -300,9 +300,6 @@ public:
     Json::Value
     getJson(JsonOptions options, bool binary = false) const;
 
-    static std::variant<uint32_t, std::pair<uint32_t, uint32_t>>
-    getLedgerSeq(uint256 const& id, Application& app);
-
     struct Locator
     {
         std::variant<
