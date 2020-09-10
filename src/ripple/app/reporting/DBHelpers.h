@@ -76,7 +76,6 @@ writeToPostgres(
     LedgerInfo const& info,
     std::vector<AccountTransactionsData>& accountTxData,
     std::shared_ptr<PgPool> const& pgPool,
-    bool useTxTables,
     beast::Journal& j);
 
 }  // namespace ripple

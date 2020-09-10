@@ -140,10 +140,8 @@ writeToPostgres(
     LedgerInfo const& info,
     std::vector<AccountTransactionsData>& accountTxData,
     std::shared_ptr<PgPool> const& pgPool,
-    bool useTxTables,
     beast::Journal& j)
 {
-    // TODO: clean this up a bit. use less auto, better error handling, etc
     JLOG(j.debug()) << __func__ << " : "
                     << "Beginning write to Postgres";
     if (!pgPool)
@@ -177,48 +175,43 @@ writeToPostgres(
         return false;
     }
 
-    if (useTxTables)
+    std::stringstream transactionsCopyBuffer;
+    std::stringstream accountTransactionsCopyBuffer;
+    for (auto& data : accountTxData)
     {
-        std::stringstream transactionsCopyBuffer;
-        std::stringstream accountTransactionsCopyBuffer;
-        for (auto& data : accountTxData)
+        std::string txHash = strHex(data.txHash);
+        std::string nodestoreHash = strHex(data.nodestoreHash);
+        auto idx = data.transactionIndex;
+        auto ledgerSeq = data.ledgerSequence;
+
+        transactionsCopyBuffer
+            << std::to_string(ledgerSeq) << '\t' << std::to_string(idx) << '\t'
+            << "\\\\x" << txHash << '\t' << "\\\\x" << nodestoreHash << '\n';
+
+        for (auto& a : data.accounts)
         {
-            std::string txHash = strHex(data.txHash);
-            std::string nodestoreHash = strHex(data.nodestoreHash);
-            auto idx = data.transactionIndex;
-            auto ledgerSeq = data.ledgerSequence;
-
-            transactionsCopyBuffer << std::to_string(ledgerSeq) << '\t'
-                                   << std::to_string(idx) << '\t' << "\\\\x"
-                                   << txHash 
-                                   <<'\t' << "\\\\x" << nodestoreHash
-                                   << '\n';
-
-            for (auto& a : data.accounts)
-            {
-                std::string acct = strHex(a);
-                accountTransactionsCopyBuffer
-                    << "\\\\x" << acct << '\t' << std::to_string(ledgerSeq)
-                    << '\t' << std::to_string(idx) << '\n';
-            }
+            std::string acct = strHex(a);
+            accountTransactionsCopyBuffer << "\\\\x" << acct << '\t'
+                                          << std::to_string(ledgerSeq) << '\t'
+                                          << std::to_string(idx) << '\n';
         }
-        JLOG(j.debug()) << "transactions: " << transactionsCopyBuffer.str();
-        JLOG(j.debug()) << "account_transactions: "
-                        << accountTransactionsCopyBuffer.str();
-
-        bulkWriteToTable(
-            pg,
-            conn,
-            "COPY transactions FROM stdin",
-            transactionsCopyBuffer.str(),
-            j);
-        bulkWriteToTable(
-            pg,
-            conn,
-            "COPY account_transactions FROM stdin",
-            accountTransactionsCopyBuffer.str(),
-            j);
     }
+    JLOG(j.debug()) << "transactions: " << transactionsCopyBuffer.str();
+    JLOG(j.debug()) << "account_transactions: "
+                    << accountTransactionsCopyBuffer.str();
+
+    bulkWriteToTable(
+        pg,
+        conn,
+        "COPY transactions FROM stdin",
+        transactionsCopyBuffer.str(),
+        j);
+    bulkWriteToTable(
+        pg,
+        conn,
+        "COPY account_transactions FROM stdin",
+        accountTransactionsCopyBuffer.str(),
+        j);
 
     res = pg->queryVariant({"COMMIT", {}}, conn);
     if(!std::holds_alternative<pg_result_type>(res) ||

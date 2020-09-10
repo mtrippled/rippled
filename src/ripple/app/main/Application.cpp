@@ -277,11 +277,9 @@ public:
               [this]() { signalStop(); }))
 
         , m_txMaster(*this)
-        , pgPool_(make_PgPool(
-              config_->reporting()
-                  ? config_->section("ledger_tx_tables")
-                  : Section(),
-              logs_->journal("PgPool")))
+        , pgPool_(config_->reporting() ? make_PgPool(
+              config_->section("ledger_tx_tables"),
+              logs_->journal("PgPool")) : nullptr)
 
         , m_nodeStoreScheduler(*this)
         , m_shaMapStore(make_SHAMapStore(
@@ -817,15 +815,6 @@ public:
     openLedger() const override
     {
         return *openLedger_;
-    }
-
-    void
-    setOpenLedger(std::shared_ptr<Ledger>& l) override
-    {
-        openLedger_.emplace(l, cachedSLEs_, logs_->journal("OpenLedger"));
-        // TODO maybe switch these back?
-        // m_ledgerMaster->storeLedger(l);
-        // m_ledgerMaster->switchLCL(l);
     }
 
     Overlay& overlay () override

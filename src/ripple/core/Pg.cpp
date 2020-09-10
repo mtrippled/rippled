@@ -485,21 +485,15 @@ PgQuery::queryVariant(pg_params const& dbParams, std::shared_ptr<Pg>& conn)
 std::shared_ptr<PgPool>
 make_PgPool(Section const& network_db_config, beast::Journal const j)
 {
-    if (network_db_config.empty())
-    {
-        return {};
-    }
-    else
-    {
-        auto ret = std::make_shared<PgPool>(network_db_config, j);
-        ret->setup();
-        return ret;
-    }
+    auto ret = std::make_shared<PgPool>(network_db_config, j);
+    ret->setup();
+    return ret;
 }
 
 void
 initSchema(std::shared_ptr<PgPool> const& pool)
 {
+    assert(pool);
     static std::uint32_t const latest_schema_version = 1;
 
     static char const* version_query = R"(

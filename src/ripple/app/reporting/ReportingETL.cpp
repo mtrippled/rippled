@@ -160,7 +160,6 @@ ReportingETL::loadInitialLedger(uint32_t startingSequence)
                 ledger->info(),
                 accountTxData,
                 app_.pgPool(),
-                app_.config().useTxTables(),
                 journal_);
         }
     }
@@ -626,7 +625,6 @@ ReportingETL::runETLPipeline(uint32_t startSequence)
                             ledger->info(),
                             accountTxData,
                             app_.pgPool(),
-                            app_.config().useTxTables(),
                             journal_))
                         writeConflict = true;
 

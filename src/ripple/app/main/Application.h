@@ -238,8 +238,6 @@ public:
     virtual DatabaseCon&
     getLedgerDB() = 0;
 
-    virtual void
-    setOpenLedger(std::shared_ptr<Ledger>&) = 0;
     virtual std::chrono::milliseconds
     getIOLatency() = 0;
 
