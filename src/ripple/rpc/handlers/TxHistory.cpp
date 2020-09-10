@@ -36,6 +36,8 @@ namespace ripple {
 Json::Value
 doTxHistoryReporting(RPC::JsonContext& context)
 {
+
+    Json::Value ret;
     assert(context.app.config().reporting());
     context.loadType = Resource::feeMediumBurdenRPC;
 
@@ -48,8 +50,8 @@ doTxHistoryReporting(RPC::JsonContext& context)
         return rpcError(rpcNO_PERMISSION);
 
     std::string sql = boost::str(
-        boost::format("SELECT ledger_seq, trans_id "
-                      "  FROM account_transactions"
+        boost::format("SELECT nodestore_hash "
+                      "  FROM transactions"
                       " ORDER BY ledger_seq DESC LIMIT 20 "
                       "OFFSET %u;") %
         startIndex);
@@ -69,41 +71,59 @@ doTxHistoryReporting(RPC::JsonContext& context)
 
     for (size_t i = 0; i < PQntuples(res.get()); ++i)
     {
-        uint32_t ledgerSequence = std::stoi(PQgetvalue(res.get(), i, 0));
 
-        uint256 txID;
-        txID.SetHexExact(PQgetvalue(res.get(), i, 1) + 2);
-        auto ledger = context.ledgerMaster.getLedgerBySeq(ledgerSequence);
-        if (ledger)
+        uint256 nodestoreHash = from_hex_text<uint256>(PQgetvalue(res.get(),i,0) + 2);
+
+        if (auto obj =
+                context.app.getNodeFamily().db().fetch(nodestoreHash, 0))
         {
-            auto [sttx, txnMeta] = ledger->txRead(txID);
-            if (!sttx)
+            auto node = SHAMapAbstractNode::makeFromPrefix(
+                makeSlice(obj->getData()), SHAMapHash{nodestoreHash});
+            if(!node)
             {
-                Json::Value err;
-                err[jss::error] = "Transaction not found in ledger. ledger = " +
-                    std::to_string(ledgerSequence) +
-                    " . txnID = " + strHex(txID);
-                txs.append(err);
-                continue;
+                assert(false);
+                RPC::Status err{rpcINTERNAL, "Error making SHAMap node"};
+                err.inject(ret);
+                return ret;
+            }
+            auto item = (static_cast<SHAMapTreeNode*>(node.get()))->peekItem();
+            if(!item)
+            {
+                assert(false);
+                RPC::Status err{rpcINTERNAL, "Error reading SHAMap node"};
+                err.inject(ret);
+                return ret;
+            }
+
+            auto [sttx, meta] = deserializeTxPlusMeta(*item);
+            JLOG(context.j.debug()) << "Successfully fetched from db";
+
+            if (!sttx || !meta)
+            {
+                assert(false);
+                RPC::Status err{rpcINTERNAL,
+                     "Error deserializing SHAMap node"};
+                err.inject(ret);
+                return ret;
             }
 
             txs.append(sttx->getJson(JsonOptions::none));
         }
         else
         {
-            Json::Value err;
-            err[jss::error] =
-                "Ledger not found : " + std::to_string(ledgerSequence);
-            txs.append(err);
+            assert(false);
+            RPC::Status err{rpcINTERNAL, "Containing SHAMap node not found"};
+            err.inject(ret);
+            return ret;
         }
+
     }
 
-    Json::Value obj;
-    obj[jss::index] = startIndex;
-    obj[jss::txs] = txs;
-    obj["used_postgres"] = true;
+    ret[jss::index] = startIndex;
+    ret[jss::txs] = txs;
+    ret["used_postgres"] = true;
 
-    return obj;
+    return ret;
 }
 
 // {
