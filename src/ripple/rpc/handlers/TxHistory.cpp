@@ -36,7 +36,6 @@ namespace ripple {
 Json::Value
 doTxHistoryReporting(RPC::JsonContext& context)
 {
-
     Json::Value ret;
     assert(context.app.config().reporting());
     context.loadType = Resource::feeMediumBurdenRPC;
@@ -69,17 +68,25 @@ doTxHistoryReporting(RPC::JsonContext& context)
 
     Json::Value txs;
 
+    std::vector<uint256> nodestoreHashes;
     for (size_t i = 0; i < PQntuples(res.get()); ++i)
     {
+        nodestoreHashes.push_back(
+            from_hex_text<uint256>(PQgetvalue(res.get(), i, 0) + 2));
+    }
 
-        uint256 nodestoreHash = from_hex_text<uint256>(PQgetvalue(res.get(),i,0) + 2);
+    auto objs = context.app.getNodeFamily().db().fetchBatch(nodestoreHashes);
 
-        if (auto obj =
-                context.app.getNodeFamily().db().fetch(nodestoreHash, 0))
+    assert(objs.size() == nodestoreHashes.size());
+    for (size_t i = 0; i < objs.size(); ++i)
+    {
+        auto& obj = objs[i];
+        auto& nodestoreHash = nodestoreHashes[i];
+        if (obj)
         {
             auto node = SHAMapAbstractNode::makeFromPrefix(
                 makeSlice(obj->getData()), SHAMapHash{nodestoreHash});
-            if(!node)
+            if (!node)
             {
                 assert(false);
                 RPC::Status err{rpcINTERNAL, "Error making SHAMap node"};
@@ -87,7 +94,7 @@ doTxHistoryReporting(RPC::JsonContext& context)
                 return ret;
             }
             auto item = (static_cast<SHAMapTreeNode*>(node.get()))->peekItem();
-            if(!item)
+            if (!item)
             {
                 assert(false);
                 RPC::Status err{rpcINTERNAL, "Error reading SHAMap node"};
@@ -101,8 +108,7 @@ doTxHistoryReporting(RPC::JsonContext& context)
             if (!sttx || !meta)
             {
                 assert(false);
-                RPC::Status err{rpcINTERNAL,
-                     "Error deserializing SHAMap node"};
+                RPC::Status err{rpcINTERNAL, "Error deserializing SHAMap node"};
                 err.inject(ret);
                 return ret;
             }
@@ -116,7 +122,6 @@ doTxHistoryReporting(RPC::JsonContext& context)
             err.inject(ret);
             return ret;
         }
-
     }
 
     ret[jss::index] = startIndex;
