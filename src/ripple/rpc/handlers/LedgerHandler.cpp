@@ -198,9 +198,9 @@ doLedgerGrpc(RPC::GRPCContext<org::xrpl::rpc::v1::GetLedgerRequest>& context)
                 obj->set_data(inDesired->data(), inDesired->size());
             }
         }
+        response.set_skiplist_included(true);
     }
 
-    response.set_skiplist_included(true);
 
     response.set_validated(
         RPC::isValidated(context.ledgerMaster, *ledger, context.app));

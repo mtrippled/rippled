@@ -22,6 +22,7 @@
 
 #include <org/xrpl/rpc/v1/xrp_ledger.grpc.pb.h>
 #include <test/jtx/envconfig.h>
+#include <grpcpp/grpcpp.h>
 
 namespace ripple {
 namespace test {

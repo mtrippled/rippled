@@ -952,6 +952,7 @@ target_sources (rippled PRIVATE
   src/test/rpc/NoRipple_test.cpp
   src/test/rpc/OwnerInfo_test.cpp
   src/test/rpc/Peers_test.cpp
+  src/test/rpc/ReportingETL_test.cpp
   src/test/rpc/Roles_test.cpp
   src/test/rpc/RPCCall_test.cpp
   src/test/rpc/RPCOverload_test.cpp
