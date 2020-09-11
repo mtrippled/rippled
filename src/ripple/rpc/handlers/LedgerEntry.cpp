@@ -347,9 +347,11 @@ doLedgerEntryGrpc(
         Serializer s;
         sleNode->add(s);
 
-        response.set_object_binary(s.peekData().data(), s.getLength());
+
+        auto& stateObject = *response.mutable_ledger_object();
+        stateObject.set_data(s.peekData().data(), s.getLength());
+        stateObject.set_key(request.index());
         *(response.mutable_ledger()) = request.ledger();
-        response.set_index(request.index());
         return {response, status};
     }
 }

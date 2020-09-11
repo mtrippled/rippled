@@ -187,11 +187,11 @@ doLedgerGrpc(RPC::GRPCContext<org::xrpl::rpc::v1::GetLedgerRequest>& context)
 
         for (auto& [k, v] : differences)
         {
-            auto obj = response.add_ledger_objects();
+            auto obj = response.mutable_ledger_objects()->add_objects();
             auto inBase = v.first;
             auto inDesired = v.second;
 
-            obj->set_index(k.data(), k.size());
+            obj->set_key(k.data(), k.size());
             if (inDesired)
             {
                 assert(inDesired->size() > 0);

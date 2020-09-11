@@ -476,12 +476,10 @@ class AsyncCallData
             call(stub, cq);
         }
 
-        for (auto& state : cur_->state_objects())
+        for (auto& obj : cur_->ledger_objects().objects())
         {
-            auto& index = state.index();
-            auto& data = state.data();
-
-            auto key = uint256::fromVoid(index.data());
+            auto key = uint256::fromVoid(obj.key().data());
+            auto& data = obj.data();
 
             SerialIter it{data.data(), data.size()};
             std::shared_ptr<SLE> sle = std::make_shared<SLE>(it, key);

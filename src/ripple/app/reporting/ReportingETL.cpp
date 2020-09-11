@@ -393,12 +393,11 @@ ReportingETL::buildNextLedger(
         << "Inserted all transactions. Number of transactions  = "
         << rawData.transactions_list().transactions_size();
 
-    for (auto& state : rawData.ledger_objects())
+    for (auto& obj : rawData.ledger_objects().objects())
     {
-        auto& index = state.index();
-        auto& data = state.data();
+        auto key = uint256::fromVoid(obj.key().data());
+        auto& data = obj.data();
 
-        auto key = uint256::fromVoid(index.data());
         // indicates object was deleted
         if (data.size() == 0)
         {
@@ -429,7 +428,7 @@ ReportingETL::buildNextLedger(
     JLOG(journal_.debug())
         << __func__ << " : "
         << "Inserted/modified/deleted all objects. Number of objects = "
-        << rawData.ledger_objects_size();
+        << rawData.ledger_objects().objects_size();
 
     if(!rawData.skiplist_included())
     {

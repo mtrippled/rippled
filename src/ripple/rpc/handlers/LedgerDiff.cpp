@@ -64,7 +64,7 @@ doLedgerDiffGrpc(
 
     for (auto& [k, v] : differences)
     {
-        auto diff = response.add_diffs();
+        auto diff = response.mutable_ledger_objects()->add_objects();
         auto inBase = v.first;
         auto inDesired = v.second;
 
@@ -72,16 +72,14 @@ doLedgerDiffGrpc(
         if (!inDesired)
         {
             diff->set_key(k.data(), k.size());
-            diff->set_deleted(true);
         }
         else
         {
             assert(inDesired->size() > 0);
             diff->set_key(k.data(), k.size());
-            diff->set_deleted(false);
             if (request.include_blobs())
             {
-                diff->set_blob(inDesired->data(), inDesired->size());
+                diff->set_data(inDesired->data(), inDesired->size());
             }
         }
     }
