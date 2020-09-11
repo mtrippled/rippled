@@ -51,7 +51,6 @@ class ReportingETL_test : public beast::unit_test::suite
     };
     void testGetLedger()
     {
-    
         testcase("GetLedger");
         using namespace test::jtx;
         std::unique_ptr<Config> config = envconfig(addGrpcConfig);
@@ -468,11 +467,181 @@ class ReportingETL_test : public beast::unit_test::suite
         }
     }
 
+
+
+    // gRPC stuff
+    class GrpcLedgerDiffClient : public GRPCTestClientBase
+    {
+    public:
+        org::xrpl::rpc::v1::GetLedgerDiffRequest request;
+        org::xrpl::rpc::v1::GetLedgerDiffResponse reply;
+
+        explicit GrpcLedgerDiffClient(std::string const& port)
+            : GRPCTestClientBase(port)
+        {
+        }
+
+        void
+        GetLedgerDiff()
+        {
+            status = stub_->GetLedgerDiff(&context, request, &reply);
+        }
+    };
+
     void testGetLedgerDiff()
-    {}
+    {
+    
+        testcase("GetLedgerDiff");
+        using namespace test::jtx;
+        std::unique_ptr<Config> config = envconfig(addGrpcConfig);
+        std::string grpcPort = *(*config)["port_grpc"].get<std::string>("port");
+        Env env(*this, std::move(config));
+
+
+        auto grpcLedgerDiff = [&grpcPort](
+                              auto baseSequence,
+                              auto desiredSequence) {
+
+            GrpcLedgerDiffClient grpcClient{grpcPort};
+
+            grpcClient.request.mutable_base_ledger()->set_sequence(baseSequence);
+            grpcClient.request.mutable_desired_ledger()->set_sequence(desiredSequence);
+            grpcClient.request.set_include_blobs(true);
+
+            grpcClient.GetLedgerDiff();
+            return std::make_pair(grpcClient.status, grpcClient.reply);
+        };
+
+        int num_accounts = 20;
+        for (auto i = 0; i < num_accounts; i++)
+        {
+            Account const cat{std::string("cat") + std::to_string(i)};
+            env.fund(XRP(1000), cat);
+            if (i % 2 == 0)
+                env.close();
+        }
+        env.close();
+
+        auto compareDiffs = [&] (auto baseSequence, auto desiredSequence)
+        {
+        
+            auto [status, reply] = grpcLedgerDiff(baseSequence,desiredSequence);
+
+            BEAST_EXPECT(status.ok());
+            auto desired =
+                env.app().getLedgerMaster().getLedgerBySeq(desiredSequence);
+
+            auto base = env.app().getLedgerMaster().getLedgerBySeq(
+                baseSequence);
+
+            SHAMap::Delta differences;
+
+            int maxDifferences = std::numeric_limits<int>::max();
+
+            bool res = base->stateMap().compare(
+                desired->stateMap(), differences, maxDifferences);
+            if(!BEAST_EXPECT(res))
+                return false;
+
+            size_t idx = 0;
+            for (auto& [k, v] : differences)
+            {
+                if(!BEAST_EXPECT(
+                    k ==
+                    uint256::fromVoid(
+                        reply.ledger_objects().objects(idx).key().data())))
+                    return false;
+                if (v.second)
+                {
+                    if(!BEAST_EXPECT(
+                        v.second->slice() ==
+                        makeSlice(reply.ledger_objects().objects(idx).data())))
+                        return false;
+                }
+
+                ++idx;
+            }
+            return true;
+        };
+
+        // Adjacent ledgers
+        BEAST_EXPECT(compareDiffs(env.closed()->seq()-1,env.closed()->seq()));
+
+        // Adjacent ledgers further in the past
+        BEAST_EXPECT(compareDiffs(env.closed()->seq()-3,env.closed()->seq()-2));
+
+        // Non-adjacent ledgers
+        BEAST_EXPECT(compareDiffs(env.closed()->seq()-5,env.closed()->seq()-1));
+
+        // Adjacent ledgers but in reverse order
+        BEAST_EXPECT(compareDiffs(env.closed()->seq(),env.closed()->seq()-1));
+
+        // Non-adjacent ledgers in reverse order
+        BEAST_EXPECT(compareDiffs(env.closed()->seq()-1,env.closed()->seq()-5));
+    
+    }
+
+    // gRPC stuff
+    class GrpcLedgerEntryClient : public GRPCTestClientBase
+    {
+    public:
+        org::xrpl::rpc::v1::GetLedgerEntryRequest request;
+        org::xrpl::rpc::v1::GetLedgerEntryResponse reply;
+
+        explicit GrpcLedgerEntryClient(std::string const& port)
+            : GRPCTestClientBase(port)
+        {
+        }
+
+        void
+        GetLedgerEntry()
+        {
+            status = stub_->GetLedgerEntry(&context, request, &reply);
+        }
+    };
 
     void testGetLedgerEntry()
-    {}
+    {
+
+        testcase("GetLedgerDiff");
+        using namespace test::jtx;
+        std::unique_ptr<Config> config = envconfig(addGrpcConfig);
+        std::string grpcPort = *(*config)["port_grpc"].get<std::string>("port");
+        Env env(*this, std::move(config));
+
+
+        auto grpcLedgerEntry = [&grpcPort](
+                              auto sequence,
+                              auto key) {
+
+            GrpcLedgerEntryClient grpcClient{grpcPort};
+
+            grpcClient.request.mutable_ledger()->set_sequence(sequence);
+            grpcClient.request.set_key(key.data(), key.size());
+
+            grpcClient.GetLedgerEntry();
+            return std::make_pair(grpcClient.status, grpcClient.reply);
+        };
+
+        Account const alice{"alice"};
+        env.fund(XRP(1000), alice);
+        env.close();
+
+        for(auto& sle : env.closed()->sles)
+        {
+            auto [status, reply] =
+                grpcLedgerEntry(env.closed()->seq(), sle->key());
+
+            BEAST_EXPECT(
+                uint256::fromVoid(reply.ledger_object().key().data()) ==
+                sle->key());
+            BEAST_EXPECT(
+                makeSlice(reply.ledger_object().data()) ==
+                sle->getSerializer().slice());
+        }
+
+    
+    }
 public:
     void
     run() override

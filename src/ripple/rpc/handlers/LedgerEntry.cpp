@@ -326,9 +326,9 @@ doLedgerEntryGrpc(
         return {response, errorStatus};
     }
 
-    std::string const& indexBytes = request.index();
-    auto key = uint256::fromVoid(indexBytes.data());
-    if (indexBytes.size() != key.size())
+    std::string const& keyBytes = request.key();
+    auto key = uint256::fromVoid(keyBytes.data());
+    if (keyBytes.size() != key.size())
     {
         grpc::Status errorStatus{grpc::StatusCode::INVALID_ARGUMENT,
                                  "index malformed"};
@@ -350,7 +350,7 @@ doLedgerEntryGrpc(
 
         auto& stateObject = *response.mutable_ledger_object();
         stateObject.set_data(s.peekData().data(), s.getLength());
-        stateObject.set_key(request.index());
+        stateObject.set_key(request.key());
         *(response.mutable_ledger()) = request.ledger();
         return {response, status};
     }

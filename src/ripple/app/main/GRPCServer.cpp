@@ -518,7 +518,39 @@ GRPCServerImpl::setupListeners()
             doLedgerDataGrpc,
             &org::xrpl::rpc::v1::XRPLedgerAPIService::Stub::GetLedgerData,
             RPC::NO_CONDITION,
-            Resource::feeReferenceRPC));
+            Resource::feeMediumBurdenRPC));
+    }
+    {
+        using cd = CallData<
+            org::xrpl::rpc::v1::GetLedgerDiffRequest,
+            org::xrpl::rpc::v1::GetLedgerDiffResponse>;
+
+        addToRequests(std::make_shared<cd>(
+            service_,
+            *cq_,
+            app_,
+            &org::xrpl::rpc::v1::XRPLedgerAPIService::AsyncService::
+                RequestGetLedgerDiff,
+            doLedgerDiffGrpc,
+            &org::xrpl::rpc::v1::XRPLedgerAPIService::Stub::GetLedgerDiff,
+            RPC::NO_CONDITION,
+            Resource::feeMediumBurdenRPC));
+    }
+    {
+        using cd = CallData<
+            org::xrpl::rpc::v1::GetLedgerEntryRequest,
+            org::xrpl::rpc::v1::GetLedgerEntryResponse>;
+
+        addToRequests(std::make_shared<cd>(
+            service_,
+            *cq_,
+            app_,
+            &org::xrpl::rpc::v1::XRPLedgerAPIService::AsyncService::
+                RequestGetLedgerEntry,
+            doLedgerEntryGrpc,
+            &org::xrpl::rpc::v1::XRPLedgerAPIService::Stub::GetLedgerEntry,
+            RPC::NO_CONDITION,
+            Resource::feeMediumBurdenRPC));
     }
     return requests;
 };

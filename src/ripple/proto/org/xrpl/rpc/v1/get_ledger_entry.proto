@@ -10,7 +10,7 @@ import "org/xrpl/rpc/v1/ledger.proto";
 message GetLedgerEntryRequest
 {
     // Key of the desired object
-    bytes index = 1;
+    bytes key = 1;
 
     // Ledger containing the object
     LedgerSpecifier ledger = 2;
