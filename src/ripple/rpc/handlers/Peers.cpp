@@ -30,6 +30,9 @@ namespace ripple {
 Json::Value
 doPeers(RPC::JsonContext& context)
 {
+    if(context.app.config().reporting())
+        return rpcError(rpcREPORTING_UNSUPPORTED);
+
     Json::Value jvResult(Json::objectValue);
 
     {

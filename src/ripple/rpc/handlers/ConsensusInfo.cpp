@@ -28,6 +28,9 @@ namespace ripple {
 Json::Value
 doConsensusInfo(RPC::JsonContext& context)
 {
+    if(context.app.config().reporting())
+        return rpcError(rpcREPORTING_UNSUPPORTED);
+
     Json::Value ret(Json::objectValue);
 
     ret[jss::info] = context.netOps.getConsensusInfo();

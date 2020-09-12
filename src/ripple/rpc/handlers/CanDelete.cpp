@@ -33,6 +33,9 @@ namespace ripple {
 Json::Value
 doCanDelete(RPC::JsonContext& context)
 {
+    if(context.app.config().reporting())
+        return RPC::make_error(rpcREPORTING_UNSUPPORTED);
+
     if (!context.app.getSHAMapStore().advisoryDelete())
         return RPC::make_error(rpcNOT_ENABLED);
 

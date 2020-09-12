@@ -37,6 +37,9 @@ namespace ripple {
 Json::Value
 doLedgerRequest(RPC::JsonContext& context)
 {
+    if(context.app.config().reporting())
+        return rpcError(rpcREPORTING_UNSUPPORTED);
+
     auto const hasHash = context.params.isMember(jss::ledger_hash);
     auto const hasIndex = context.params.isMember(jss::ledger_index);
     std::uint32_t ledgerIndex = 0;
