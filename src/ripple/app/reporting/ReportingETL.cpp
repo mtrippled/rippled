@@ -154,7 +154,7 @@ ReportingETL::loadInitialLedger(uint32_t startingSequence)
             writeToPostgres(
                 ledger->info(),
                 accountTxData,
-                app_.pgPool(),
+                app_.getPgPool(),
                 journal_);
         }
     }
@@ -614,7 +614,7 @@ ReportingETL::runETLPipeline(uint32_t startSequence)
                     if (!writeToPostgres(
                             ledger->info(),
                             accountTxData,
-                            app_.pgPool(),
+                            app_.getPgPool(),
                             journal_))
                         writeConflict = true;
 

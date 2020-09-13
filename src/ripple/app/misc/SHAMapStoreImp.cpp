@@ -655,20 +655,19 @@ SHAMapStoreImp::clearPrior(LedgerIndex lastRotated)
 
     if (app_.config().reporting())
     {
-        assert(app_.pgPool());
         assert(!reportingReadOnly_);
 
         std::string sql =
             "SELECT prepare_delete(" + std::to_string(lastRotated) + ");";
 
-        auto res = PgQuery(app_.pgPool()).query(sql.data());
+        auto res = PgQuery(app_.getPgPool())(sql.data());
         journal_.debug() << "clearPrior - postgres result = " << res.msg();
         if (!res)
             return false;
 
         sql = "SELECT online_delete(" + std::to_string(lastRotated) + ");";
 
-        res = PgQuery(app_.pgPool()).query(sql.data());
+        res = PgQuery(app_.getPgPool())(sql.data());
         journal_.debug() << "clearPrior - postgres result = " << res.msg();
         if (!res)
             return false;

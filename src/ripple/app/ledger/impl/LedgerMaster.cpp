@@ -274,7 +274,7 @@ LedgerMaster::getValidatedLedgerAge()
 
     if (app_.config().reporting())
     {
-        auto age = PgQuery(app_.pgPool()).query("SELECT age()");
+        auto age = PgQuery(app_.getPgPool())("SELECT age()");
         if (!age || age.isNull())
         {
             JLOG(m_journal.debug()) << "No ledgers in database";
@@ -1586,7 +1586,7 @@ LedgerMaster::getValidatedLedger ()
 {
     if (app_.config().reporting())
     {
-        auto seq = PgQuery(app_.pgPool()).query("SELECT max_ledger()");
+        auto seq = PgQuery(app_.getPgPool())("SELECT max_ledger()");
         if (!seq || seq.isNull())
             return {};
         return getLedgerBySeq(seq.asInt());
@@ -1621,7 +1621,7 @@ LedgerMaster::getCompleteLedgers()
 {
     if (app_.config().reporting())
     {
-        auto range = PgQuery(app_.pgPool()).query("SELECT complete_ledgers()");
+        auto range = PgQuery(app_.getPgPool())("SELECT complete_ledgers()");
         if (!range)
             return "error";
         return range.c_str();
@@ -2264,7 +2264,7 @@ LedgerMaster::minSqlSeq()
 {
     if (app_.config().reporting())
     {
-        auto seq = PgQuery(app_.pgPool()).query("SELECT min_ledger()");
+        auto seq = PgQuery(app_.getPgPool())("SELECT min_ledger()");
         if (!seq)
         {
             JLOG(m_journal.error())

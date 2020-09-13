@@ -134,7 +134,7 @@ Transaction::locate(uint256 const& id, Application& app)
     std::string txHash = "\\x" + strHex(id);
     std::string sql = boost::str(baseCmd % txHash);
 
-    auto res = PgQuery(app.pgPool()).query(sql.data());
+    auto res = PgQuery(app.getPgPool())(sql.data());
 
     assert(res);
     assert(res.ntuples() == 1);

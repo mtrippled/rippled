@@ -495,7 +495,7 @@ doAccountTxStoredProcedure(AccountTxArgs const& args, RPC::Context& context)
                                 << (values[i] ? values[i].value() : "null");
     }
 
-    auto res = PgQuery(context.app.pgPool()).query(dbParams);
+    auto res = PgQuery(context.app.getPgPool())(dbParams);
     assert(res);
     assert(res.ntuples() == 1);
     assert(res.nfields() == 1);

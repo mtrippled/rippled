@@ -68,11 +68,11 @@ PgResult::msg() const
         ss << error_->first << ": " << error_->second;
         return ss.str();
     }
-    if (result_ != nullptr)
+    if (result_)
         return "ok";
-    // This object should either have an error or a valid result.
-    assert(false);
-    return "no result";
+
+    // Must be stopping.
+    return "stopping";
 }
 
 
@@ -288,6 +288,9 @@ Pg::bulkInsert(char const* table, std::string const& records)
 bool
 Pg::clear()
 {
+    if (! conn_)
+        return false;
+
     // The result object must be freed using the libpq API PQclear() call.
     pg_result_type res {
         nullptr, [](PGresult* result){ PQclear(result); }};
@@ -487,8 +490,9 @@ PgPool::setup()
 void
 PgPool::stop()
 {
-    stop_ = true;
     std::lock_guard<std::mutex> lock(mutex_);
+    stop_ = true;
+    cond_.notify_all();
     idle_.clear();
 }
 
@@ -518,66 +522,68 @@ PgPool::idleSweeper()
                     << after;
 }
 
-std::shared_ptr<Pg>
+std::unique_ptr<Pg>
 PgPool::checkout()
 {
-    while (true)
+    if (stop_)
+        return {};
+
+    std::unique_ptr<Pg> ret;
+    std::unique_lock<std::mutex> lock(mutex_);
+    do
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        // If there is a connection in the pool, return the most recent.
         if (idle_.size())
         {
             auto entry = idle_.rbegin();
-            auto ret = entry->second;
+            ret = std::move(entry->second);
             idle_.erase(std::next(entry).base());
-            return ret;
         }
-        else if (connections_ < config_.max_connections && ! stop_)
+        // Otherwise, return a new connection unless over threshold.
+        else if (connections_ < config_.max_connections)
         {
             ++connections_;
-            return std::make_shared<Pg>(config_, j_);
+            ret = std::make_unique<Pg>(config_, j_);
         }
-
-        JLOG(j_.error()) << "No database connections available.";
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        // Otherwise, wait until a connection becomes available or we stop.
+        else
+        {
+            JLOG(j_.error()) << "No database connections available.";
+            cond_.wait(lock);
+        }
     }
+    while (!ret && !stop_);
+    lock.unlock();
+
+    return ret;
 }
 
 void
-PgPool::checkin(std::shared_ptr<Pg>& pg)
+PgPool::checkin(std::unique_ptr<Pg>& pg)
 {
-    if (!pg)
-        return;
+    if (pg)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!stop_ && pg->clear())
+        {
+            idle_.emplace(clock_type::now(), std::move(pg));
+        }
+        else
+        {
+            --connections_;
+            pg.reset();
+        }
+    }
 
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (stop_ || ! *pg)
-    {
-        --connections_;
-    }
-    else
-    {
-        // It's possible that the connection was severed while results were
-        // cleared.
-        if (pg->clear())
-            idle_.emplace(clock_type::now(), pg);
-    }
-    pg.reset();
+    cond_.notify_all();
 }
 
 //-----------------------------------------------------------------------------
 
-PgResult
-PgQuery::query(pg_params const& dbParams, std::shared_ptr<Pg>& conn)
-{
-    conn = pool_->checkout();
-    return conn->query(dbParams);
-}
-
-//-----------------------------------------------------------------------------
-
-std::shared_ptr<PgPool>
+std::unique_ptr<PgPool>
 make_PgPool(Section const& pgConfig, beast::Journal const j)
 {
-    auto ret = std::make_shared<PgPool>(pgConfig, j);
+    auto ret = std::make_unique<PgPool>(pgConfig, j);
     ret->setup();
     return ret;
 }
@@ -1303,7 +1309,7 @@ std::array<char const*, LATEST_SCHEMA_VERSION> upgrade_schemata = {
  *        has been applied.
  */
 void
-applySchema(std::shared_ptr<PgPool> const& pool,
+applySchema(PgPool& pool,
             char const* schema, std::uint32_t currentVersion,
             std::uint32_t schemaVersion)
 {
@@ -1317,7 +1323,7 @@ applySchema(std::shared_ptr<PgPool> const& pool,
         Throw<std::runtime_error>(ss.str());
     }
 
-    auto res = PgQuery(pool).query({schema, {}});
+    auto res = PgQuery(pool)({schema, {}});
     if (!res)
     {
         std::stringstream ss;
@@ -1328,7 +1334,7 @@ applySchema(std::shared_ptr<PgPool> const& pool,
     }
 
     auto cmd = boost::format(R"(SELECT set_schema_version(%u, 0))");
-    res = PgQuery(pool).query(
+    res = PgQuery(pool)(
         {boost::str(cmd % schemaVersion).c_str(), {}});
     if (!res)
     {
@@ -1341,10 +1347,10 @@ applySchema(std::shared_ptr<PgPool> const& pool,
 }
 
 void
-initSchema(std::shared_ptr<PgPool> const& pool)
+initSchema(PgPool& pool)
 {
     // Figure out what schema version, if any, is already installed.
-    auto res = PgQuery(pool).query({version_query, {}});
+    auto res = PgQuery(pool)({version_query, {}});
     if (!res)
     {
         std::stringstream ss;
@@ -1369,7 +1375,7 @@ initSchema(std::shared_ptr<PgPool> const& pool)
         // This protects against corruption in an aborted install that is
         // followed by a fresh installation attempt with a new schema.
         auto cmd = boost::format(R"(SELECT set_schema_version(0, %u))");
-        res = PgQuery(pool).query(
+        res = PgQuery(pool)(
             {boost::str(cmd % freshVersion).c_str(), {}});
         if (!res)
         {

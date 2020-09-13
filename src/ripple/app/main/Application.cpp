@@ -164,7 +164,7 @@ public:
     // Required by the SHAMapStore
     TransactionMaster m_txMaster;
 
-    std::shared_ptr<PgPool> pgPool_;
+    std::unique_ptr<PgPool> pgPool_;
     NodeStoreScheduler m_nodeStoreScheduler;
     std::unique_ptr<SHAMapStore> m_shaMapStore;
     PendingSaves pendingSaves_;
@@ -843,9 +843,10 @@ public:
         return *mLedgerDB;
     }
 
-    std::shared_ptr<PgPool>& pgPool() override
+    PgPool& getPgPool() override
     {
-        return pgPool_;
+        assert(pgPool_);
+        return *pgPool_;
     }
 
     DatabaseCon& getWalletDB () override
@@ -937,7 +938,7 @@ public:
             }
             else if (!config_->reportingReadOnly()) // use pg
             {
-                initSchema(pgPool_);
+                initSchema(*pgPool_);
             }
 
             // wallet database
@@ -1260,7 +1261,7 @@ public:
         cachedSLEs_.expire();
 
         if (config().reporting())
-            pgPool()->idleSweeper();
+            pgPool_->idleSweeper();
 
         // Set timer to do another sweep later.
         setSweepTimer();
@@ -2261,7 +2262,7 @@ ApplicationImp::setMaxDisallowedLedger()
 {
     if (config().reporting())
     {
-        auto seq = PgQuery(pgPool()).query("SELECT max_ledger()");
+        auto seq = PgQuery(*pgPool_)("SELECT max_ledger()");
         if (seq && !seq.isNull())
             maxDisallowedLedger_ = seq.asBigInt();
     }

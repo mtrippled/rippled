@@ -27,6 +27,7 @@
 #include <boost/lexical_cast.hpp>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -96,7 +97,8 @@ class PgResult
     std::optional<std::pair<ExecStatusType, std::string>> error_;
 
 public:
-    PgResult() = delete;
+    PgResult()
+    {}
 
     /** Constructor for successful query results.
      *
@@ -243,6 +245,7 @@ public:
 class Pg
 {
     friend class PgPool;
+    friend class PgQuery;
 
     PgConfig const& config_;
     beast::Journal const j_;
@@ -261,26 +264,6 @@ class Pg
      */
     bool
     clear();
-
-public:
-    /** Constructor for Pg class.
-     *
-     * @param config Config parameters.
-     * @param j Logger object.
-     */
-    Pg(PgConfig const& config, beast::Journal const j)
-        : config_ (config)
-        , j_ (j)
-    {}
-
-    /** Whether the database connection has been established.
-     *
-     * @return Whether the database connection has been established.
-     */
-    operator bool() const
-    {
-        return conn_ != nullptr;
-    }
 
     /** Connect to postgres.
      *
@@ -341,6 +324,17 @@ public:
      */
     void
     bulkInsert(char const* table, std::string const& records);
+
+public:
+    /** Constructor for Pg class.
+     *
+     * @param config Config parameters.
+     * @param j Logger object.
+     */
+    Pg(PgConfig const& config, beast::Journal const j)
+        : config_ (config)
+        , j_ (j)
+    {}
 };
 
 //-----------------------------------------------------------------------------
@@ -361,27 +355,37 @@ class PgPool
 
     using clock_type = std::chrono::steady_clock;
 
+    PgConfig config_;
+    beast::Journal const j_;
+    std::mutex mutex_;
+    std::condition_variable cond_;
+    std::size_t connections_ {};
+    bool stop_ {false};
+
     /** Idle database connections ordered by timestamp to allow timing out. */
     std::multimap<std::chrono::time_point<clock_type>,
-                  std::shared_ptr<Pg>> idle_;
+                  std::unique_ptr<Pg>> idle_;
 
     /** Get a postgres connection object.
      *
-     * If connection limit has been reached, then pause and retry until
-     * success.
+     * Return the most recent idle connection in the pool, if available.
+     * Otherwise, return a new connection unless we're at the threshold.
+     * If so, then wait until a connection becomes available.
      *
      * @return Postgres object.
      */
-    std::shared_ptr<Pg>
+    std::unique_ptr<Pg>
     checkout();
 
-public:
-    beast::Journal const j_;
-    std::mutex mutex_;
-    std::size_t connections_ {};
-    std::atomic<bool> stop_ {false};
-
-    PgConfig config_;
+    /** Return a postgres object to the pool for reuse.
+     *
+     * If connection is healthy, place in pool for reuse. After calling this,
+     * the container no longer have a connection unless checkout() is called.
+     *
+     * @param pg Pg object.
+     */
+    void
+    checkin(std::unique_ptr<Pg>& pg);
 
 public:
     /** Connection pool constructor.
@@ -406,30 +410,34 @@ public:
     /** Disconnect idle postgres connections. */
     void
     idleSweeper();
-
-    /** Return a postgres object to the pool for reuse.
-     *
-     * If connection is healthy, place in pool for reuse. After calling this,
-     * the container no longer have a connection unless checkout() is called.
-     *
-     * @param pg Pg object.
-     */
-    void
-    checkin(std::shared_ptr<Pg>& pg);
 };
 
 //-----------------------------------------------------------------------------
 
-/** Class to query postgres. */
+/** Class to query postgres.
+ *
+ * This class should be used by functions outside of this
+ * compilation unit for querying postgres. It automatically acquires and
+ * relinquishes a database connection to handle each query.
+ */
 class PgQuery
 {
 private:
-    std::shared_ptr<PgPool> const& pool_;
+    PgPool& pool_;
+    std::unique_ptr<Pg> pg_;
 
 public:
-    PgQuery(std::shared_ptr<PgPool> const& pool)
+    PgQuery() = delete;
+
+    PgQuery(PgPool& pool)
         : pool_ (pool)
+        , pg_ (pool.checkout())
     {}
+
+    ~PgQuery()
+    {
+        pool_.checkin(pg_);
+    }
 
     /** Execute postgres query with parameters.
      *
@@ -437,10 +445,11 @@ public:
      * @return Result of query, including errors.
      */
     PgResult
-    query(pg_params const& dbParams)
+    operator()(pg_params const& dbParams)
     {
-        auto conn = pool_->checkout();
-        return query(dbParams, conn);
+        if (!pg_) // It means we're stopping. Return empty result.
+            return PgResult();
+        return pg_->query(dbParams);
     }
 
     /** Execute postgres query with only command statement.
@@ -449,33 +458,23 @@ public:
      * @return Result of query, including errors.
      */
     PgResult
-    query(char const* command)
+    operator()(char const* command)
     {
-        std::shared_ptr<Pg> conn;
-        auto ret = query(command, conn);
-        pool_->checkin(conn);
-        return ret;
+        return operator()(pg_params {command, {}});
     }
 
-    /** Execute postgres query with parameters and re-usable connection.
-     *
-     * @param dbParams Database command with parameters.
-     * @param conn Database connection object.
-     * @return Result of query, including errors.
-     */
-    PgResult
-    query(pg_params const& dbParams, std::shared_ptr<Pg>& conn);
 
-    /** Execute postgres query with command statement and re-usable connection.
+    /** Insert multiple records into a table using Postgres' bulk COPY.
      *
-     * @param command Command statement.
-     * @param conn Database connection object.
-     * @return Result of query, including errors.
+     * Throws upon error.
+     *
+     * @param table Name of table for import.
+     * @param records Records in the COPY IN format.
      */
-    PgResult
-    query(char const* command, std::shared_ptr<Pg>& conn)
+    void
+    bulkInsert(char const* table, std::string const& records)
     {
-        return query(pg_params{command, {}}, conn);
+        pg_->bulkInsert(table, records);
     }
 };
 
@@ -487,7 +486,7 @@ public:
  * @param j Logger object.
  * @return Postgres connection pool manager
  */
-std::shared_ptr<PgPool> make_PgPool(Section const& pgConfig,
+std::unique_ptr<PgPool> make_PgPool(Section const& pgConfig,
     beast::Journal const j);
 
 /** Initialize the Postgres schema.
@@ -498,7 +497,7 @@ std::shared_ptr<PgPool> make_PgPool(Section const& pgConfig,
  * @param pool Postgres connection pool manager.
  */
 void
-initSchema(std::shared_ptr<PgPool> const& pool);
+initSchema(PgPool& pool);
 
 } // ripple
 

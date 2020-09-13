@@ -1321,12 +1321,8 @@ loadLedgerInfosPostgres(
     JLOG(app.journal("Ledger").debug())
         << "loadLedgerInfosPostgres - sql : " << sql;
 
-    assert(app.pgPool());
-    std::shared_ptr<PgQuery> pg = std::make_shared<PgQuery>(app.pgPool());
-    std::shared_ptr<Pg> conn;
-    auto res = pg->query(sql.data(), conn);
+    auto res = PgQuery(app.getPgPool())(sql.data());
     assert(res);
-    app.pgPool()->checkin(conn);
 
     JLOG(app.journal("Ledger").debug())
         << "loadLedgerInfosPostgres - result: " << res.msg();
@@ -1682,7 +1678,7 @@ flatFetchTransactions(ReadView const& ledger, Application& app)
         "  FROM transactions "
         " WHERE ledger_seq = " +
         std::to_string(ledger.info().seq);
-    auto res = PgQuery(app.pgPool()).query(query.c_str());
+    auto res = PgQuery(app.getPgPool())(query.c_str());
     assert(res);
 
     for (size_t i = 0; i < res.ntuples(); ++i)

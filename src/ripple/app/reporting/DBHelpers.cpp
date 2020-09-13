@@ -25,8 +25,7 @@ namespace ripple {
 bool
 writeToLedgersDB(
     LedgerInfo const& info,
-    std::shared_ptr<PgQuery>& pgQuery,
-    std::shared_ptr<Pg>& conn,
+    PgQuery& pgQuery,
     beast::Journal& j)
 {
     JLOG(j.debug()) << __func__;
@@ -44,7 +43,7 @@ writeToLedgersDB(
                     << " : "
                     << "query string = " << ledgerInsert;
 
-    auto res = pgQuery->query({ledgerInsert.data(), {}}, conn);
+    auto res = pgQuery(ledgerInsert.data());
 
     return res;
 }
@@ -53,21 +52,16 @@ bool
 writeToPostgres(
     LedgerInfo const& info,
     std::vector<AccountTransactionsData>& accountTxData,
-    std::shared_ptr<PgPool> const& pgPool,
+    PgPool& pgPool,
     beast::Journal& j)
 {
     JLOG(j.debug()) << __func__ << " : "
                     << "Beginning write to Postgres";
-    if (!pgPool)
-    {
-        JLOG(j.fatal()) << __func__ << " : "
-                        << "app_.pgPool is null";
-        Throw<std::runtime_error>("pgPool is null");
-    }
-    std::shared_ptr<PgQuery> pg = std::make_shared<PgQuery>(pgPool);
-    std::shared_ptr<Pg> conn;
 
-    auto res = pg->query({"BEGIN", {}}, conn);
+    // Create a PgQuery object to run multiple commands over the same
+    // connection in a single transaction block.
+    PgQuery pg(pgPool);
+    auto res = pg("BEGIN");
     if (!res)
     {
         std::stringstream msg;
@@ -79,10 +73,8 @@ writeToPostgres(
     // Writing to the ledgers db fails if the ledger already exists in the db.
     // In this situation, the ETL process has detected there is another writer,
     // and falls back to only publishing
-    if (!writeToLedgersDB(info, pg, conn, j))
+    if (!writeToLedgersDB(info, pg, j))
     {
-        pgPool->checkin(conn);
-
         JLOG(j.warn()) << __func__ << " : "
                        << "Failed to write to ledgers database.";
         return false;
@@ -110,11 +102,10 @@ writeToPostgres(
         }
     }
 
-    conn->bulkInsert("transactions", transactionsCopyBuffer.str());
-    conn->bulkInsert("account_transactions",
-                     accountTransactionsCopyBuffer.str());
+    pg.bulkInsert("transactions", transactionsCopyBuffer.str());
+    pg.bulkInsert("account_transactions", accountTransactionsCopyBuffer.str());
 
-    res = pg->query("COMMIT", conn);
+    res = pg("COMMIT");
     if (!res)
     {
         std::stringstream msg;
@@ -122,8 +113,6 @@ writeToPostgres(
             << res.msg();
         Throw<std::runtime_error>(msg.str());
     }
-
-    pgPool->checkin(conn);
 
     JLOG(j.info()) << __func__ << " : "
                    << "Successfully wrote to Postgres";

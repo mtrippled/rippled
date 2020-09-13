@@ -398,7 +398,9 @@ public:
                     return false;
             }
         }
-        assert(false);
+
+        // If no sources connected, then this stream has not been forwarded.
+        return true;
     }
 
     Json::Value

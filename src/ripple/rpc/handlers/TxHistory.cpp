@@ -56,11 +56,7 @@ doTxHistoryReporting(RPC::JsonContext& context)
                       "OFFSET %u;") %
         startIndex);
 
-    assert(context.app.pgPool());
-    std::shared_ptr<PgQuery> pg =
-        std::make_shared<PgQuery>(context.app.pgPool());
-
-    auto res = pg->query(sql.data());
+    auto res = PgQuery(context.app.getPgPool())(sql.data());
     assert(res);
     JLOG(context.j.debug()) << "txHistory - result: " << res.msg();
 

@@ -26,12 +26,6 @@
 #define RIPPLE_CORE_DBHELPERS_H_INCLUDED
 
 namespace ripple {
-bool
-writeToLedgersDB(
-    LedgerInfo const& info,
-    std::shared_ptr<PgQuery>& pgQuery,
-    std::shared_ptr<Pg>& conn,
-    beast::Journal& j);
 
 struct AccountTransactionsData
 {
@@ -67,7 +61,7 @@ bool
 writeToPostgres(
     LedgerInfo const& info,
     std::vector<AccountTransactionsData>& accountTxData,
-    std::shared_ptr<PgPool> const& pgPool,
+    PgPool& pgPool,
     beast::Journal& j);
 
 }  // namespace ripple
