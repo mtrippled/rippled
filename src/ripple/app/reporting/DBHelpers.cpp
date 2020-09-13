@@ -109,9 +109,6 @@ writeToPostgres(
                                           << std::to_string(idx) << '\n';
         }
     }
-    JLOG(j.debug()) << "transactions: " << transactionsCopyBuffer.str();
-    JLOG(j.debug()) << "account_transactions: "
-                    << accountTransactionsCopyBuffer.str();
 
     conn->bulkInsert("transactions", transactionsCopyBuffer.str());
     conn->bulkInsert("account_transactions",

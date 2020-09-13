@@ -240,7 +240,6 @@ public:
 
 /* Class that contains and operates upon a postgres connection. */
 class Pg
-    : public std::enable_shared_from_this<Pg>
 {
     friend class PgPool;
 
@@ -350,7 +349,6 @@ public:
  * timeout duration.
  */
 class PgPool
-    : public std::enable_shared_from_this<PgPool>
 {
     friend class PgQuery;
     using clock_type = std::chrono::steady_clock;
@@ -413,7 +411,6 @@ public:
 
 /** Class to query postgres. */
 class PgQuery
-    : public std::enable_shared_from_this<PgQuery>
 {
 private:
     std::shared_ptr<PgPool> const& pool_;
