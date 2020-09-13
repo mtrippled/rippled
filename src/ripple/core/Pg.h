@@ -91,6 +91,7 @@ struct PgConfig
  */
 class PgResult
 {
+    // The result object must be freed using the libpq API PQclear() call.
     pg_result_type result_ { nullptr, [](PGresult* result){ PQclear(result); }};
     std::optional<std::pair<ExecStatusType, std::string>> error_;
 
@@ -246,6 +247,7 @@ class Pg
     PgConfig const& config_;
     beast::Journal const j_;
 
+    // The connection object must be freed using the libpq API PQfinish() call.
     pg_connection_type conn_ {nullptr, [](PGconn* conn){ PQfinish(conn); }};
 
     /** Clear results from the connection.
@@ -254,14 +256,17 @@ class Pg
      * can be processed. This function should be called on connections
      * that weren't processed completely before being reused, such as
      * when being checked-in.
+     *
+     * @return whether or not connection still exists.
      */
-    void
+    bool
     clear();
 
 public:
     /** Constructor for Pg class.
      *
-     * @param dbConfig Config parameters.
+     * @param config Config parameters.
+     * @param j Logger object.
      */
     Pg(PgConfig const& config, beast::Journal const j)
         : config_ (config)
@@ -303,7 +308,7 @@ public:
      * @param command postgres API command string.
      * @param nParams postgres API number of parameters.
      * @param values postgres API array of parameter.
-     * @return Postgres API result struct if successful.
+     * @return Query result object.
      */
     PgResult
     query(char const* command, std::size_t nParams, char const* const* values);
@@ -311,7 +316,7 @@ public:
     /** Execute postgres query with no parameters.
      *
      * @param command Query string.
-     * @return Postgres API result struct.
+     * @return Query result object;
      */
     PgResult
     query(char const* command)
@@ -322,12 +327,14 @@ public:
     /** Execute postgres query with parameters.
      *
      * @param dbParams Database command and parameter values.
-     * @return PostgreSQL API result struct.
+     * @return Query result object.
      */
     PgResult
     query(pg_params const& dbParams);
 
     /** Insert multiple records into a table using Postgres' bulk COPY.
+     *
+     * Throws upon error.
      *
      * @param table Name of table for import.
      * @param records Records in the COPY IN format.
@@ -351,13 +358,22 @@ public:
 class PgPool
 {
     friend class PgQuery;
+
     using clock_type = std::chrono::steady_clock;
 
-    /** Idle database connections ordered by timestamp to allow
-     * timing out.
-     */
+    /** Idle database connections ordered by timestamp to allow timing out. */
     std::multimap<std::chrono::time_point<clock_type>,
                   std::shared_ptr<Pg>> idle_;
+
+    /** Get a postgres connection object.
+     *
+     * If connection limit has been reached, then pause and retry until
+     * success.
+     *
+     * @return Postgres object.
+     */
+    std::shared_ptr<Pg>
+    checkout();
 
 public:
     beast::Journal const j_;
@@ -370,41 +386,36 @@ public:
 public:
     /** Connection pool constructor.
      *
-     * @param io Asio io service.
-     * @param dbConfig Config params.
+     * @param pgConfig Postgres config.
+     * @param j Logger object.
      */
-    PgPool(Section const& network_db_config, beast::Journal const j);
+    PgPool(Section const& pgConfig, beast::Journal const j);
 
     /** Initiate idle connection timer.
      *
      * The PgPool object needs to be fully constructed to support asynchronous
      * operations.
      */
-    void setup();
+    void
+    setup();
 
     /** Prepare for process shutdown. */
-    void stop();
-
-    /** Get a postgres connection object.
-     *
-     * @return Postgres object if any are available.
-     */
-    std::shared_ptr<Pg> checkout();
-
-    /** Return a postgres object to be reused.
-     *
-     * Cancel any pending asynchronous operations on database connection.
-     * Also set it up so that the connection can be severed if idle too long.
-     * If shutting down, don't make object available for re-use nor set
-     * for idle timeout.
-     *
-     * @param pg Pg object.
-     */
-    void checkin(std::shared_ptr<Pg>& pg);
+    void
+    stop();
 
     /** Disconnect idle postgres connections. */
     void
     idleSweeper();
+
+    /** Return a postgres object to the pool for reuse.
+     *
+     * If connection is healthy, place in pool for reuse. After calling this,
+     * the container no longer have a connection unless checkout() is called.
+     *
+     * @param pg Pg object.
+     */
+    void
+    checkin(std::shared_ptr<Pg>& pg);
 };
 
 //-----------------------------------------------------------------------------
@@ -420,17 +431,11 @@ public:
         : pool_ (pool)
     {}
 
-    /** Synchronously execute postgres query with parameters.
+    /** Execute postgres query with parameters.
      *
-     * Retries until a connection is available. Throws database and
-     * connection errors.
-     *
-     * @param dbParams
-     * @return PostgreSQL API result struct.
+     * @param dbParams Database command with parameters.
+     * @return Result of query, including errors.
      */
-    PgResult
-    query(pg_params const& dbParams, std::shared_ptr<Pg>& conn);
-
     PgResult
     query(pg_params const& dbParams)
     {
@@ -438,12 +443,11 @@ public:
         return query(dbParams, conn);
     }
 
-    PgResult
-    query(char const* command, std::shared_ptr<Pg>& conn)
-    {
-        return query(pg_params{command, {}}, conn);
-    }
-
+    /** Execute postgres query with only command statement.
+     *
+     * @param command Command statement.
+     * @return Result of query, including errors.
+     */
     PgResult
     query(char const* command)
     {
@@ -453,11 +457,37 @@ public:
         return ret;
     }
 
+    /** Execute postgres query with parameters and re-usable connection.
+     *
+     * @param dbParams Database command with parameters.
+     * @param conn Database connection object.
+     * @return Result of query, including errors.
+     */
+    PgResult
+    query(pg_params const& dbParams, std::shared_ptr<Pg>& conn);
+
+    /** Execute postgres query with command statement and re-usable connection.
+     *
+     * @param command Command statement.
+     * @param conn Database connection object.
+     * @return Result of query, including errors.
+     */
+    PgResult
+    query(char const* command, std::shared_ptr<Pg>& conn)
+    {
+        return query(pg_params{command, {}}, conn);
+    }
 };
 
 //-----------------------------------------------------------------------------
 
-std::shared_ptr<PgPool> make_PgPool(Section const& network_db_config,
+/** Create Postgres connection pool manager.
+ *
+ * @param pgConfig Configuration for Postgres.
+ * @param j Logger object.
+ * @return Postgres connection pool manager
+ */
+std::shared_ptr<PgPool> make_PgPool(Section const& pgConfig,
     beast::Journal const j);
 
 /** Initialize the Postgres schema.

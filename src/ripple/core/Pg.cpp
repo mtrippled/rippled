@@ -121,6 +121,7 @@ Pg::connect()
 PgResult
 Pg::query(char const* command, std::size_t nParams, char const* const* values)
 {
+    // The result object must be freed using the libpq API PQclear() call.
     pg_result_type ret { nullptr, [](PGresult* result){ PQclear(result); }};
     // Connect then submit query.
     while (true)
@@ -269,6 +270,7 @@ Pg::bulkInsert(char const* table, std::string const& records)
         Throw<std::runtime_error>(ss.str());
     }
 
+    // The result object must be freed using the libpq API PQclear() call.
     pg_result_type copyEndResult {
         nullptr, [](PGresult* result){ PQclear(result); }};
     copyEndResult.reset(PQgetResult(conn_.get()));
@@ -283,9 +285,10 @@ Pg::bulkInsert(char const* table, std::string const& records)
     }
 }
 
-void
+bool
 Pg::clear()
 {
+    // The result object must be freed using the libpq API PQclear() call.
     pg_result_type res {
         nullptr, [](PGresult* result){ PQclear(result); }};
     while (true)
@@ -308,11 +311,13 @@ Pg::clear()
                 ;
         }
     }
+
+    return conn_ != nullptr;
 }
 
 //-----------------------------------------------------------------------------
 
-PgPool::PgPool(Section const& network_db_config, beast::Journal const j) : j_(j)
+PgPool::PgPool(Section const& pgConfig, beast::Journal const j) : j_(j)
 {
     /*
     Connect to postgres to create low level connection parameters
@@ -326,9 +331,9 @@ PgPool::PgPool(Section const& network_db_config, beast::Journal const j) : j_(j)
     constexpr std::size_t maxFieldSize = 1024;
     constexpr std::size_t maxFields = 1000;
 
-    // PostgreSQL connection
+    // The connection object must be freed using the libpq API PQfinish() call.
     pg_connection_type conn(
-        PQconnectdb(get<std::string>(network_db_config, "conninfo").c_str()),
+        PQconnectdb(get<std::string>(pgConfig, "conninfo").c_str()),
         [](PGconn* conn){PQfinish(conn);});
     if (! conn)
         Throw<std::runtime_error>("Can't create DB connection.");
@@ -353,7 +358,7 @@ PgPool::PgPool(Section const& network_db_config, beast::Journal const j) : j_(j)
     }
 
     // Set "port" and "hostaddr" if we're caching it.
-    bool const remember_ip = get(network_db_config, "remember_ip", true);
+    bool const remember_ip = get(pgConfig, "remember_ip", true);
 
     if (remember_ip)
     {
@@ -449,10 +454,10 @@ PgPool::PgPool(Section const& network_db_config, beast::Journal const j) : j_(j)
     config_.keywordsIdx.push_back(nullptr);
     config_.valuesIdx.push_back(nullptr);
 
-    get_if_exists(network_db_config, "max_connections",
+    get_if_exists(pgConfig, "max_connections",
         config_.max_connections);
     std::size_t timeout;
-    if (get_if_exists(network_db_config, "timeout", timeout))
+    if (get_if_exists(pgConfig, "timeout", timeout))
         config_.timeout = std::chrono::seconds(timeout);
 }
 
@@ -516,6 +521,7 @@ PgPool::idleSweeper()
 std::shared_ptr<Pg>
 PgPool::checkout()
 {
+    while (true)
     {
         std::lock_guard<std::mutex> lock(mutex_);
         if (idle_.size())
@@ -530,8 +536,10 @@ PgPool::checkout()
             ++connections_;
             return std::make_shared<Pg>(config_, j_);
         }
+
+        JLOG(j_.error()) << "No database connections available.";
+        std::this_thread::sleep_for(std::chrono::seconds(1));
     }
-    return {};
 }
 
 void
@@ -547,10 +555,9 @@ PgPool::checkin(std::shared_ptr<Pg>& pg)
     }
     else
     {
-        pg->clear();
         // It's possible that the connection was severed while results were
         // cleared.
-        if (pg)
+        if (pg->clear())
             idle_.emplace(clock_type::now(), pg);
     }
     pg.reset();
@@ -561,17 +568,16 @@ PgPool::checkin(std::shared_ptr<Pg>& pg)
 PgResult
 PgQuery::query(pg_params const& dbParams, std::shared_ptr<Pg>& conn)
 {
-    while (!conn)
-        conn = pool_->checkout();
+    conn = pool_->checkout();
     return conn->query(dbParams);
 }
 
 //-----------------------------------------------------------------------------
 
 std::shared_ptr<PgPool>
-make_PgPool(Section const& network_db_config, beast::Journal const j)
+make_PgPool(Section const& pgConfig, beast::Journal const j)
 {
-    auto ret = std::make_shared<PgPool>(network_db_config, j);
+    auto ret = std::make_shared<PgPool>(pgConfig, j);
     ret->setup();
     return ret;
 }
