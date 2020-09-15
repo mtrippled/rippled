@@ -25,6 +25,7 @@
 #include <ripple/nodestore/DummyScheduler.h>
 #include <ripple/nodestore/Manager.h>
 #include <ripple/shamap/Family.h>
+#include <memory>
 
 namespace ripple {
 namespace tests {
@@ -61,7 +62,7 @@ public:
         testSection.set("type", "memory");
         testSection.set("Path", "SHAMap_test");
         db_ = NodeStore::Manager::instance().make_Database(
-            "test", scheduler_, 1, parent_, testSection, j);
+            "test", scheduler_, 1, parent_, testSection, false, j);
     }
 
     NodeStore::Database&

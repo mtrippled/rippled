@@ -41,6 +41,7 @@ public:
         Stoppable& parent,
         std::shared_ptr<Backend> backend,
         Section const& config,
+        bool const reporting,
         beast::Journal j)
         : Database(name, parent, scheduler, readThreads, config, j)
         , pCache_(std::make_shared<TaggedCache<uint256, NodeObject>>(
@@ -55,6 +56,7 @@ public:
               cacheTargetSize,
               cacheTargetAge))
         , backend_(std::move(backend))
+        , reporting_(reporting)
     {
         assert(backend_);
         setParent(parent);
@@ -89,12 +91,25 @@ public:
         NodeObjectType type,
         Blob&& data,
         uint256 const& hash,
-        std::uint32_t seq) override;
+        std::uint32_t seq,
+        bool const etl) override;
+
+    void
+    sync() override
+    {
+        backend_->sync();
+    }
 
     std::shared_ptr<NodeObject>
     fetch(uint256 const& hash, std::uint32_t seq) override
     {
         return doFetch(hash, seq, *pCache_, *nCache_, false);
+    }
+
+    std::vector<std::shared_ptr<NodeObject>>
+    fetchBatch(std::vector<uint256> const& hashes) override
+    {
+        return doFetchBatch(hashes, *pCache_, *nCache_);
     }
 
     bool
@@ -131,6 +146,12 @@ public:
     void
     sweep() override;
 
+    Backend&
+    getBackend() override
+    {
+        return *backend_;
+    };
+
 private:
     // Positive cache
     std::shared_ptr<TaggedCache<uint256, NodeObject>> pCache_;
@@ -141,10 +162,18 @@ private:
     // Persistent key/value storage
     std::shared_ptr<Backend> backend_;
 
+    bool reporting_;
+
     std::shared_ptr<NodeObject>
     fetchFrom(uint256 const& hash, std::uint32_t seq) override
     {
         return fetchInternal(hash, backend_);
+    }
+
+    std::pair<std::vector<std::shared_ptr<NodeObject>>, Status>
+    fetchBatch(std::vector<uint256 const*> const& hashes) override
+    {
+        return backend_->fetchBatch(hashes);
     }
 
     void
