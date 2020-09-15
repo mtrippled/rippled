@@ -503,6 +503,12 @@ DatabaseShardImp::importShard(
     return true;
 }
 
+Backend&
+DatabaseShardImp::getBackend()
+{
+    return app_.getNodeStore().getBackend();
+}
+
 std::shared_ptr<Ledger>
 DatabaseShardImp::fetchLedger(uint256 const& hash, std::uint32_t seq)
 {
@@ -943,7 +949,8 @@ DatabaseShardImp::store(
     NodeObjectType type,
     Blob&& data,
     uint256 const& hash,
-    std::uint32_t seq)
+    std::uint32_t seq,
+    bool const etl)
 {
     auto const shardIndex{seqToShardIndex(seq)};
     std::shared_ptr<Shard> shard;
