@@ -152,8 +152,8 @@ public:
         return false;
     }
 
-    std::vector<std::shared_ptr<NodeObject>>
-    fetchBatch(std::size_t n, void const* const* keys) override
+    std::pair<std::vector<std::shared_ptr<NodeObject>>, Status>
+    fetchBatch(std::vector<uint256 const*> const& hashes) override
     {
         Throw<std::runtime_error>("pure virtual called");
         return {};
@@ -172,6 +172,11 @@ public:
     {
         for (auto const& e : batch)
             store(e);
+    }
+
+    void
+    sync() override
+    {
     }
 
     void
@@ -202,6 +207,13 @@ public:
     fdRequired() const override
     {
         return 0;
+    }
+
+    Counters const&
+    counters() const override
+    {
+        static Counters counters;
+        return counters;
     }
 };
 

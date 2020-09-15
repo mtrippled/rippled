@@ -523,6 +523,9 @@ public:
     set(std::unique_ptr<STBase> v);
 
     void
+    set(STBase* v);
+
+    void
     setFieldU8(SField const& field, unsigned char);
     void
     setFieldU16(SField const& field, std::uint16_t);

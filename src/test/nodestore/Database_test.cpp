@@ -21,6 +21,7 @@
 #include <ripple/core/DatabaseCon.h>
 #include <ripple/nodestore/DummyScheduler.h>
 #include <ripple/nodestore/Manager.h>
+#include <memory>
 #include <test/jtx.h>
 #include <test/jtx/CheckMessageLogs.h>
 #include <test/jtx/envconfig.h>
@@ -28,6 +29,7 @@
 #include <test/unit_test/SuiteJournal.h>
 
 namespace ripple {
+
 namespace NodeStore {
 
 class Database_test : public TestBase
@@ -211,7 +213,7 @@ public:
             // Error: Mix safety_level and individual settings
             DatabaseCon::Setup::globalPragma.reset();
             auto const expected =
-                "Failed to initialize SQLite databases: "
+                "Failed to initialize SQL databases: "
                 "Configuration file may not define both \"safety_level\" and "
                 "\"journal_mode\"";
             bool found = false;
@@ -243,7 +245,7 @@ public:
             // Error: Mix safety_level and one setting (gotta catch 'em all)
             DatabaseCon::Setup::globalPragma.reset();
             auto const expected =
-                "Failed to initialize SQLite databases: Configuration file may "
+                "Failed to initialize SQL databases: Configuration file may "
                 "not define both \"safety_level\" and \"journal_mode\"";
             bool found = false;
 
@@ -272,7 +274,7 @@ public:
             // Error: Mix safety_level and one setting (gotta catch 'em all)
             DatabaseCon::Setup::globalPragma.reset();
             auto const expected =
-                "Failed to initialize SQLite databases: Configuration file may "
+                "Failed to initialize SQL databases: Configuration file may "
                 "not define both \"safety_level\" and \"synchronous\"";
             bool found = false;
 
@@ -301,7 +303,7 @@ public:
             // Error: Mix safety_level and one setting (gotta catch 'em all)
             DatabaseCon::Setup::globalPragma.reset();
             auto const expected =
-                "Failed to initialize SQLite databases: Configuration file may "
+                "Failed to initialize SQL databases: Configuration file may "
                 "not define both \"safety_level\" and \"temp_store\"";
             bool found = false;
 
@@ -330,7 +332,7 @@ public:
             // Error: Invalid value
             DatabaseCon::Setup::globalPragma.reset();
             auto const expected =
-                "Failed to initialize SQLite databases: Invalid safety_level "
+                "Failed to initialize SQL databases: Invalid safety_level "
                 "value: slow";
             bool found = false;
 
@@ -358,7 +360,7 @@ public:
             // Error: Invalid value
             DatabaseCon::Setup::globalPragma.reset();
             auto const expected =
-                "Failed to initialize SQLite databases: Invalid journal_mode "
+                "Failed to initialize SQL databases: Invalid journal_mode "
                 "value: fast";
             bool found = false;
 
@@ -386,7 +388,7 @@ public:
             // Error: Invalid value
             DatabaseCon::Setup::globalPragma.reset();
             auto const expected =
-                "Failed to initialize SQLite databases: Invalid synchronous "
+                "Failed to initialize SQL databases: Invalid synchronous "
                 "value: instant";
             bool found = false;
 
@@ -414,7 +416,7 @@ public:
             // Error: Invalid value
             DatabaseCon::Setup::globalPragma.reset();
             auto const expected =
-                "Failed to initialize SQLite databases: Invalid temp_store "
+                "Failed to initialize SQL databases: Invalid temp_store "
                 "value: network";
             bool found = false;
 
@@ -462,7 +464,7 @@ public:
         // Write to source db
         {
             std::unique_ptr<Database> src = Manager::instance().make_Database(
-                "test", scheduler, 2, parent, srcParams, journal_);
+                "test", scheduler, 2, parent, srcParams, false, journal_);
             storeBatch(*src, batch);
         }
 
@@ -471,7 +473,7 @@ public:
         {
             // Re-open the db
             std::unique_ptr<Database> src = Manager::instance().make_Database(
-                "test", scheduler, 2, parent, srcParams, journal_);
+                "test", scheduler, 2, parent, srcParams, false, journal_);
 
             // Set up the destination database
             beast::temp_dir dest_db;
@@ -480,7 +482,7 @@ public:
             destParams.set("path", dest_db.path());
 
             std::unique_ptr<Database> dest = Manager::instance().make_Database(
-                "test", scheduler, 2, parent, destParams, journal_);
+                "test", scheduler, 2, parent, destParams, false, journal_);
 
             testcase(
                 "import into '" + destBackendType + "' from '" +
@@ -528,7 +530,7 @@ public:
         {
             // Open the database
             std::unique_ptr<Database> db = Manager::instance().make_Database(
-                "test", scheduler, 2, parent, nodeParams, journal_);
+                "test", scheduler, 2, parent, nodeParams, false, journal_);
 
             // Write the batch
             storeBatch(*db, batch);
@@ -553,7 +555,7 @@ public:
         {
             // Re-open the database without the ephemeral DB
             std::unique_ptr<Database> db = Manager::instance().make_Database(
-                "test", scheduler, 2, parent, nodeParams, journal_);
+                "test", scheduler, 2, parent, nodeParams, false, journal_);
 
             // Read it back in
             Batch copy;
@@ -572,7 +574,13 @@ public:
                 // Verify default earliest ledger sequence
                 std::unique_ptr<Database> db =
                     Manager::instance().make_Database(
-                        "test", scheduler, 2, parent, nodeParams, journal_);
+                        "test",
+                        scheduler,
+                        2,
+                        parent,
+                        nodeParams,
+                        false,
+                        journal_);
                 BEAST_EXPECT(
                     db->earliestLedgerSeq() == XRP_LEDGER_EARLIEST_SEQ);
             }
@@ -583,7 +591,13 @@ public:
                 nodeParams.set("earliest_seq", "0");
                 std::unique_ptr<Database> db =
                     Manager::instance().make_Database(
-                        "test", scheduler, 2, parent, nodeParams, journal_);
+                        "test",
+                        scheduler,
+                        2,
+                        parent,
+                        nodeParams,
+                        false,
+                        journal_);
             }
             catch (std::runtime_error const& e)
             {
@@ -596,7 +610,13 @@ public:
                 nodeParams.set("earliest_seq", "1");
                 std::unique_ptr<Database> db =
                     Manager::instance().make_Database(
-                        "test", scheduler, 2, parent, nodeParams, journal_);
+                        "test",
+                        scheduler,
+                        2,
+                        parent,
+                        nodeParams,
+                        false,
+                        journal_);
 
                 // Verify database uses the earliest ledger sequence setting
                 BEAST_EXPECT(db->earliestLedgerSeq() == 1);
@@ -610,7 +630,13 @@ public:
                     "earliest_seq", std::to_string(XRP_LEDGER_EARLIEST_SEQ));
                 std::unique_ptr<Database> db2 =
                     Manager::instance().make_Database(
-                        "test", scheduler, 2, parent, nodeParams, journal_);
+                        "test",
+                        scheduler,
+                        2,
+                        parent,
+                        nodeParams,
+                        false,
+                        journal_);
             }
             catch (std::runtime_error const& e)
             {
