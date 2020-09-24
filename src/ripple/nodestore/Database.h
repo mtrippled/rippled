@@ -204,12 +204,12 @@ public:
     getBackend() = 0;
 
     /** Gather statistics pertaining to read and write activities.
-
-        @return The total read and written bytes.
+     *
+     * @param obj Json object reference into which to place counters.
      */
 
-    Json::Value
-    getCountsJson();
+    void
+    getCountsJson(Json::Value& obj);
 
     /** Returns the number of file descriptors the database expects to need */
     int
