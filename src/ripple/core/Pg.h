@@ -109,7 +109,7 @@ public:
      *
      * @param result Query result.
      */
-    PgResult(pg_result_type&& result) : result_(std::move(result))
+    explicit PgResult(pg_result_type&& result) : result_(std::move(result))
     {
     }
 
@@ -256,6 +256,7 @@ class Pg
     PgConfig const& config_;
     beast::Journal const j_;
     bool& stop_;
+    std::mutex& mutex_;
 
     // The connection object must be freed using the libpq API PQfinish() call.
     pg_connection_type conn_{nullptr, [](PGconn* conn) { PQfinish(conn); }};
@@ -338,9 +339,13 @@ public:
      * @param config Config parameters.
      * @param j Logger object.
      * @param stop Reference to connection pool's stop flag.
+     * @param mutex Reference to connection pool's mutex.
      */
-    Pg(PgConfig const& config, beast::Journal const j, bool& stop)
-        : config_(config), j_(j), stop_(stop)
+    Pg(PgConfig const& config,
+       beast::Journal const j,
+       bool& stop,
+       std::mutex& mutex)
+        : config_(config), j_(j), stop_(stop), mutex_(mutex)
     {
     }
 };
@@ -405,7 +410,7 @@ public:
      * @param j Logger object.
      * @param parent Stoppable parent.
      */
-    PgPool(Section const& pgConfig, beast::Journal const j, Stoppable& parent);
+    PgPool(Section const& pgConfig, beast::Journal const& j, Stoppable& parent);
 
     /** Initiate idle connection timer.
      *
@@ -499,7 +504,10 @@ public:
  * @return Postgres connection pool manager
  */
 std::shared_ptr<PgPool>
-make_PgPool(Section const& pgConfig, beast::Journal const j, Stoppable& parent);
+make_PgPool(
+    Section const& pgConfig,
+    beast::Journal const& j,
+    Stoppable& parent);
 
 /** Initialize the Postgres schema.
  *
