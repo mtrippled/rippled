@@ -36,27 +36,35 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <sstream>
+#include <tuple>
+#include <utility>
 
 namespace ripple {
 
-inline constexpr std::array<std::pair<SizedItem, std::array<int, 5>>, 11>
+inline constexpr std::array<
+    std::tuple<SizedItem, char const*, std::array<int, 5>>, 11>
     sizedItems{{
         // FIXME: We should document each of these items, explaining exactly
         // what
         //        they control and whether there exists an explicit config
         //        option that can be used to override the default.
-        {SizedItem::sweepInterval, {{10, 30, 60, 90, 120}}},
-        {SizedItem::treeCacheSize, {{128000, 256000, 512000, 768000, 2048000}}},
-        {SizedItem::treeCacheAge, {{30, 60, 90, 120, 900}}},
-        {SizedItem::ledgerSize, {{32, 128, 256, 384, 768}}},
-        {SizedItem::ledgerAge, {{30, 90, 180, 240, 900}}},
-        {SizedItem::ledgerFetch, {{2, 3, 4, 5, 8}}},
-        {SizedItem::nodeCacheSize, {{16384, 32768, 131072, 262144, 524288}}},
-        {SizedItem::nodeCacheAge, {{60, 90, 120, 900, 1800}}},
-        {SizedItem::hashNodeDBCache, {{4, 12, 24, 64, 128}}},
-        {SizedItem::txnDBCache, {{4, 12, 24, 64, 128}}},
-        {SizedItem::lgrDBCache, {{4, 8, 16, 32, 128}}},
+        {SizedItem::sweepInterval, "sweep_interval", {{10, 30, 60, 90, 120}}},
+        {SizedItem::treeCacheSize, "tree_cache_size", {{128000, 256000, 512000, 768000, 2048000}}},
+        {SizedItem::treeCacheAge, "tree_cache_age", {{30, 60, 90, 120, 900}}},
+        {SizedItem::ledgerSize, "ledger_size", {{32, 128, 256, 384, 768}}},
+        {SizedItem::ledgerAge, "ledger_age", {{30, 90, 180, 240, 900}}},
+        {SizedItem::ledgerFetch, "ledger_fetch", {{2, 3, 4, 5, 8}}},
+        {SizedItem::nodeCacheSize, "node_cache_size", {{16384, 32768, 131072, 262144, 524288}}},
+        {SizedItem::nodeCacheAge, "node_cache_age", {{60, 90, 120, 900, 1800}}},
+        {SizedItem::hashNodeDBCache, "hash_node_db_cache", {{4, 12, 24, 64, 128}}},
+        {SizedItem::txnDBCache, "txn_db_cache", {{4, 12, 24, 64, 128}}},
+        {SizedItem::lgrDBCache, "ldr_db_cache", {{4, 8, 16, 32, 128}}},
     }};
+
+// To allow configuration overrides.
+inline std::vector<std::tuple<SizedItem, char const*, std::vector<int>>>
+    sizedItemsMutable;
 
 // Ensure that the order of entries in the table corresponds to the
 // order of entries in the enum:
@@ -66,7 +74,7 @@ static_assert(
 
         for (auto const& i : sizedItems)
         {
-            if (static_cast<std::underlying_type_t<SizedItem>>(i.first) != idx)
+            if (static_cast<std::underlying_type_t<SizedItem>>(std::get<0>(i)) != idx)
                 return false;
 
             ++idx;
@@ -373,6 +381,63 @@ Config::loadFromString(std::string const& fileContents)
     if (getSingleSection(secConfig, SECTION_PEERS_MAX, strTemp, j_))
         PEERS_MAX = beast::lexicalCastThrow<std::size_t>(strTemp);
 
+    sizedItemsMutable.reserve(sizedItems.size());
+    for (auto const& sizedItemEntry : sizedItems)
+    {
+        SizedItem const& item = std::get<0>(sizedItemEntry);
+        char const* label = std::get<1>(sizedItemEntry);
+        auto const& values = std::get<2>(sizedItemEntry);
+        std::vector<int> v;
+        v.reserve(values.size() + 1);
+        for (int const i : values)
+            v.push_back(i);
+        // Default values for custom config are that for huge.
+        v.push_back(v.back());
+        sizedItemsMutable.push_back(std::make_tuple(item, label, v));
+    }
+    if (exists(SECTION_NODE_SIZE))
+    {
+        Section s = section(SECTION_NODE_SIZE);
+        auto& vals = s.values();
+        bool custom = false;
+        std::array<char const*, 6> nodeSizes{
+            "tiny", "small", "medium", "large", "huge", "custom"};
+
+        for (std::size_t i = 0; i < nodeSizes.size(); ++i)
+        {
+            for (std::string const& val : vals)
+            {
+                if (boost::iequals(val, nodeSizes[i]))
+                {
+                    if (boost::iequals(nodeSizes[i], "custom"))
+                        custom = true;
+                    NODE_SIZE = i;
+                    goto done_finding_size;
+                }
+            }
+        }
+
+        done_finding_size:
+
+        int val;
+        for (auto& sizedItemEntry : sizedItemsMutable)
+        {
+            char const* label = std::get<1>(sizedItemEntry);
+            std::vector<int>& values = std::get<2>(sizedItemEntry);
+            if (get_if_exists(s, label, val))
+            {
+                if (!custom)
+                {
+                    std::stringstream ss;
+                    ss << "Custom node_size parameters can only be "
+                          "set with size as custom: " << label;
+                    Throw<std::runtime_error>(ss.str());
+                }
+                values[5] = val;
+            }
+        }
+    }
+            /*
     if (getSingleSection(secConfig, SECTION_NODE_SIZE, strTemp, j_))
     {
         if (boost::iequals(strTemp, "tiny"))
@@ -389,6 +454,7 @@ Config::loadFromString(std::string const& fileContents)
             NODE_SIZE = std::min<std::size_t>(
                 4, beast::lexicalCastThrow<std::size_t>(strTemp));
     }
+             */
 
     if (getSingleSection(secConfig, SECTION_SIGNING_SUPPORT, strTemp, j_))
         signingEnabled_ = beast::lexicalCastThrow<bool>(strTemp);
@@ -725,9 +791,9 @@ int
 Config::getValueFor(SizedItem item, boost::optional<std::size_t> node) const
 {
     auto const index = static_cast<std::underlying_type_t<SizedItem>>(item);
-    assert(index < sizedItems.size());
-    assert(!node || *node <= 4);
-    return sizedItems.at(index).second.at(node.value_or(NODE_SIZE));
+    assert(index < sizedItemsMutable.size());
+    assert(!node || *node <= 5);
+    return std::get<2>(sizedItemsMutable.at(index)).at(node.value_or(NODE_SIZE));
 }
 
 }  // namespace ripple
