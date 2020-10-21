@@ -990,7 +990,6 @@ public:
                     0,
                     dummyRoot,
                     config_->section(ConfigSection::importNodeDatabase()),
-                    config_->reporting(),
                     j);
 
             JLOG(j.warn()) << "Starting node import from '" << source->getName()

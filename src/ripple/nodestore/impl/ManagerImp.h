@@ -65,7 +65,6 @@ public:
         int readThreads,
         Stoppable& parent,
         Section const& config,
-        bool const reporting,
         beast::Journal journal) override;
 };
 
