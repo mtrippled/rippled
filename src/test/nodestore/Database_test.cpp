@@ -575,12 +575,7 @@ public:
                 // Verify default earliest ledger sequence
                 std::unique_ptr<Database> db =
                     Manager::instance().make_Database(
-                        "test",
-                        scheduler,
-                        2,
-                        parent,
-                        nodeParams,
-                        journal_);
+                        "test", scheduler, 2, parent, nodeParams, journal_);
                 BEAST_EXPECT(
                     db->earliestLedgerSeq() == XRP_LEDGER_EARLIEST_SEQ);
             }
@@ -591,12 +586,7 @@ public:
                 nodeParams.set("earliest_seq", "0");
                 std::unique_ptr<Database> db =
                     Manager::instance().make_Database(
-                        "test",
-                        scheduler,
-                        2,
-                        parent,
-                        nodeParams,
-                        journal_);
+                        "test", scheduler, 2, parent, nodeParams, journal_);
             }
             catch (std::runtime_error const& e)
             {
@@ -609,12 +599,7 @@ public:
                 nodeParams.set("earliest_seq", "1");
                 std::unique_ptr<Database> db =
                     Manager::instance().make_Database(
-                        "test",
-                        scheduler,
-                        2,
-                        parent,
-                        nodeParams,
-                        journal_);
+                        "test", scheduler, 2, parent, nodeParams, journal_);
 
                 // Verify database uses the earliest ledger sequence setting
                 BEAST_EXPECT(db->earliestLedgerSeq() == 1);
@@ -628,12 +613,7 @@ public:
                     "earliest_seq", std::to_string(XRP_LEDGER_EARLIEST_SEQ));
                 std::unique_ptr<Database> db2 =
                     Manager::instance().make_Database(
-                        "test",
-                        scheduler,
-                        2,
-                        parent,
-                        nodeParams,
-                        journal_);
+                        "test", scheduler, 2, parent, nodeParams, journal_);
             }
             catch (std::runtime_error const& e)
             {
