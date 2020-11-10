@@ -174,6 +174,7 @@ Transactor::checkFee(PreclaimContext const& ctx, FeeUnit64 baseFee)
     if (!isLegalAmount(feePaid) || feePaid < beast::zero)
         return temBAD_FEE;
 
+#if 0
     auto const feeDue =
         minimumFee(ctx.app, baseFee, ctx.view.fees(), ctx.flags);
 
@@ -184,6 +185,7 @@ Transactor::checkFee(PreclaimContext const& ctx, FeeUnit64 baseFee)
                             << "/" << to_string(feeDue);
         return telINSUF_FEE_P;
     }
+#endif
 
     if (feePaid == beast::zero)
         return tesSUCCESS;
