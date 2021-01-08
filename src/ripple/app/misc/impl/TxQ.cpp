@@ -115,9 +115,12 @@ TxQ::FeeMetrics::update(
         // unexpected results
         auto const upperLimit = std::max<std::uint64_t>(
             mulDiv(txnsExpected_, cutPct, 100).second, minimumTxnCount_);
+        std::size_t const prevExpected = txnsExpected_;
         txnsExpected_ = boost::algorithm::clamp(
             mulDiv(size, cutPct, 100).second, minimumTxnCount_, upperLimit);
         recentTxnCounts_.clear();
+        JLOG(j_.debug()) << "transactions expected1 previous current: "
+            << prevExpected << ' ' << txnsExpected_;
     }
     else if (size > txnsExpected_ || size > targetTxnCount_)
     {
@@ -141,7 +144,10 @@ TxQ::FeeMetrics::update(
         // Ledgers are processing in a timely manner,
         // so keep the limit high, but don't let it
         // grow without bound.
+        std::size_t const prevExpected = txnsExpected_;
         txnsExpected_ = std::min(next, maximumTxnCount_.value_or(next));
+        JLOG(j_.debug()) << "transactions expected2 previous current: "
+                         << prevExpected << ' ' << txnsExpected_;
     }
 
     if (!size)

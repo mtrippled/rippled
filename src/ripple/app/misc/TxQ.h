@@ -413,6 +413,8 @@ private:
             , escalationMultiplier_(setup.minimumEscalationMultiplier)
             , j_(j)
         {
+            JLOG(j_.debug()) << "transactions expected3 set to "
+                             << txnsExpected_;
         }
 
         /**
