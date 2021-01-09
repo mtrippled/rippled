@@ -55,6 +55,7 @@ RCLConsensus::RCLConsensus(
     LedgerMaster& ledgerMaster,
     LocalTxs& localTxs,
     InboundTransactions& inboundTransactions,
+    bool start_valid,
     Consensus<Adaptor>::clock_type const& clock,
     ValidatorKeys const& validatorKeys,
     beast::Journal journal)
@@ -64,6 +65,7 @@ RCLConsensus::RCLConsensus(
           ledgerMaster,
           localTxs,
           inboundTransactions,
+          start_valid,
           validatorKeys,
           journal)
     , consensus_(clock, adaptor_, journal)
@@ -78,6 +80,7 @@ RCLConsensus::Adaptor::Adaptor(
     LedgerMaster& ledgerMaster,
     LocalTxs& localTxs,
     InboundTransactions& inboundTransactions,
+    bool start_valid,
     ValidatorKeys const& validatorKeys,
     beast::Journal journal)
     : app_(app)
@@ -85,6 +88,7 @@ RCLConsensus::Adaptor::Adaptor(
     , ledgerMaster_(ledgerMaster)
     , localTxs_(localTxs)
     , inboundTransactions_{inboundTransactions}
+    , start_valid_(start_valid)
     , j_(journal)
     , nodeID_{validatorKeys.nodeID}
     , valPublic_{validatorKeys.publicKey}
@@ -945,10 +949,21 @@ RCLConsensus::Adaptor::preStartRound(
     RCLCxLedger const& prevLgr,
     hash_set<NodeID> const& nowTrusted)
 {
+    bool validateInitially;
+    if (start_valid_)
+    {
+        validateInitially = true;
+        start_valid_ = false;
+    }
+    else
+    {
+        validateInitially = false;
+    }
+
     // We have a key, we do not want out of sync validations after a restart
     // and are not amendment blocked.
     validating_ = valPublic_.size() != 0 &&
-        prevLgr.seq() >= app_.getMaxDisallowedLedger() &&
+        (validateInitially || prevLgr.seq() >= app_.getMaxDisallowedLedger()) &&
         !app_.getOPs().isAmendmentBlocked();
 
     // If we are not running in standalone mode and there's a configured UNL,

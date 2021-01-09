@@ -61,6 +61,7 @@ class RCLConsensus
         LedgerMaster& ledgerMaster_;
         LocalTxs& localTxs_;
         InboundTransactions& inboundTransactions_;
+        bool start_valid_;
         beast::Journal const j_;
 
         NodeID const nodeID_;
@@ -103,6 +104,7 @@ class RCLConsensus
             LedgerMaster& ledgerMaster,
             LocalTxs& localTxs,
             InboundTransactions& inboundTransactions,
+            bool start_valid,
             ValidatorKeys const& validatorKeys,
             beast::Journal journal);
 
@@ -422,6 +424,7 @@ public:
         LedgerMaster& ledgerMaster,
         LocalTxs& localTxs,
         InboundTransactions& inboundTransactions,
+        bool start_valid,
         Consensus<Adaptor>::clock_type const& clock,
         ValidatorKeys const& validatorKeys,
         beast::Journal journal);

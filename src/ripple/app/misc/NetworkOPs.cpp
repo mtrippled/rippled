@@ -240,6 +240,7 @@ public:
               ledgerMaster,
               *m_localTX,
               app.getInboundTransactions(),
+              start_valid,
               beast::get_abstract_clock<std::chrono::steady_clock>(),
               validatorKeys,
               app_.logs().journal("LedgerConsensus"))
