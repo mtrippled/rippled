@@ -737,7 +737,11 @@ public:
     RCLValidations&
     getValidations() override
     {
-        return mValidations;
+        JLOG(m_journal.debug()) << "before mValidations";
+        RCLValidations& ret = mValidations;
+        JLOG(m_journal.debug()) << "after mValidations";
+        return ret;
+//        return mValidations;
     }
 
     ValidatorList&
