@@ -962,6 +962,8 @@ RCLConsensus::Adaptor::preStartRound(
 
     // We have a key, we do not want out of sync validations after a restart
     // and are not amendment blocked.
+    JLOG(j_.debug()) << "prev seq, max disallowed: " << prevLgr.seq()
+                     << ", " << app_.getMaxDisallowedLedger();
     validating_ = valPublic_.size() != 0 &&
         (validateInitially || prevLgr.seq() >= app_.getMaxDisallowedLedger()) &&
         !app_.getOPs().isAmendmentBlocked();
