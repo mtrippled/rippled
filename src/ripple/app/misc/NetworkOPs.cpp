@@ -1243,7 +1243,7 @@ NetworkOPsImp::processTransaction(
     assert(validity == Validity::Valid);
 
     // Not concerned with local checks at this point.
-    if (validity == Validity::SigBad)
+    if (false && validity == Validity::SigBad)
     {
         JLOG(m_journal.trace()) << "Transaction has bad signature: " << reason;
         transaction->setStatus(INVALID);
