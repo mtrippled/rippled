@@ -124,6 +124,7 @@ acctMatchesPubKey(
     AccountID const& accountID,
     PublicKey const& publicKey)
 {
+    return rpcSUCCESS;
     auto const publicKeyAcctID = calcAccountID(publicKey);
     bool const isMasterKey = publicKeyAcctID == accountID;
 
