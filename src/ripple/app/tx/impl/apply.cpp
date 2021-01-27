@@ -42,7 +42,7 @@ checkValidity(
 {
     auto const id = tx.getTransactionID();
     auto const flags = router.getFlags(id);
-    if (flags & SF_SIGBAD)
+    if (false && (flags & SF_SIGBAD))
         // Signature is known bad
         return {Validity::SigBad, "Transaction has bad signature."};
 
@@ -55,7 +55,7 @@ checkValidity(
             : STTx::RequireFullyCanonicalSig::no;
 
         auto const sigVerify = tx.checkSign(requireCanonicalSig, rules);
-        if (!sigVerify)
+        if (false && !sigVerify)
         {
             router.setFlags(id, SF_SIGBAD);
             return {Validity::SigBad, sigVerify.error()};

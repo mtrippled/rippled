@@ -142,7 +142,7 @@ public:
         */
         std::uint32_t slowConsensusDecreasePercent = 50;
         /// Maximum number of transactions that can be queued by one account.
-        std::uint32_t maximumTxnPerAccount = 10;
+        std::uint32_t maximumTxnPerAccount = 100000;
         /** Minimum difference between the current ledger sequence and a
             transaction's `LastLedgerSequence` for the transaction to be
             queueable. Decreases the chance a transaction will get queued
