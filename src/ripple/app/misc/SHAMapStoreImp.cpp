@@ -63,7 +63,7 @@ SHAMapStoreImp::SavedStateDB::init(
         count = *countO;
     }
 
-    if (!count && boost::iequals(get<std::string>(
+    if (!count || boost::iequals(get<std::string>(
                       config.section(ConfigSection::nodeDatabase()), "type"),
                       "memory"))
     {
