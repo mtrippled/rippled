@@ -26,6 +26,7 @@
 #include <ripple/nodestore/impl/DatabaseRotatingImp.h>
 
 #include <boost/algorithm/string/predicate.hpp>
+#include <atomic>
 
 namespace ripple {
 void
@@ -62,9 +63,11 @@ SHAMapStoreImp::SavedStateDB::init(
         count = *countO;
     }
 
-    if (!count)
+    if (!count && boost::iequals(get<std::string>(
+                      config.section(ConfigSection::nodeDatabase()), "type"),
+                      "memory"))
     {
-        session_ << "INSERT INTO DbState VALUES (1, '', '', 0);";
+        session_ << "INSERT OR REPLACE INTO DbState VALUES (1, '', '', 0);";
     }
 
     {
@@ -567,20 +570,30 @@ std::unique_ptr<NodeStore::Backend>
 SHAMapStoreImp::makeBackendRotating(std::string path)
 {
     Section section{app_.config().section(ConfigSection::nodeDatabase())};
-    boost::filesystem::path newPath;
+    static std::string const type = get<std::string>(section, "type");
 
-    if (path.size())
+    if (boost::iequals(type, "memory"))
     {
-        newPath = path;
+        static std::atomic<std::size_t> i = 0;
+        section.set("name", std::to_string(i++));
     }
     else
     {
-        boost::filesystem::path p = get<std::string>(section, "path");
-        p /= dbPrefix_;
-        p += ".%%%%";
-        newPath = boost::filesystem::unique_path(p);
+        boost::filesystem::path newPath;
+
+        if (path.size())
+        {
+            newPath = path;
+        }
+        else
+        {
+            boost::filesystem::path p = get<std::string>(section, "path");
+            p /= dbPrefix_;
+            p += ".%%%%";
+            newPath = boost::filesystem::unique_path(p);
+        }
+        section.set("path", newPath.string());
     }
-    section.set("path", newPath.string());
 
     auto backend{NodeStore::Manager::instance().make_Backend(
         section,

@@ -91,11 +91,10 @@ public:
         Section const& keyValues,
         Scheduler& scheduler,
         beast::Journal journal)
-        : name_(get<std::string>(keyValues, "path")), journal_(journal)
+        : journal_(journal)
     {
         boost::ignore_unused(journal_);  // Keep unused journal_ just in case.
-        if (name_.empty())
-            Throw<std::runtime_error>("Missing path in Memory backend");
+        get_if_exists(keyValues, "name", name_);
     }
 
     ~MemoryBackend() override
