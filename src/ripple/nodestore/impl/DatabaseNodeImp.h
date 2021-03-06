@@ -111,6 +111,13 @@ public:
     store(NodeObjectType type, Blob&& data, uint256 const& hash, std::uint32_t)
         override;
 
+    void
+    store2(NodeObjectType type, Blob&& data, uint256 const& hash, std::uint32_t)
+        override
+    {
+        store(type, std::move(data), hash, 0);
+    }
+
     bool isSameDB(std::uint32_t, std::uint32_t) override
     {
         // only one database

@@ -21,6 +21,8 @@
 #include <ripple/nodestore/impl/DatabaseRotatingImp.h>
 #include <ripple/protocol/HashPrefix.h>
 
+#include <chrono>
+
 namespace ripple {
 namespace NodeStore {
 
@@ -116,6 +118,49 @@ DatabaseRotatingImp::store(
 
     backend->store(nObj);
     storeStats(1, nObj->getData().size());
+}
+
+void
+DatabaseRotatingImp::store2(
+    NodeObjectType type,
+    Blob&& data,
+    uint256 const& hash,
+    std::uint32_t)
+{
+    static std::size_t iterations = 0;
+    static std::chrono::nanoseconds s1_ns{0};
+    static std::chrono::nanoseconds s2_ns{0};
+    static std::chrono::nanoseconds s3_ns{0};
+    static std::chrono::nanoseconds s4_ns{0};
+    auto begin = std::chrono::steady_clock::now();
+
+    auto nObj = NodeObject::createObject(type, std::move(data), hash);
+    s1_ns += std::chrono::steady_clock::now() - begin;
+
+    auto const backend = [&] {
+      std::lock_guard lock(mutex_);
+      return writableBackend_;
+    }();
+    s2_ns += std::chrono::steady_clock::now() - begin;
+
+    backend->store(nObj);
+    s3_ns += std::chrono::steady_clock::now() - begin;
+    storeStats(1, nObj->getData().size());
+    s4_ns += std::chrono::steady_clock::now() - begin;
+
+    if (! (++iterations % 1000))
+    {
+        JLOG(j_.debug()) << "store iterations (durations) "
+                                << iterations << " ("
+                                << s1_ns.count() << ','
+                                << s2_ns.count() << ','
+                                << s3_ns.count() << ','
+                                << s4_ns.count() << ')';
+        s1_ns = std::chrono::nanoseconds{0};
+        s2_ns = std::chrono::nanoseconds{0};
+        s3_ns = std::chrono::nanoseconds{0};
+        s4_ns = std::chrono::nanoseconds{0};
+    }
 }
 
 void

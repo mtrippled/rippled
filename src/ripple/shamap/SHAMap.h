@@ -324,7 +324,7 @@ public:
 
     /** Flush modified nodes to the nodestore and convert them to shared. */
     int
-    flushDirty(NodeObjectType t);
+    flushDirty(NodeObjectType t, bool isolate = false);
 
     void
     walkMap(std::vector<SHAMapMissingNode>& missingNodes, int maxMissing) const;
@@ -352,6 +352,9 @@ private:
     void
     canonicalize(SHAMapHash const& hash, std::shared_ptr<SHAMapTreeNode>&)
         const;
+    void
+    canonicalize2(SHAMapHash const& hash, std::shared_ptr<SHAMapTreeNode>&)
+    const;
 
     // database operations
     std::shared_ptr<SHAMapTreeNode>
@@ -395,6 +398,10 @@ private:
     /** write and canonicalize modified node */
     std::shared_ptr<SHAMapTreeNode>
     writeNode(NodeObjectType t, std::shared_ptr<SHAMapTreeNode> node) const;
+    std::shared_ptr<SHAMapTreeNode>
+    writeNode(NodeObjectType t, std::shared_ptr<SHAMapTreeNode> node,
+              bool isolate) const;
+
 
     SHAMapLeafNode*
     firstBelow(
@@ -458,7 +465,7 @@ private:
         Delta& differences,
         int& maxCount) const;
     int
-    walkSubTree(bool doWrite, NodeObjectType t);
+    walkSubTree(bool doWrite, NodeObjectType t, bool isolate = false);
 
     // Structure to track information about call to
     // getMissingNodes while it's in progress

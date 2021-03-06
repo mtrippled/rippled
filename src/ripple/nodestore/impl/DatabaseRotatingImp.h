@@ -74,6 +74,10 @@ public:
         override;
 
     void
+    store2(NodeObjectType type, Blob&& data, uint256 const& hash, std::uint32_t)
+    override;
+
+    void
     sync() override;
 
     bool

@@ -373,6 +373,175 @@ private:
         return false;
     }
 
+    template <bool replace>
+    bool
+    canonicalize2(
+        const key_type& key,
+        std::conditional_t<
+            replace,
+            std::shared_ptr<T> const,
+            std::shared_ptr<T>>& data)
+    {
+        static std::size_t iterations = 0;
+        static std::chrono::nanoseconds s1_ns{0};
+        static std::chrono::nanoseconds s2_ns{0};
+        static std::chrono::nanoseconds s3_ns{0};
+        static std::chrono::nanoseconds s4_ns{0};
+        static std::chrono::nanoseconds s5_ns{0};
+        static std::chrono::nanoseconds s6_ns{0};
+        static std::chrono::nanoseconds s7_ns{0};
+        auto begin = std::chrono::steady_clock::now();
+        // Return canonical value, store if needed, refresh in cache
+        // Return values: true=we had the data already
+        std::lock_guard lock(m_mutex);
+        s1_ns += std::chrono::steady_clock::now() - begin;
+        auto cit = m_cache.find(key);
+        s2_ns += std::chrono::steady_clock::now() - begin;
+
+        if (cit == m_cache.end())
+        {
+            m_cache.emplace(
+                std::piecewise_construct,
+                std::forward_as_tuple(key),
+                std::forward_as_tuple(m_clock.now(), data));
+            ++m_cache_count;
+            s3_ns += std::chrono::steady_clock::now() - begin;
+
+            if (! (++iterations % 1000))
+            {
+                JLOG(m_journal.debug()) << "canonicalize 1 iterations (durations) "
+                                        << iterations << " ("
+                                        << s1_ns.count() << ','
+                                        << s2_ns.count() << ','
+                                        << s3_ns.count() << ','
+                                        << s4_ns.count() << ','
+                                        << s5_ns.count() << ','
+                                        << s6_ns.count() << ','
+                                        << s7_ns.count() << ')';
+                s1_ns = std::chrono::nanoseconds{0};
+                s2_ns = std::chrono::nanoseconds{0};
+                s3_ns = std::chrono::nanoseconds{0};
+                s4_ns = std::chrono::nanoseconds{0};
+                s5_ns = std::chrono::nanoseconds{0};
+                s6_ns = std::chrono::nanoseconds{0};
+                s7_ns = std::chrono::nanoseconds{0};
+            }
+
+            return false;
+        }
+
+        Entry& entry = cit->second;
+        entry.touch(m_clock.now());
+        s4_ns += std::chrono::steady_clock::now() - begin;
+
+        if (entry.isCached())
+        {
+            if constexpr (replace)
+            {
+                entry.ptr = data;
+                entry.weak_ptr = data;
+            }
+            else
+            {
+                data = entry.ptr;
+            }
+
+            s5_ns += std::chrono::steady_clock::now() - begin;
+
+            if (! (++iterations % 1000))
+            {
+                JLOG(m_journal.debug()) << "canonicalize 2 iterations (durations) "
+                                        << iterations << " ("
+                                        << s1_ns.count() << ','
+                                        << s2_ns.count() << ','
+                                        << s3_ns.count() << ','
+                                        << s4_ns.count() << ','
+                                        << s5_ns.count() << ','
+                                        << s6_ns.count() << ','
+                                        << s7_ns.count() << ')';
+                s1_ns = std::chrono::nanoseconds{0};
+                s2_ns = std::chrono::nanoseconds{0};
+                s3_ns = std::chrono::nanoseconds{0};
+                s4_ns = std::chrono::nanoseconds{0};
+                s5_ns = std::chrono::nanoseconds{0};
+                s6_ns = std::chrono::nanoseconds{0};
+                s7_ns = std::chrono::nanoseconds{0};
+            }
+
+            return true;
+        }
+
+        auto cachedData = entry.lock();
+
+        if (cachedData)
+        {
+            if constexpr (replace)
+            {
+                entry.ptr = data;
+                entry.weak_ptr = data;
+            }
+            else
+            {
+                entry.ptr = cachedData;
+                data = cachedData;
+            }
+
+            ++m_cache_count;
+            s6_ns += std::chrono::steady_clock::now() - begin;
+
+            if (! (++iterations % 1000))
+            {
+                JLOG(m_journal.debug()) << "canonicalize 3 iterations (durations) "
+                                        << iterations << " ("
+                                        << s1_ns.count() << ','
+                                        << s2_ns.count() << ','
+                                        << s3_ns.count() << ','
+                                        << s4_ns.count() << ','
+                                        << s5_ns.count() << ','
+                                        << s6_ns.count() << ','
+                                        << s7_ns.count() << ')';
+                s1_ns = std::chrono::nanoseconds{0};
+                s2_ns = std::chrono::nanoseconds{0};
+                s3_ns = std::chrono::nanoseconds{0};
+                s4_ns = std::chrono::nanoseconds{0};
+                s5_ns = std::chrono::nanoseconds{0};
+                s6_ns = std::chrono::nanoseconds{0};
+                s7_ns = std::chrono::nanoseconds{0};
+            }
+
+            return true;
+        }
+
+        entry.ptr = data;
+        entry.weak_ptr = data;
+        ++m_cache_count;
+
+        s7_ns += std::chrono::steady_clock::now() - begin;
+
+        if (! (++iterations % 1000))
+        {
+            JLOG(m_journal.debug()) << "canonicalize 4 iterations (durations) "
+                << iterations << " ("
+                << s1_ns.count() << ','
+                << s2_ns.count() << ','
+                << s3_ns.count() << ','
+                << s4_ns.count() << ','
+                << s5_ns.count() << ','
+                << s6_ns.count() << ','
+                << s7_ns.count() << ')';
+            s1_ns = std::chrono::nanoseconds{0};
+            s2_ns = std::chrono::nanoseconds{0};
+            s3_ns = std::chrono::nanoseconds{0};
+            s4_ns = std::chrono::nanoseconds{0};
+            s5_ns = std::chrono::nanoseconds{0};
+            s6_ns = std::chrono::nanoseconds{0};
+            s7_ns = std::chrono::nanoseconds{0};
+        }
+
+        return false;
+    }
+
+
 public:
     bool
     canonicalize_replace_cache(
@@ -386,6 +555,12 @@ public:
     canonicalize_replace_client(const key_type& key, std::shared_ptr<T>& data)
     {
         return canonicalize<false>(key, data);
+    }
+
+    bool
+    canonicalize_replace_client2(const key_type& key, std::shared_ptr<T>& data)
+    {
+        return canonicalize2<false>(key, data);
     }
 
     std::shared_ptr<T>

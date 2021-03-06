@@ -153,6 +153,16 @@ public:
         std::uint32_t ledgerSeq) override;
 
     void
+    store2(
+        NodeObjectType type,
+        Blob&& data,
+        uint256 const& hash,
+        std::uint32_t ledgerSeq) override
+    {
+        store(type, std::move(data), hash, ledgerSeq);
+    }
+
+    void
     sync() override{};
 
     bool

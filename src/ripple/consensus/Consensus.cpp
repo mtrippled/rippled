@@ -36,6 +36,12 @@ shouldCloseLedger(
     ConsensusParms const& parms,
     beast::Journal j)
 {
+    JLOG(j.debug()) << "shouldCloseLedger: " << anyTransactions << ','
+        << prevProposers << ',' << proposersClosed << ',' << proposersValidated
+        << ',' << prevRoundTime.count() << ',' << timeSincePrevClose.count()
+        << openTime.count() << ',' << idleInterval.count() << ','
+        << parms.ledgerMIN_CLOSE.count();
+
     using namespace std::chrono_literals;
     if ((prevRoundTime < -1s) || (prevRoundTime > 10min) ||
         (timeSincePrevClose > 10min))

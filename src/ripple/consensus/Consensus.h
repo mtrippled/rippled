@@ -665,6 +665,7 @@ Consensus<Adaptor>::startRoundInternal(
     Ledger_t const& prevLedger,
     ConsensusMode mode)
 {
+    JLOG(j_.debug()) << "startRoundInternal setting phase to open";
     phase_ = ConsensusPhase::open;
     mode_.set(mode, adaptor_);
     now_ = now;
@@ -815,12 +816,57 @@ Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
 {
     // Nothing to do if we are currently working on a ledger
     if (phase_ == ConsensusPhase::accepted)
+    {
+        JLOG(j_.debug()) << "timerEntry phase: accepted";
         return;
+    }
 
     now_ = now;
 
+    ConsensusPhase origPhase = phase_;
+
     // Check we are on the proper ledger (this may change phase_)
     checkLedger();
+
+    std::stringstream ss;
+    ss << "timerEntry phase: ";
+    switch (origPhase)
+    {
+        case ConsensusPhase::open:
+            ss << "open";
+            break;
+        case ConsensusPhase::establish:
+            ss << "establish";
+            break;
+        default:
+            ss << "bad phase " << std::underlying_type_t<ConsensusPhase>(
+                                      origPhase);
+            JLOG(j_.debug()) << ss.str();
+            assert(false);
+    }
+
+    if (origPhase != phase_)
+    {
+        ss << ". Changed phase to: ";
+        switch (phase_)
+        {
+            case ConsensusPhase::accepted:
+                ss << "accepted";
+                break;
+            case ConsensusPhase::open:
+                ss << "open";
+                break;
+            case ConsensusPhase::establish:
+                ss << "establish";
+                break;
+            default:
+                ss << "bad phase " << std::underlying_type_t<ConsensusPhase>(
+                    origPhase);
+                JLOG(j_.debug()) << ss.str();
+                assert(false);
+        }
+    }
+    JLOG(j_.debug()) << ss.str();
 
     if (phase_ == ConsensusPhase::open)
     {
@@ -1289,6 +1335,7 @@ Consensus<Adaptor>::phaseEstablish()
     adaptor_.updateOperatingMode(currPeerPositions_.size());
     prevProposers_ = currPeerPositions_.size();
     prevRoundTime_ = result_->roundTime.read();
+    JLOG(j_.debug()) << "phaseEstablish setting phase to accepted";
     phase_ = ConsensusPhase::accepted;
     adaptor_.onAccept(
         *result_,
@@ -1306,6 +1353,7 @@ Consensus<Adaptor>::closeLedger()
     // We should not be closing if we already have a position
     assert(!result_);
 
+    JLOG(j_.debug()) << "closeLedger setting phase to establish";
     phase_ = ConsensusPhase::establish;
     rawCloseTimes_.self = now_;
 

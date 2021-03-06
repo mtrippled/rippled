@@ -111,6 +111,13 @@ public:
         uint256 const& hash,
         std::uint32_t ledgerSeq) = 0;
 
+    virtual void
+    store2(
+        NodeObjectType type,
+        Blob&& data,
+        uint256 const& hash,
+        std::uint32_t ledgerSeq) = 0;
+
     /* Check if two ledgers are in the same database
 
         If these two sequence numbers map to the same database,

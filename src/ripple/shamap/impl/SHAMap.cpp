@@ -25,6 +25,8 @@
 #include <ripple/shamap/SHAMapTxLeafNode.h>
 #include <ripple/shamap/SHAMapTxPlusMetaLeafNode.h>
 
+#include <chrono>
+
 namespace ripple {
 
 [[nodiscard]] std::shared_ptr<SHAMapLeafNode>
@@ -892,6 +894,46 @@ SHAMap::writeNode(NodeObjectType t, std::shared_ptr<SHAMapTreeNode> node) const
     return node;
 }
 
+std::shared_ptr<SHAMapTreeNode>
+SHAMap::writeNode(NodeObjectType t, std::shared_ptr<SHAMapTreeNode> node,
+                  bool isolate) const
+{
+    if (!isolate)
+        return writeNode(t, node);
+
+    assert(node->cowid() == 0);
+    assert(backed_);
+
+    static std::size_t iterations = 0;
+    static std::chrono::nanoseconds canonicalize_ns{0};
+    static std::chrono::nanoseconds serialize_ns{0};
+    static std::chrono::nanoseconds store_ns{0};
+
+    auto begin = std::chrono::steady_clock::now();
+
+    canonicalize2(node->getHash(), node);
+    canonicalize_ns += std::chrono::steady_clock::now() - begin;
+
+    Serializer s;
+    node->serializeWithPrefix(s);
+    serialize_ns += std::chrono::steady_clock::now() - begin;
+    f_.db().store(
+        t, std::move(s.modData()), node->getHash().as_uint256(), ledgerSeq_);
+    store_ns += std::chrono::steady_clock::now() - begin;
+
+    if (! (++iterations % 1000))
+    {
+        JLOG(journal_.debug()) << "writeNode iterations (durations) "
+            << iterations << " (" << canonicalize_ns.count() << ','
+            << serialize_ns.count() << ',' << store_ns.count() << ')';
+        canonicalize_ns = std::chrono::nanoseconds{0};
+        serialize_ns = std::chrono::nanoseconds{0};
+        store_ns = std::chrono::nanoseconds{0};
+    }
+
+    return node;
+}
+
 // We can't modify an inner node someone else might have a
 // pointer to because flushing modifies inner nodes -- it
 // makes them point to canonical/shared nodes.
@@ -920,14 +962,14 @@ SHAMap::unshare()
 }
 
 int
-SHAMap::flushDirty(NodeObjectType t)
+SHAMap::flushDirty(NodeObjectType t, bool isolate)
 {
     // We only write back if this map is backed.
-    return walkSubTree(backed_, t);
+    return walkSubTree(backed_, t, isolate);
 }
 
 int
-SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
+SHAMap::walkSubTree(bool doWrite, NodeObjectType t, bool isolate)
 {
     assert(!doWrite || backed_);
 
@@ -965,38 +1007,68 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
 
     int pos = 0;
 
+    std::size_t iterations = 0;
+    std::chrono::nanoseconds total_duration_ns{0};
+    std::chrono::nanoseconds loop_duration_ns{0};
+    std::size_t not_empty_branch = 0;
+    std::chrono::nanoseconds get_child_duration_ns{0};
+    std::size_t needs_flushing = 0;
+    std::chrono::nanoseconds pre_flush_duration_ns{0};
+    std::size_t inner = 0;
+    std::chrono::nanoseconds emplace_duration_ns{0};
+    std::chrono::nanoseconds move_duration_ns{0};
+    // flushed is already defined
+    std::chrono::nanoseconds update_duration_ns{0};
+    std::chrono::nanoseconds unshare_duration_ns{0};
+    std::chrono::nanoseconds write_duration_ns{0};
+    std::chrono::nanoseconds share_duration_ns{0};
+
     // We can't flush an inner node until we flush its children
     while (1)
     {
+        auto begin = std::chrono::steady_clock::now();
+        iterations++;
         while (pos < branchFactor)
         {
+            auto begin_inner = std::chrono::steady_clock::now();
             if (node->isEmptyBranch(pos))
             {
                 ++pos;
             }
             else
             {
+                ++not_empty_branch;
                 // No need to do I/O. If the node isn't linked,
                 // it can't need to be flushed
                 int branch = pos;
                 auto child = node->getChild(pos++);
+                get_child_duration_ns += std::chrono::steady_clock::now() -
+                    begin_inner;
 
                 if (child && (child->cowid() != 0))
                 {
+                    ++needs_flushing;
                     // This is a node that needs to be flushed
 
                     child = preFlushNode(std::move(child));
+                    pre_flush_duration_ns += std::chrono::steady_clock::now() -
+                        begin_inner;
 
                     if (child->isInner())
                     {
+                        ++inner;
                         // save our place and work on this node
 
                         stack.emplace(std::move(node), branch);
+                        emplace_duration_ns += std::chrono::steady_clock::now() -
+                            begin_inner;
                         // The semantics of this changes when we move to c++-20
                         // Right now no move will occur; With c++-20 child will
                         // be moved from.
                         node = std::static_pointer_cast<SHAMapInnerNode>(
                             std::move(child));
+                        move_duration_ns += std::chrono::steady_clock::now() -
+                            begin_inner;
                         pos = 0;
                     }
                     else
@@ -1006,16 +1078,27 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
 
                         assert(node->cowid() == cowid_);
                         child->updateHash();
+                        update_duration_ns += std::chrono::steady_clock::now() -
+                            begin_inner;
                         child->unshare();
+                        unshare_duration_ns +=
+                            std::chrono::steady_clock::now() - begin_inner;
 
                         if (doWrite)
-                            child = writeNode(t, std::move(child));
+                        {
+                            child = writeNode(t, std::move(child), isolate);
+                            write_duration_ns +=
+                                std::chrono::steady_clock::now() - begin_inner;
+                        }
 
                         node->shareChild(branch, child);
+                        share_duration_ns += std::chrono::steady_clock::now() -
+                            begin_inner;
                     }
                 }
             }
         }
+        loop_duration_ns += std::chrono::steady_clock::now() - begin;
 
         // update the hash of this inner node
         node->updateHashDeep();
@@ -1030,7 +1113,10 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
         ++flushed;
 
         if (stack.empty())
+        {
+            total_duration_ns += std::chrono::steady_clock::now() - begin;
             break;
+        }
 
         auto parent = std::move(stack.top().first);
         pos = stack.top().second;
@@ -1043,6 +1129,21 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
         // Continue with parent's next child, if any
         node = std::move(parent);
         ++pos;
+        total_duration_ns += std::chrono::steady_clock::now() - begin;
+    }
+
+    if (isolate)
+    {
+        JLOG(journal_.debug())
+            << "walkSubTree (counts) (durations): (" << iterations << ','
+            << not_empty_branch << ',' << needs_flushing << ',' << inner << ','
+            << flushed << ") (" << total_duration_ns.count() << ','
+            << loop_duration_ns.count() << ',' << get_child_duration_ns.count()
+            << ',' << pre_flush_duration_ns.count() << ','
+            << emplace_duration_ns.count() << ',' << move_duration_ns.count()
+            << ',' << update_duration_ns.count() << ','
+            << unshare_duration_ns.count() << ',' << write_duration_ns.count()
+            << ',' << share_duration_ns.count() << ")";
     }
 
     // Last inner node is the new root_
@@ -1113,6 +1214,19 @@ SHAMap::canonicalize(
 
     f_.getTreeNodeCache(ledgerSeq_)
         ->canonicalize_replace_client(hash.as_uint256(), node);
+}
+
+void
+SHAMap::canonicalize2(
+    SHAMapHash const& hash,
+    std::shared_ptr<SHAMapTreeNode>& node) const
+{
+    assert(backed_);
+    assert(node->cowid() == 0);
+    assert(node->getHash() == hash);
+
+    f_.getTreeNodeCache(ledgerSeq_)
+        ->canonicalize_replace_client2(hash.as_uint256(), node);
 }
 
 void

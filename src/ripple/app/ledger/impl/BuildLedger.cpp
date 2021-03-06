@@ -45,38 +45,49 @@ buildLedgerImpl(
     beast::Journal j,
     ApplyTxs&& applyTxs)
 {
+    JLOG(j.debug()) << "buildLedgerImpl 1";
     auto built = std::make_shared<Ledger>(*parent, closeTime);
+    JLOG(j.debug()) << "buildLedgerImpl 2";
 
     if (built->isFlagLedger() && built->rules().enabled(featureNegativeUNL))
     {
         built->updateNegativeUNL();
     }
+    JLOG(j.debug()) << "buildLedgerImpl 5";
 
     // Set up to write SHAMap changes to our database,
     //   perform updates, extract changes
 
     {
         OpenView accum(&*built);
+        JLOG(j.debug()) << "buildLedgerImpl 6";
         assert(!accum.open());
         applyTxs(accum, built);
+        JLOG(j.debug()) << "buildLedgerImpl 7";
         accum.apply(*built);
+        JLOG(j.debug()) << "buildLedgerImpl 8";
     }
 
     built->updateSkipList();
+    JLOG(j.debug()) << "buildLedgerImpl 9";
     {
         // Write the final version of all modified SHAMap
         // nodes to the node store to preserve the new LCL
 
-        int const asf = built->stateMap().flushDirty(hotACCOUNT_NODE);
+        int const asf = built->stateMap().flushDirty(hotACCOUNT_NODE, true);
+        JLOG(j.debug()) << "buildLedgerImpl 10";
         int const tmf = built->txMap().flushDirty(hotTRANSACTION_NODE);
+        JLOG(j.debug()) << "buildLedgerImpl 11";
         JLOG(j.debug()) << "Flushed " << asf << " accounts and " << tmf
                         << " transaction nodes";
     }
     built->unshare();
+    JLOG(j.debug()) << "buildLedgerImpl 12";
 
     // Accept ledger
     built->setAccepted(
         closeTime, closeResolution, closeTimeCorrect, app.config());
+    JLOG(j.debug()) << "buildLedgerImpl 13";
 
     return built;
 }
