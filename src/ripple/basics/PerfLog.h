@@ -20,6 +20,7 @@
 #ifndef RIPPLE_BASICS_PERFLOG_H
 #define RIPPLE_BASICS_PERFLOG_H
 
+#include <ripple/app/main/Application.h>
 #include <ripple/core/JobTypes.h>
 #include <ripple/json/json_value.h>
 #include <boost/filesystem.hpp>
@@ -27,7 +28,17 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
+
+#if BEAST_LINUX
+#include <sys/types.h>
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#include <unistd.h>
+#include <sys/syscall.h>
+#endif
 
 namespace beast {
 class Journal;
@@ -35,6 +46,76 @@ class Journal;
 
 namespace ripple {
 namespace perf {
+
+enum class PerfTraceType
+{
+    trace,
+    trap,
+    timer
+};
+
+enum class PerfEventType
+{
+    generic,
+    start,
+    end
+};
+
+class PerfEvents
+{
+public:
+    using Event = std::tuple<std::string,
+        PerfEventType,
+#if BEAST_LINUX
+        int,
+#else
+        std::thread::id,
+#endif
+        std::uint64_t>;
+
+private:
+    std::chrono::time_point<std::chrono::system_clock> time_;
+    std::multimap<std::chrono::time_point<std::chrono::system_clock>,
+        Event> events_;
+    std::mutex mutex_;
+
+public:
+
+    PerfEvents()
+        : time_ (std::chrono::system_clock::now())
+    {}
+
+    PerfEvents (PerfEvents const& other)
+        : time_ (other.time_)
+        , events_ (other.events_)
+    {}
+
+    void add (std::chrono::time_point<std::chrono::system_clock> const& time,
+        std::string const& name,
+        PerfEventType const type,
+        std::uint64_t const counter)
+    {
+        std::lock_guard<std::mutex> lock (mutex_);
+
+        events_.emplace (time, std::make_tuple (name,
+            type,
+#if BEAST_LINUX
+            syscall(SYS_gettid),
+#else
+            std::this_thread::get_id(),
+#endif
+            counter));
+    }
+
+    void add (std::string const& name,
+        PerfEventType const type=PerfEventType::generic,
+        std::uint64_t const counter=0)
+    {
+        add (std::chrono::system_clock::now(), name, type, counter);
+    }
+};
+
+//------------------------------------------------------------------------------
 
 /**
  * Singleton class that maintains performance counters and optionally
@@ -172,7 +253,8 @@ make_PerfLog(
     PerfLog::Setup const& setup,
     Stoppable& parent,
     beast::Journal journal,
-    std::function<void()>&& signalStop);
+    std::function<void()>&& signalStop,
+    Application& app);
 
 }  // namespace perf
 }  // namespace ripple

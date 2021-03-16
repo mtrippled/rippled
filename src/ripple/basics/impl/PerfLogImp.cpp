@@ -24,6 +24,7 @@
 #include <ripple/core/JobTypes.h>
 #include <ripple/json/json_writer.h>
 #include <ripple/json/to_string.h>
+#include <ripple/nodestore/DatabaseShard.h>
 #include <atomic>
 #include <cstdint>
 #include <cstdlib>
@@ -42,7 +43,9 @@ namespace perf {
 
 PerfLogImp::Counters::Counters(
     std::vector<char const*> const& labels,
-    JobTypes const& jobTypes)
+    JobTypes const& jobTypes,
+    Application& app)
+    : app_(app)
 {
     {
         // populateRpc
@@ -159,11 +162,18 @@ PerfLogImp::Counters::countersJson() const
         jqobj[jss::total] = totalJqJson;
     }
 
+    Json::Value nodestore(Json::objectValue);
+    if (app_.getShardStore())
+        app_.getShardStore()->getCountsJson(nodestore);
+    else
+        app_.getNodeStore().getCountsJson(nodestore);
+
     Json::Value counters(Json::objectValue);
     // Be kind to reporting tools and let them expect rpc and jq objects
     // even if empty.
     counters[jss::rpc] = rpcobj;
     counters[jss::job_queue] = jqobj;
+    counters[jss::nodestore] = nodestore;
     return counters;
 }
 
@@ -305,17 +315,20 @@ PerfLogImp::PerfLogImp(
     Setup const& setup,
     Stoppable& parent,
     beast::Journal journal,
-    std::function<void()>&& signalStop)
+    std::function<void()>&& signalStop,
+    Application& app)
     : Stoppable("PerfLogImp", parent)
     , setup_(setup)
     , j_(journal)
     , signalStop_(std::move(signalStop))
+    , app_(app)
 {
     openLog();
 }
 
 PerfLogImp::~PerfLogImp()
 {
+    report();
     onStop();
 }
 
@@ -503,10 +516,11 @@ make_PerfLog(
     PerfLog::Setup const& setup,
     Stoppable& parent,
     beast::Journal journal,
-    std::function<void()>&& signalStop)
+    std::function<void()>&& signalStop,
+    Application& app)
 {
     return std::make_unique<PerfLogImp>(
-        setup, parent, journal, std::move(signalStop));
+        setup, parent, journal, std::move(signalStop), app);
 }
 
 }  // namespace perf
