@@ -53,7 +53,6 @@
 #include <ripple/crypto/RFC1751.h>
 #include <ripple/crypto/csprng.h>
 #include <ripple/json/to_string.h>
-#include <ripple/nodestore/DatabaseShard.h>
 #include <ripple/overlay/Cluster.h>
 #include <ripple/overlay/Overlay.h>
 #include <ripple/overlay/predicates.h>
@@ -2656,13 +2655,6 @@ NetworkOPsImp::getServerInfo(bool human, bool admin, bool counters)
     if (counters)
     {
         info[jss::counters] = app_.getPerfLog().countersJson();
-
-        Json::Value nodestore(Json::objectValue);
-        if (app_.getShardStore())
-            app_.getShardStore()->getCountsJson(nodestore);
-        else
-            app_.getNodeStore().getCountsJson(nodestore);
-        info[jss::counters][jss::nodestore] = nodestore;
         info[jss::current_activities] = app_.getPerfLog().currentJson();
     }
 

@@ -424,7 +424,9 @@ RCLConsensus::Adaptor::onAccept(
                 rawCloseTimes,
                 mode,
                 std::move(cj));
+            auto timer = perf::START_TIMER(tracer_);
             this->app_.getOPs().endConsensus();
+            perf::END_TIMER(tracer_, timer);
         });
 }
 
@@ -437,6 +439,8 @@ RCLConsensus::Adaptor::doAccept(
     ConsensusMode const& mode,
     Json::Value&& consensusJson)
 {
+    auto timer = perf::START_TIMER(tracer_);
+    auto timer2 = perf::START_TIMER(tracer_);
     prevProposers_ = result.proposers;
     prevRoundTime_ = result.roundTime.read();
 
@@ -495,6 +499,7 @@ RCLConsensus::Adaptor::doAccept(
             JLOG(j_.warn()) << "    Tx: " << item.key() << " throws!";
         }
     }
+    perf::END_TIMER(tracer_, timer2);
 
     auto built = buildLCL(
         prevLedger,
@@ -505,6 +510,7 @@ RCLConsensus::Adaptor::doAccept(
         result.roundTime.read(),
         failed);
 
+    auto timer3 = perf::START_TIMER(tracer_);
     auto const newLCLHash = built.id();
     JLOG(j_.debug()) << "Built ledger #" << built.seq() << ": " << newLCLHash;
 
@@ -692,6 +698,8 @@ RCLConsensus::Adaptor::doAccept(
 
         app_.timeKeeper().adjustCloseTime(offset);
     }
+    perf::END_TIMER(tracer_, timer3);
+    perf::END_TIMER(tracer_, timer);
 }
 
 void
@@ -743,12 +751,15 @@ RCLConsensus::Adaptor::buildLCL(
     std::chrono::milliseconds roundTime,
     std::set<TxID>& failedTxs)
 {
+    auto timer = perf::START_TIMER(tracer_);
     std::shared_ptr<Ledger> built = [&]() {
+        auto timer2 = perf::START_TIMER(tracer_);
         if (auto const replayData = ledgerMaster_.releaseReplay())
         {
             assert(replayData->parent()->info().hash == previousLedger.id());
             return buildLedger(*replayData, tapNONE, app_, j_);
         }
+        perf::END_TIMER(tracer_, timer2);
         return buildLedger(
             previousLedger.ledger_,
             closeTime,
@@ -757,7 +768,8 @@ RCLConsensus::Adaptor::buildLCL(
             app_,
             retriableTxs,
             failedTxs,
-            j_);
+            j_,
+            tracer_);
     }();
 
     // Update fee computations based on accepted txs
@@ -771,7 +783,10 @@ RCLConsensus::Adaptor::buildLCL(
         JLOG(j_.debug()) << "Consensus built ledger we were acquiring";
     else
         JLOG(j_.debug()) << "Consensus built new ledger";
-    return RCLCxLedger{std::move(built)};
+    auto ret = RCLCxLedger(std::move(built));
+    return ret;
+    perf::END_TIMER(tracer_, timer);
+//    return RCLCxLedger{std::move(built)};
 }
 
 void

@@ -279,7 +279,7 @@ public:
                   config_->CONFIG_DIR),
               *this,
               logs_->journal("PerfLog"),
-              [this]() { signalStop(); }))
+              [this]() { signalStop(); }, this))
 
         , m_txMaster(*this)
 #ifdef RIPPLED_REPORTING
@@ -1203,6 +1203,7 @@ public:
     void
     doSweep()
     {
+        auto tracer = perf::TRACER_PTR;
         if (!config_->standalone())
         {
             boost::filesystem::space_info space =
@@ -1273,7 +1274,7 @@ public:
         // VFALCO NOTE Does the order of calls matter?
         // VFALCO TODO fix the dependency inversion using an observer,
         //         have listeners register for "onSweep ()" notification.
-
+        auto timer = perf::START_TIMER(tracer);
         nodeFamily_.sweep();
         if (shardFamily_)
             shardFamily_->sweep();
@@ -1288,6 +1289,7 @@ public:
         getLedgerReplayer().sweep();
         m_acceptedLedgerCache.sweep();
         cachedSLEs_.expire();
+        perf::END_TIMER(tracer, timer);
 
 #ifdef RIPPLED_REPORTING
         if (config().reporting())
