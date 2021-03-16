@@ -136,6 +136,9 @@ class PerfLogImp : public PerfLog, Stoppable
     std::condition_variable cond_;
     system_time_point lastLog_;
     std::string const hostname_{boost::asio::ip::host_name()};
+    std::multimap<
+            std::chrono::time_point<system_clock>, PerfEvents> perfEvents_;
+    std::mutex eventsMutex_;
     bool stop_{false};
     bool rotate_{false};
 
@@ -213,6 +216,9 @@ public:
     // Called when all child Stoppable objects have stopped.
     void
     onChildrenStopped() override;
+
+    void
+    addEvent(PerfEvents const& event) override;
 };
 
 }  // namespace perf

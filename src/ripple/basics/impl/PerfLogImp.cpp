@@ -41,6 +41,8 @@
 namespace ripple {
 namespace perf {
 
+PerfLog* perfLog = nullptr;
+
 PerfLogImp::Counters::Counters(
     std::vector<char const*> const& labels,
     JobTypes const& jobTypes,
@@ -308,6 +310,55 @@ PerfLogImp::report()
     report[jss::counters] = counters_.countersJson();
     report[jss::current_activities] = counters_.currentJson();
 
+    std::multimap<
+        std::chrono::time_point<system_clock>, PerfEvents> perfEvents;
+    {
+        std::unique_lock<std::mutex> lock(eventsMutex_);
+        if (perfEvents_.size())
+        {
+            perfEvents_.swap(perfEvents);
+            lock.unlock();
+
+            for (auto& trace : perfEvents)
+            {
+                auto& entry = report[jss::entries].append(Json::objectValue);
+                entry[jss::type] = "trace";
+                entry[jss::time] = to_string(trace.second.getTime());
+                entry[jss::events] = Json::arrayValue;
+
+                auto& events = entry[jss::events];
+                for (auto& e : trace.second.getEvents())
+                {
+                    Json::Value je = Json::objectValue;
+
+                    je[jss::time] = to_string(e.first);
+                    je[jss::name] = std::get<0>(e.second);
+                    switch (std::get<1>(e.second))
+                    {
+                        case PerfEventType::generic:
+                            je[jss::type] = "generic";
+                            break;
+                        case PerfEventType::start:
+                            je[jss::type] = "start";
+                            break;
+                        case PerfEventType::end:
+                            je[jss::type] = "end";
+                    }
+#if BEAST_LINUX
+                    je[perf_jss::tid] = get<2>(e.second);
+#else
+                    std::stringstream ss;
+                    ss << std::get<2>(e.second);
+                    je[jss::tid] = ss.str();
+#endif
+                    je[jss::counter] = std::to_string(std::get<3>(e.second));
+
+                    events.append(je);
+                }
+            }
+        }
+    }
+
     logFile_ << Json::Compact{std::move(report)} << std::endl;
 }
 
@@ -323,6 +374,7 @@ PerfLogImp::PerfLogImp(
     , signalStop_(std::move(signalStop))
     , app_(app)
 {
+    perfLog = this;
     openLog();
 }
 
@@ -447,6 +499,16 @@ PerfLogImp::resizeJobs(int const resize)
     std::lock_guard lock(counters_.jobsMutex_);
     if (resize > counters_.jobs_.size())
         counters_.jobs_.resize(resize, {jtINVALID, steady_time_point()});
+}
+
+void
+PerfLogImp::addEvent(PerfEvents const& event)
+{
+    if (setup_.perfLog.empty())
+        return;
+
+    std::lock_guard<std::mutex> lock (eventsMutex_);
+    perfEvents_.emplace (event.getTime(), event);
 }
 
 void

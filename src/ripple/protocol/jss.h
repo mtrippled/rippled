@@ -178,6 +178,7 @@ JSS(consensus);              // out: NetworkOPs, LedgerConsensus
 JSS(converge_time);          // out: NetworkOPs
 JSS(converge_time_s);        // out: NetworkOPs
 JSS(count);                  // in: AccountTx*, ValidatorList
+JSS(counter);                // PerfLog report.
 JSS(counters);               // in/out: retrieve counters
 JSS(currency);               // in: paths/PathRequest, STAmount
                              // out: STPathSet, STAmount,
@@ -219,6 +220,7 @@ JSS(enabled);                 // out: AmendmentTable
 JSS(engine_result);           // out: NetworkOPs, TransactionSign, Submit
 JSS(engine_result_code);      // out: NetworkOPs, TransactionSign, Submit
 JSS(engine_result_message);   // out: NetworkOPs, TransactionSign, Submit
+JSS(entries);                 // out: PerfLog report
 JSS(ephemeral_key);           // out: ValidatorInfo
                               // in/out: Manifest
 JSS(error);                   // out: error
@@ -227,6 +229,7 @@ JSS(error_code);            // out: error
 JSS(error_exception);       // out: Submit
 JSS(error_message);         // out: error
 JSS(escrow);                // in: LedgerEntry
+JSS(events);
 JSS(expand);                // in: handler/Ledger
 JSS(expected_date);         // out: any (warnings)
 JSS(expected_date_UTC);     // out: any (warnings)
@@ -530,6 +533,7 @@ JSS(threshold);           // in: Blacklist
 JSS(ticket);              // in: AccountObjects
 JSS(ticket_count);        // out: AccountInfo
 JSS(ticket_seq);          // in: LedgerEntry
+JSS(tid);                 // PerfLog report. threadid
 JSS(time);
 JSS(timeouts);                // out: InboundLedger
 JSS(track);                   // out: PeerImp

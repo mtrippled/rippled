@@ -72,6 +72,8 @@ public:
         std::thread::id,
 #endif
         std::uint64_t>;
+    using Events = std::multimap<
+        std::chrono::time_point<std::chrono::system_clock>, Event>;
 
 private:
     std::chrono::time_point<std::chrono::system_clock> time_;
@@ -80,12 +82,11 @@ private:
     std::mutex mutex_;
 
 public:
-
     PerfEvents()
         : time_ (std::chrono::system_clock::now())
     {}
 
-    PerfEvents (PerfEvents const& other)
+    PerfEvents(PerfEvents const& other)
         : time_ (other.time_)
         , events_ (other.events_)
     {}
@@ -111,7 +112,19 @@ public:
         PerfEventType const type=PerfEventType::generic,
         std::uint64_t const counter=0)
     {
-        add (std::chrono::system_clock::now(), name, type, counter);
+        add(std::chrono::system_clock::now(), name, type, counter);
+    }
+
+    std::chrono::time_point<std::chrono::system_clock> const&
+    getTime() const
+    {
+            return time_;
+        }
+
+    Events const&
+    getEvents() const
+    {
+            return events_;
     }
 };
 
@@ -236,6 +249,9 @@ public:
      */
     virtual void
     rotate() = 0;
+
+    virtual void
+    addEvent(PerfEvents const& event) = 0;
 };
 
 }  // namespace perf
@@ -255,6 +271,8 @@ make_PerfLog(
     beast::Journal journal,
     std::function<void()>&& signalStop,
     Application& app);
+
+extern PerfLog* perfLog;
 
 }  // namespace perf
 }  // namespace ripple
