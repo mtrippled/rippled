@@ -20,7 +20,6 @@
 #ifndef RIPPLE_BASICS_PERFLOG_H
 #define RIPPLE_BASICS_PERFLOG_H
 
-#include <ripple/app/main/Application.h>
 #include <ripple/core/JobTypes.h>
 #include <ripple/json/json_value.h>
 #include <boost/filesystem.hpp>
@@ -98,7 +97,7 @@ public:
     {
         std::lock_guard<std::mutex> lock (mutex_);
 
-        events_.emplace (time, std::make_tuple (name,
+        events_.emplace(time, std::make_tuple(name,
             type,
 #if BEAST_LINUX
             syscall(SYS_gettid),
@@ -258,6 +257,7 @@ public:
 
 class Section;
 class Stoppable;
+class Application;
 
 namespace perf {
 
@@ -270,7 +270,7 @@ make_PerfLog(
     Stoppable& parent,
     beast::Journal journal,
     std::function<void()>&& signalStop,
-    Application& app);
+    Application* app);
 
 extern PerfLog* perfLog;
 

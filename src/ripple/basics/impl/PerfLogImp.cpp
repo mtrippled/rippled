@@ -17,6 +17,7 @@
 */
 //==============================================================================
 
+#include <ripple/app/main/Application.h>
 #include <ripple/basics/BasicConfig.h>
 #include <ripple/basics/impl/PerfLogImp.h>
 #include <ripple/beast/core/CurrentThreadName.h>
@@ -579,10 +580,10 @@ make_PerfLog(
     Stoppable& parent,
     beast::Journal journal,
     std::function<void()>&& signalStop,
-    Application& app)
+    Application* app)
 {
     return std::make_unique<PerfLogImp>(
-        setup, parent, journal, std::move(signalStop), app);
+        setup, parent, journal, std::move(signalStop), *app);
 }
 
 }  // namespace perf

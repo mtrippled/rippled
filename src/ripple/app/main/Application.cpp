@@ -280,7 +280,7 @@ public:
                   config_->CONFIG_DIR),
               *this,
               logs_->journal("PerfLog"),
-              [this]() { signalStop(); }, *this))
+              [this]() { signalStop(); }, this))
 
         , m_txMaster(*this)
 #ifdef RIPPLED_REPORTING

@@ -430,6 +430,7 @@ target_sources (rippled PRIVATE
   src/ripple/basics/impl/Archive.cpp
   src/ripple/basics/impl/BasicConfig.cpp
   src/ripple/basics/impl/PerfLogImp.cpp
+  src/ripple/basics/impl/PerfTrace.cpp
   src/ripple/basics/impl/ResolverAsio.cpp
   src/ripple/basics/impl/UptimeClock.cpp
   src/ripple/basics/impl/make_SSLContext.cpp

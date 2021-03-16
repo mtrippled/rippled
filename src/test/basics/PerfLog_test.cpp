@@ -169,7 +169,7 @@ class PerfLog_test : public beast::unit_test::suite
         return perf::make_PerfLog(
             parent.getSetup(withFile), parent, j_, [&parent]() {
                 return parent.signalStop();
-            }, env_.app());
+            }, &env_.app());
     }
 
     //------------------------------------------------------------------------------
