@@ -43,8 +43,10 @@ buildLedgerImpl(
     NetClock::duration closeResolution,
     Application& app,
     beast::Journal j,
-    ApplyTxs&& applyTxs)
+    ApplyTxs&& applyTxs,
+    std::shared_ptr<perf::Tracer> const& tracer = {})
 {
+    auto timer = perf::START_TIMER(tracer);
     auto built = std::make_shared<Ledger>(*parent, closeTime);
 
     if (built->isFlagLedger() && built->rules().enabled(featureNegativeUNL))
@@ -56,28 +58,45 @@ buildLedgerImpl(
     //   perform updates, extract changes
 
     {
+        auto timer2 = perf::START_TIMER(tracer);
         OpenView accum(&*built);
+        perf::END_TIMER(tracer, timer2);
         assert(!accum.open());
+        auto timer3 = perf::START_TIMER(tracer);
         applyTxs(accum, built);
+        perf::END_TIMER(tracer, timer3);
+        auto timer4 = perf::START_TIMER(tracer);
         accum.apply(*built);
+        perf::END_TIMER(tracer, timer4);
     }
 
+    auto timer5 = perf::START_TIMER(tracer);
     built->updateSkipList();
+    perf::END_TIMER(tracer, timer5);
     {
         // Write the final version of all modified SHAMap
         // nodes to the node store to preserve the new LCL
 
-        int const asf = built->stateMap().flushDirty(hotACCOUNT_NODE);
-        int const tmf = built->txMap().flushDirty(hotTRANSACTION_NODE);
+        auto timer6 = perf::START_TIMER(tracer);
+        int const asf = built->stateMap().flushDirty(hotACCOUNT_NODE, tracer);
+        perf::END_TIMER(tracer, timer6);
+        auto timer7 = perf::START_TIMER(tracer);
+        int const tmf = built->txMap().flushDirty(hotTRANSACTION_NODE, tracer);
+        perf::END_TIMER(tracer, timer7);
         JLOG(j.debug()) << "Flushed " << asf << " accounts and " << tmf
                         << " transaction nodes";
     }
+    auto timer8 = perf::START_TIMER(tracer);
     built->unshare();
+    perf::END_TIMER(tracer, timer8);
 
     // Accept ledger
+    auto timer9 = perf::START_TIMER(tracer);
     built->setAccepted(
         closeTime, closeResolution, closeTimeCorrect, app.config());
+    perf::END_TIMER(tracer, timer9);
 
+    perf::END_TIMER(tracer, timer);
     return built;
 }
 
@@ -98,8 +117,10 @@ applyTransactions(
     CanonicalTXSet& txns,
     std::set<TxID>& failed,
     OpenView& view,
-    beast::Journal j)
+    beast::Journal j,
+    std::shared_ptr<perf::Tracer> const& tracer)
 {
+    auto timer = perf::START_TIMER(tracer);
     bool certainRetry = true;
     std::size_t count = 0;
 
@@ -125,7 +146,7 @@ applyTransactions(
                 }
 
                 switch (applyTransaction(
-                    app, view, *it->second, certainRetry, tapNONE, j))
+                    app, view, *it->second, certainRetry, tapNONE, j, tracer))
                 {
                     case ApplyResult::Success:
                         it = txns.erase(it);
@@ -167,6 +188,7 @@ applyTransactions(
     // If there are any transactions left, we must have
     // tried them in at least one final pass
     assert(txns.empty() || !certainRetry);
+    perf::END_TIMER(tracer, timer);
     return count;
 }
 
@@ -180,12 +202,41 @@ buildLedger(
     Application& app,
     CanonicalTXSet& txns,
     std::set<TxID>& failedTxns,
-    beast::Journal j)
+    beast::Journal j,
+    std::shared_ptr<perf::Tracer> const& tracer)
 {
+    auto timer = perf::START_TIMER(tracer);
     JLOG(j.debug()) << "Report: Transaction Set = " << txns.key() << ", close "
                     << closeTime.time_since_epoch().count()
                     << (closeTimeCorrect ? "" : " (incorrect)");
 
+    JLOG(j.debug()) << "buildLedgerImpl 1 start";
+    auto ret = buildLedgerImpl(
+        parent,
+        closeTime,
+        closeTimeCorrect,
+        closeResolution,
+        app,
+        j,
+        [&](OpenView& accum, std::shared_ptr<Ledger> const& built) {
+          JLOG(j.debug())
+              << "Attempting to apply " << txns.size() << " transactions";
+
+          auto const applied =
+              applyTransactions(app, built, txns, failedTxns, accum, j, tracer);
+
+          if (!txns.empty() || !failedTxns.empty())
+              JLOG(j.debug()) << "Applied " << applied << " transactions; "
+                              << failedTxns.size() << " failed and "
+                              << txns.size() << " will be retried.";
+          else
+          JLOG(j.debug()) << "Applied " << applied << " transactions.";
+        },
+        tracer);
+    JLOG(j.debug()) << "buildLedgerImpl 1 finish";
+    perf::END_TIMER(tracer, timer);
+    return ret;
+    /*
     return buildLedgerImpl(
         parent,
         closeTime,
@@ -207,6 +258,7 @@ buildLedger(
             else
                 JLOG(j.debug()) << "Applied " << applied << " transactions.";
         });
+        */
 }
 
 // Build a ledger by replaying
@@ -221,6 +273,22 @@ buildLedger(
 
     JLOG(j.debug()) << "Report: Replay Ledger " << replayLedger->info().hash;
 
+    JLOG(j.debug()) << "buildLedgerImpl 2 start";
+    auto ret = buildLedgerImpl(
+        replayData.parent(),
+        replayLedger->info().closeTime,
+        ((replayLedger->info().closeFlags & sLCF_NoConsensusTime) == 0),
+        replayLedger->info().closeTimeResolution,
+        app,
+        j,
+        [&](OpenView& accum, std::shared_ptr<Ledger> const& built) {
+          for (auto& tx : replayData.orderedTxns())
+              applyTransaction(app, accum, *tx.second, false, applyFlags, j);
+        });
+    JLOG(j.debug()) << "buildLedgerImpl 2 finish";
+    return ret;
+
+    /*
     return buildLedgerImpl(
         replayData.parent(),
         replayLedger->info().closeTime,
@@ -232,6 +300,7 @@ buildLedger(
             for (auto& tx : replayData.orderedTxns())
                 applyTransaction(app, accum, *tx.second, false, applyFlags, j);
         });
+        */
 }
 
 }  // namespace ripple

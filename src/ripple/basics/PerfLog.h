@@ -20,7 +20,7 @@
 #ifndef RIPPLE_BASICS_PERFLOG_H
 #define RIPPLE_BASICS_PERFLOG_H
 
-#include <ripple/core/Config.h>
+#include <ripple/basics/Timers.h>
 #include <ripple/core/JobTypes.h>
 #include <ripple/json/json_value.h>
 #include <boost/filesystem.hpp>
@@ -28,7 +28,11 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
+#include <unordered_map>
+#include <vector>
 
 namespace beast {
 class Journal;
@@ -166,7 +170,20 @@ public:
      */
     virtual void
     rotate() = 0;
+
+    virtual void
+    addEvent(Timers const& timers) = 0;
 };
+
+extern PerfLog* perfLog;
+
+}  // namespace perf
+
+class Section;
+class Stoppable;
+class Application;
+
+namespace perf {
 
 PerfLog::Setup
 setup_PerfLog(Section const& section, boost::filesystem::path const& configDir);
@@ -175,7 +192,8 @@ std::unique_ptr<PerfLog>
 make_PerfLog(
     PerfLog::Setup const& setup,
     beast::Journal journal,
-    std::function<void()>&& signalStop);
+    std::function<void()>&& signalStop,
+    Application* app);
 
 }  // namespace perf
 }  // namespace ripple

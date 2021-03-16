@@ -406,6 +406,7 @@ SHAMapStoreImp::run()
                     state_db_.setState(savedState);
 
                     clearCaches(validatedSeq);
+                    fullBelowCache_->rotate();
 
                     return std::move(newBackend);
                 });
@@ -587,7 +588,6 @@ void
 SHAMapStoreImp::clearCaches(LedgerIndex validatedSeq)
 {
     ledgerMaster_->clearLedgerCachePrior(validatedSeq);
-    fullBelowCache_->clear();
 }
 
 void

@@ -286,7 +286,8 @@ TxQ::MaybeTx::MaybeTx(
 }
 
 std::pair<TER, bool>
-TxQ::MaybeTx::apply(Application& app, OpenView& view, beast::Journal j)
+TxQ::MaybeTx::apply(Application& app, OpenView& view, beast::Journal j,
+                    std::shared_ptr<perf::Tracer> const& tracer)
 {
     // If the rules or flags change, preflight again
     assert(pfresult);
@@ -304,7 +305,7 @@ TxQ::MaybeTx::apply(Application& app, OpenView& view, beast::Journal j)
 
     auto pcresult = preclaim(*pfresult, app, view);
 
-    return doApply(pcresult, app, view);
+    return doApply(pcresult, app, view, tracer);
 }
 
 TxQ::TxQAccount::TxQAccount(std::shared_ptr<STTx const> const& txn)
@@ -728,13 +729,15 @@ TxQ::apply(
     OpenView& view,
     std::shared_ptr<STTx const> const& tx,
     ApplyFlags flags,
-    beast::Journal j)
+    beast::Journal j,
+    std::shared_ptr<perf::Tracer> const& tracer)
 {
     STAmountSO stAmountSO{view.rules().enabled(fixSTAmountCanonicalize)};
 
     // See if the transaction paid a high enough fee that it can go straight
     // into the ledger.
-    if (auto directApplied = tryDirectApply(app, view, tx, flags, j))
+    if (auto directApplied = tryDirectApply(app, view, tx, flags, j,
+                                            tracer))
         return *directApplied;
 
     // If we get past tryDirectApply() without returning then we expect
@@ -1407,7 +1410,8 @@ TxQ::processClosedLedger(Application& app, ReadView const& view, bool timeLeap)
         * the next tx in the queue, simply ordered by fee.
 */
 bool
-TxQ::accept(Application& app, OpenView& view)
+TxQ::accept(Application& app, OpenView& view,
+            std::shared_ptr<perf::Tracer> const& tracer)
 {
     /* Move transactions from the queue from largest fee level to smallest.
        As we add more transactions, the required fee level will increase.
@@ -1628,7 +1632,8 @@ TxQ::tryDirectApply(
     OpenView& view,
     std::shared_ptr<STTx const> const& tx,
     ApplyFlags flags,
-    beast::Journal j)
+    beast::Journal j,
+    std::shared_ptr<perf::Tracer> const& tracer)
 {
     auto const account = (*tx)[sfAccount];
     auto const sleAccount = view.read(keylet::account(account));
@@ -1663,7 +1668,7 @@ TxQ::tryDirectApply(
                          << " to open ledger.";
 
         auto const [txnResult, didApply] =
-            ripple::apply(app, view, *tx, flags, j);
+            ripple::apply(app, view, *tx, flags, j, tracer);
 
         JLOG(j_.trace()) << "New transaction " << transactionID
                          << (didApply ? " applied successfully with "

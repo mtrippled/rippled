@@ -111,13 +111,14 @@ apply(
     OpenView& view,
     STTx const& tx,
     ApplyFlags flags,
-    beast::Journal j)
+    beast::Journal j,
+    std::shared_ptr<perf::Tracer> const& tracer)
 {
     STAmountSO stAmountSO{view.rules().enabled(fixSTAmountCanonicalize)};
 
     auto pfresult = preflight(app, view.rules(), tx, flags, j);
     auto pcresult = preclaim(pfresult, app, view);
-    return doApply(pcresult, app, view);
+    return doApply(pcresult, app, view, tracer);
 }
 
 ApplyResult
@@ -127,8 +128,10 @@ applyTransaction(
     STTx const& txn,
     bool retryAssured,
     ApplyFlags flags,
-    beast::Journal j)
+    beast::Journal j,
+    std::shared_ptr<perf::Tracer> const& tracer)
 {
+    auto timer = perf::START_TIMER(tracer);
     // Returns false if the transaction has need not be retried.
     if (retryAssured)
         flags = flags | tapRETRY;
@@ -138,7 +141,8 @@ applyTransaction(
 
     try
     {
-        auto const result = apply(app, view, txn, flags, j);
+        auto const result = apply(app, view, txn, flags, j, tracer);
+        perf::END_TIMER(tracer, timer);
         if (result.second)
         {
             JLOG(j.debug())

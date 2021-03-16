@@ -1081,7 +1081,8 @@ DatabaseShardImp::store(
     NodeObjectType type,
     Blob&& data,
     uint256 const& hash,
-    std::uint32_t ledgerSeq)
+    std::uint32_t ledgerSeq,
+    std::shared_ptr<perf::Tracer> const& tracer)
 {
     auto const shardIndex{seqToShardIndex(ledgerSeq)};
     std::shared_ptr<Shard> shard;

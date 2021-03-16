@@ -334,7 +334,8 @@ calculateDefaultBaseFee(ReadView const& view, STTx const& tx);
     whether or not the transaction was applied.
 */
 std::pair<TER, bool>
-doApply(PreclaimResult const& preclaimResult, Application& app, OpenView& view);
+doApply(PreclaimResult const& preclaimResult, Application& app, OpenView& view,
+        std::shared_ptr<perf::Tracer> const& tracer = {});
 
 }  // namespace ripple
 

@@ -107,7 +107,8 @@ public:
         NodeObjectType type,
         Blob&& data,
         uint256 const& hash,
-        std::uint32_t ledgerSeq) = 0;
+        std::uint32_t ledgerSeq,
+        std::shared_ptr<perf::Tracer> const& tracer = {}) = 0;
 
     /* Check if two ledgers are in the same database
 
@@ -194,6 +195,12 @@ public:
     getFetchHitCount() const
     {
         return fetchHitCount_;
+    }
+
+    std::uint64_t
+    getFetchCacheHitCount() const
+    {
+        return fetchCacheHitCount_;
     }
 
     std::uint64_t
@@ -304,6 +311,7 @@ protected:
 
     std::atomic<std::uint32_t> fetchHitCount_{0};
     std::atomic<std::uint32_t> fetchSz_{0};
+    std::atomic<std::uint64_t> fetchCacheHitCount_{0};
 
     // The default is DEFAULT_LEDGERS_PER_SHARD (16384) to match the XRP ledger
     // network. Can be set through the configuration file using the

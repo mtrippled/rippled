@@ -64,7 +64,8 @@ shouldCloseLedger(
     std::chrono::milliseconds openTime,
     std::chrono::milliseconds idleInterval,
     ConsensusParms const& parms,
-    beast::Journal j);
+    beast::Journal j,
+    std::shared_ptr<perf::Tracer> const& tracer = {});
 
 /** Determine whether the network reached consensus and whether we joined.
 
@@ -666,6 +667,10 @@ Consensus<Adaptor>::startRoundInternal(
     ConsensusMode mode)
 {
     phase_ = ConsensusPhase::open;
+    perf::END_TIMER(adaptor_.tracer_, adaptor_.startTimer_);
+    adaptor_.tracer_.reset(new perf::Tracer(FILE_LINE));
+    adaptor_.startTimer_ = perf::START_TIMER(adaptor_.tracer_);
+    auto timer = perf::START_TIMER(adaptor_.tracer_);
     mode_.set(mode, adaptor_);
     now_ = now;
     prevLedgerID_ = prevLedgerID;
@@ -692,6 +697,7 @@ Consensus<Adaptor>::startRoundInternal(
         // consider closing the ledger immediately
         timerEntry(now_);
     }
+    perf::END_TIMER(adaptor_.tracer_, timer);
 }
 
 template <class Adaptor>
@@ -813,6 +819,7 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
 {
+    JLOG(j_.debug()) << "timerEntry 1" << to_string(phase_);
     // Nothing to do if we are currently working on a ledger
     if (phase_ == ConsensusPhase::accepted)
         return;
@@ -822,6 +829,7 @@ Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
     // Check we are on the proper ledger (this may change phase_)
     checkLedger();
 
+    JLOG(j_.debug()) << "timerEntry 2" << to_string(phase_);
     if (phase_ == ConsensusPhase::open)
     {
         phaseOpen();
@@ -830,6 +838,7 @@ Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
     {
         phaseEstablish();
     }
+    JLOG(j_.debug()) << "timerEntry 3" << to_string(phase_);
 }
 
 template <class Adaptor>
@@ -1089,6 +1098,7 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::phaseOpen()
 {
+    auto timer = perf::START_TIMER(adaptor_.tracer_);
     using namespace std::chrono;
 
     // it is shortly before ledger close time
@@ -1122,6 +1132,7 @@ Consensus<Adaptor>::phaseOpen()
         2 * previousLedger_.closeTimeResolution());
 
     // Decide if we should close the ledger
+    perf::END_TIMER(adaptor_.tracer_, timer);
     if (shouldCloseLedger(
             anyTransactions,
             prevProposers_,
@@ -1256,6 +1267,8 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::phaseEstablish()
 {
+    JLOG(j_.debug()) << "phaseEstablish";
+    auto timer = perf::START_TIMER(adaptor_.tracer_);
     // can only establish consensus if we already took a stance
     assert(result_);
 
@@ -1270,26 +1283,43 @@ Consensus<Adaptor>::phaseEstablish()
 
     // Give everyone a chance to take an initial position
     if (result_->roundTime.read() < parms.ledgerMIN_CONSENSUS)
-        return;
-
-    updateOurPositions();
-
-    // Nothing to do if too many laggards or we don't have consensus.
-    if (shouldPause() || !haveConsensus())
-        return;
-
-    if (!haveCloseTimeConsensus_)
     {
-        JLOG(j_.info()) << "We have TX consensus but not CT consensus";
+        perf::END_TIMER(adaptor_.tracer_, timer);
+        JLOG(j_.debug()) << "phaseEstablish Give everyone a chance to take an "
+                            "initial position";
         return;
     }
 
-    JLOG(j_.info()) << "Converge cutoff (" << currPeerPositions_.size()
+    auto timer2 = perf::START_TIMER(adaptor_.tracer_);
+    updateOurPositions();
+    perf::END_TIMER(adaptor_.tracer_, timer2);
+
+    // Nothing to do if too many laggards or we don't have consensus.
+    if (shouldPause() || !haveConsensus())
+    {
+        perf::END_TIMER(adaptor_.tracer_, timer);
+        JLOG(j_.debug()) << "phaseEstablish either shouldPause or "
+                            "!haveConsensus";
+        return;
+    }
+
+    if (!haveCloseTimeConsensus_)
+    {
+        JLOG(j_.info()) << "phaseEstablish We have TX consensus but not CT "
+                           "consensus";
+        perf::END_TIMER(adaptor_.tracer_, timer);
+        return;
+    }
+
+    JLOG(j_.info()) << "phaseEstablish Converge cutoff ("
+                    << currPeerPositions_.size()
                     << " participants)";
     adaptor_.updateOperatingMode(currPeerPositions_.size());
     prevProposers_ = currPeerPositions_.size();
     prevRoundTime_ = result_->roundTime.read();
     phase_ = ConsensusPhase::accepted;
+    perf::END_TIMER(adaptor_.tracer_, adaptor_.startTimer_);
+    adaptor_.startTimer_ = perf::START_TIMER(adaptor_.tracer_);
     adaptor_.onAccept(
         *result_,
         previousLedger_,
@@ -1297,16 +1327,21 @@ Consensus<Adaptor>::phaseEstablish()
         rawCloseTimes_,
         mode_.get(),
         getJson(true));
+
+    perf::END_TIMER(adaptor_.tracer_, timer);
 }
 
 template <class Adaptor>
 void
 Consensus<Adaptor>::closeLedger()
 {
+    auto timer = perf::START_TIMER(adaptor_.tracer_);
     // We should not be closing if we already have a position
     assert(!result_);
 
     phase_ = ConsensusPhase::establish;
+    perf::END_TIMER(adaptor_.tracer_, adaptor_.startTimer_);
+    adaptor_.startTimer_ = perf::START_TIMER(adaptor_.tracer_);
     rawCloseTimes_.self = now_;
 
     result_.emplace(adaptor_.onClose(previousLedger_, now_, mode_.get()));
@@ -1329,6 +1364,7 @@ Consensus<Adaptor>::closeLedger()
             createDisputes(it->second);
         }
     }
+    perf::END_TIMER(adaptor_.tracer_, timer);
 }
 
 /** How many of the participants must agree to reach a given threshold?

@@ -48,6 +48,7 @@ public:
     CachedViewImpl(CachedViewImpl const&) = delete;
     CachedViewImpl&
     operator=(CachedViewImpl const&) = delete;
+    CachedViewImpl(CachedViewImpl const&&) = delete;
 
     CachedViewImpl(DigestAwareReadView const* base, CachedSLEs& cache)
         : base_(*base), cache_(cache)
@@ -170,6 +171,7 @@ public:
     CachedView(CachedView const&) = delete;
     CachedView&
     operator=(CachedView const&) = delete;
+    CachedView(CachedView const&&) = delete;
 
     CachedView(std::shared_ptr<Base const> const& base, CachedSLEs& cache)
         : CachedViewImpl(base.get(), cache), sp_(base)

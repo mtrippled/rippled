@@ -332,6 +332,7 @@ Database::getCountsJson(Json::Value& obj)
     obj[jss::node_writes] = std::to_string(storeCount_);
     obj[jss::node_reads_total] = std::to_string(fetchTotalCount_);
     obj[jss::node_reads_hit] = std::to_string(fetchHitCount_);
+    obj[jss::node_reads_cache_hit] = std::to_string(fetchCacheHitCount_);
     obj[jss::node_written_bytes] = std::to_string(storeSz_);
     obj[jss::node_read_bytes] = std::to_string(fetchSz_);
     obj[jss::node_reads_duration_us] = std::to_string(fetchDurationUs_);

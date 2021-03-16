@@ -194,8 +194,8 @@ public:
     bool LEDGER_REPLAY = false;
 
     // Work queue limits
-    int MAX_TRANSACTIONS = 250;
-    static constexpr int MAX_JOB_QUEUE_TX = 1000;
+    int MAX_TRANSACTIONS = 10000;
+    static constexpr int MAX_JOB_QUEUE_TX = 10000;
     static constexpr int MIN_JOB_QUEUE_TX = 100;
 
     // Amendment majority time

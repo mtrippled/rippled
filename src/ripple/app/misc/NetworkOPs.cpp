@@ -51,7 +51,6 @@
 #include <ripple/crypto/RFC1751.h>
 #include <ripple/crypto/csprng.h>
 #include <ripple/json/to_string.h>
-#include <ripple/nodestore/DatabaseShard.h>
 #include <ripple/overlay/Cluster.h>
 #include <ripple/overlay/Overlay.h>
 #include <ripple/overlay/predicates.h>
@@ -835,6 +834,7 @@ NetworkOPsImp::setHeartbeatTimer()
     {
         heartbeatTimer_.expires_from_now(mConsensus.parms().ledgerGRANULARITY);
         heartbeatTimer_.async_wait(std::move(*optionalCountedHandler));
+        JLOG(m_journal.debug()) << "setHeartbeatTimer";
     }
 }
 
@@ -873,8 +873,14 @@ NetworkOPsImp::setClusterTimer()
 void
 NetworkOPsImp::processHeartbeatTimer()
 {
+    auto tracer = perf::TRACER_PTR;
+    JLOG(m_journal.debug()) << "processHeartbeatTimer";
     {
-        std::unique_lock lock{app_.getMasterMutex()};
+        auto timer = perf::START_TIMER(tracer);
+//        std::unique_lock lock{*app_.getMasterMutex()};
+        perf::unique_lock lock(*app_.getMasterMutex(), FILE_LINE);
+        perf::END_TIMER(tracer, timer);
+        auto timer2 = perf::START_TIMER(tracer);
 
         // VFALCO NOTE This is for diagnosing a crash on exit
         LoadManager& mgr(app_.getLoadManager());
@@ -895,11 +901,13 @@ NetworkOPsImp::processHeartbeatTimer()
 
             // MasterMutex lock need not be held to call setHeartbeatTimer()
             lock.unlock();
+            perf::END_TIMER(tracer, timer2);
             // We do not call mConsensus.timerEntry until there are enough
             // peers providing meaningful inputs to consensus
             setHeartbeatTimer();
             return;
         }
+        auto timer3 = perf::START_TIMER(tracer);
 
         if (mMode == OperatingMode::DISCONNECTED)
         {
@@ -914,8 +922,10 @@ NetworkOPsImp::processHeartbeatTimer()
             setMode(OperatingMode::SYNCING);
         else if (mMode == OperatingMode::CONNECTED)
             setMode(OperatingMode::CONNECTED);
+        perf::END_TIMER(tracer, timer3);
     }
 
+    auto timer4 = perf::START_TIMER(tracer);
     mConsensus.timerEntry(app_.timeKeeper().closeTime());
 
     const ConsensusPhase currPhase = mConsensus.phase();
@@ -925,6 +935,7 @@ NetworkOPsImp::processHeartbeatTimer()
         mLastConsensusPhase = currPhase;
     }
 
+    perf::END_TIMER(tracer, timer4);
     setHeartbeatTimer();
 }
 
@@ -1188,12 +1199,15 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
     batchLock.unlock();
 
     {
-        std::unique_lock masterLock{app_.getMasterMutex(), std::defer_lock};
+//        std::unique_lock masterLock{*app_.getMasterMutex(), std::defer_lock};
+        perf::unique_lock masterLock(*app_.getMasterMutex(), FILE_LINE,
+                             std::defer_lock);
         bool changed = false;
         {
             std::unique_lock ledgerLock{
                 m_ledgerMaster.peekMutex(), std::defer_lock};
-            std::lock(masterLock, ledgerLock);
+//            std::lock(masterLock, ledgerLock);
+            perf::lock(masterLock, ledgerLock, FILE_LINE);
 
             app_.openLedger().modify([&](OpenView& view, beast::Journal j) {
                 for (TransactionStatus& e : transactions)
@@ -2297,13 +2311,6 @@ NetworkOPsImp::getServerInfo(bool human, bool admin, bool counters)
     if (counters)
     {
         info[jss::counters] = app_.getPerfLog().countersJson();
-
-        Json::Value nodestore(Json::objectValue);
-        if (app_.getShardStore())
-            app_.getShardStore()->getCountsJson(nodestore);
-        else
-            app_.getNodeStore().getCountsJson(nodestore);
-        info[jss::counters][jss::nodestore] = nodestore;
         info[jss::current_activities] = app_.getPerfLog().currentJson();
     }
 

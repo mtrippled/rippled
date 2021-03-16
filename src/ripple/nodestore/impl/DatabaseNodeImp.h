@@ -103,7 +103,8 @@ public:
     }
 
     void
-    store(NodeObjectType type, Blob&& data, uint256 const& hash, std::uint32_t)
+    store(NodeObjectType type, Blob&& data, uint256 const& hash, std::uint32_t,
+          std::shared_ptr<perf::Tracer> const& tracer)
         override;
 
     bool isSameDB(std::uint32_t, std::uint32_t) override

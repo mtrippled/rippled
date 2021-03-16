@@ -34,38 +34,47 @@ shouldCloseLedger(
     std::chrono::milliseconds openTime,  // Time waiting to close this ledger
     std::chrono::milliseconds idleInterval,
     ConsensusParms const& parms,
-    beast::Journal j)
+    beast::Journal j,
+    std::shared_ptr<perf::Tracer> const& tracer)
 {
+    auto timer = perf::START_TIMER(tracer);
     using namespace std::chrono_literals;
     if ((prevRoundTime < -1s) || (prevRoundTime > 10min) ||
         (timeSincePrevClose > 10min))
     {
         // These are unexpected cases, we just close the ledger
-        JLOG(j.warn()) << "shouldCloseLedger Trans="
+        JLOG(j.warn()) << "shouldCloseLedger true Trans="
                        << (anyTransactions ? "yes" : "no")
                        << " Prop: " << prevProposers << "/" << proposersClosed
                        << " Secs: " << timeSincePrevClose.count()
                        << " (last: " << prevRoundTime.count() << ")";
+        perf::END_TIMER(tracer, timer);
         return true;
     }
 
     if ((proposersClosed + proposersValidated) > (prevProposers / 2))
     {
         // If more than half of the network has closed, we close
-        JLOG(j.trace()) << "Others have closed";
+        JLOG(j.debug()) << "shouldCloseLedger Others have closed";
+        perf::END_TIMER(tracer, timer);
         return true;
     }
 
     if (!anyTransactions)
     {
+        perf::END_TIMER(tracer, timer);
         // Only close at the end of the idle interval
+        JLOG(j.debug()) << "shouldCLoseLedger end of idle interval and no "
+                           "transactions";
         return timeSincePrevClose >= idleInterval;  // normal idle
     }
 
     // Preserve minimum ledger open time
     if (openTime < parms.ledgerMIN_CLOSE)
     {
-        JLOG(j.debug()) << "Must wait minimum time before closing";
+        JLOG(j.debug()) << "shouldCloseLedger Must wait minimum time before "
+                           "closing";
+        perf::END_TIMER(tracer, timer);
         return false;
     }
 
@@ -74,10 +83,14 @@ shouldCloseLedger(
     // the network
     if (openTime < (prevRoundTime / 2))
     {
-        JLOG(j.debug()) << "Ledger has not been open long enough";
+        JLOG(j.debug()) << "shouldCloseLedger Ledger has not been open long "
+                           "enough";
+        perf::END_TIMER(tracer, timer);
         return false;
     }
 
+    JLOG(j.debug()) << "shouldCloseLedger true";
+    perf::END_TIMER(tracer, timer);
     // Close the ledger
     return true;
 }
@@ -106,21 +119,22 @@ checkConsensusReached(
 
 ConsensusState
 checkConsensus(
-    std::size_t prevProposers,
-    std::size_t currentProposers,
-    std::size_t currentAgree,
-    std::size_t currentFinished,
-    std::chrono::milliseconds previousAgreeTime,
-    std::chrono::milliseconds currentAgreeTime,
+    std::size_t const prevProposers,
+    std::size_t const currentProposers,
+    std::size_t const currentAgree,
+    std::size_t const currentFinished,
+    std::chrono::milliseconds const previousAgreeTime,
+    std::chrono::milliseconds const currentAgreeTime,
     ConsensusParms const& parms,
-    bool proposing,
+    bool const proposing,
     beast::Journal j)
 {
-    JLOG(j.trace()) << "checkConsensus: prop=" << currentProposers << "/"
+    JLOG(j.debug()) << "checkConsensus: prop=" << currentProposers << "/"
                     << prevProposers << " agree=" << currentAgree
                     << " validated=" << currentFinished
                     << " time=" << currentAgreeTime.count() << "/"
-                    << previousAgreeTime.count();
+                    << previousAgreeTime.count() << " proposing?: "
+                    << proposing;
 
     if (currentAgreeTime <= parms.ledgerMIN_CONSENSUS)
         return ConsensusState::No;

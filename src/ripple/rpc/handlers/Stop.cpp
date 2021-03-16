@@ -32,7 +32,8 @@ struct JsonContext;
 Json::Value
 doStop(RPC::JsonContext& context)
 {
-    std::unique_lock lock{context.app.getMasterMutex()};
+//    std::unique_lock lock{*context.app.getMasterMutex()};
+    perf::unique_lock lock(*context.app.getMasterMutex(), FILE_LINE);
     context.app.signalStop();
 
     return RPC::makeObjectValue(systemName() + " server stopping");

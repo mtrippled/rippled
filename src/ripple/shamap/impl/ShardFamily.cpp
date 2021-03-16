@@ -104,7 +104,7 @@ ShardFamily::getTreeNodeCacheSize()
 }
 
 void
-ShardFamily::sweep()
+ShardFamily::sweep(std::shared_ptr<perf::Tracer> const& tracer)
 {
     {
         std::lock_guard lock(fbCacheMutex_);

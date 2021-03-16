@@ -36,6 +36,8 @@
 
 namespace ripple {
 
+class Application;
+
 class PerfLog_test : public beast::unit_test::suite
 {
     enum class WithFile : bool { no = false, yes = true };
@@ -102,8 +104,9 @@ class PerfLog_test : public beast::unit_test::suite
         {
             perf::PerfLog::Setup const setup{
                 withFile == WithFile::no ? "" : logFile(), logInterval()};
+            Application* app = nullptr;
             return perf::make_PerfLog(
-                setup, j_, [this]() { return signalStop(); });
+                setup, j_, [this]() { return signalStop(); }, app);
         }
 
         // Block until the log file has grown in size, indicating that the
@@ -135,7 +138,10 @@ class PerfLog_test : public beast::unit_test::suite
         }
     };
 
-    // Return a uint64 from a JSON string.
+    //------------------------------------------------------------------------------
+
+    // Convenience function to return a uint64 given a Json::Value containing
+    // a string.
     static std::uint64_t
     jsonToUint64(Json::Value const& jsonUintAsString)
     {

@@ -878,17 +878,21 @@ SHAMap::fetchRoot(SHAMapHash const& hash, SHAMapSyncFilter* filter)
           first call SHAMapTreeNode::unshare().
  */
 std::shared_ptr<SHAMapTreeNode>
-SHAMap::writeNode(NodeObjectType t, std::shared_ptr<SHAMapTreeNode> node) const
+SHAMap::writeNode(NodeObjectType t, std::shared_ptr<SHAMapTreeNode> node,
+    std::shared_ptr<perf::Tracer> const& tracer) const
 {
     assert(node->cowid() == 0);
     assert(backed_);
 
-    canonicalize(node->getHash(), node);
+    canonicalize(node->getHash(), node, tracer);
 
     Serializer s;
     node->serializeWithPrefix(s);
+    auto timer = perf::START_TIMER(tracer);
     f_.db().store(
-        t, std::move(s.modData()), node->getHash().as_uint256(), ledgerSeq_);
+        t, std::move(s.modData()), node->getHash().as_uint256(), ledgerSeq_,
+        tracer);
+    perf::END_TIMER(tracer, timer);
     return node;
 }
 
@@ -920,14 +924,16 @@ SHAMap::unshare()
 }
 
 int
-SHAMap::flushDirty(NodeObjectType t)
+SHAMap::flushDirty(NodeObjectType t,
+                   std::shared_ptr<perf::Tracer> const& tracer)
 {
     // We only write back if this map is backed.
-    return walkSubTree(backed_, t);
+    return walkSubTree(backed_, t, tracer);
 }
 
 int
-SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
+SHAMap::walkSubTree(bool doWrite, NodeObjectType t,
+                    std::shared_ptr<perf::Tracer> const& tracer)
 {
     assert(!doWrite || backed_);
 
@@ -984,8 +990,9 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
                 if (child && (child->cowid() != 0))
                 {
                     // This is a node that needs to be flushed
-
+                    auto label = perf::START_TIMER(tracer);
                     child = preFlushNode(std::move(child));
+                    perf::END_TIMER(tracer, label);
 
                     if (child->isInner())
                     {
@@ -1009,7 +1016,7 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
                         child->unshare();
 
                         if (doWrite)
-                            child = writeNode(t, std::move(child));
+                            child = writeNode(t, std::move(child), tracer);
 
                         node->shareChild(branch, child);
                     }
@@ -1025,7 +1032,7 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
 
         if (doWrite)
             node = std::static_pointer_cast<SHAMapInnerNode>(
-                writeNode(t, std::move(node)));
+                writeNode(t, std::move(node), tracer));
 
         ++flushed;
 
@@ -1105,14 +1112,15 @@ SHAMap::cacheLookup(SHAMapHash const& hash) const
 void
 SHAMap::canonicalize(
     SHAMapHash const& hash,
-    std::shared_ptr<SHAMapTreeNode>& node) const
+    std::shared_ptr<SHAMapTreeNode>& node,
+    std::shared_ptr<perf::Tracer> const& tracer) const
 {
     assert(backed_);
     assert(node->cowid() == 0);
     assert(node->getHash() == hash);
 
     f_.getTreeNodeCache(ledgerSeq_)
-        ->canonicalize_replace_client(hash.as_uint256(), node);
+        ->canonicalize_replace_client(hash.as_uint256(), node, tracer);
 }
 
 void

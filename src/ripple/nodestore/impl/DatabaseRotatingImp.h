@@ -22,8 +22,13 @@
 
 #include <ripple/nodestore/DatabaseRotating.h>
 
+#include <ripple/shamap/FullBelowCache.h>
+
+
 namespace ripple {
 namespace NodeStore {
+
+//class FullBelowCache;
 
 class DatabaseRotatingImp : public DatabaseRotating
 {
@@ -67,7 +72,8 @@ public:
     }
 
     void
-    store(NodeObjectType type, Blob&& data, uint256 const& hash, std::uint32_t)
+    store(NodeObjectType type, Blob&& data, uint256 const& hash, std::uint32_t,
+          std::shared_ptr<perf::Tracer> const& tracer)
         override;
 
     void

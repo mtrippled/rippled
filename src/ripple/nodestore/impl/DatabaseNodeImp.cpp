@@ -29,7 +29,8 @@ DatabaseNodeImp::store(
     NodeObjectType type,
     Blob&& data,
     uint256 const& hash,
-    std::uint32_t)
+    std::uint32_t,
+    std::shared_ptr<perf::Tracer> const& tracer)
 {
     auto nObj = NodeObject::createObject(type, std::move(data), hash);
     backend_->store(nObj);
@@ -70,7 +71,6 @@ DatabaseNodeImp::fetchNodeObject(
         switch (status)
         {
             case ok:
-                ++fetchHitCount_;
                 if (nodeObject)
                 {
                     fetchSz_ += nodeObject->getData().size();
@@ -90,6 +90,7 @@ DatabaseNodeImp::fetchNodeObject(
     }
     else
     {
+        ++fetchCacheHitCount_;
         JLOG(j_.trace())
             << "DatabaseNodeImp::fetchNodeObject - record in cache";
     }

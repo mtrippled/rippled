@@ -20,6 +20,7 @@
 #ifndef RIPPLE_TX_APPLY_H_INCLUDED
 #define RIPPLE_TX_APPLY_H_INCLUDED
 
+#include <ripple/basics/Tracer.h>
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/core/Config.h>
 #include <ripple/ledger/View.h>
@@ -125,7 +126,8 @@ apply(
     OpenView& view,
     STTx const& tx,
     ApplyFlags flags,
-    beast::Journal journal);
+    beast::Journal journal,
+    std::shared_ptr<perf::Tracer> const& tracer = {});
 
 /** Enum class for return value from `applyTransaction`
 
@@ -154,7 +156,8 @@ applyTransaction(
     STTx const& tx,
     bool retryAssured,
     ApplyFlags flags,
-    beast::Journal journal);
+    beast::Journal journal,
+    std::shared_ptr<perf::Tracer> const& tracer = {});
 
 }  // namespace ripple
 

@@ -45,10 +45,14 @@ NodeFamily::NodeFamily(Application& app, CollectorManager& cm)
 }
 
 void
-NodeFamily::sweep()
+NodeFamily::sweep(std::shared_ptr<perf::Tracer> const& tracer)
 {
+    auto timer = perf::START_TIMER(tracer);
     fbCache_->sweep();
+    perf::END_TIMER(tracer, timer);
+    auto timer2 = perf::START_TIMER(tracer);
     tnCache_->sweep();
+    perf::END_TIMER(tracer, timer2);
 }
 
 void

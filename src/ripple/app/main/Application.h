@@ -45,6 +45,7 @@ class DatabaseShard;
 }  // namespace NodeStore
 namespace perf {
 class PerfLog;
+template <class Mutex> class mutex;
 }
 namespace RPC {
 class ShardArchiveHandler;
@@ -115,7 +116,7 @@ public:
         other things
     */
     using MutexType = std::recursive_mutex;
-    virtual MutexType&
+    virtual perf::mutex<MutexType>*
     getMasterMutex() = 0;
 
 public:

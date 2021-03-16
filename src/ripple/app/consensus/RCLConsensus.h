@@ -38,6 +38,8 @@
 #include <atomic>
 #include <mutex>
 #include <set>
+#include <string>
+
 namespace ripple {
 
 class InboundTransactions;
@@ -95,6 +97,10 @@ class RCLConsensus
         using PeerPosition_t = RCLCxPeerPos;
 
         using Result = ConsensusResult<Adaptor>;
+
+        std::shared_ptr<perf::Tracer> tracer_ {
+            std::make_shared<perf::Tracer>(FILE_LINE)};
+        std::string startTimer_;
 
         Adaptor(
             Application& app,
