@@ -53,6 +53,9 @@ namespace bc = boost::container;
 */
 struct Peer
 {
+    std::shared_ptr<perf::Tracer> tracer_;
+    std::string startTimer_;
+
     /** Basic wrapper of a proposed position taken by a peer.
 
         For real consensus, this would add additional data for serialization

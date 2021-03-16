@@ -265,7 +265,7 @@ Logs::toString(LogSeverity s)
     switch (s)
     {
         case lsTRACE:
-            return "Trace";
+            return "Tracer";
         case lsDEBUG:
             return "Debug";
         case lsINFO:
