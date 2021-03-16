@@ -666,6 +666,9 @@ Consensus<Adaptor>::startRoundInternal(
     ConsensusMode mode)
 {
     phase_ = ConsensusPhase::open;
+    perf::END_TIMER(adaptor_.tracer_, adaptor_.startTimer_);
+    adaptor_.tracer_.reset(new perf::Tracer(FILE_LINE));
+    adaptor_.startTimer_ = perf::START_TIMER(adaptor_.tracer_);
     mode_.set(mode, adaptor_);
     now_ = now;
     prevLedgerID_ = prevLedgerID;
@@ -813,6 +816,21 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
 {
+//    auto label = perf::START_TIMER(adaptor_.tracer_);
+//    perf::Tracer tracer = perf::TRACER;
+//    std::shared_ptr<perf::Tracer> tracerPtr = perf::TRACER_PTR;
+//    perf::Tracer tracerRender = perf::TRACER_RENDER;
+//    std::shared_ptr<perf::Tracer> tracerRenderPtr = perf::TRACER_RENDER_PTR;
+//    perf::Tracer tracerMutex = perf::TRACER_MUTEX(FILE_LINE, perf::uniqueId());
+//    std::unique_ptr<perf::Tracer> tracerMutexPtr =
+//        perf::TRACER_MUTEX_PTR(FILE_LINE, perf::uniqueId());
+//    perf::Tracer tracerMutexRender = perf::TRACER_MUTEX_RENDER(FILE_LINE, perf::uniqueId());
+//    std::unique_ptr<perf::Tracer> tracerMutexRenderPtr =
+//        perf::TRACER_MUTEX_RENDER_PTR(FILE_LINE, perf::uniqueId());
+
+//    auto timer = perf::startTimer(tracerRender, FILE_LINE);
+//    perf::endTimer(tracerRender, timer);
+
     // Nothing to do if we are currently working on a ledger
     if (phase_ == ConsensusPhase::accepted)
         return;
@@ -1290,6 +1308,8 @@ Consensus<Adaptor>::phaseEstablish()
     prevProposers_ = currPeerPositions_.size();
     prevRoundTime_ = result_->roundTime.read();
     phase_ = ConsensusPhase::accepted;
+    perf::END_TIMER(adaptor_.tracer_, adaptor_.startTimer_);
+    adaptor_.startTimer_ = perf::START_TIMER(adaptor_.tracer_);
     adaptor_.onAccept(
         *result_,
         previousLedger_,
@@ -1307,6 +1327,8 @@ Consensus<Adaptor>::closeLedger()
     assert(!result_);
 
     phase_ = ConsensusPhase::establish;
+    perf::END_TIMER(adaptor_.tracer_, adaptor_.startTimer_);
+    adaptor_.startTimer_ = perf::START_TIMER(adaptor_.tracer_);
     rawCloseTimes_.self = now_;
 
     result_.emplace(adaptor_.onClose(previousLedger_, now_, mode_.get()));

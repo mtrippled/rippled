@@ -771,7 +771,8 @@ RCLConsensus::Adaptor::buildLCL(
             app_,
             retriableTxs,
             failedTxs,
-            j_);
+            j_,
+            tracer_);
     }();
 
     // Update fee computations based on accepted txs
