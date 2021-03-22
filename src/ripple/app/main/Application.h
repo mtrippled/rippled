@@ -43,7 +43,7 @@ namespace NodeStore {
 class Database;
 class DatabaseShard;
 }  // namespace NodeStore
-namespace perf {
+namespace perf_orig {
 class PerfLog;
 }
 namespace RPC {
@@ -213,7 +213,7 @@ public:
     getOrderBookDB() = 0;
     virtual TransactionMaster&
     getMasterTransaction() = 0;
-    virtual perf::PerfLog&
+    virtual perf_orig::PerfLog&
     getPerfLog() = 0;
 
     virtual std::pair<PublicKey, SecretKey> const&

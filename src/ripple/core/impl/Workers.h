@@ -30,7 +30,7 @@
 
 namespace ripple {
 
-namespace perf {
+namespace perf_orig {
 class PerfLog;
 }
 
@@ -71,7 +71,7 @@ public:
     */
     explicit Workers(
         Callback& callback,
-        perf::PerfLog* perfLog,
+        perf_orig::PerfLog* perfLog,
         std::string const& threadNames = "Worker",
         int numberOfThreads =
             static_cast<int>(std::thread::hardware_concurrency()));
@@ -176,7 +176,7 @@ private:
 
 private:
     Callback& m_callback;
-    perf::PerfLog* perfLog_;
+    perf_orig::PerfLog* perfLog_;
     std::string m_threadNames;     // The name to give each thread
     std::condition_variable m_cv;  // signaled when all threads paused
     std::mutex m_mut;

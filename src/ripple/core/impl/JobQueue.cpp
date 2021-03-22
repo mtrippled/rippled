@@ -28,7 +28,7 @@ JobQueue::JobQueue(
     Stoppable& parent,
     beast::Journal journal,
     Logs& logs,
-    perf::PerfLog& perfLog)
+    perf_orig::PerfLog& perfLog)
     : Stoppable("JobQueue", parent)
     , m_journal(journal)
     , m_lastJob(0)

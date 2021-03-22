@@ -35,7 +35,7 @@ namespace ripple {
  * Dummy class for unit tests.
  */
 
-namespace perf {
+namespace perf_orig {
 
 class PerfLogTest : public PerfLog
 {
@@ -102,7 +102,7 @@ class PerfLogTest : public PerfLog
     }
 };
 
-}  // namespace perf
+}  // namespace perf_orig
 
 //------------------------------------------------------------------------------
 
@@ -132,8 +132,8 @@ public:
             std::to_string(tc2) + " -> " + std::to_string(tc3));
 
         TestCallback cb;
-        std::unique_ptr<perf::PerfLog> perfLog =
-            std::make_unique<perf::PerfLogTest>();
+        std::unique_ptr<perf_orig::PerfLog> perfLog =
+            std::make_unique<perf_orig::PerfLogTest>();
 
         Workers w(cb, perfLog.get(), "Test", tc1);
         BEAST_EXPECT(w.getNumberOfThreads() == tc1);

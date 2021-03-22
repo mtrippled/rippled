@@ -21,10 +21,8 @@
 #define RIPPLE_BASICS_PERFLOGIMP_H
 
 #include <ripple/basics/PerfLog.h>
-#include <ripple/basics/chrono.h>
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/core/Stoppable.h>
-#include <ripple/protocol/jss.h>
 #include <ripple/rpc/impl/Handler.h>
 #include <boost/asio/ip/host_name.hpp>
 #include <condition_variable>
@@ -40,7 +38,7 @@
 #include <vector>
 
 namespace ripple {
-namespace perf {
+namespace perf_orig {
 
 /** A box coupling data with a mutex for locking access to it. */
 template <typename T>
@@ -221,7 +219,7 @@ public:
     addEvent(PerfEvents const& event) override;
 };
 
-}  // namespace perf
+}  // namespace perf_orig
 }  // namespace ripple
 
 #endif  // RIPPLE_BASICS_PERFLOGIMP_H

@@ -23,8 +23,6 @@
 #include <ripple/beast/core/CurrentThreadName.h>
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/core/JobTypes.h>
-#include <ripple/json/json_writer.h>
-#include <ripple/json/to_string.h>
 #include <ripple/nodestore/DatabaseShard.h>
 #include <atomic>
 #include <cstdint>
@@ -40,7 +38,7 @@
 #include <utility>
 
 namespace ripple {
-namespace perf {
+namespace perf_orig {
 
 PerfLog* perfLog = nullptr;
 
@@ -320,21 +318,49 @@ PerfLogImp::report()
             perfEvents_.swap(perfEvents);
             lock.unlock();
 
+            std::map<std::string,
+                     std::pair<std::uint64_t, std::uint64_t>> aggregates;
+
             for (auto& trace : perfEvents)
             {
+                auto const& eventList = trace.second.getEvents();
+                // aggregate
+                auto const& begin = eventList.begin();
+                PerfEventType const& type = std::get<1>(begin->second);
+                {
+                    std::string const& name = std::get<0>(begin->second);
+                    std::uint64_t counter;
+
+                    if (eventList.size() == 1) // trap or aggregate
+                        counter = std::get<3>(begin->second);
+                    else // trace
+                        counter = std::get<3>(eventList.end()->second);
+                    auto agg = aggregates[name];
+                    ++agg.first;
+                    agg.second += counter;
+                }
+                if (type == PerfEventType::aggregate)
+                    break;
+                // otherwise, render each event
+
                 auto& entry = report[jss::entries].append(Json::objectValue);
                 entry[jss::type] = "trace";
                 entry[jss::time] = to_string(trace.second.getTime());
                 entry[jss::events] = Json::arrayValue;
-
                 auto& events = entry[jss::events];
-                for (auto& e : trace.second.getEvents())
+
+                for (auto& e : eventList)
                 {
+                    auto const& name = std::get<0>(e.second);
+                    auto const& type = std::get<1>(e.second);
+                    auto const& tid = std::get<2>(e.second);
+                    auto const& counter = std::get<3>(e.second);
+
                     Json::Value je = Json::objectValue;
 
                     je[jss::time] = to_string(e.first);
-                    je[jss::name] = std::get<0>(e.second);
-                    switch (std::get<1>(e.second))
+                    je[jss::name] = name;
+                    switch (type)
                     {
                         case PerfEventType::generic:
                             je[jss::type] = "generic";
@@ -344,21 +370,27 @@ PerfLogImp::report()
                             break;
                         case PerfEventType::end:
                             je[jss::type] = "end";
+                        case PerfEventType::aggregate:
+                        default:
+                            assert(false);
                     }
 #if BEAST_LINUX
-                    je[perf_jss::tid] = get<2>(e.second);
+                    je[perf_jss::tid] = tid;
 #else
                     std::stringstream ss;
-                    ss << std::get<2>(e.second);
+                    ss << tid;
                     je[jss::tid] = ss.str();
 #endif
-                    je[jss::counter] = std::to_string(std::get<3>(e.second));
+                    je[jss::counter] = std::to_string(counter);
 
                     events.append(je);
                 }
             }
         }
     }
+
+    // aggregates
+
 
     logFile_ << Json::Compact{std::move(report)} << std::endl;
 }
@@ -586,5 +618,5 @@ make_PerfLog(
         setup, parent, journal, std::move(signalStop), *app);
 }
 
-}  // namespace perf
+}  // namespace perf_orig
 }  // namespace ripple

@@ -20,15 +20,22 @@
 #ifndef RIPPLE_BASICS_PERFLOG_H
 #define RIPPLE_BASICS_PERFLOG_H
 
+#include <ripple/basics/chrono.h>
 #include <ripple/core/JobTypes.h>
 #include <ripple/json/json_value.h>
+#include <ripple/json/json_writer.h>
+#include <ripple/json/to_string.h>
+#include <ripple/protocol/jss.h>
+#include <boost/core/ignore_unused.hpp>
 #include <boost/filesystem.hpp>
 #include <chrono>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <string>
+#include <variant>
 
 #if BEAST_LINUX
 #include <sys/types.h>
@@ -44,20 +51,172 @@ class Journal;
 }
 
 namespace ripple {
-namespace perf {
-
-enum class PerfTraceType
-{
-    trace,
-    trap,
-    timer
-};
+namespace perf_orig {
 
 enum class PerfEventType
 {
     generic,
     start,
-    end
+    end,
+    timer,
+    aggregate
+};
+
+class Aggregate
+{
+protected:
+    std::string name_;
+    std::uint64_t counter_;
+
+    static void
+    aggregate(std::map<std::string, std::pair<std::uint64_t, std::uint64_t>>&
+        aggregates, std::string const& name, std::uint64_t const counter)
+    {
+        auto agg = aggregates[name];
+        ++agg.first;
+        agg.second += counter;
+    }
+
+public:
+    Aggregate(std::string const& name,
+              std::uint64_t const counter)
+        : name_(name)
+        , counter_(counter)
+    {}
+
+    virtual ~Aggregate() {}
+
+    virtual void
+    render(std::chrono::time_point<std::chrono::system_clock> const& time,
+           Json::Value& entry,
+        std::map<std::string,
+            std::pair<std::uint64_t, std::uint64_t>>& aggregates)
+    {
+        boost::ignore_unused(time);
+        boost::ignore_unused(entry);
+        aggregate(aggregates, name_, counter_);
+    }
+};
+
+class Trap
+    : public Aggregate
+{
+protected:
+#if BEAST_LINUX
+    int pid_;
+#else
+    std::thread::id tid_;
+#endif
+
+public:
+    Trap(std::string const& name,
+        std::uint64_t const counter)
+        : Aggregate(name, counter)
+        , tid_(
+#if BEAST_LINUX
+        syscall(SYS_gettid)
+#else
+        std::this_thread::get_id()
+#endif
+           )
+    {}
+
+    void
+    render(std::chrono::time_point<std::chrono::system_clock> const& time,
+        Json::Value& entry,
+       std::map<std::string,
+            std::pair<std::uint64_t, std::uint64_t>>& aggregates) override
+    {
+        entry[jss::type] = "trap";
+        entry[jss::time] = to_string(time);
+        entry[jss::name] = name_;
+        entry[jss::counter] = std::to_string(counter_);
+        std::stringstream ss;
+        ss << tid_;
+        entry[jss::tid] = ss.str();
+
+        aggregate(aggregates, name_, counter_);
+    }
+};
+
+class Trace
+    : public Trap
+{
+private:
+    using Event = std::tuple<std::string,
+        PerfEventType,
+#if BEAST_LINUX
+        int,
+#else
+        std::thread::id,
+#endif
+        std::uint64_t>;
+    using Events = std::multimap<
+        std::chrono::time_point<std::chrono::system_clock>, Event>;
+    std::multimap<std::chrono::time_point<std::chrono::system_clock>,
+        Event> events_;
+    std::mutex mutex_;
+
+public:
+    void
+    render(std::chrono::time_point<std::chrono::system_clock> const& time,
+        Json::Value& entry,
+        std::map<std::string,
+            std::pair<std::uint64_t, std::uint64_t>>& aggregates) override
+    {
+        entry[jss::type] = "trace";
+        entry[jss::time] = to_string(time);
+        entry[jss::name] = name_;
+        entry[jss::counter] = std::to_string(counter_);
+        std::stringstream ss;
+        ss << tid_;
+        entry[jss::tid] = ss.str();
+
+        entry[jss::events] = Json::arrayValue;
+        auto& events = entry[jss::events];
+
+        for (auto const& e : events_)
+        {
+            auto const& name = std::get<0>(e.second);
+            auto const& type = std::get<1>(e.second);
+            auto const& tid = std::get<2>(e.second);
+            auto const& counter = std::get<3>(e.second);
+            Json::Value je = Json::objectValue;
+
+            je[jss::time] = to_string(e.first);
+            je[jss::name] = name;
+            je[jss::counter] = std::to_string(counter);
+#if BEAST_LINUX
+            je[perf_jss::tid] = tid;
+#else
+            std::stringstream ss;
+            ss << tid;
+            je[jss::tid] = ss.str();
+#endif
+            if (type == PerfEventType::timer)
+            {
+                je[jss::type] = "timer";
+                aggregate(aggregates, name, counter);
+            }
+            else
+            {
+                je[jss::type] = "generic";
+            }
+
+            events.append(je);
+        }
+
+        aggregate(aggregates, name_, counter_);
+    }
+};
+
+using Event = std::variant<Aggregate, Trap, Trace>;
+
+enum class PerfTraceType
+{
+    trace,
+    trap,
+    aggregate
 };
 
 class PerfEvents
@@ -114,6 +273,18 @@ public:
         add(std::chrono::system_clock::now(), name, type, counter);
     }
 
+    void
+    aggregate()
+    {
+        assert(events_.size() == 1);
+        auto entry = events_.begin();
+        auto& event = entry->second;
+        std::get<1>(event) = PerfEventType::aggregate;
+        std::get<3>(event) =
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::system_clock::now() - entry->first).count();
+    }
+
     std::chrono::time_point<std::chrono::system_clock> const&
     getTime() const
     {
@@ -148,7 +319,7 @@ public:
     using microseconds = std::chrono::microseconds;
 
     /**
-     * Configuration from [perf] section of rippled.cfg.
+     * Configuration from [perf_orig] section of rippled.cfg.
      */
     struct Setup
     {
@@ -244,7 +415,7 @@ public:
     resizeJobs(int const resize) = 0;
 
     /**
-     * Rotate perf log file
+     * Rotate perf_orig log file
      */
     virtual void
     rotate() = 0;
@@ -253,13 +424,13 @@ public:
     addEvent(PerfEvents const& event) = 0;
 };
 
-}  // namespace perf
+}  // namespace perf_orig
 
 class Section;
 class Stoppable;
 class Application;
 
-namespace perf {
+namespace perf_orig {
 
 PerfLog::Setup
 setup_PerfLog(Section const& section, boost::filesystem::path const& configDir);
@@ -274,7 +445,7 @@ make_PerfLog(
 
 extern PerfLog* perfLog;
 
-}  // namespace perf
+}  // namespace perf_orig
 }  // namespace ripple
 
 #endif  // RIPPLE_BASICS_PERFLOG_H

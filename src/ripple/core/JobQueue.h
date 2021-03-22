@@ -32,7 +32,7 @@
 
 namespace ripple {
 
-namespace perf {
+namespace perf_orig {
 class PerfLog;
 }
 
@@ -145,7 +145,7 @@ public:
         Stoppable& parent,
         beast::Journal journal,
         Logs& logs,
-        perf::PerfLog& perfLog);
+        perf_orig::PerfLog& perfLog);
     ~JobQueue();
 
     /** Adds a job to the JobQueue.
@@ -250,7 +250,7 @@ private:
     Job::CancelCallback m_cancelCallback;
 
     // Statistics tracking
-    perf::PerfLog& perfLog_;
+    perf_orig::PerfLog& perfLog_;
     beast::insight::Collector::ptr m_collector;
     beast::insight::Gauge job_count;
     beast::insight::Hook hook;

@@ -23,7 +23,7 @@
 #include <ripple/basics/PerfLog.h>
 
 namespace ripple {
-namespace perf {
+namespace perf_orig {
 
 class PerfTrace
 {
@@ -39,7 +39,7 @@ public:
     ~PerfTrace();
 
     PerfTrace(PerfTrace const& other)
-        : perfLog_(*perf::perfLog)
+        : perfLog_(*perf_orig::perfLog)
         , type_(other.type_)
         , events_(other.events_)
         , timers_(other.timers_)
@@ -79,21 +79,21 @@ private:
         std::chrono::time_point<std::chrono::system_clock>>
         timers_;
     std::mutex timersMutex_;
+    std::string name_;
 };
 
 //------------------------------------------------------------------------------
 
 PerfTrace::pointer
-makeTrace(std::string const& name, std::uint64_t const counter = 0);
+makeTrace(std::string const& name, std::uint64_t const counter = 0,
+          PerfTraceType type = PerfTraceType::trace);
 
 void
 sendTrap(std::string const& name, std::uint64_t const counter = 0);
 
-PerfTrace
-startTimer(std::string const& name, std::uint64_t const counter = 0);
-
 std::unique_ptr<PerfTrace>
-uniqueTrace(std::string const& name, std::uint64_t const counter = 0);
+uniqueTrace(std::string const& name, std::uint64_t const counter = 0,
+            PerfTraceType type = PerfTraceType::trace);
 
 template <class T>
 void
@@ -119,7 +119,7 @@ addTrace(T trace, std::string const& name, std::uint64_t const counter = 0)
         trace->add(name, counter);
 }
 
-} // perf
+} // perf_orig
 } // ripple
 
 #endif // RIPPLE_BASICS_PERFTRACE_H_INCLUDED

@@ -813,7 +813,7 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
 {
-    auto trace = perf::PerfTrace("timerEntry");
+    auto trace = perf_orig::PerfTrace("timerEntry");
     // Nothing to do if we are currently working on a ledger
     if (phase_ == ConsensusPhase::accepted)
         return;

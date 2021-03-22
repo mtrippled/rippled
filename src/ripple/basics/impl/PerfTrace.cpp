@@ -20,25 +20,23 @@
 #include <ripple/basics/PerfTrace.h>
 
 namespace ripple {
-namespace perf {
+namespace perf_orig {
 
 PerfTrace::PerfTrace(
     std::string const& name,
     std::uint64_t const counter,
     PerfTraceType type)
-    : perfLog_(*perf::perfLog), type_(type), events_(PerfEvents())
+    : perfLog_(*perf_orig::perfLog), type_(type), events_(PerfEvents())
 {
-    if (type_ != PerfTraceType::timer)
-        events_.add(events_.getTime(), name, PerfEventType::generic, counter);
-    else
-        start(name, events_.getTime());
+    events_.add(events_.getTime(), name, PerfEventType::generic, counter);
 }
 
 PerfTrace::~PerfTrace()
 {
     switch (type_)
     {
-        case PerfTraceType::trace: {
+        case PerfTraceType::trace:
+        {
             auto now = std::chrono::system_clock::now();
             events_.add(
                 now,
@@ -47,12 +45,15 @@ PerfTrace::~PerfTrace()
                 std::chrono::duration_cast<std::chrono::microseconds>(
                     now - events_.getEvents().begin()->first)
                     .count());
-        }
-        break;
-        case PerfTraceType::trap:
             break;
-        case PerfTraceType::timer:
-            end(timers_.begin()->first);
+        }
+        case PerfTraceType::aggregate:
+            events_.aggregate();
+        case PerfTraceType::trap:
+            assert(events_.getEvents().size() == 1);
+            break;
+        default:
+            assert(false);
     }
 
     perfLog_.addEvent(events_);
@@ -99,9 +100,10 @@ PerfTrace::end(std::string const& timer)
 //------------------------------------------------------------------------------
 
 PerfTrace::pointer
-makeTrace(std::string const& name, std::uint64_t const counter)
+makeTrace(std::string const& name, std::uint64_t const counter,
+          PerfTraceType type)
 {
-    return std::make_shared<PerfTrace>(name, counter, PerfTraceType::trace);
+    return std::make_shared<PerfTrace>(name, counter);
 }
 
 void
@@ -110,17 +112,12 @@ sendTrap(std::string const& name, std::uint64_t const counter)
     PerfTrace(name, counter, PerfTraceType::trap);
 }
 
-PerfTrace
-startTimer(std::string const& name, std::uint64_t const counter)
-{
-    return PerfTrace(name, counter, PerfTraceType::timer);
-}
-
 std::unique_ptr<PerfTrace>
-uniqueTrace(std::string const& name, std::uint64_t const counter)
+uniqueTrace(std::string const& name, std::uint64_t const counter,
+            PerfTraceType type)
 {
-    return std::make_unique<PerfTrace>(name, counter, PerfTraceType::trace);
+    return std::make_unique<PerfTrace>(name, counter, type);
 }
 
-} // perf
+} // perf_orig
 } // ripple

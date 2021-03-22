@@ -131,10 +131,10 @@ class PerfLog_test : public beast::unit_test::suite
             return std::chrono::milliseconds{10};
         }
 
-        static perf::PerfLog::Setup
+        static perf_orig::PerfLog::Setup
         getSetup(WithFile withFile)
         {
-            return perf::PerfLog::Setup{
+            return perf_orig::PerfLog::Setup{
                 withFile == WithFile::no
                     ? ""
                     : getPerfLogPath() / getPerfLogFileName(),
@@ -163,10 +163,10 @@ class PerfLog_test : public beast::unit_test::suite
     //------------------------------------------------------------------------------
 
     // Convenience function to return a PerfLog
-    std::unique_ptr<perf::PerfLog>
+    std::unique_ptr<perf_orig::PerfLog>
     getPerfLog(PerfLogParent& parent, WithFile withFile)
     {
-        return perf::make_PerfLog(
+        return perf_orig::make_PerfLog(
             parent.getSetup(withFile), parent, j_, [&parent]() {
                 return parent.signalStop();
             }, &env_.app());

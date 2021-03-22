@@ -161,7 +161,7 @@ public:
     std::unique_ptr<TimeKeeper> timeKeeper_;
 
     beast::Journal m_journal;
-    std::unique_ptr<perf::PerfLog> perfLog_;
+    std::unique_ptr<perf_orig::PerfLog> perfLog_;
     Application::MutexType m_masterMutex;
 
     // Required by the SHAMapStore
@@ -274,9 +274,9 @@ public:
         , m_journal(logs_->journal("Application"))
 
         // PerfLog must be started before any other threads are launched.
-        , perfLog_(perf::make_PerfLog(
-              perf::setup_PerfLog(
-                  config_->section("perf"),
+        , perfLog_(perf_orig::make_PerfLog(
+              perf_orig::setup_PerfLog(
+                  config_->section("perf_orig"),
                   config_->CONFIG_DIR),
               *this,
               logs_->journal("PerfLog"),
@@ -630,7 +630,7 @@ public:
         return m_txMaster;
     }
 
-    perf::PerfLog&
+    perf_orig::PerfLog&
     getPerfLog() override
     {
         return *perfLog_;

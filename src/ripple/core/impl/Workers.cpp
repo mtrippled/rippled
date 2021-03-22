@@ -26,7 +26,7 @@ namespace ripple {
 
 Workers::Workers(
     Callback& callback,
-    perf::PerfLog* perfLog,
+    perf_orig::PerfLog* perfLog,
     std::string const& threadNames,
     int numberOfThreads)
     : m_callback(callback)
