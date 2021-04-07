@@ -902,6 +902,7 @@ private:
         // Return canonical value, store if needed, refresh in cache
         // Return values: true=we had the data already
         perf::LOCK_GUARD_TRACER(m_mutex, tracer, lock);
+        auto label = perf::START_TIMER(tracer);
 
         auto cit = m_cache.find(key);
 
@@ -912,6 +913,7 @@ private:
                 std::forward_as_tuple(key),
                 std::forward_as_tuple(m_clock.now(), data));
             ++m_cache_count;
+            perf::END_TIMER(tracer, label);
             return false;
         }
 
@@ -930,8 +932,11 @@ private:
                 data = entry.ptr;
             }
 
+            perf::END_TIMER(tracer, label);
             return true;
         }
+        perf::END_TIMER(tracer, label);
+        label = perf::START_TIMER(tracer);
 
         auto cachedData = entry.lock();
 
@@ -949,6 +954,7 @@ private:
             }
 
             ++m_cache_count;
+            perf::END_TIMER(tracer, label);
             return true;
         }
 
@@ -956,6 +962,7 @@ private:
         entry.weak_ptr = data;
         ++m_cache_count;
 
+        perf::END_TIMER(tracer, label);
         return false;
     }
 
