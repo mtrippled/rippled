@@ -26,6 +26,7 @@
 #include <ripple/json/json_writer.h>
 #include <ripple/json/to_string.h>
 #include <ripple/nodestore/DatabaseShard.h>
+#include <ripple/overlay/Overlay.h>
 #include <atomic>
 #include <cstdint>
 #include <cstdlib>
@@ -517,6 +518,14 @@ PerfLogImp::report()
     report[jss::hostid] = hostname_;
     report[jss::counters] = counters_.countersJson();
     report[jss::current_activities] = counters_.currentJson();
+
+    report[jss::jq_trans_overflow] =
+        std::to_string(app_.overlay().getJqTransOverflow());
+    report[jss::peer_disconnects] =
+        std::to_string(app_.overlay().getPeerDisconnect());
+    report[jss::peer_disconnects_resources] =
+        std::to_string(app_.overlay().getPeerDisconnectCharges());
+
 
     /*
     std::vector<Timers> events;
