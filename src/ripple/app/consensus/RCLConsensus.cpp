@@ -451,6 +451,7 @@ RCLConsensus::Adaptor::doAccept(
     ConsensusMode const& mode,
     Json::Value&& consensusJson)
 {
+    auto label = perf::START_TIMER(tracer_);
     prevProposers_ = result.proposers;
     prevRoundTime_ = result.roundTime.read();
 
@@ -706,6 +707,7 @@ RCLConsensus::Adaptor::doAccept(
 
         app_.timeKeeper().adjustCloseTime(offset);
     }
+    perf::END_TIMER(tracer_, label);
 }
 
 void

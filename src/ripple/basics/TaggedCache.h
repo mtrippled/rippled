@@ -904,15 +904,19 @@ private:
         perf::LOCK_GUARD_TRACER(m_mutex, tracer, lock);
         auto label = perf::START_TIMER(tracer);
 
+        auto label2 = perf::START_TIMER(tracer);
         auto cit = m_cache.find(key);
+        perf::END_TIMER(tracer, label2);
 
         if (cit == m_cache.end())
         {
+            auto label3 = perf::START_TIMER(tracer);
             m_cache.emplace(
                 std::piecewise_construct,
                 std::forward_as_tuple(key),
                 std::forward_as_tuple(m_clock.now(), data));
             ++m_cache_count;
+            perf::END_TIMER(tracer, label3);
             perf::END_TIMER(tracer, label);
             return false;
         }
