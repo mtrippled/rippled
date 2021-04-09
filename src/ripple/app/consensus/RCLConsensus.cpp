@@ -451,7 +451,7 @@ RCLConsensus::Adaptor::doAccept(
     ConsensusMode const& mode,
     Json::Value&& consensusJson)
 {
-    auto label = perf::START_TIMER(tracer_);
+    auto timer = perf::START_TIMER(tracer_);
     prevProposers_ = result.proposers;
     prevRoundTime_ = result.roundTime.read();
 
@@ -496,6 +496,7 @@ RCLConsensus::Adaptor::doAccept(
 
     JLOG(j_.debug()) << "Building canonical tx set: " << retriableTxs.key();
 
+    auto timer2 = perf::START_TIMER(tracer_);
     for (auto const& item : *result.txns.map_)
     {
         try
@@ -510,6 +511,7 @@ RCLConsensus::Adaptor::doAccept(
             JLOG(j_.warn()) << "    Tx: " << item.key() << " throws!";
         }
     }
+    perf::END_TIMER(tracer_, timer2);
 
     auto built = buildLCL(
         prevLedger,
@@ -520,6 +522,7 @@ RCLConsensus::Adaptor::doAccept(
         result.roundTime.read(),
         failed);
 
+    auto timer3 = perf::START_TIMER(tracer_);
     auto const newLCLHash = built.id();
     JLOG(j_.debug()) << "Built ledger #" << built.seq() << ": " << newLCLHash;
 
@@ -707,7 +710,8 @@ RCLConsensus::Adaptor::doAccept(
 
         app_.timeKeeper().adjustCloseTime(offset);
     }
-    perf::END_TIMER(tracer_, label);
+    perf::END_TIMER(tracer_, timer3);
+    perf::END_TIMER(tracer_, timer);
 }
 
 void
