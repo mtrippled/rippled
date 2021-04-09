@@ -187,6 +187,7 @@ buildLedger(
     beast::Journal j,
     std::shared_ptr<perf::Tracer> const& tracer)
 {
+    auto timer = perf::START_TIMER(tracer);
     JLOG(j.debug()) << "Report: Transaction Set = " << txns.key() << ", close "
                     << closeTime.time_since_epoch().count()
                     << (closeTimeCorrect ? "" : " (incorrect)");
@@ -215,6 +216,7 @@ buildLedger(
         },
         tracer);
     JLOG(j.debug()) << "buildLedgerImpl 1 finish";
+    perf::END_TIMER(tracer, timer);
     return ret;
     /*
     return buildLedgerImpl(

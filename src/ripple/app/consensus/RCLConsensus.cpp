@@ -452,6 +452,7 @@ RCLConsensus::Adaptor::doAccept(
     Json::Value&& consensusJson)
 {
     auto timer = perf::START_TIMER(tracer_);
+    auto timer2 = perf::START_TIMER(tracer_);
     prevProposers_ = result.proposers;
     prevRoundTime_ = result.roundTime.read();
 
@@ -496,7 +497,6 @@ RCLConsensus::Adaptor::doAccept(
 
     JLOG(j_.debug()) << "Building canonical tx set: " << retriableTxs.key();
 
-    auto timer2 = perf::START_TIMER(tracer_);
     for (auto const& item : *result.txns.map_)
     {
         try
@@ -763,12 +763,15 @@ RCLConsensus::Adaptor::buildLCL(
     std::chrono::milliseconds roundTime,
     std::set<TxID>& failedTxs)
 {
+    auto timer = perf::START_TIMER(tracer_);
     std::shared_ptr<Ledger> built = [&]() {
+        auto timer2 = perf::START_TIMER(tracer_);
         if (auto const replayData = ledgerMaster_.releaseReplay())
         {
             assert(replayData->parent()->info().hash == previousLedger.id());
             return buildLedger(*replayData, tapNONE, app_, j_);
         }
+        perf::END_TIMER(tracer_, timer2);
         return buildLedger(
             previousLedger.ledger_,
             closeTime,
@@ -792,7 +795,10 @@ RCLConsensus::Adaptor::buildLCL(
         JLOG(j_.debug()) << "Consensus built ledger we were acquiring";
     else
         JLOG(j_.debug()) << "Consensus built new ledger";
-    return RCLCxLedger{std::move(built)};
+    auto ret = RCLCxLedger(std::move(built));
+    return ret;
+    perf::END_TIMER(tracer_, timer);
+//    return RCLCxLedger{std::move(built)};
 }
 
 void
