@@ -1274,6 +1274,7 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::phaseEstablish()
 {
+    auto timer = perf::START_TIMER(adaptor_.tracer_);
     // can only establish consensus if we already took a stance
     assert(result_);
 
@@ -1288,17 +1289,26 @@ Consensus<Adaptor>::phaseEstablish()
 
     // Give everyone a chance to take an initial position
     if (result_->roundTime.read() < parms.ledgerMIN_CONSENSUS)
+    {
+        perf::END_TIMER(adaptor_.tracer_, timer);
         return;
+    }
 
+    auto timer2 = perf::START_TIMER(adaptor_.tracer_);
     updateOurPositions();
+    perf::END_TIMER(adaptor_.tracer_, timer2);
 
     // Nothing to do if too many laggards or we don't have consensus.
     if (shouldPause() || !haveConsensus())
+    {
+        perf::END_TIMER(adaptor_.tracer_, timer);
         return;
+    }
 
     if (!haveCloseTimeConsensus_)
     {
         JLOG(j_.info()) << "We have TX consensus but not CT consensus";
+        perf::END_TIMER(adaptor_.tracer_, timer);
         return;
     }
 
@@ -1317,6 +1327,8 @@ Consensus<Adaptor>::phaseEstablish()
         rawCloseTimes_,
         mode_.get(),
         getJson(true));
+
+    perf::END_TIMER(adaptor_.tracer_, timer);
 }
 
 template <class Adaptor>
@@ -1329,6 +1341,7 @@ Consensus<Adaptor>::closeLedger()
     phase_ = ConsensusPhase::establish;
     perf::END_TIMER(adaptor_.tracer_, adaptor_.startTimer_);
     adaptor_.startTimer_ = perf::START_TIMER(adaptor_.tracer_);
+    auto timer = perf::START_TIMER(adaptor_.tracer_);
     rawCloseTimes_.self = now_;
 
     result_.emplace(adaptor_.onClose(previousLedger_, now_, mode_.get()));
@@ -1351,6 +1364,7 @@ Consensus<Adaptor>::closeLedger()
             createDisputes(it->second);
         }
     }
+    perf::END_TIMER(adaptor_.tracer_, timer);
 }
 
 /** How many of the participants must agree to reach a given threshold?

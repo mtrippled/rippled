@@ -438,7 +438,9 @@ RCLConsensus::Adaptor::onAccept(
                 rawCloseTimes,
                 mode,
                 std::move(cj));
+            auto timer = perf::START_TIMER(tracer_);
             this->app_.getOPs().endConsensus();
+            perf::END_TIMER(tracer_, timer);
         });
 }
 
