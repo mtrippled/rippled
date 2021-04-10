@@ -47,9 +47,8 @@ buildLedgerImpl(
     std::shared_ptr<perf::Tracer> const& tracer = {})
 {
 //    auto tracer = perf::TRACER_PTR;
-    auto label = perf::START_TIMER(tracer);
+    auto timer = perf::START_TIMER(tracer);
     auto built = std::make_shared<Ledger>(*parent, closeTime);
-    perf::END_TIMER(tracer, label);
 
     if (built->isFlagLedger() && built->rules().enabled(featureNegativeUNL))
     {
@@ -82,6 +81,7 @@ buildLedgerImpl(
     built->setAccepted(
         closeTime, closeResolution, closeTimeCorrect, app.config());
 
+    perf::END_TIMER(tracer, timer);
     return built;
 }
 
