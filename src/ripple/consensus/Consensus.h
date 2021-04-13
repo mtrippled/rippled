@@ -63,7 +63,8 @@ shouldCloseLedger(
     std::chrono::milliseconds openTime,
     std::chrono::milliseconds idleInterval,
     ConsensusParms const& parms,
-    beast::Journal j);
+    beast::Journal j,
+    std::shared_ptr<perf::Tracer> const& tracer = {});
 
 /** Determine whether the network reached consensus and whether we joined.
 
@@ -668,6 +669,7 @@ Consensus<Adaptor>::startRoundInternal(
     perf::END_TIMER(adaptor_.tracer_, adaptor_.startTimer_);
     adaptor_.tracer_.reset(new perf::Tracer(FILE_LINE));
     adaptor_.startTimer_ = perf::START_TIMER(adaptor_.tracer_);
+    auto timer = perf::START_TIMER(adaptor_.tracer_);
     mode_.set(mode, adaptor_);
     now_ = now;
     prevLedgerID_ = prevLedgerID;
@@ -694,6 +696,7 @@ Consensus<Adaptor>::startRoundInternal(
         // consider closing the ledger immediately
         timerEntry(now_);
     }
+    perf::END_TIMER(adaptor_.tracer_, timer);
 }
 
 template <class Adaptor>
@@ -1106,6 +1109,7 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::phaseOpen()
 {
+    auto timer = perf::START_TIMER(adaptor_.tracer_);
     using namespace std::chrono;
 
     // it is shortly before ledger close time
@@ -1139,6 +1143,7 @@ Consensus<Adaptor>::phaseOpen()
         2 * previousLedger_.closeTimeResolution());
 
     // Decide if we should close the ledger
+    perf::END_TIMER(adaptor_.tracer_, timer);
     if (shouldCloseLedger(
             anyTransactions,
             prevProposers_,
@@ -1334,13 +1339,13 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::closeLedger()
 {
+    auto timer = perf::START_TIMER(adaptor_.tracer_);
     // We should not be closing if we already have a position
     assert(!result_);
 
     phase_ = ConsensusPhase::establish;
     perf::END_TIMER(adaptor_.tracer_, adaptor_.startTimer_);
     adaptor_.startTimer_ = perf::START_TIMER(adaptor_.tracer_);
-    auto timer = perf::START_TIMER(adaptor_.tracer_);
     rawCloseTimes_.self = now_;
 
     result_.emplace(adaptor_.onClose(previousLedger_, now_, mode_.get()));

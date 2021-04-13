@@ -501,6 +501,7 @@ RCLConsensus::Adaptor::doAccept(
     }
     perf::END_TIMER(tracer_, timer2);
 
+    auto timer2_5 = perf::START_TIMER(tracer_);
     auto built = buildLCL(
         prevLedger,
         retriableTxs,
@@ -509,6 +510,7 @@ RCLConsensus::Adaptor::doAccept(
         closeResolution,
         result.roundTime.read(),
         failed);
+    perf::END_TIMER(tracer_, timer2_5);
 
     auto timer3 = perf::START_TIMER(tracer_);
     auto const newLCLHash = built.id();
@@ -516,10 +518,12 @@ RCLConsensus::Adaptor::doAccept(
 
     // Tell directly connected peers that we have a new LCL
     notify(protocol::neACCEPTED_LEDGER, built, haveCorrectLCL);
+    perf::END_TIMER(tracer_, timer3);
 
     // As long as we're in sync with the network, attempt to detect attempts
     // at censorship of transaction by tracking which ones don't make it in
     // after a period of time.
+    auto timer4 = perf::START_TIMER(tracer_);
     if (haveCorrectLCL && result.state == ConsensusState::Yes)
     {
         std::vector<TxID> accepted;
@@ -556,6 +560,8 @@ RCLConsensus::Adaptor::doAccept(
                 return false;
             });
     }
+    perf::END_TIMER(tracer_, timer4);
+    auto timer5 = perf::START_TIMER(tracer_);
 
     if (validating_)
         validating_ = ledgerMaster_.isCompatible(
@@ -573,9 +579,11 @@ RCLConsensus::Adaptor::doAccept(
     // See if we can accept a ledger as fully-validated
     ledgerMaster_.consensusBuilt(
         built.ledger_, result.txns.id(), std::move(consensusJson));
+    perf::END_TIMER(tracer_, timer5);
 
     //-------------------------------------------------------------------------
     {
+        auto timer6 = perf::START_TIMER(tracer_);
         // Apply disputed transactions that didn't get in
         //
         // The first crack of transactions to get into the new
@@ -619,12 +627,16 @@ RCLConsensus::Adaptor::doAccept(
                 }
             }
         }
+        perf::END_TIMER(tracer_, timer6);
+        auto timer7 = perf::START_TIMER(tracer_);
 
         // Build new open ledger
         std::unique_lock lock{app_.getMasterMutex(), std::defer_lock};
         std::unique_lock sl{ledgerMaster_.peekMutex(), std::defer_lock};
         std::lock(lock, sl);
+        perf::END_TIMER(tracer_, timer7);
 
+        auto timer8 = perf::START_TIMER(tracer_);
         auto const lastVal = ledgerMaster_.getValidatedLedger();
         boost::optional<Rules> rules;
         if (lastVal)
@@ -648,9 +660,11 @@ RCLConsensus::Adaptor::doAccept(
         // Signal a potential fee change to subscribers after the open ledger
         // is created
         app_.getOPs().reportFeeChange();
+        perf::END_TIMER(tracer_, timer8);
     }
 
     //-------------------------------------------------------------------------
+    auto timer9 = perf::START_TIMER(tracer_);
     {
         ledgerMaster_.switchLCL(built.ledger_);
 
@@ -658,11 +672,13 @@ RCLConsensus::Adaptor::doAccept(
         assert(ledgerMaster_.getClosedLedger()->info().hash == built.id());
         assert(app_.openLedger().current()->info().parentHash == built.id());
     }
+    perf::END_TIMER(tracer_, timer9);
 
     //-------------------------------------------------------------------------
     // we entered the round with the network,
     // see how close our close time is to other node's
     //  close time reports, and update our clock.
+    auto timer10 = perf::START_TIMER(tracer_);
     if ((mode == ConsensusMode::proposing ||
          mode == ConsensusMode::observing) &&
         !consensusFail)
@@ -698,7 +714,7 @@ RCLConsensus::Adaptor::doAccept(
 
         app_.timeKeeper().adjustCloseTime(offset);
     }
-    perf::END_TIMER(tracer_, timer3);
+    perf::END_TIMER(tracer_, timer10);
     perf::END_TIMER(tracer_, timer);
 }
 
