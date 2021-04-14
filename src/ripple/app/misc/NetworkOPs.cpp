@@ -957,9 +957,13 @@ NetworkOPsImp::setClusterTimer()
 void
 NetworkOPsImp::processHeartbeatTimer()
 {
+    auto tracer = perf::TRACER_PTR;
     JLOG(m_journal.debug()) << "processHeartbeatTimer";
     {
+        auto timer = perf::START_TIMER(tracer);
         std::unique_lock lock{app_.getMasterMutex()};
+        perf::END_TIMER(tracer, timer);
+        auto timer2 = perf::START_TIMER(tracer);
 
         // VFALCO NOTE This is for diagnosing a crash on exit
         LoadManager& mgr(app_.getLoadManager());
@@ -980,11 +984,13 @@ NetworkOPsImp::processHeartbeatTimer()
 
             // MasterMutex lock need not be held to call setHeartbeatTimer()
             lock.unlock();
+            perf::END_TIMER(tracer, timer2);
             // We do not call mConsensus.timerEntry until there are enough
             // peers providing meaningful inputs to consensus
             setHeartbeatTimer();
             return;
         }
+        auto timer3 = perf::START_TIMER(tracer);
 
         if (mMode == OperatingMode::DISCONNECTED)
         {
@@ -999,8 +1005,10 @@ NetworkOPsImp::processHeartbeatTimer()
             setMode(OperatingMode::SYNCING);
         else if (mMode == OperatingMode::CONNECTED)
             setMode(OperatingMode::CONNECTED);
+        perf::END_TIMER(tracer, timer3);
     }
 
+    auto timer4 = perf::START_TIMER(tracer);
     mConsensus.timerEntry(app_.timeKeeper().closeTime());
 
     const ConsensusPhase currPhase = mConsensus.phase();
@@ -1010,6 +1018,7 @@ NetworkOPsImp::processHeartbeatTimer()
         mLastConsensusPhase = currPhase;
     }
 
+    perf::END_TIMER(tracer, timer4);
     setHeartbeatTimer();
 }
 
