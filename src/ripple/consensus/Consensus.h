@@ -818,21 +818,7 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
 {
-//    auto label = perf::START_TIMER(adaptor_.tracer_);
-//    perf::Tracer tracer = perf::TRACER;
-//    std::shared_ptr<perf::Tracer> tracerPtr = perf::TRACER_PTR;
-//    perf::Tracer tracerRender = perf::TRACER_RENDER;
-//    std::shared_ptr<perf::Tracer> tracerRenderPtr = perf::TRACER_RENDER_PTR;
-//    perf::Tracer tracerMutex = perf::TRACER_MUTEX(FILE_LINE, perf::uniqueId());
-//    std::unique_ptr<perf::Tracer> tracerMutexPtr =
-//        perf::TRACER_MUTEX_PTR(FILE_LINE, perf::uniqueId());
-//    perf::Tracer tracerMutexRender = perf::TRACER_MUTEX_RENDER(FILE_LINE, perf::uniqueId());
-//    std::unique_ptr<perf::Tracer> tracerMutexRenderPtr =
-//        perf::TRACER_MUTEX_RENDER_PTR(FILE_LINE, perf::uniqueId());
-
-//    auto timer = perf::startTimer(tracerRender, FILE_LINE);
-//    perf::endTimer(tracerRender, timer);
-
+    JLOG(j_.debug()) << "timerEntry 1" << to_string(phase_);
     // Nothing to do if we are currently working on a ledger
     if (phase_ == ConsensusPhase::accepted)
         return;
@@ -842,6 +828,7 @@ Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
     // Check we are on the proper ledger (this may change phase_)
     checkLedger();
 
+    JLOG(j_.debug()) << "timerEntry 2" << to_string(phase_);
     if (phase_ == ConsensusPhase::open)
     {
         phaseOpen();
@@ -850,6 +837,7 @@ Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
     {
         phaseEstablish();
     }
+    JLOG(j_.debug()) << "timerEntry 3" << to_string(phase_);
 }
 
 template <class Adaptor>
@@ -1278,6 +1266,7 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::phaseEstablish()
 {
+    JLOG(j_.debug()) << "phaseEstablish";
     auto timer = perf::START_TIMER(adaptor_.tracer_);
     // can only establish consensus if we already took a stance
     assert(result_);
@@ -1295,6 +1284,8 @@ Consensus<Adaptor>::phaseEstablish()
     if (result_->roundTime.read() < parms.ledgerMIN_CONSENSUS)
     {
         perf::END_TIMER(adaptor_.tracer_, timer);
+        JLOG(j_.debug()) << "phaseEstablish Give everyone a chance to take an "
+                            "initial position";
         return;
     }
 
@@ -1306,17 +1297,21 @@ Consensus<Adaptor>::phaseEstablish()
     if (shouldPause() || !haveConsensus())
     {
         perf::END_TIMER(adaptor_.tracer_, timer);
+        JLOG(j_.debug()) << "phaseEstablish either shouldPause or "
+                            "!haveConsensus";
         return;
     }
 
     if (!haveCloseTimeConsensus_)
     {
-        JLOG(j_.info()) << "We have TX consensus but not CT consensus";
+        JLOG(j_.info()) << "phaseEstablish We have TX consensus but not CT "
+                           "consensus";
         perf::END_TIMER(adaptor_.tracer_, timer);
         return;
     }
 
-    JLOG(j_.info()) << "Converge cutoff (" << currPeerPositions_.size()
+    JLOG(j_.info()) << "phaseEstablish Converge cutoff ("
+                    << currPeerPositions_.size()
                     << " participants)";
     adaptor_.updateOperatingMode(currPeerPositions_.size());
     prevProposers_ = currPeerPositions_.size();
