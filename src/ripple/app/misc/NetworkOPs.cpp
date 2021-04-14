@@ -918,6 +918,7 @@ NetworkOPsImp::setHeartbeatTimer()
     {
         heartbeatTimer_.expires_from_now(mConsensus.parms().ledgerGRANULARITY);
         heartbeatTimer_.async_wait(std::move(*optionalCountedHandler));
+        JLOG(m_journal.debug()) << "setHeartbeatTimer";
     }
 }
 
@@ -956,6 +957,7 @@ NetworkOPsImp::setClusterTimer()
 void
 NetworkOPsImp::processHeartbeatTimer()
 {
+    JLOG(m_journal.debug()) << "processHeartbeatTimer";
     {
         std::unique_lock lock{app_.getMasterMutex()};
 
