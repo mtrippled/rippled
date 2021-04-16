@@ -150,7 +150,8 @@ public:
         NodeObjectType type,
         Blob&& data,
         uint256 const& hash,
-        std::uint32_t ledgerSeq) override;
+        std::uint32_t ledgerSeq,
+        std::shared_ptr<perf::Tracer> const& tracer) override;
 
     void
     sync() override{};

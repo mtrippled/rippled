@@ -888,8 +888,11 @@ SHAMap::writeNode(NodeObjectType t, std::shared_ptr<SHAMapTreeNode> node,
 
     Serializer s;
     node->serializeWithPrefix(s);
+    auto timer = perf::START_TIMER(tracer);
     f_.db().store(
-        t, std::move(s.modData()), node->getHash().as_uint256(), ledgerSeq_);
+        t, std::move(s.modData()), node->getHash().as_uint256(), ledgerSeq_,
+        tracer);
+    perf::END_TIMER(tracer, timer);
     return node;
 }
 

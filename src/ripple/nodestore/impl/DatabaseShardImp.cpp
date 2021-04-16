@@ -1,4 +1,4 @@
-//------------------------------------------------------------------------------
+﻿//------------------------------------------------------------------------------
 /*
     This file is part of rippled: https://github.com/ripple/rippled
     Copyright (c) 2012, 2017 Ripple Labs Inc.
@@ -989,7 +989,8 @@ DatabaseShardImp::store(
     NodeObjectType type,
     Blob&& data,
     uint256 const& hash,
-    std::uint32_t ledgerSeq)
+    std::uint32_t ledgerSeq,
+    std::shared_ptr<perf::Tracer> const& tracer)
 {
     auto const shardIndex{seqToShardIndex(ledgerSeq)};
     std::shared_ptr<Shard> shard;

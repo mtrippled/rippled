@@ -800,8 +800,8 @@ RCLConsensus::Adaptor::buildLCL(
     else
         JLOG(j_.debug()) << "Consensus built new ledger";
     auto ret = RCLCxLedger(std::move(built));
-    return ret;
     perf::END_TIMER(tracer_, timer);
+    return ret;
 //    return RCLCxLedger{std::move(built)};
 }
 

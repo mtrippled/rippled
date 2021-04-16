@@ -105,16 +105,21 @@ DatabaseRotatingImp::store(
     NodeObjectType type,
     Blob&& data,
     uint256 const& hash,
-    std::uint32_t)
+    std::uint32_t,
+    std::shared_ptr<perf::Tracer> const& tracer)
 {
     auto nObj = NodeObject::createObject(type, std::move(data), hash);
 
+    auto timer = perf::START_TIMER(tracer);
     auto const backend = [&] {
         std::lock_guard lock(mutex_);
         return writableBackend_;
     }();
+    perf::END_TIMER(tracer, timer);
 
+    auto timer2 = perf::START_TIMER(tracer);
     backend->store(nObj);
+    perf::END_TIMER(tracer, timer2);
     storeStats(1, nObj->getData().size());
 }
 

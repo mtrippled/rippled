@@ -109,7 +109,8 @@ public:
         NodeObjectType type,
         Blob&& data,
         uint256 const& hash,
-        std::uint32_t ledgerSeq) = 0;
+        std::uint32_t ledgerSeq,
+        std::shared_ptr<perf::Tracer> const& tracer = {}) = 0;
 
     /* Check if two ledgers are in the same database
 

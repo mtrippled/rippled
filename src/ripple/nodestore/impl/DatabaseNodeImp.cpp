@@ -29,7 +29,8 @@ DatabaseNodeImp::store(
     NodeObjectType type,
     Blob&& data,
     uint256 const& hash,
-    std::uint32_t)
+    std::uint32_t,
+    std::shared_ptr<perf::Tracer> const& tracer)
 {
     auto nObj = NodeObject::createObject(type, std::move(data), hash);
     backend_->store(nObj);
