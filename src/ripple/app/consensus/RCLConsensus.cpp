@@ -561,25 +561,31 @@ RCLConsensus::Adaptor::doAccept(
             });
     }
     perf::END_TIMER(tracer_, timer4);
-    auto timer5 = perf::START_TIMER(tracer_);
 
+    auto timer5_1 = perf::START_TIMER(tracer_);
     if (validating_)
         validating_ = ledgerMaster_.isCompatible(
             *built.ledger_, j_.warn(), "Not validating");
+    perf::END_TIMER(tracer_, timer5_1);
 
+    auto timer5_2 = perf::START_TIMER(tracer_);
     if (validating_ && !consensusFail &&
         app_.getValidations().canValidateSeq(built.seq()))
     {
+        auto timer5_3 = perf::START_TIMER(tracer_);
         validate(built, result.txns, proposing);
         JLOG(j_.info()) << "CNF Val " << newLCLHash;
+        perf::END_TIMER(tracer_, timer5_3);
     }
     else
         JLOG(j_.info()) << "CNF buildLCL " << newLCLHash;
+    perf::END_TIMER(tracer_, timer5_2);
 
     // See if we can accept a ledger as fully-validated
+    auto timer5_4 = perf::START_TIMER(tracer_);
     ledgerMaster_.consensusBuilt(
         built.ledger_, result.txns.id(), std::move(consensusJson));
-    perf::END_TIMER(tracer_, timer5);
+    perf::END_TIMER(tracer_, timer5_4);
 
     //-------------------------------------------------------------------------
     {

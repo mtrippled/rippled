@@ -160,6 +160,10 @@ checkConsensus(
 
     // Have sufficient nodes on our UNL list moved on and reached the threshold
     // to declare consensus?
+    JLOG(j.debug()) << "checkConsensus seeing if reached. currentFinished,"
+                       "currentProposers, minCONSENSUS_PCT: "
+                    << currentFinished << ',' << currentProposers
+                    << ',' << parms.minCONSENSUS_PCT;
     if (checkConsensusReached(
             currentFinished, currentProposers, false, parms.minCONSENSUS_PCT))
     {
