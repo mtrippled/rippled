@@ -119,21 +119,22 @@ checkConsensusReached(
 
 ConsensusState
 checkConsensus(
-    std::size_t prevProposers,
-    std::size_t currentProposers,
-    std::size_t currentAgree,
-    std::size_t currentFinished,
-    std::chrono::milliseconds previousAgreeTime,
-    std::chrono::milliseconds currentAgreeTime,
+    std::size_t const prevProposers,
+    std::size_t const currentProposers,
+    std::size_t const currentAgree,
+    std::size_t const currentFinished,
+    std::chrono::milliseconds const previousAgreeTime,
+    std::chrono::milliseconds const currentAgreeTime,
     ConsensusParms const& parms,
-    bool proposing,
+    bool const proposing,
     beast::Journal j)
 {
-    JLOG(j.trace()) << "checkConsensus: prop=" << currentProposers << "/"
+    JLOG(j.debug()) << "checkConsensus: prop=" << currentProposers << "/"
                     << prevProposers << " agree=" << currentAgree
                     << " validated=" << currentFinished
                     << " time=" << currentAgreeTime.count() << "/"
-                    << previousAgreeTime.count();
+                    << previousAgreeTime.count() << " proposing?: "
+                    << proposing;
 
     if (currentAgreeTime <= parms.ledgerMIN_CONSENSUS)
         return ConsensusState::No;
@@ -160,10 +161,6 @@ checkConsensus(
 
     // Have sufficient nodes on our UNL list moved on and reached the threshold
     // to declare consensus?
-    JLOG(j.debug()) << "checkConsensus seeing if reached. currentFinished,"
-                       "currentProposers, minCONSENSUS_PCT: "
-                    << currentFinished << ',' << currentProposers
-                    << ',' << parms.minCONSENSUS_PCT;
     if (checkConsensusReached(
             currentFinished, currentProposers, false, parms.minCONSENSUS_PCT))
     {

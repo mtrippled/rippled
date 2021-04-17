@@ -766,8 +766,10 @@ public:
             clock_type::time_point const now(m_clock.now());
             clock_type::time_point when_expire;
 
-            perf::LOCK_GUARD(m_mutex, lock);
+            std::shared_ptr<perf::Tracer> tracer;
+            perf::LOCK_GUARD_TRACER(m_mutex, tracer, lock);
 
+            auto timer = perf::START_TIMER(tracer);
             if (m_target_size == 0 ||
                 (static_cast<int>(m_cache.size()) <= m_target_size))
             {
@@ -788,7 +790,9 @@ public:
                     << (now - when_expire).count() << " of "
                     << m_target_age.count();
             }
+            perf::END_TIMER(tracer, timer);
 
+            auto timer2 = perf::START_TIMER(tracer);
             stuffToSweep.reserve(m_cache.size());
 
             auto cit = m_cache.begin();
@@ -833,11 +837,12 @@ public:
                     ++cit;
                 }
             }
+            perf::END_TIMER(tracer, timer2);
         }
 
         if (mapRemovals || cacheRemovals)
         {
-            JLOG(m_journal.trace())
+            JLOG(m_journal.debug()) << "sweep "
                 << m_name << ": cache = " << m_cache.size() << "-"
                 << cacheRemovals << ", map-=" << mapRemovals;
         }
