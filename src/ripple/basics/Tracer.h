@@ -60,6 +60,7 @@ public:
         : timers_(std::chrono::steady_clock::now(), label, {}, {}, {},
                   render, {})
     {
+        assert(label.size());
 //        Json::Value tag{Json::objectValue};
 //        timers_.timer.tag.toJson(tag);
 //        std::cerr << "Tracer1: " << Json::Compact{std::move(tag)} << '\n';
@@ -71,6 +72,7 @@ public:
         : timers_(std::chrono::steady_clock::now(), label, mutexTag.first,
                   mutexTag.second, {}, render, {})
     {
+        assert(label.size());
 //        Json::Value tag{Json::objectValue};
 //        timers_.timer.tag.toJson(tag);
 //        std::cerr << "Tracer2: " << Json::Compact{std::move(tag)} << '\n';

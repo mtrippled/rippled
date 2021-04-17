@@ -766,7 +766,7 @@ public:
             clock_type::time_point const now(m_clock.now());
             clock_type::time_point when_expire;
 
-            std::shared_ptr<perf::Tracer> tracer;
+            auto tracer = perf::TRACER_PTR;
             perf::LOCK_GUARD_TRACER(m_mutex, tracer, lock);
 
             auto timer = perf::START_TIMER(tracer);
