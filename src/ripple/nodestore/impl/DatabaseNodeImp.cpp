@@ -90,6 +90,7 @@ DatabaseNodeImp::fetchNodeObject(
     }
     else
     {
+        ++fetchCacheHitCount_;
         JLOG(j_.trace())
             << "DatabaseNodeImp::fetchNodeObject - record in cache";
     }

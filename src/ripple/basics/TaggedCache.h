@@ -851,6 +851,7 @@ public:
         // and decrement the reference count on each strong pointer.
     }
 
+    /*
     bool
     del(const key_type& key, bool valid)
     {
@@ -879,6 +880,7 @@ public:
 
         return ret;
     }
+     */
 
     /** Replace aliased objects with originals.
 
@@ -1062,6 +1064,7 @@ public:
         @param key The key to refresh.
         @return `true` if the key was found and the object is cached.
     */
+    /*
     bool
     refreshIfPresent(const key_type& key)
     {
@@ -1103,6 +1106,7 @@ public:
 
         return found;
     }
+     */
 
     mutex_type&
     peekMutex()

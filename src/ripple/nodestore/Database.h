@@ -200,6 +200,12 @@ public:
     }
 
     std::uint64_t
+    getFetchCacheHitCount() const
+    {
+        return fetchCacheHitCount_;
+    }
+
+    std::uint64_t
     getStoreSize() const
     {
         return storeSz_;
@@ -242,6 +248,7 @@ protected:
 
     std::atomic<std::uint32_t> fetchHitCount_{0};
     std::atomic<std::uint32_t> fetchSz_{0};
+    std::atomic<std::uint64_t> fetchCacheHitCount_{0};
 
     void
     stopReadThreads();

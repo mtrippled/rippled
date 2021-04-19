@@ -392,6 +392,7 @@ JSS(no_ripple_peer);             // out: AccountLines
 JSS(node);                       // out: LedgerEntry
 JSS(node_binary);                // out: LedgerEntry
 JSS(node_read_bytes);            // out: GetCounts
+JSS(node_reads_cache_hit);
 JSS(node_read_errors);           // out: GetCounts
 JSS(node_read_retries);          // out: GetCounts
 JSS(node_reads_hit);             // out: GetCounts
