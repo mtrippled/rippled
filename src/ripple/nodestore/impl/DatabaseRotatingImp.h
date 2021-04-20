@@ -22,8 +22,13 @@
 
 #include <ripple/nodestore/DatabaseRotating.h>
 
+#include <ripple/shamap/FullBelowCache.h>
+
+
 namespace ripple {
 namespace NodeStore {
+
+//class FullBelowCache;
 
 class DatabaseRotatingImp : public DatabaseRotating
 {

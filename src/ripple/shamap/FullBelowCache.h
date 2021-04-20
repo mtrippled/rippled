@@ -137,8 +137,14 @@ public:
         m_gen = 1;
     }
 
+    void
+    rotate()
+    {
+        m_cache.rotate();
+    }
+
 private:
-    KeyCache<Key> m_cache;
+    KeyCacheRotating<Key> m_cache;
     std::atomic<std::uint32_t> m_gen;
 };
 
