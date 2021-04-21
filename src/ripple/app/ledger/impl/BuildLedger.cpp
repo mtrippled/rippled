@@ -46,7 +46,6 @@ buildLedgerImpl(
     ApplyTxs&& applyTxs,
     std::shared_ptr<perf::Tracer> const& tracer = {})
 {
-//    auto tracer = perf::TRACER_PTR;
     auto timer = perf::START_TIMER(tracer);
     auto built = std::make_shared<Ledger>(*parent, closeTime);
 
@@ -59,27 +58,43 @@ buildLedgerImpl(
     //   perform updates, extract changes
 
     {
+        auto timer2 = perf::START_TIMER(tracer);
         OpenView accum(&*built);
+        perf::END_TIMER(tracer, timer2);
         assert(!accum.open());
+        auto timer3 = perf::START_TIMER(tracer);
         applyTxs(accum, built);
+        perf::END_TIMER(tracer, timer3);
+        auto timer4 = perf::START_TIMER(tracer);
         accum.apply(*built);
+        perf::END_TIMER(tracer, timer4);
     }
 
+    auto timer5 = perf::START_TIMER(tracer);
     built->updateSkipList();
+    perf::END_TIMER(tracer, timer5);
     {
         // Write the final version of all modified SHAMap
         // nodes to the node store to preserve the new LCL
 
+        auto timer6 = perf::START_TIMER(tracer);
         int const asf = built->stateMap().flushDirty(hotACCOUNT_NODE, tracer);
+        perf::END_TIMER(tracer, timer6);
+        auto timer7 = perf::START_TIMER(tracer);
         int const tmf = built->txMap().flushDirty(hotTRANSACTION_NODE, tracer);
+        perf::END_TIMER(tracer, timer7);
         JLOG(j.debug()) << "Flushed " << asf << " accounts and " << tmf
                         << " transaction nodes";
     }
+    auto timer8 = perf::START_TIMER(tracer);
     built->unshare();
+    perf::END_TIMER(tracer, timer8);
 
     // Accept ledger
+    auto timer9 = perf::START_TIMER(tracer);
     built->setAccepted(
         closeTime, closeResolution, closeTimeCorrect, app.config());
+    perf::END_TIMER(tracer, timer9);
 
     perf::END_TIMER(tracer, timer);
     return built;
