@@ -92,7 +92,7 @@ class SHAMapStore;
 
 class ReportingETL;
 
-using NodeCache = TaggedCache<SHAMapHash, Blob>;
+using NodeCache = TaggedCacheRotating<SHAMapHash, Blob>;
 
 template <class Adaptor>
 class Validations;
@@ -200,7 +200,7 @@ public:
     virtual InboundTransactions&
     getInboundTransactions() = 0;
 
-    virtual TaggedCache<uint256, AcceptedLedger>&
+    virtual TaggedCacheRotating<uint256, AcceptedLedger>&
     getAcceptedLedgerCache() = 0;
 
     virtual LedgerMaster&

@@ -465,8 +465,14 @@ SHAMapStoreImp::run()
                     savedState.lastRotated = lastRotated;
                     state_db_.setState(savedState);
 
-                    clearCaches(validatedSeq);
+//                    clearCaches(validatedSeq);
                     fullBelowCache_->rotate();
+                    app_.getNodeFamily().getTreeNodeCache(0)->rotate();
+                    app_.getMasterTransaction().getCache().rotate();
+                    app_.getLedgerMaster().rotate();
+                    app_.getTempNodeCache().rotate();
+                    app_.getAcceptedLedgerCache().rotate();
+                    app_.cachedSLEs().rotate();
 
                     return std::move(newBackend);
                 });
@@ -661,10 +667,12 @@ SHAMapStoreImp::clearCaches(LedgerIndex validatedSeq)
 void
 SHAMapStoreImp::freshenCaches()
 {
+    /*
     if (freshenCache(*treeNodeCache_))
         return;
     if (freshenCache(app_.getMasterTransaction().getCache()))
         return;
+        */
 }
 
 void

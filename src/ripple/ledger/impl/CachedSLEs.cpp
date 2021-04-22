@@ -25,6 +25,7 @@ namespace ripple {
 void
 CachedSLEs::expire()
 {
+    /*
     std::vector<std::shared_ptr<void const>> trash;
     {
         auto const expireTime = map_.clock().now() - timeToLive_;
@@ -42,6 +43,7 @@ CachedSLEs::expire()
             }
         }
     }
+     */
 }
 
 double

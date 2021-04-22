@@ -82,12 +82,13 @@ public:
     void
     sweep(void);
 
-    TaggedCache<uint256, Transaction>&
+    TaggedCacheRotating<uint256, Transaction>&
     getCache();
+
 
 private:
     Application& mApp;
-    TaggedCache<uint256, Transaction> mCache;
+    TaggedCacheRotating<uint256, Transaction> mCache;
 };
 
 }  // namespace ripple

@@ -84,6 +84,13 @@ public:
         m_consensus_validated.sweep();
     }
 
+    void
+    rotate()
+    {
+        m_ledgers_by_hash.rotate();
+        m_consensus_validated.rotate();
+    }
+
     /** Report that we have locally built a particular ledger */
     void
     builtLedger(
@@ -131,7 +138,7 @@ private:
     beast::insight::Collector::ptr collector_;
     beast::insight::Counter mismatch_counter_;
 
-    using LedgersByHash = TaggedCache<LedgerHash, Ledger const>;
+    using LedgersByHash = TaggedCacheRotating<LedgerHash, Ledger const>;
 
     LedgersByHash m_ledgers_by_hash;
 
@@ -150,7 +157,7 @@ private:
         // Consensus metadata of built ledger
         boost::optional<Json::Value> consensus;
     };
-    using ConsensusValidated = TaggedCache<LedgerIndex, cv_entry>;
+    using ConsensusValidated = TaggedCacheRotating<LedgerIndex, cv_entry>;
     ConsensusValidated m_consensus_validated;
 
     // Maps ledger indexes to the corresponding hash.

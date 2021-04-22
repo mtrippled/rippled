@@ -24,7 +24,7 @@
 
 namespace ripple {
 
-using TreeNodeCache = TaggedCacheTrace<uint256, SHAMapTreeNode>;
+using TreeNodeCache = TaggedCacheRotating<uint256, SHAMapTreeNode>;
 
 }  // namespace ripple
 

@@ -308,6 +308,13 @@ public:
     boost::optional<LedgerIndex>
     minSqlSeq();
 
+    void
+    rotate()
+    {
+        mLedgerHistory.rotate();
+        fetch_packs_.rotate();
+    }
+
 private:
     void
     setValidLedger(std::shared_ptr<Ledger const> const& l);
@@ -417,7 +424,7 @@ private:
 
     std::uint32_t const ledger_fetch_size_;
 
-    TaggedCache<uint256, Blob> fetch_packs_;
+    TaggedCacheRotating<uint256, Blob> fetch_packs_;
 
     std::uint32_t fetch_seq_{0};
 

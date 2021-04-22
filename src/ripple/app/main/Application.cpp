@@ -198,7 +198,7 @@ public:
     std::unique_ptr<InboundLedgers> m_inboundLedgers;
     std::unique_ptr<InboundTransactions> m_inboundTransactions;
     std::unique_ptr<LedgerReplayer> m_ledgerReplayer;
-    TaggedCache<uint256, AcceptedLedger> m_acceptedLedgerCache;
+    TaggedCacheRotating<uint256, AcceptedLedger> m_acceptedLedgerCache;
     std::unique_ptr<NetworkOPs> m_networkOPs;
     std::unique_ptr<Cluster> cluster_;
     std::unique_ptr<PeerReservationTable> peerReservations_;
@@ -610,7 +610,7 @@ public:
         return *m_inboundTransactions;
     }
 
-    TaggedCache<uint256, AcceptedLedger>&
+    TaggedCacheRotating<uint256, AcceptedLedger>&
     getAcceptedLedgerCache() override
     {
         return m_acceptedLedgerCache;
@@ -1274,44 +1274,47 @@ public:
         // VFALCO NOTE Does the order of calls matter?
         // VFALCO TODO fix the dependency inversion using an observer,
         //         have listeners register for "onSweep ()" notification.
-        auto timer = perf::START_TIMER(tracer);
-        nodeFamily_.sweep();
-        perf::END_TIMER(tracer, timer);
-        auto timer2 = perf::START_TIMER(tracer);
-        if (shardFamily_)
-            shardFamily_->sweep();
-        perf::END_TIMER(tracer, timer2);
-        auto timer3 = perf::START_TIMER(tracer);
-        getMasterTransaction().sweep();
-        perf::END_TIMER(tracer, timer3);
-        auto timer4 = perf::START_TIMER(tracer);
-        getNodeStore().sweep();
-        perf::END_TIMER(tracer, timer4);
-        auto timer5 = perf::START_TIMER(tracer);
-        if (shardStore_)
-            shardStore_->sweep();
-        perf::END_TIMER(tracer, timer5);
-        auto timer6 = perf::START_TIMER(tracer);
-        getLedgerMaster().sweep();
-        perf::END_TIMER(tracer, timer6);
-        auto timer7 = perf::START_TIMER(tracer);
-        getTempNodeCache().sweep();
-        perf::END_TIMER(tracer, timer7);
-        auto timer8 = perf::START_TIMER(tracer);
-        getValidations().expire();
-        perf::END_TIMER(tracer, timer8);
-        auto timer9 = perf::START_TIMER(tracer);
-        getInboundLedgers().sweep();
-        perf::END_TIMER(tracer, timer9);
-        auto timer10 = perf::START_TIMER(tracer);
-        getLedgerReplayer().sweep();
-        perf::END_TIMER(tracer, timer10);
-        auto timer11 = perf::START_TIMER(tracer);
-        m_acceptedLedgerCache.sweep();
-        perf::END_TIMER(tracer, timer11);
-        auto timer12 = perf::START_TIMER(tracer);
-        cachedSLEs_.expire();
-        perf::END_TIMER(tracer, timer12);
+        if (false)
+        {
+            auto timer = perf::START_TIMER(tracer);
+            nodeFamily_.sweep();
+            perf::END_TIMER(tracer, timer);
+            auto timer2 = perf::START_TIMER(tracer);
+            if (shardFamily_)
+                shardFamily_->sweep();
+            perf::END_TIMER(tracer, timer2);
+            auto timer3 = perf::START_TIMER(tracer);
+            getMasterTransaction().sweep();
+            perf::END_TIMER(tracer, timer3);
+            auto timer4 = perf::START_TIMER(tracer);
+            getNodeStore().sweep();
+            perf::END_TIMER(tracer, timer4);
+            auto timer5 = perf::START_TIMER(tracer);
+            if (shardStore_)
+                shardStore_->sweep();
+            perf::END_TIMER(tracer, timer5);
+            auto timer6 = perf::START_TIMER(tracer);
+            getLedgerMaster().sweep();
+            perf::END_TIMER(tracer, timer6);
+            auto timer7 = perf::START_TIMER(tracer);
+            getTempNodeCache().sweep();
+            perf::END_TIMER(tracer, timer7);
+            auto timer8 = perf::START_TIMER(tracer);
+            getValidations().expire();
+            perf::END_TIMER(tracer, timer8);
+            auto timer9 = perf::START_TIMER(tracer);
+            getInboundLedgers().sweep();
+            perf::END_TIMER(tracer, timer9);
+            auto timer10 = perf::START_TIMER(tracer);
+            getLedgerReplayer().sweep();
+            perf::END_TIMER(tracer, timer10);
+            auto timer11 = perf::START_TIMER(tracer);
+            m_acceptedLedgerCache.sweep();
+            perf::END_TIMER(tracer, timer11);
+            auto timer12 = perf::START_TIMER(tracer);
+            cachedSLEs_.expire();
+            perf::END_TIMER(tracer, timer12);
+        }
 
 #ifdef RIPPLED_REPORTING
         if (config().reporting())

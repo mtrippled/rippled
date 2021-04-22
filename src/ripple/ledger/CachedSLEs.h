@@ -23,6 +23,7 @@
 #include <ripple/basics/chrono.h>
 #include <ripple/beast/container/aged_unordered_map.h>
 #include <ripple/protocol/STLedgerEntry.h>
+#include <boost/core/ignore_unused.hpp>
 #include <memory>
 #include <mutex>
 
@@ -44,8 +45,12 @@ public:
     CachedSLEs(
         std::chrono::duration<Rep, Period> const& timeToLive,
         Stopwatch& clock)
-        : timeToLive_(timeToLive), map_(clock)
+//        : writableMap_(clock)
+//        , archiveMap_(clock)
+//        , tmpMap_(clock)
     {
+        boost::ignore_unused(timeToLive);
+        boost::ignore_unused(clock);
     }
 
     /** Discard expired entries.
@@ -68,11 +73,21 @@ public:
     {
         {
             std::lock_guard lock(mutex_);
-            auto iter = map_.find(digest);
-            if (iter != map_.end())
+            auto iter = writableMap_.find(digest);
+            if (iter == writableMap_.end())
+            {
+                iter = archiveMap_.find(digest);
+                if (iter != archiveMap_.end())
+                {
+                    ++hit_;
+//                    archiveMap_.touch(iter);
+                    return iter->second;
+                }
+            }
+            else
             {
                 ++hit_;
-                map_.touch(iter);
+//                writableMap_.touch(iter);
                 return iter->second;
             }
         }
@@ -81,9 +96,9 @@ public:
             return nullptr;
         std::lock_guard lock(mutex_);
         ++miss_;
-        auto const [it, inserted] = map_.emplace(digest, std::move(sle));
-        if (!inserted)
-            map_.touch(it);
+        auto const [it, inserted] = writableMap_.emplace(digest, std::move(sle));
+//        if (!inserted)
+//            writableMap_.touch(it);
         return it->second;
     }
 
@@ -91,17 +106,48 @@ public:
     double
     rate() const;
 
+    void
+    rotate()
+    {
+        hardened_hash_map<digest_type,
+                          value_type, hardened_hash<strong_hash>> tmp;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            archiveMap_.swap(tmp);
+            writableMap_.swap(tmp);
+        }
+    }
+
 private:
     std::size_t hit_ = 0;
     std::size_t miss_ = 0;
     std::mutex mutable mutex_;
-    Stopwatch::duration timeToLive_;
+//    Stopwatch::duration timeToLive_;
+    /*
     beast::aged_unordered_map<
         digest_type,
         value_type,
         Stopwatch::clock_type,
         hardened_hash<strong_hash>>
-        map_;
+        writableMap_;
+    beast::aged_unordered_map<
+        digest_type,
+        value_type,
+        Stopwatch::clock_type,
+        hardened_hash<strong_hash>>
+        archiveMap_;
+    beast::aged_unordered_map<
+        digest_type,
+        value_type,
+        Stopwatch::clock_type,
+        hardened_hash<strong_hash>>
+        tmpMap_;
+        */
+
+    hardened_hash_map<digest_type,
+        value_type, hardened_hash<strong_hash>> writableMap_;
+    hardened_hash_map<digest_type,
+        value_type, hardened_hash<strong_hash>> archiveMap_;
 };
 
 }  // namespace ripple
