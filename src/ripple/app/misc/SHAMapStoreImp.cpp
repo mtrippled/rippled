@@ -467,6 +467,7 @@ SHAMapStoreImp::run()
 
                     clearCaches(validatedSeq);
                     fullBelowCache_->rotate();
+                    app_.getNodeFamily().getTreeNodeCache(0)->rotate();
 
                     return std::move(newBackend);
                 });
