@@ -1603,7 +1603,7 @@ public:
 
     bool
     canonicalize_replace_client(const key_type& key, std::shared_ptr<T>& data,
-                                std::shared_ptr<perf::Tracer> const& tracer)
+        std::shared_ptr<perf::Tracer> const& tracer = {})
     {
         boost::ignore_unused(tracer);
         return canonicalize<false>(key, data);

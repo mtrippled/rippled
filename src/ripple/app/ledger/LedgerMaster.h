@@ -230,6 +230,10 @@ public:
     tune(int size, std::chrono::seconds age);
     void
     sweep();
+    void
+    rotate();
+    void
+    purge();
     float
     getCacheHitRate();
 
@@ -417,7 +421,7 @@ private:
 
     std::uint32_t const ledger_fetch_size_;
 
-    TaggedCache<uint256, Blob> fetch_packs_;
+    TaggedCacheRotating<uint256, Blob> fetch_packs_;
 
     std::uint32_t fetch_seq_{0};
 

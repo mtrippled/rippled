@@ -1852,6 +1852,20 @@ LedgerMaster::sweep()
     fetch_packs_.sweep();
 }
 
+void
+LedgerMaster::rotate()
+{
+    mLedgerHistory.rotate();
+    fetch_packs_.rotate();
+}
+
+void
+LedgerMaster::purge()
+{
+    mLedgerHistory.purge();
+    fetch_packs_.purge();
+}
+
 float
 LedgerMaster::getCacheHitRate()
 {

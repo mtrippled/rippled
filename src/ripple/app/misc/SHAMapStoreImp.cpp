@@ -443,7 +443,7 @@ SHAMapStoreImp::run()
             JLOG(journal_.debug())
                 << validatedSeq << " new backend " << newBackend->getName();
 
-            clearCaches(validatedSeq);
+//            clearCaches(validatedSeq);
             switch (health())
             {
                 case Health::stopping:
@@ -465,15 +465,17 @@ SHAMapStoreImp::run()
                     savedState.lastRotated = lastRotated;
                     state_db_.setState(savedState);
 
-                    clearCaches(validatedSeq);
+//                    clearCaches(validatedSeq);
                     fullBelowCache_->rotate();
                     app_.getNodeFamily().getTreeNodeCache(0)->rotate();
+                    app_.getLedgerMaster().rotate();
 
                     return std::move(newBackend);
                 });
 
             fullBelowCache_->purge();
             app_.getNodeFamily().getTreeNodeCache(0)->purge();
+            app_.getLedgerMaster().purge();
 
             JLOG(journal_.warn()) << "finished rotation " << validatedSeq;
         }
