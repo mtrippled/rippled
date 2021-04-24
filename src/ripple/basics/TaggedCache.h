@@ -1759,12 +1759,18 @@ public:
     void
     rotate()
     {
-        cache_type tmp;
-        {
-            std::lock_guard<mutex_type> lock(m_mutex);
-            writableCache_.swap(tmp);
-            archiveCache_.swap(tmp);
-        }
+        std::lock_guard<mutex_type> lock(m_mutex);
+        std::lock_guard<mutex_type> purgeLock(purgeMutex_);
+        assert(tmpCache_.empty());
+        writableCache_.swap(tmpCache_);
+        archiveCache_.swap(tmpCache_);
+    }
+
+    void
+    purge()
+    {
+        std::lock_guard<mutex_type> lock(purgeMutex_);
+        tmpCache_ = cache_type();
     }
 
 private:
@@ -1852,6 +1858,7 @@ private:
     Stats m_stats;
 
     mutex_type mutable m_mutex;
+    mutex_type mutable purgeMutex_;
 
     // Used for logging
     std::string m_name;
@@ -1866,6 +1873,7 @@ private:
     int m_cache_count;
     cache_type writableCache_;
     cache_type archiveCache_;
+    cache_type tmpCache_;
     std::uint64_t m_hits;
     std::uint64_t m_misses;
 };

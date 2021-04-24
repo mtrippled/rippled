@@ -379,9 +379,11 @@ public:
 
 private:
     Mutex mutable m_mutex;
+    Mutex mutable purgeMutex_;
     map_type m_map;
     map_type writableMap_;
     map_type archiveMap_;
+    map_type tmpMap_;
     Stats mutable m_stats;
     clock_type& m_clock;
     std::string const m_name;
@@ -570,12 +572,18 @@ public:
     void
     rotate()
     {
-        map_type tmp;
-        {
-            std::lock_guard<Mutex> lock(m_mutex);
-            archiveMap_.swap(tmp);
-            writableMap_.swap(tmp);
-        }
+        std::lock_guard<Mutex> lock(m_mutex);
+        std::lock_guard<Mutex> purgeLock(purgeMutex_);
+        assert(tmpMap_.empty());
+        writableMap_.swap(tmpMap_);
+        archiveMap_.swap(tmpMap_);
+    }
+
+    void
+        purge()
+    {
+        std::lock_guard<Mutex> purgeLock(purgeMutex_);
+        tmpMap_.clear();
     }
 
 private:

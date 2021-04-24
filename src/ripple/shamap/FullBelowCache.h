@@ -143,6 +143,12 @@ public:
         m_cache.rotate();
     }
 
+    void
+    purge()
+    {
+        m_cache.purge();
+    }
+
 private:
     KeyCacheRotating<Key> m_cache;
     std::atomic<std::uint32_t> m_gen;

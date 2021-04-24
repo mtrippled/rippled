@@ -472,6 +472,9 @@ SHAMapStoreImp::run()
                     return std::move(newBackend);
                 });
 
+            fullBelowCache_->purge();
+            app_.getNodeFamily().getTreeNodeCache(0)->purge();
+
             JLOG(journal_.warn()) << "finished rotation " << validatedSeq;
         }
     }
