@@ -198,7 +198,7 @@ public:
     std::unique_ptr<InboundLedgers> m_inboundLedgers;
     std::unique_ptr<InboundTransactions> m_inboundTransactions;
     std::unique_ptr<LedgerReplayer> m_ledgerReplayer;
-    TaggedCache<uint256, AcceptedLedger> m_acceptedLedgerCache;
+    TaggedCacheRotating<uint256, AcceptedLedger> m_acceptedLedgerCache;
     std::unique_ptr<NetworkOPs> m_networkOPs;
     std::unique_ptr<Cluster> cluster_;
     std::unique_ptr<PeerReservationTable> peerReservations_;
@@ -610,7 +610,7 @@ public:
         return *m_inboundTransactions;
     }
 
-    TaggedCache<uint256, AcceptedLedger>&
+    TaggedCacheRotating<uint256, AcceptedLedger>&
     getAcceptedLedgerCache() override
     {
         return m_acceptedLedgerCache;

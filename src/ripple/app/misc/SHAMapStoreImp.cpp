@@ -471,6 +471,7 @@ SHAMapStoreImp::run()
                     app_.getLedgerMaster().rotate();
                     app_.getMasterTransaction().getCache().rotate();
                     app_.getTempNodeCache().rotate();
+                    app_.getAcceptedLedgerCache().rotate();
 
                     return std::move(newBackend);
                 });
@@ -480,6 +481,7 @@ SHAMapStoreImp::run()
             app_.getLedgerMaster().purge();
             app_.getMasterTransaction().getCache().purge();
             app_.getTempNodeCache().purge();
+            app_.getAcceptedLedgerCache().purge();
 
             JLOG(journal_.warn()) << "finished rotation " << validatedSeq;
         }
