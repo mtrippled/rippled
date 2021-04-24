@@ -470,6 +470,7 @@ SHAMapStoreImp::run()
                     app_.getNodeFamily().getTreeNodeCache(0)->rotate();
                     app_.getLedgerMaster().rotate();
                     app_.getMasterTransaction().getCache().rotate();
+                    app_.getTempNodeCache().rotate();
 
                     return std::move(newBackend);
                 });
@@ -478,6 +479,7 @@ SHAMapStoreImp::run()
             app_.getNodeFamily().getTreeNodeCache(0)->purge();
             app_.getLedgerMaster().purge();
             app_.getMasterTransaction().getCache().purge();
+            app_.getTempNodeCache().purge();
 
             JLOG(journal_.warn()) << "finished rotation " << validatedSeq;
         }

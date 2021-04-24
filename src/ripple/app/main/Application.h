@@ -92,7 +92,7 @@ class SHAMapStore;
 
 class ReportingETL;
 
-using NodeCache = TaggedCache<SHAMapHash, Blob>;
+using NodeCache = TaggedCacheRotating<SHAMapHash, Blob>;
 
 template <class Adaptor>
 class Validations;
