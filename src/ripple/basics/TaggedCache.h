@@ -1760,9 +1760,11 @@ public:
     rotate()
     {
         cache_type tmp;
-        std::lock_guard<mutex_type> lock(m_mutex);
-        writableCache_.swap(tmp);
-        archiveCache_.swap(tmp);
+        {
+            std::lock_guard<mutex_type> lock(m_mutex);
+            writableCache_.swap(tmp);
+            archiveCache_.swap(tmp);
+        }
     }
 
 private:
