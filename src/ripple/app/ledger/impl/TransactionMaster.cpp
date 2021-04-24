@@ -158,7 +158,19 @@ TransactionMaster::sweep(void)
     mCache.sweep();
 }
 
-TaggedCache<uint256, Transaction>&
+void
+TransactionMaster::rotate()
+{
+    mCache.rotate();
+}
+
+void
+TransactionMaster::purge()
+{
+    mCache.purge();
+}
+
+TaggedCacheRotating<uint256, Transaction>&
 TransactionMaster::getCache()
 {
     return mCache;

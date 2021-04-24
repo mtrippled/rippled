@@ -423,8 +423,8 @@ SHAMapStoreImp::run()
             JLOG(journal_.debug()) << "copied ledger " << validatedSeq
                                    << " nodecount " << nodeCount;
 
-            JLOG(journal_.debug()) << "freshening caches";
-            freshenCaches();
+//            JLOG(journal_.debug()) << "freshening caches";
+//            freshenCaches();
             switch (health())
             {
                 case Health::stopping:
@@ -436,7 +436,7 @@ SHAMapStoreImp::run()
                 default:;
             }
             // Only log if we completed without a "health" abort
-            JLOG(journal_.debug()) << validatedSeq << " freshened caches";
+//            JLOG(journal_.debug()) << validatedSeq << " freshened caches";
 
             JLOG(journal_.trace()) << "Making a new backend";
             auto newBackend = makeBackendRotating();
@@ -469,6 +469,7 @@ SHAMapStoreImp::run()
                     fullBelowCache_->rotate();
                     app_.getNodeFamily().getTreeNodeCache(0)->rotate();
                     app_.getLedgerMaster().rotate();
+                    app_.getMasterTransaction().getCache().rotate();
 
                     return std::move(newBackend);
                 });
@@ -476,6 +477,7 @@ SHAMapStoreImp::run()
             fullBelowCache_->purge();
             app_.getNodeFamily().getTreeNodeCache(0)->purge();
             app_.getLedgerMaster().purge();
+            app_.getMasterTransaction().getCache().purge();
 
             JLOG(journal_.warn()) << "finished rotation " << validatedSeq;
         }
