@@ -21,6 +21,7 @@
 #define RIPPLE_LEDGER_CACHEDSLES_H_INCLUDED
 
 #include <ripple/basics/chrono.h>
+#include <ripple/basics/Tracer.h>
 #include <ripple/beast/container/aged_unordered_map.h>
 #include <ripple/protocol/STLedgerEntry.h>
 #include <memory>
@@ -66,6 +67,7 @@ public:
     value_type
     fetch(digest_type const& digest, Handler const& h)
     {
+        auto tracer = perf::TRACER;
         {
             std::lock_guard lock(mutex_);
             auto iter = map_.find(digest);
