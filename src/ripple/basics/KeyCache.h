@@ -381,7 +381,7 @@ public:
 private:
     Mutex mutable m_mutex;
     Mutex mutable purgeMutex_;
-    map_type m_map;
+//    map_type m_map;
     map_type writableMap_;
     map_type archiveMap_;
     map_type tmpMap_;
@@ -568,7 +568,63 @@ public:
     /** Remove stale entries from the cache. */
     void
     sweep()
-    {}
+    {
+        clock_type::time_point const now(m_clock.now());
+        clock_type::time_point when_expire;
+
+        std::lock_guard lock(m_mutex);
+
+        if (m_target_size == 0 || (writableMap_.size() + archiveMap_.size()
+                                   <= m_target_size))
+        {
+            when_expire = now - m_target_age;
+        }
+        else
+        {
+            when_expire = now - m_target_age * m_target_size /
+                    (writableMap_.size() + archiveMap_.size());
+
+            clock_type::duration const minimumAge(std::chrono::seconds(1));
+            if (when_expire > (now - minimumAge))
+                when_expire = now - minimumAge;
+        }
+
+        iterator it = writableMap_.begin();
+        while (it != writableMap_.end())
+        {
+            if (it->second.last_access > now)
+            {
+                it->second.last_access = now;
+                ++it;
+            }
+            else if (it->second.last_access <= when_expire)
+            {
+                it = writableMap_.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+
+        it = archiveMap_.begin();
+        while (it != archiveMap_.end())
+        {
+            if (it->second.last_access > now)
+            {
+                it->second.last_access = now;
+                ++it;
+            }
+            else if (it->second.last_access <= when_expire)
+            {
+                it = archiveMap_.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+    }
 
     void
     rotate()

@@ -1365,7 +1365,6 @@ public:
     void
     sweep()
     {
-        /*
         int cacheRemovals = 0;
         int mapRemovals = 0;
         int cc = 0;
@@ -1382,31 +1381,31 @@ public:
             std::lock_guard lock(m_mutex);
 
             if (m_target_size == 0 ||
-                (static_cast<int>(m_cache.size()) <= m_target_size))
+                (static_cast<int>(
+                     writableCache_.size() + archiveCache_.size()) <= m_target_size))
             {
                 when_expire = now - m_target_age;
             }
             else
             {
                 when_expire =
-                    now - m_target_age * m_target_size / m_cache.size();
+                    now - m_target_age * m_target_size / (writableCache_.size() + archiveCache_.size());
 
                 clock_type::duration const minimumAge(std::chrono::seconds(1));
                 if (when_expire > (now - minimumAge))
                     when_expire = now - minimumAge;
 
                 JLOG(m_journal.trace())
-                    << m_name << " is growing fast " << m_cache.size() << " of "
+                    << m_name << " is growing fast " << (writableCache_.size() + archiveCache_.size()) << " of "
                     << m_target_size << " aging at "
                     << (now - when_expire).count() << " of "
                     << m_target_age.count();
             }
 
-            stuffToSweep.reserve(m_cache.size());
+            stuffToSweep.reserve(writableCache_.size() + archiveCache_.size());
 
-            auto cit = m_cache.begin();
-
-            while (cit != m_cache.end())
+            auto cit = writableCache_.begin();
+            while (cit != writableCache_.end())
             {
                 if (cit->second.isWeak())
                 {
@@ -1414,7 +1413,7 @@ public:
                     if (cit->second.isExpired())
                     {
                         ++mapRemovals;
-                        cit = m_cache.erase(cit);
+                        cit = writableCache_.erase(cit);
                     }
                     else
                     {
@@ -1430,7 +1429,49 @@ public:
                     {
                         stuffToSweep.push_back(cit->second.ptr);
                         ++mapRemovals;
-                        cit = m_cache.erase(cit);
+                        cit = writableCache_.erase(cit);
+                    }
+                    else
+                    {
+                        // remains weakly cached
+                        cit->second.ptr.reset();
+                        ++cit;
+                    }
+                }
+                else
+                {
+                    // strong, not expired
+                    ++cc;
+                    ++cit;
+                }
+            }
+
+            cit = archiveCache_.begin();
+            while (cit != archiveCache_.end())
+            {
+                if (cit->second.isWeak())
+                {
+                    // weak
+                    if (cit->second.isExpired())
+                    {
+                        ++mapRemovals;
+                        cit = archiveCache_.erase(cit);
+                    }
+                    else
+                    {
+                        ++cit;
+                    }
+                }
+                else if (cit->second.last_access <= when_expire)
+                {
+                    // strong, expired
+                    --m_cache_count;
+                    ++cacheRemovals;
+                    if (cit->second.ptr.unique())
+                    {
+                        stuffToSweep.push_back(cit->second.ptr);
+                        ++mapRemovals;
+                        cit = archiveCache_.erase(cit);
                     }
                     else
                     {
@@ -1451,13 +1492,12 @@ public:
         if (mapRemovals || cacheRemovals)
         {
             JLOG(m_journal.trace())
-                << m_name << ": cache = " << m_cache.size() << "-"
+                << m_name << ": cache = " << (writableCache_.size() + archiveCache_.size()) << "-"
                 << cacheRemovals << ", map-=" << mapRemovals;
         }
 
         // At this point stuffToSweep will go out of scope outside the lock
         // and decrement the reference count on each strong pointer.
-         */
     }
 
     bool
