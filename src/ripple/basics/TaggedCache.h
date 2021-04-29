@@ -1402,7 +1402,7 @@ public:
                     << m_target_age.count();
             }
 
-            stuffToSweep.reserve(writableCache_.size() + archiveCache_.size());
+            stuffToSweep.reserve(writableCache_.size());
 
             auto cit = writableCache_.begin();
             while (cit != writableCache_.end())
@@ -1430,48 +1430,6 @@ public:
                         stuffToSweep.push_back(cit->second.ptr);
                         ++mapRemovals;
                         cit = writableCache_.erase(cit);
-                    }
-                    else
-                    {
-                        // remains weakly cached
-                        cit->second.ptr.reset();
-                        ++cit;
-                    }
-                }
-                else
-                {
-                    // strong, not expired
-                    ++cc;
-                    ++cit;
-                }
-            }
-
-            cit = archiveCache_.begin();
-            while (cit != archiveCache_.end())
-            {
-                if (cit->second.isWeak())
-                {
-                    // weak
-                    if (cit->second.isExpired())
-                    {
-                        ++mapRemovals;
-                        cit = archiveCache_.erase(cit);
-                    }
-                    else
-                    {
-                        ++cit;
-                    }
-                }
-                else if (cit->second.last_access <= when_expire)
-                {
-                    // strong, expired
-                    --m_cache_count;
-                    ++cacheRemovals;
-                    if (cit->second.ptr.unique())
-                    {
-                        stuffToSweep.push_back(cit->second.ptr);
-                        ++mapRemovals;
-                        cit = archiveCache_.erase(cit);
                     }
                     else
                     {

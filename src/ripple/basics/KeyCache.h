@@ -569,7 +569,6 @@ public:
     void
     sweep()
     {
-        return;
         clock_type::time_point const now(m_clock.now());
         clock_type::time_point when_expire;
 
@@ -601,24 +600,6 @@ public:
             else if (it->second.last_access <= when_expire)
             {
                 it = writableMap_.erase(it);
-            }
-            else
-            {
-                ++it;
-            }
-        }
-
-        it = archiveMap_.begin();
-        while (it != archiveMap_.end())
-        {
-            if (it->second.last_access > now)
-            {
-                it->second.last_access = now;
-                ++it;
-            }
-            else if (it->second.last_access <= when_expire)
-            {
-                it = archiveMap_.erase(it);
             }
             else
             {
