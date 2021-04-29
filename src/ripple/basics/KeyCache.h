@@ -569,6 +569,7 @@ public:
     void
     sweep()
     {
+        return;
         clock_type::time_point const now(m_clock.now());
         clock_type::time_point when_expire;
 
