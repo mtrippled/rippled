@@ -20,6 +20,7 @@
 #ifndef RIPPLE_BASICS_KEYCACHE_H_INCLUDED
 #define RIPPLE_BASICS_KEYCACHE_H_INCLUDED
 
+#include <ripple/basics/Log.h>
 #include <ripple/basics/UnorderedContainers.h>
 #include <ripple/basics/hardened_hash.h>
 #include <ripple/beast/clock/abstract_clock.h>
@@ -580,10 +581,13 @@ public:
     }
 
     void
-        purge()
+    purge(beast::Journal const& j)
     {
         std::lock_guard<Mutex> purgeLock(purgeMutex_);
+        std::size_t const before = tmpMap_.size();
         tmpMap_.clear();
+        JLOG(j.debug()) << "KeyCacheRotating tmp before, after:"
+                                << before << ',' << tmpMap_.size();
     }
 
 private:

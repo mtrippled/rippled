@@ -144,9 +144,9 @@ public:
     }
 
     void
-    purge()
+    purge(beast::Journal const& j)
     {
-        m_cache.purge();
+        m_cache.purge(j);
     }
 
 private:

@@ -1770,7 +1770,10 @@ public:
     purge()
     {
         std::lock_guard<mutex_type> lock(purgeMutex_);
+        std::size_t const before = tmpCache_.size();
         tmpCache_ = cache_type();
+        JLOG(m_journal.debug()) << "TaggedCacheRotating tmp before, after:"
+            << before << ',' << tmpCache_.size();
     }
 
 private:

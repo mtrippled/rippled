@@ -476,7 +476,7 @@ SHAMapStoreImp::run()
                     return std::move(newBackend);
                 });
 
-            fullBelowCache_->purge();
+            fullBelowCache_->purge(journal_);
             app_.getNodeFamily().getTreeNodeCache(0)->purge();
             app_.getLedgerMaster().purge();
             app_.getMasterTransaction().getCache().purge();
