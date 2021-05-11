@@ -29,8 +29,9 @@
 #include <mutex>
 #include <optional>
 #include <string_view>
+#include <system_error>
+#include <thread>
 #include <utility>
-
 
 namespace ripple {
 namespace perf {
@@ -132,7 +133,6 @@ class lock_guard
 {
 private:
     Mutex& mutex_;
-    std::string_view label_;
     std::shared_ptr<Tracer> tracer_;
     bool tracerFull_;
     Timers::Timer::Tag tracerTag_;
@@ -141,7 +141,6 @@ public:
     lock_guard(Mutex& mutex, std::string_view const& label,
                bool render = false, std::shared_ptr<Tracer> const& tracer = {})
         : mutex_(mutex)
-        , label_(label)
         , tracer_(tracer)
         , tracerFull_(tracer)
     {
@@ -168,7 +167,154 @@ public:
                 tracer_->endTimer(tracerTag_);
         }
     }
+
+    lock_guard(lock_guard const& other) = delete;
+    lock_guard& operator=(lock_guard const& other) = delete;
 };
+
+//------------------------------------------------------------------------------
+
+template <class Mutex>
+class unique_lock
+{
+    Mutex* mutex_{nullptr};
+    bool owns_;
+    std::shared_ptr<Tracer> tracer_;
+    Timers::Timer::Tag tracerTag_;
+    bool render_;
+
+    void
+    check()
+    {
+        if (!mutex_)
+        {
+            throw std::system_error(
+                std::make_error_code(std::errc::operation_not_permitted));
+        }
+        if (owns_)
+        {
+            throw std::system_error(
+                std::make_error_code(std::errc::resource_deadlock_would_occur));
+        }
+    }
+
+    void
+    startTimer(std::string_view const& label)
+    {
+        // Either append to an existing tracer object, or create a simple one.
+        auto const& tag = mutex_->tag();
+        if (!tracer_)
+            tracer_ = std::make_shared<Tracer>(label, tag, render_);
+        tracerTag_ = tracer_->startTimer(
+            Timers::Timer::Tag({label, tag.first, tag.second}));
+    }
+
+public:
+    unique_lock(Mutex& mutex, std::string_view const& label,
+        bool render = false, std::shared_ptr<Tracer> const& tracer = {})
+        : mutex_(&mutex)
+        , tracer_(tracer)
+        , render_(render)
+    {
+        lock(label);
+    }
+
+    unique_lock(Mutex& mutex, std::string_view const& label,
+        std::defer_lock_t, bool render = false,
+        std::shared_ptr<Tracer> const& tracer = {})
+        : mutex_(&mutex)
+        , owns_(false)
+        , tracer_(tracer)
+        , render_(render)
+    {}
+
+    ~unique_lock()
+    {
+        if (owns_)
+            unlock();
+    }
+
+    unique_lock(unique_lock const& other) = delete;
+    unique_lock& operator=(unique_lock const& other) = delete;
+
+    void
+    lock(std::string_view const& label)
+    {
+        check();
+
+        mutex_->lock();
+        owns_ = true;
+        startTimer(label);
+        // Either append to an existing tracer object, or create a simple one.
+    }
+
+    Mutex*
+    release() noexcept
+    {
+        Mutex* ret = mutex_;
+        mutex_ = nullptr;
+        owns_ = false;
+        return ret;
+    }
+
+    bool
+    try_lock(std::string_view const& label)
+    {
+        check();
+
+        owns_ = mutex_->try_lock();
+        if (owns_)
+            startTimer(label);
+        return owns_;
+    }
+
+    void
+    unlock()
+    {
+        if (!owns_)
+        {
+            throw std::system_error(
+                std::make_error_code(std::errc::operation_not_permitted));
+        }
+        if (!mutex_)
+            return;
+
+        mutex_->unlock();
+        owns_ = false;
+        if (tracerTag_.label.size())
+            tracer_->endTimer(tracerTag_);
+    }
+};
+
+//------------------------------------------------------------------------------
+
+template <class PerfLock, class StdLock>
+void
+lock(PerfLock& p, StdLock& s, std::string_view const& label)
+{
+    while (true)
+    {
+        {
+            p.lock(label);
+            std::unique_lock<PerfLock> u0(p, std::adopt_lock);
+            if (s.try_lock())
+            {
+                u0.release();
+                break;
+            }
+        }
+        std::this_thread::yield();
+        {
+            std::unique_lock<StdLock> u1(s);
+            if (p.try_lock(label))
+            {
+                u1.release();
+                break;
+            }
+        }
+        std::this_thread::yield();
+    }
+}
 
 //------------------------------------------------------------------------------
 

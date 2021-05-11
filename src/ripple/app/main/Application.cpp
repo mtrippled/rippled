@@ -161,7 +161,7 @@ public:
 
     beast::Journal m_journal;
     std::unique_ptr<perf::PerfLog> perfLog_;
-    Application::MutexType m_masterMutex;
+    perf::mutex<Application::MutexType> m_masterMutex{FILE_LINE};
 
     // Required by the SHAMapStore
     TransactionMaster m_txMaster;
@@ -713,10 +713,10 @@ public:
         return shardArchiveHandler_.get();
     }
 
-    Application::MutexType&
+    perf::mutex<Application::MutexType>*
     getMasterMutex() override
     {
-        return m_masterMutex;
+        return &m_masterMutex;
     }
 
     LoadManager&
