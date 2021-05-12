@@ -103,7 +103,8 @@ namespace {
 template <class MutexType>
 class ScopedUnlock
 {
-    std::unique_lock<MutexType>& lock_;
+    perf::unique_lock<perf::mutex<MutexType>>& lock_;
+//    std::unique_lock<MutexType>& lock_;
 
 public:
     /** Creates a ScopedUnlock.
@@ -116,7 +117,8 @@ public:
         otherwise there are no guarantees what will happen! Best just to use it
         as a local stack object, rather than creating on the heap.
     */
-    explicit ScopedUnlock(std::unique_lock<MutexType>& lock) : lock_(lock)
+//    explicit ScopedUnlock(std::unique_lock<MutexType>& lock) : lock_(lock)
+    explicit ScopedUnlock(perf::unique_lock<perf::mutex<MutexType>>& lock) : lock_(lock)
     {
         assert(lock_.owns_lock());
         lock_.unlock();
@@ -135,7 +137,8 @@ public:
     */
     ~ScopedUnlock() noexcept(false)
     {
-        lock_.lock();
+        lock_.lock(FILE_LINE);
+//        lock_.lock();
     }
 };
 
@@ -1275,7 +1278,8 @@ LedgerMaster::consensusBuilt(
 void
 LedgerMaster::advanceThread()
 {
-    std::unique_lock sl(m_mutex);
+    perf::unique_lock sl(m_mutex, FILE_LINE);
+//    std::unique_lock sl(m_mutex);
     assert(!mValidLedger.empty() && mAdvanceThread);
 
     JLOG(m_journal.trace()) << "advanceThread<";
@@ -1318,7 +1322,8 @@ LedgerMaster::getLedgerHashForHistory(
 
 std::vector<std::shared_ptr<Ledger const>>
 LedgerMaster::findNewLedgersToPublish(
-    std::unique_lock<std::recursive_mutex>& sl)
+    perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl)
+//    std::unique_lock<std::recursive_mutex>& sl)
 {
     std::vector<std::shared_ptr<Ledger const>> ret;
 
@@ -1556,7 +1561,8 @@ LedgerMaster::updatePaths(Job& job)
 bool
 LedgerMaster::newPathRequest()
 {
-    std::unique_lock ml(m_mutex);
+    perf::unique_lock ml(m_mutex, FILE_LINE);
+//    std::unique_lock ml(m_mutex);
     mPathFindNewRequest = newPFWork("pf:newRequest", ml);
     return mPathFindNewRequest;
 }
@@ -1575,7 +1581,8 @@ LedgerMaster::isNewPathRequest()
 bool
 LedgerMaster::newOrderBookDB()
 {
-    std::unique_lock ml(m_mutex);
+    perf::unique_lock ml(m_mutex, FILE_LINE);
+//    std::unique_lock ml(m_mutex);
     mPathLedger.reset();
 
     return newPFWork("pf:newOBDB", ml);
@@ -1586,7 +1593,8 @@ LedgerMaster::newOrderBookDB()
 bool
 LedgerMaster::newPFWork(
     const char* name,
-    std::unique_lock<std::recursive_mutex>&)
+    perf::unique_lock<perf::mutex<std::recursive_mutex>>&)
+//    std::unique_lock<std::recursive_mutex>&)
 {
     if (mPathFindThread < 2)
     {
@@ -1601,7 +1609,8 @@ LedgerMaster::newPFWork(
     return mPathFindThread > 0 && !isStopping();
 }
 
-std::recursive_mutex&
+//std::recursive_mutex&
+perf::mutex<std::recursive_mutex>&
 LedgerMaster::peekMutex()
 {
     return m_mutex;
@@ -1895,7 +1904,8 @@ LedgerMaster::fetchForHistory(
     std::uint32_t missing,
     bool& progress,
     InboundLedger::Reason reason,
-    std::unique_lock<std::recursive_mutex>& sl)
+    perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl)
+//    std::unique_lock<std::recursive_mutex>& sl)
 {
     ScopedUnlock sul{sl};
     if (auto hash = getLedgerHashForHistory(missing, reason))
@@ -2015,7 +2025,8 @@ LedgerMaster::fetchForHistory(
 
 // Try to publish ledgers, acquire missing ledgers
 void
-LedgerMaster::doAdvance(std::unique_lock<std::recursive_mutex>& sl)
+LedgerMaster::doAdvance(perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl)
+//LedgerMaster::doAdvance(std::unique_lock<std::recursive_mutex>& sl)
 {
     do
     {

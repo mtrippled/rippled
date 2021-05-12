@@ -248,6 +248,12 @@ public:
         // Either append to an existing tracer object, or create a simple one.
     }
 
+    bool
+    owns_lock() const noexcept
+    {
+        return owns_;
+    }
+
     Mutex*
     release() noexcept
     {
