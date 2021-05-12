@@ -44,6 +44,11 @@ public:
     {
     }
 
+    Payment(ApplyContext& ctx, std::shared_ptr<perf::Tracer> const& tracer)
+        : Transactor(ctx, tracer)
+    {
+    }
+
     static TxConsequences
     makeTxConsequences(PreflightContext const& ctx);
 

@@ -322,7 +322,7 @@ TxConsequences::TxConsequences(STTx const& tx, std::uint32_t sequencesConsumed)
 }
 
 static std::pair<TER, bool>
-invoke_apply(ApplyContext& ctx)
+invoke_apply(ApplyContext& ctx, std::shared_ptr<perf::Tracer> const& tracer = {})
 {
     switch (ctx.tx.getTxnType())
     {
@@ -493,7 +493,8 @@ calculateDefaultBaseFee(ReadView const& view, STTx const& tx)
 }
 
 std::pair<TER, bool>
-doApply(PreclaimResult const& preclaimResult, Application& app, OpenView& view)
+doApply(PreclaimResult const& preclaimResult, Application& app, OpenView& view,
+        std::shared_ptr<perf::Tracer> const& tracer)
 {
     if (preclaimResult.view.seq() != view.seq())
     {
@@ -513,7 +514,7 @@ doApply(PreclaimResult const& preclaimResult, Application& app, OpenView& view)
             calculateBaseFee(view, preclaimResult.tx),
             preclaimResult.flags,
             preclaimResult.j);
-        return invoke_apply(ctx);
+        return invoke_apply(ctx, tracer);
     }
     catch (std::exception const& e)
     {

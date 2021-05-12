@@ -87,6 +87,7 @@ class Transactor
 {
 protected:
     ApplyContext& ctx_;
+    std::shared_ptr<perf::Tracer> tracer_;
     beast::Journal const j_;
 
     AccountID const account_;
@@ -164,6 +165,8 @@ protected:
     apply();
 
     explicit Transactor(ApplyContext& ctx);
+
+    Transactor(ApplyContext& ctx, std::shared_ptr<perf::Tracer> const& tracer);
 
     virtual void
     preCompute();

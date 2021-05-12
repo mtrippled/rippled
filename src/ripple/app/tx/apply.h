@@ -125,7 +125,8 @@ apply(
     OpenView& view,
     STTx const& tx,
     ApplyFlags flags,
-    beast::Journal journal);
+    beast::Journal journal,
+    std::shared_ptr<perf::Tracer> const& tracer = {});
 
 /** Enum class for return value from `applyTransaction`
 
@@ -154,7 +155,8 @@ applyTransaction(
     STTx const& tx,
     bool retryAssured,
     ApplyFlags flags,
-    beast::Journal journal);
+    beast::Journal journal,
+    std::shared_ptr<perf::Tracer> const& tracer = {});
 
 }  // namespace ripple
 

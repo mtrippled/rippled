@@ -117,7 +117,8 @@ applyTransactions(
     CanonicalTXSet& txns,
     std::set<TxID>& failed,
     OpenView& view,
-    beast::Journal j)
+    beast::Journal j,
+    std::shared_ptr<perf::Tracer> const& tracer)
 {
     bool certainRetry = true;
     std::size_t count = 0;
@@ -144,7 +145,7 @@ applyTransactions(
                 }
 
                 switch (applyTransaction(
-                    app, view, *it->second, certainRetry, tapNONE, j))
+                    app, view, *it->second, certainRetry, tapNONE, j, tracer))
                 {
                     case ApplyResult::Success:
                         it = txns.erase(it);
@@ -220,7 +221,7 @@ buildLedger(
               << "Attempting to apply " << txns.size() << " transactions";
 
           auto const applied =
-              applyTransactions(app, built, txns, failedTxns, accum, j);
+              applyTransactions(app, built, txns, failedTxns, accum, j, tracer);
 
           if (!txns.empty() || !failedTxns.empty())
               JLOG(j.debug()) << "Applied " << applied << " transactions; "

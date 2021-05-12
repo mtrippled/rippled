@@ -136,6 +136,13 @@ Transactor::Transactor(ApplyContext& ctx)
 {
 }
 
+Transactor::Transactor(ApplyContext& ctx,
+                       std::shared_ptr<perf::Tracer> const& tracer)
+    : ctx_(ctx),  tracer_(tracer), j_(ctx.journal),
+    account_(ctx.tx.getAccountID(sfAccount))
+{
+}
+
 FeeUnit64
 Transactor::calculateBaseFee(ReadView const& view, STTx const& tx)
 {
@@ -755,6 +762,7 @@ Transactor::reset(XRPAmount fee)
 std::pair<TER, bool>
 Transactor::operator()()
 {
+    auto timer = perf::START_TIMER(tracer_);
     JLOG(j_.trace()) << "apply: " << ctx_.tx.getTransactionID();
 
     STAmountSO stAmountSO{view().rules().enabled(fixSTAmountCanonicalize)};
@@ -900,6 +908,7 @@ Transactor::operator()()
     JLOG(j_.trace()) << (applied ? "applied" : "not applied")
                      << transToken(result);
 
+    perf::END_TIMER(tracer_, timer);
     return {result, applied};
 }
 
