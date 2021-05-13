@@ -178,7 +178,7 @@ template <class Mutex>
 class unique_lock
 {
     Mutex* mutex_{nullptr};
-    bool owns_;
+    bool owns_{false};
     std::shared_ptr<Tracer> tracer_;
     Timers::Timer::Tag tracerTag_;
     bool render_;
@@ -223,7 +223,6 @@ public:
         std::defer_lock_t, bool render = false,
         std::shared_ptr<Tracer> const& tracer = {})
         : mutex_(&mutex)
-        , owns_(false)
         , tracer_(tracer)
         , render_(render)
     {}
@@ -241,7 +240,6 @@ public:
     lock(std::string_view const& label)
     {
         check();
-
         mutex_->lock();
         owns_ = true;
         startTimer(label);

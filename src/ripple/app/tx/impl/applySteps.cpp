@@ -324,6 +324,10 @@ TxConsequences::TxConsequences(STTx const& tx, std::uint32_t sequencesConsumed)
 static std::pair<TER, bool>
 invoke_apply(ApplyContext& ctx, std::shared_ptr<perf::Tracer> const& tracer = {})
 {
+    {
+        auto timer = perf::START_TIMER(tracer);
+        perf::END_TIMER(tracer, timer);
+    }
     switch (ctx.tx.getTxnType())
     {
         case ttACCOUNT_DELETE: {
@@ -383,7 +387,9 @@ invoke_apply(ApplyContext& ctx, std::shared_ptr<perf::Tracer> const& tracer = {}
             return p();
         }
         case ttPAYMENT: {
-            Payment p(ctx);
+            auto timer = perf::START_TIMER(tracer);
+            Payment p(ctx, tracer);
+            perf::END_TIMER(tracer, timer);
             return p();
         }
         case ttREGULAR_KEY_SET: {
@@ -498,14 +504,21 @@ doApply(PreclaimResult const& preclaimResult, Application& app, OpenView& view,
 {
     if (preclaimResult.view.seq() != view.seq())
     {
+        auto timer = perf::START_TIMER(tracer);
         // Logic error from the caller. Don't have enough
         // info to recover.
+        perf::END_TIMER(tracer, timer);
         return {tefEXCEPTION, false};
     }
     try
     {
         if (!preclaimResult.likelyToClaimFee)
+        {
+            auto timer = perf::START_TIMER(tracer);
+            perf::END_TIMER(tracer, timer);
             return {preclaimResult.ter, false};
+        }
+        auto timer = perf::START_TIMER(tracer);
         ApplyContext ctx(
             app,
             view,
@@ -514,11 +527,14 @@ doApply(PreclaimResult const& preclaimResult, Application& app, OpenView& view,
             calculateBaseFee(view, preclaimResult.tx),
             preclaimResult.flags,
             preclaimResult.j);
+        perf::END_TIMER(tracer, timer);
         return invoke_apply(ctx, tracer);
     }
     catch (std::exception const& e)
     {
+        auto timer = perf::START_TIMER(tracer);
         JLOG(preclaimResult.j.fatal()) << "apply: " << e.what();
+        perf::END_TIMER(tracer, timer);
         return {tefEXCEPTION, false};
     }
 }

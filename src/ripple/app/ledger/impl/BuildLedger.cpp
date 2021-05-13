@@ -120,6 +120,7 @@ applyTransactions(
     beast::Journal j,
     std::shared_ptr<perf::Tracer> const& tracer)
 {
+    auto timer = perf::START_TIMER(tracer);
     bool certainRetry = true;
     std::size_t count = 0;
 
@@ -187,6 +188,7 @@ applyTransactions(
     // If there are any transactions left, we must have
     // tried them in at least one final pass
     assert(txns.empty() || !certainRetry);
+    perf::END_TIMER(tracer, timer);
     return count;
 }
 
