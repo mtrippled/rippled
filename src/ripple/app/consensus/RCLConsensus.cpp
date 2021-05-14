@@ -652,6 +652,7 @@ RCLConsensus::Adaptor::doAccept(
             rules.emplace(*lastVal, app_.config().features);
         else
             rules.emplace(app_.config().features);
+        auto timer8_5 = perf::START_TIMER(tracer_);
         app_.openLedger().accept(
             app_,
             *rules,
@@ -663,8 +664,10 @@ RCLConsensus::Adaptor::doAccept(
             "consensus",
             [&](OpenView& view, beast::Journal j) {
                 // Stuff the ledger with transactions from the queue.
-                return app_.getTxQ().accept(app_, view);
-            });
+                return app_.getTxQ().accept(app_, view, tracer_);
+            },
+            tracer_);
+        perf::END_TIMER(tracer_, timer8_5);
 
         // Signal a potential fee change to subscribers after the open ledger
         // is created

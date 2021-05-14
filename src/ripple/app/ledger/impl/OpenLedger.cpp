@@ -77,7 +77,8 @@ OpenLedger::accept(
     OrderedTxs& retries,
     ApplyFlags flags,
     std::string const& suffix,
-    modify_type const& f)
+    modify_type const& f,
+    std::shared_ptr<perf::Tracer> const& tracer)
 {
     JLOG(j_.trace()) << "accept ledger " << ledger->seq() << " " << suffix;
     auto next = create(rules, ledger);
@@ -91,7 +92,8 @@ OpenLedger::accept(
         }
         // Handle disputed tx, outside lock
         using empty = std::vector<std::shared_ptr<STTx const>>;
-        apply(app, *next, *ledger, empty{}, retries, flags, shouldRecover, j_);
+        apply(app, *next, *ledger, empty{}, retries, flags, shouldRecover, j_,
+              tracer);
     }
     // Block calls to modify, otherwise
     // new tx going into the open ledger
@@ -125,14 +127,15 @@ OpenLedger::accept(
             retries,
             flags,
             shouldRecover,
-            j_);
+            j_,
+            tracer);
     }
     // Call the modifier
     if (f)
         f(*next, j_);
     // Apply local tx
     for (auto const& item : locals)
-        app.getTxQ().apply(app, *next, item.second, flags, j_);
+        app.getTxQ().apply(app, *next, item.second, flags, j_, tracer);
 
     // If we didn't relay this transaction recently, relay it to all peers
     for (auto const& txpair : next->txs)
@@ -182,13 +185,15 @@ OpenLedger::apply_one(
     bool retry,
     ApplyFlags flags,
     bool shouldRecover,
-    beast::Journal j) -> Result
+    beast::Journal j,
+    std::shared_ptr<perf::Tracer> const& tracer) -> Result
 {
     if (retry)
         flags = flags | tapRETRY;
     auto const result = [&] {
         auto const queueResult =
-            app.getTxQ().apply(app, view, tx, flags | tapPREFER_QUEUE, j);
+            app.getTxQ().apply(app, view, tx, flags | tapPREFER_QUEUE, j,
+                               tracer);
         // If the transaction can't get into the queue for intrinsic
         // reasons, and it can still be recovered, try to put it
         // directly into the open ledger, else drop it.

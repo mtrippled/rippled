@@ -271,7 +271,8 @@ public:
         OpenView& view,
         std::shared_ptr<STTx const> const& tx,
         ApplyFlags flags,
-        beast::Journal j);
+        beast::Journal j,
+        std::shared_ptr<perf::Tracer> const& tracer = {});
 
     /**
         Fill the new open ledger with transactions from the queue.
@@ -285,7 +286,8 @@ public:
         @return Whether any transactions were added to the `view`.
     */
     bool
-    accept(Application& app, OpenView& view);
+    accept(Application& app, OpenView& view,
+           std::shared_ptr<perf::Tracer> const& tracer = {});
 
     /**
         Update fee metrics and clean up the queue in preparation for
@@ -585,7 +587,8 @@ private:
 
         /// Attempt to apply the queued transaction to the open ledger.
         std::pair<TER, bool>
-        apply(Application& app, OpenView& view, beast::Journal j);
+        apply(Application& app, OpenView& view, beast::Journal j,
+              std::shared_ptr<perf::Tracer> const& tracer = {});
 
         /// Potential @ref TxConsequences of applying this transaction
         /// to the open ledger.
@@ -707,7 +710,8 @@ private:
         OpenView& view,
         std::shared_ptr<STTx const> const& tx,
         ApplyFlags flags,
-        beast::Journal j);
+        beast::Journal j,
+        std::shared_ptr<perf::Tracer> const& tracer);
 
     // Helper function that removes a replaced entry in _byFee.
     boost::optional<TxQAccount::TxMap::iterator>

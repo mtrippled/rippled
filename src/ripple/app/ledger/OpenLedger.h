@@ -168,7 +168,8 @@ public:
         OrderedTxs& retries,
         ApplyFlags flags,
         std::string const& suffix = "",
-        modify_type const& f = {});
+        modify_type const& f = {},
+        std::shared_ptr<perf::Tracer> const& tracer = {});
 
 private:
     /** Algorithm for applying transactions.
@@ -186,7 +187,8 @@ private:
         OrderedTxs& retries,
         ApplyFlags flags,
         std::map<uint256, bool>& shouldRecover,
-        beast::Journal j);
+        beast::Journal j,
+        std::shared_ptr<perf::Tracer> const& tracer);
 
     enum Result { success, failure, retry };
 
@@ -201,7 +203,8 @@ private:
         bool retry,
         ApplyFlags flags,
         bool shouldRecover,
-        beast::Journal j);
+        beast::Journal j,
+        std::shared_ptr<perf::Tracer> const& tracer);
 };
 
 //------------------------------------------------------------------------------
@@ -216,7 +219,8 @@ OpenLedger::apply(
     OrderedTxs& retries,
     ApplyFlags flags,
     std::map<uint256, bool>& shouldRecover,
-    beast::Journal j)
+    beast::Journal j,
+    std::shared_ptr<perf::Tracer> const& tracer)
 {
     for (auto iter = txs.begin(); iter != txs.end(); ++iter)
     {
@@ -229,7 +233,8 @@ OpenLedger::apply(
             if (check.txExists(txId))
                 continue;
             auto const result =
-                apply_one(app, view, tx, true, flags, shouldRecover[txId], j);
+                apply_one(app, view, tx, true, flags, shouldRecover[txId], j,
+                    tracer);
             if (result == Result::retry)
                 retries.insert(tx);
         }
@@ -252,7 +257,8 @@ OpenLedger::apply(
                 retry,
                 flags,
                 shouldRecover[iter->second->getTransactionID()],
-                j))
+                j,
+                tracer))
             {
                 case Result::success:
                     ++changes;
