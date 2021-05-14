@@ -826,6 +826,59 @@ Config::getValueFor(SizedItem item, boost::optional<std::size_t> node) const
     auto const index = static_cast<std::underlying_type_t<SizedItem>>(item);
     assert(index < sizedItems.size());
     assert(!node || *node <= 4);
+
+    static Section tweaks = section("tweaks");
+    int ret;
+    switch (item)
+    {
+        case SizedItem::sweepInterval:
+            if (get_if_exists(tweaks, "sweepInterval", ret))
+                return ret;
+            break;
+        case SizedItem::treeCacheSize:
+            if (get_if_exists(tweaks, "treeCacheSize", ret))
+                return ret;
+            break;
+        case SizedItem::treeCacheAge:
+            if (get_if_exists(tweaks, "treeCacheAge", ret))
+                return ret;
+            break;
+        case SizedItem::ledgerSize:
+            if (get_if_exists(tweaks, "ledgerSize", ret))
+                return ret;
+            break;
+        case SizedItem::ledgerAge:
+            if (get_if_exists(tweaks, "ledgerAge", ret))
+                return ret;
+            break;
+        case SizedItem::ledgerFetch:
+            if (get_if_exists(tweaks, "ledgerFetch", ret))
+                return ret;
+            break;
+        case SizedItem::hashNodeDBCache:
+            if (get_if_exists(tweaks, "hashNodeDBCache", ret))
+                return ret;
+            break;
+        case SizedItem::txnDBCache:
+            if (get_if_exists(tweaks, "txnDBCache", ret))
+                return ret;
+            break;
+        case SizedItem::lgrDBCache:
+            if (get_if_exists(tweaks, "lgrDBCache", ret))
+                return ret;
+            break;
+        case SizedItem::openFinalLimit:
+            if (get_if_exists(tweaks, "openFinalLimit", ret))
+                return ret;
+            break;
+        case SizedItem::burstSize:
+            if (get_if_exists(tweaks, "burstSize", ret))
+                return ret;
+            break;
+        default:
+            assert(false);
+    }
+
     return sizedItems.at(index).second.at(node.value_or(NODE_SIZE));
 }
 
