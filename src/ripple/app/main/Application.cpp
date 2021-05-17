@@ -1294,6 +1294,7 @@ public:
         auto timer6 = perf::START_TIMER(tracer);
         getLedgerMaster().sweep();
         perf::END_TIMER(tracer, timer6);
+        std::this_thread::sleep_for(std::chrono::seconds(5));
         auto timer7 = perf::START_TIMER(tracer);
         getTempNodeCache().sweep();
         perf::END_TIMER(tracer, timer7);
@@ -1306,6 +1307,7 @@ public:
         auto timer10 = perf::START_TIMER(tracer);
         getLedgerReplayer().sweep();
         perf::END_TIMER(tracer, timer10);
+        std::this_thread::sleep_for(std::chrono::seconds(5));
         auto timer11 = perf::START_TIMER(tracer);
         m_acceptedLedgerCache.sweep();
         perf::END_TIMER(tracer, timer11);

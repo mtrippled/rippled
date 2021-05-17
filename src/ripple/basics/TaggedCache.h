@@ -253,7 +253,7 @@ public:
 
         if (mapRemovals || cacheRemovals)
         {
-            JLOG(m_journal.trace())
+            JLOG(m_journal.debug())
                 << m_name << ": cache = " << m_cache.size() << "-"
                 << cacheRemovals << ", map-=" << mapRemovals;
         }
