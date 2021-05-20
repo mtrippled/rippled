@@ -1277,7 +1277,6 @@ public:
         auto timer = perf::START_TIMER(tracer);
         nodeFamily_.sweep();
         perf::END_TIMER(tracer, timer);
-        std::this_thread::sleep_for(std::chrono::seconds(10));
         auto timer2 = perf::START_TIMER(tracer);
         if (shardFamily_)
             shardFamily_->sweep();
@@ -1285,7 +1284,6 @@ public:
         auto timer3 = perf::START_TIMER(tracer);
         getMasterTransaction().sweep();
         perf::END_TIMER(tracer, timer3);
-        std::this_thread::sleep_for(std::chrono::seconds(10));
         auto timer4 = perf::START_TIMER(tracer);
         getNodeStore().sweep();
         perf::END_TIMER(tracer, timer4);
@@ -1294,7 +1292,7 @@ public:
             shardStore_->sweep();
         perf::END_TIMER(tracer, timer5);
         auto timer6 = perf::START_TIMER(tracer);
-        getLedgerMaster().sweep();
+        getLedgerMaster().sweep(tracer);
         perf::END_TIMER(tracer, timer6);
         auto timer7 = perf::START_TIMER(tracer);
         getTempNodeCache().sweep();

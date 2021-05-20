@@ -230,7 +230,7 @@ public:
     void
     tune(int size, std::chrono::seconds age);
     void
-    sweep();
+    sweep(std::shared_ptr<perf::Tracer> const& tracer);
     float
     getCacheHitRate();
 
