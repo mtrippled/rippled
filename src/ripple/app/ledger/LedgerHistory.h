@@ -83,7 +83,7 @@ public:
         auto timer = perf::START_TIMER(tracer);
         m_ledgers_by_hash.sweep();
         perf::END_TIMER(tracer, timer);
-        std::this_thread::sleep_for(std::chrono::seconds(10));
+//        std::this_thread::sleep_for(std::chrono::seconds(10));
         auto timer2 = perf::START_TIMER(tracer);
         m_consensus_validated.sweep();
         perf::END_TIMER(tracer, timer2);

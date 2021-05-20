@@ -93,7 +93,7 @@ public:
     }
 
     void
-    sweep() override
+    sweep(std::shared_ptr<perf::Tracer> const& tracer) override
     {
         fbCache_->sweep();
         tnCache_->sweep();

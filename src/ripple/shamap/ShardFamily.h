@@ -83,7 +83,7 @@ public:
     getTreeNodeCacheSize();
 
     void
-    sweep() override;
+    sweep(std::shared_ptr<perf::Tracer> const& tracer = {}) override;
 
     void
     reset() override;

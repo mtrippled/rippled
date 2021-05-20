@@ -1857,15 +1857,15 @@ LedgerMaster::tune(int size, std::chrono::seconds age)
 void
 LedgerMaster::sweep(std::shared_ptr<perf::Tracer> const& tracer)
 {
-    std::this_thread::sleep_for(std::chrono::seconds(10));
+//    std::this_thread::sleep_for(std::chrono::seconds(10));
     auto timer = perf::START_TIMER(tracer);
     mLedgerHistory.sweep(tracer);
     perf::END_TIMER(tracer, timer);
-    std::this_thread::sleep_for(std::chrono::seconds(10));
+//    std::this_thread::sleep_for(std::chrono::seconds(10));
     auto timer2 = perf::START_TIMER(tracer);
     fetch_packs_.sweep();
     perf::END_TIMER(tracer, timer2);
-    std::this_thread::sleep_for(std::chrono::seconds(10));
+//    std::this_thread::sleep_for(std::chrono::seconds(10));
 }
 
 float

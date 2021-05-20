@@ -70,7 +70,7 @@ public:
     getTreeNodeCache(std::uint32_t ledgerSeq) = 0;
 
     virtual void
-    sweep() = 0;
+    sweep(std::shared_ptr<perf::Tracer> const& tracer) = 0;
 
     virtual bool
     isShardBacked() const = 0;
