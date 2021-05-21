@@ -753,6 +753,26 @@ public:
     void
     sweep()
     {
+        auto tracer = perf::TRACER_PTR;
+        perf::LOCK_GUARD_TRACER(m_mutex, tracer, lock);
+        auto cit = m_cache.begin();
+        while (cit != m_cache.end())
+        {
+            if (cit->second.isWeak())
+            {
+                // weak
+                if (cit->second.isExpired())
+                    cit = m_cache.erase(cit);
+                else
+                    ++cit;
+            }
+        }
+    }
+
+    /*
+    void
+    sweep()
+    {
         int cacheRemovals = 0;
         int mapRemovals = 0;
         int cc = 0;
@@ -819,9 +839,9 @@ public:
                     ++cacheRemovals;
                     if (cit->second.ptr.unique())
                     {
-//                        stuffToSweep.push_back(cit->second.ptr);
-//                        ++mapRemovals;
-//                        cit = m_cache.erase(cit);
+                        stuffToSweep.push_back(cit->second.ptr);
+                        ++mapRemovals;
+                        cit = m_cache.erase(cit);
                     }
                     else
                     {
@@ -850,6 +870,7 @@ public:
         // At this point stuffToSweep will go out of scope outside the lock
         // and decrement the reference count on each strong pointer.
     }
+     */
 
     /*
     bool
