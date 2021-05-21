@@ -758,14 +758,10 @@ public:
         auto cit = m_cache.begin();
         while (cit != m_cache.end())
         {
-            if (cit->second.isWeak())
-            {
-                // weak
-                if (cit->second.isExpired())
-                    cit = m_cache.erase(cit);
-                else
-                    ++cit;
-            }
+            if (cit->second.isWeak() && cit->second.isExpired())
+                cit = m_cache.erase(cit);
+            else
+                ++cit;
         }
     }
 
