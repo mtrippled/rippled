@@ -819,9 +819,9 @@ public:
                     ++cacheRemovals;
                     if (cit->second.ptr.unique())
                     {
-                        stuffToSweep.push_back(cit->second.ptr);
-                        ++mapRemovals;
-                        cit = m_cache.erase(cit);
+//                        stuffToSweep.push_back(cit->second.ptr);
+//                        ++mapRemovals;
+//                        cit = m_cache.erase(cit);
                     }
                     else
                     {
@@ -1195,6 +1195,7 @@ private:
         {
             return weak_ptr.expired();
         }
+
         std::shared_ptr<mapped_type>
         lock()
         {
