@@ -750,6 +750,7 @@ public:
         m_misses = 0;
     }
 
+    /*
     void
     sweep()
     {
@@ -764,8 +765,8 @@ public:
                 ++cit;
         }
     }
+     */
 
-    /*
     void
     sweep()
     {
@@ -821,7 +822,7 @@ public:
                     if (cit->second.isExpired())
                     {
                         ++mapRemovals;
-                        cit = m_cache.erase(cit);
+//                        cit = m_cache.erase(cit);
                     }
                     else
                     {
@@ -837,12 +838,12 @@ public:
                     {
                         stuffToSweep.push_back(cit->second.ptr);
                         ++mapRemovals;
-                        cit = m_cache.erase(cit);
+//                        cit = m_cache.erase(cit);
                     }
                     else
                     {
                         // remains weakly cached
-                        cit->second.ptr.reset();
+//                        cit->second.ptr.reset();
                         ++cit;
                     }
                 }
@@ -866,7 +867,6 @@ public:
         // At this point stuffToSweep will go out of scope outside the lock
         // and decrement the reference count on each strong pointer.
     }
-     */
 
     /*
     bool
