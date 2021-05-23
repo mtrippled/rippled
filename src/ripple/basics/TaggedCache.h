@@ -770,6 +770,8 @@ public:
     void
     sweep()
     {
+        return;
+
         int cacheRemovals = 0;
         int mapRemovals = 0;
         int cc = 0;
