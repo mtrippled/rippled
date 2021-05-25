@@ -50,7 +50,6 @@ NodeFamily::sweep(std::shared_ptr<perf::Tracer> const& tracer)
     auto timer = perf::START_TIMER(tracer);
     fbCache_->sweep();
     perf::END_TIMER(tracer, timer);
-    std::this_thread::sleep_for(std::chrono::seconds(10));
     auto timer2 = perf::START_TIMER(tracer);
     tnCache_->sweep();
     perf::END_TIMER(tracer, timer2);

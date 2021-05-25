@@ -770,8 +770,6 @@ public:
     void
     sweep()
     {
-        return;
-
         int cacheRemovals = 0;
         int mapRemovals = 0;
         int cc = 0;
@@ -824,7 +822,7 @@ public:
                     if (cit->second.isExpired())
                     {
                         ++mapRemovals;
-//                        cit = m_cache.erase(cit);
+                        cit = m_cache.erase(cit);
                     }
                     else
                     {
@@ -840,12 +838,12 @@ public:
                     {
                         stuffToSweep.push_back(cit->second.ptr);
                         ++mapRemovals;
-//                        cit = m_cache.erase(cit);
+                        cit = m_cache.erase(cit);
                     }
                     else
                     {
                         // remains weakly cached
-//                        cit->second.ptr.reset();
+                        cit->second.ptr.reset();
                         ++cit;
                     }
                 }
