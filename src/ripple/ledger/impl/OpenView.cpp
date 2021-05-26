@@ -75,8 +75,7 @@ public:
 
 //------------------------------------------------------------------------------
 
-OpenView::OpenView(OpenView const& rhs,
-                   std::shared_ptr<perf::Tracer> const& tracer)
+OpenView::OpenView(OpenView const& rhs)
     : ReadView(rhs)
     , TxsRawView(rhs)
     , monotonic_resource_{std::make_unique<
@@ -87,15 +86,7 @@ OpenView::OpenView(OpenView const& rhs,
     , base_{rhs.base_}
     , items_{rhs.items_}
     , hold_{rhs.hold_}
-    , open_{rhs.open_}
-    {
-        auto timer = perf::START_TIMER(tracer);
-        txs_ = txs_map{rhs.txs_, monotonic_resource_.get()};
-        perf::END_TIMER(tracer, timer);
-        timer = perf::START_TIMER(tracer);
-        items_ = detail::RawStateTable{rhs.items_};
-        perf::END_TIMER(tracer, timer);
-    };
+    , open_{rhs.open_} {};
 
 OpenView::OpenView(
     open_ledger_t,
