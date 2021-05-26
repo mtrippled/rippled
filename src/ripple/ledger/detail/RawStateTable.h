@@ -57,10 +57,22 @@ public:
 
     RawStateTable(RawStateTable&&) = default;
 
+//    RawStateTable&
+//    operator=(RawStateTable&&) = delete;
     RawStateTable&
-    operator=(RawStateTable&&) = delete;
-    RawStateTable&
-    operator=(RawStateTable const&) = delete;
+    operator=(RawStateTable const& rhs)
+    {
+        monotonic_resource_ = std::make_unique<
+            boost::container::pmr::monotonic_buffer_resource>(
+            initialBufferSize);
+        items_ = items_t{rhs.items_, monotonic_resource_.get()};
+        dropsDestroyed_ = rhs.dropsDestroyed_;
+
+        return *this;
+    }
+
+    //    RawStateTable&
+//    operator=(RawStateTable const&) = delete;
 
     void
     apply(RawView& to) const;

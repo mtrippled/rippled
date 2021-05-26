@@ -166,7 +166,7 @@ public:
         until a new open ledger is built.
     */
     void
-    applyHeldTransactions();
+    applyHeldTransactions(std::shared_ptr<perf::Tracer> const& tracer);
 
     /** Get the next transaction held for a particular account if any.
         This is normally called when a transaction for that account is

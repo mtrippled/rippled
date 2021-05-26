@@ -20,6 +20,7 @@
 #ifndef RIPPLE_LEDGER_OPENVIEW_H_INCLUDED
 #define RIPPLE_LEDGER_OPENVIEW_H_INCLUDED
 
+#include <ripple/basics/Tracer.h>
 #include <ripple/basics/XRPAmount.h>
 #include <ripple/ledger/RawView.h>
 #include <ripple/ledger/ReadView.h>
@@ -119,7 +120,7 @@ public:
         Since the SLEs are immutable, calls on the
         RawView interface cannot break invariants.
     */
-    OpenView(OpenView const&);
+    OpenView(OpenView const&, std::shared_ptr<perf::Tracer> const& tracer = {});
 
     /** Construct an open ledger view.
 

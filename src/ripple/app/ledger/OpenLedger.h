@@ -123,7 +123,8 @@ public:
         @return `true` if the open view was changed
     */
     bool
-    modify(modify_type const& f);
+    modify(modify_type const& f,
+           std::shared_ptr<perf::Tracer> const& tracer = {});
 
     /** Accept a new ledger.
 

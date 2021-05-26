@@ -540,7 +540,8 @@ LedgerMaster::storeLedger(std::shared_ptr<Ledger const> ledger)
     until a new open ledger is built.
 */
 void
-LedgerMaster::applyHeldTransactions()
+LedgerMaster::applyHeldTransactions(
+    std::shared_ptr<perf::Tracer> const& tracer)
 {
     std::lock_guard sl(m_mutex);
 
@@ -555,7 +556,8 @@ LedgerMaster::applyHeldTransactions()
                 any = true;
         }
         return any;
-    });
+    },
+                             tracer);
 
     // VFALCO TODO recreate the CanonicalTxSet object instead of resetting
     // it.

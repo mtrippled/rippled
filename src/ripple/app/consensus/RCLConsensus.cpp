@@ -297,7 +297,7 @@ RCLConsensus::Adaptor::onClose(
 
     auto const& prevLedger = ledger.ledger_;
 
-    ledgerMaster_.applyHeldTransactions();
+    ledgerMaster_.applyHeldTransactions(tracer_);
     // Tell the ledger master not to acquire the ledger we're probably building
     ledgerMaster_.setBuildingLedger(prevLedger->info().seq + 1);
 
