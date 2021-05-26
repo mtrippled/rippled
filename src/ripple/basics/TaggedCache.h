@@ -779,12 +779,23 @@ public:
         //
         std::vector<std::shared_ptr<mapped_type>> stuffToSweep;
 
+        cache_type tmpCache;
         {
             clock_type::time_point const now(m_clock.now());
             clock_type::time_point when_expire;
 
             auto tracer = perf::TRACER_PTR;
             perf::LOCK_GUARD_TRACER(m_mutex, tracer, lock);
+
+            {
+                auto const b4 = std::chrono::steady_clock::now();
+                tmpCache = m_cache;
+                JLOG(m_journal.debug()) << "copied cache size: "
+                    << tmpCache.size() << "in "
+                    << std::chrono::duration_cast<std::chrono::microseconds>(
+                        std::chrono::steady_clock::now() - b4).count()
+                    << "us";
+            }
 
             auto timer = perf::START_TIMER(tracer);
             if (m_target_size == 0 ||
