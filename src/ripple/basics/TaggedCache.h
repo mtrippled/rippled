@@ -787,15 +787,16 @@ public:
             auto tracer = perf::TRACER_PTR;
             perf::LOCK_GUARD_TRACER(m_mutex, tracer, lock);
 
-            {
-                auto const b4 = std::chrono::steady_clock::now();
-                tmpCache = m_cache;
-                JLOG(m_journal.debug()) << "copied cache size: "
-                    << tmpCache.size() << "in "
-                    << std::chrono::duration_cast<std::chrono::microseconds>(
-                        std::chrono::steady_clock::now() - b4).count()
-                    << "us";
-            }
+// The result of the following is about 0.5us per item in cache.
+//            {
+//                auto const b4 = std::chrono::steady_clock::now();
+//                tmpCache = m_cache;
+//                JLOG(m_journal.debug()) << "copied cache size: "
+//                    << tmpCache.size() << "in "
+//                    << std::chrono::duration_cast<std::chrono::microseconds>(
+//                        std::chrono::steady_clock::now() - b4).count()
+//                    << "us";
+//            }
 
             auto timer = perf::START_TIMER(tracer);
             if (m_target_size == 0 ||
