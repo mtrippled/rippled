@@ -40,9 +40,9 @@ NodeFamily::NodeFamily(Application& app, CollectorManager& cm)
           std::chrono::seconds(
               app.config().getValueFor(SizedItem::treeCacheAge)),
           stopwatch(),
-          j_))
-{
-}
+          j_,
+          app_.config().cache_partitions()))
+{}
 
 void
 NodeFamily::sweep(std::shared_ptr<perf::Tracer> const& tracer)
@@ -51,7 +51,7 @@ NodeFamily::sweep(std::shared_ptr<perf::Tracer> const& tracer)
     fbCache_->sweep();
     perf::END_TIMER(tracer, timer);
     auto timer2 = perf::START_TIMER(tracer);
-    tnCache_->sweep();
+    tnCache_->sweep(app_.getJobQueue());
     perf::END_TIMER(tracer, timer2);
 }
 
