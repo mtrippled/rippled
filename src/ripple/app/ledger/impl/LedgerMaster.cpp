@@ -202,7 +202,10 @@ LedgerMaster::LedgerMaster(
           65536,
           std::chrono::seconds{45},
           stopwatch,
-          app_.journal("TaggedCache"))
+          app_.journal("TaggedCache"),
+          [](TaggedCacheTrace<uint256, Blob>::key_type const& key) {
+            return *reinterpret_cast<std::uint64_t const*>(key.data());},
+          app_.config().cache_partitions())
     , m_stats(std::bind(&LedgerMaster::collect_metrics, this), collector)
 {
 }
@@ -1845,7 +1848,7 @@ LedgerMaster::sweep(std::shared_ptr<perf::Tracer> const& tracer)
     perf::END_TIMER(tracer, timer);
 //    std::this_thread::sleep_for(std::chrono::seconds(10));
     auto timer2 = perf::START_TIMER(tracer);
-    fetch_packs_.sweep();
+    fetch_packs_.sweep(app_.getJobQueue());
     perf::END_TIMER(tracer, timer2);
 //    std::this_thread::sleep_for(std::chrono::seconds(10));
 }

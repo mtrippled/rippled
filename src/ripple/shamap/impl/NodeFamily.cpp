@@ -33,25 +33,28 @@ NodeFamily::NodeFamily(Application& app, CollectorManager& cm)
           stopwatch(),
           cm.collector(),
           fullBelowTargetSize,
-          fullBelowExpiration))
+          fullBelowExpiration,
+          app_.config().cache_partitions()))
     , tnCache_(std::make_shared<TreeNodeCache>(
           "Node family tree node cache",
           app.config().getValueFor(SizedItem::treeCacheSize),
           std::chrono::seconds(
               app.config().getValueFor(SizedItem::treeCacheAge)),
           stopwatch(),
-          j_))
-{
-}
+          j_,
+          [](TreeNodeCache::key_type const& key) {
+            return *reinterpret_cast<std::uint64_t const*>(key.data());},
+          app_.config().cache_partitions()))
+{}
 
 void
 NodeFamily::sweep(std::shared_ptr<perf::Tracer> const& tracer)
 {
     auto timer = perf::START_TIMER(tracer);
-    fbCache_->sweep();
+    fbCache_->sweep(app_.getJobQueue());
     perf::END_TIMER(tracer, timer);
     auto timer2 = perf::START_TIMER(tracer);
-    tnCache_->sweep();
+    tnCache_->sweep(app_.getJobQueue());
     perf::END_TIMER(tracer, timer2);
 }
 

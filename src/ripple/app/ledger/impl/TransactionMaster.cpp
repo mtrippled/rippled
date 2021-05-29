@@ -32,7 +32,10 @@ TransactionMaster::TransactionMaster(Application& app)
           65536,
           std::chrono::minutes{30},
           stopwatch(),
-          mApp.journal("TaggedCache"))
+          mApp.journal("TaggedCache"),
+          [](TaggedCacheTrace<uint256, Transaction>::key_type const& key) {
+            return *reinterpret_cast<std::uint64_t const*>(key.data());},
+          app.config().cache_partitions())
 {
 }
 
@@ -155,10 +158,10 @@ TransactionMaster::canonicalize(std::shared_ptr<Transaction>* pTransaction)
 void
 TransactionMaster::sweep(void)
 {
-    mCache.sweep();
+    mCache.sweep(mApp.getJobQueue());
 }
 
-TaggedCache<uint256, Transaction>&
+TaggedCacheTrace<uint256, Transaction>&
 TransactionMaster::getCache()
 {
     return mCache;

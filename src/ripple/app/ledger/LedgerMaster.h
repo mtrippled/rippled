@@ -405,7 +405,7 @@ private:
 
     std::uint32_t const ledger_fetch_size_;
 
-    TaggedCache<uint256, Blob> fetch_packs_;
+    TaggedCacheTrace<uint256, Blob> fetch_packs_;
 
     std::uint32_t fetch_seq_{0};
 
