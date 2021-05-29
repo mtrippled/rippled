@@ -23,8 +23,12 @@
 #include <ripple/basics/Log.h>
 #include <ripple/basics/UnorderedContainers.h>
 #include <ripple/basics/hardened_hash.h>
+#include <ripple/basics/partitioned_unordered_map.h>
+#include <ripple/core/Job.h>
+#include <ripple/core/JobQueue.h>
 #include <ripple/beast/clock/abstract_clock.h>
 #include <ripple/beast/insight/Insight.h>
+#include <condition_variable>
 #include <functional>
 #include <mutex>
 #include <type_traits>
@@ -681,6 +685,7 @@ public:
         return m_target_size;
     }
 
+    /*
     void
     setTargetSize(int s)
     {
@@ -693,6 +698,7 @@ public:
 
         JLOG(m_journal.debug()) << m_name << " target size set to " << s;
     }
+     */
 
     clock_type::duration
     getTargetAge() const
@@ -750,36 +756,9 @@ public:
         m_misses = 0;
     }
 
-    /*
     void
-    sweep()
+    sweep(JobQueue& jq)
     {
-        auto tracer = perf::TRACER_PTR;
-        perf::LOCK_GUARD_TRACER(m_mutex, tracer, lock);
-        auto cit = m_cache.begin();
-        while (cit != m_cache.end())
-        {
-            if (cit->second.isWeak() && cit->second.isExpired())
-                cit = m_cache.erase(cit);
-            else
-                ++cit;
-        }
-    }
-     */
-
-    void
-    sweep()
-    {
-        int cacheRemovals = 0;
-        int mapRemovals = 0;
-        int cc = 0;
-
-        // Keep references to all the stuff we sweep
-        // so that we can destroy them outside the lock.
-        //
-        std::vector<std::shared_ptr<mapped_type>> stuffToSweep;
-
-        cache_type tmpCache;
         {
             clock_type::time_point const now(m_clock.now());
             clock_type::time_point when_expire;
@@ -787,27 +766,17 @@ public:
             auto tracer = perf::TRACER_PTR;
             perf::LOCK_GUARD_TRACER(m_mutex, tracer, lock);
 
-// The result of the following is about 0.5us per item in cache.
-//            {
-//                auto const b4 = std::chrono::steady_clock::now();
-//                tmpCache = m_cache;
-//                JLOG(m_journal.debug()) << "copied cache size: "
-//                    << tmpCache.size() << "in "
-//                    << std::chrono::duration_cast<std::chrono::microseconds>(
-//                        std::chrono::steady_clock::now() - b4).count()
-//                    << "us";
-//            }
-
+            std::size_t const cacheSize = m_cache.size();
             auto timer = perf::START_TIMER(tracer);
             if (m_target_size == 0 ||
-                (static_cast<int>(m_cache.size()) <= m_target_size))
+                (static_cast<int>(cacheSize) <= m_target_size))
             {
                 when_expire = now - m_target_age;
             }
             else
             {
                 when_expire =
-                    now - m_target_age * m_target_size / m_cache.size();
+                    now - m_target_age * m_target_size / cacheSize;
 
                 clock_type::duration const minimumAge(std::chrono::seconds(1));
                 if (when_expire > (now - minimumAge))
@@ -821,64 +790,262 @@ public:
             }
             perf::END_TIMER(tracer, timer);
 
-            auto timer2 = perf::START_TIMER(tracer);
-            stuffToSweep.reserve(m_cache.size());
+            std::mutex partitionMutex;
+            std::condition_variable partitionCv;
+            std::unique_lock<std::mutex> partitionLock(partitionMutex);
+            std::size_t remaining = partitioned_cache_type::PARTITIONS;
+            partitionLock.unlock();
 
-            auto cit = m_cache.begin();
-
-            while (cit != m_cache.end())
+            for (auto& partition : m_cache.map())
             {
-                if (cit->second.isWeak())
-                {
-                    // weak
-                    if (cit->second.isExpired())
-                    {
-                        ++mapRemovals;
-                        cit = m_cache.erase(cit);
-                    }
-                    else
-                    {
-                        ++cit;
-                    }
-                }
-                else if (cit->second.last_access <= when_expire)
-                {
-                    // strong, expired
-                    --m_cache_count;
-                    ++cacheRemovals;
-                    if (cit->second.ptr.unique())
-                    {
-                        stuffToSweep.push_back(cit->second.ptr);
-                        ++mapRemovals;
-                        cit = m_cache.erase(cit);
-                    }
-                    else
-                    {
-                        // remains weakly cached
-                        cit->second.ptr.reset();
-                        ++cit;
-                    }
-                }
-                else
-                {
-                    // strong, not expired
-                    ++cc;
-                    ++cit;
-                }
+                jq.addJob(jtSWEEP, "partition-sweep", [&](Job&) {
+                  int cacheRemovals = 0;
+                  int mapRemovals = 0;
+                  int cc = 0;
+
+                  // Keep references to all the stuff we sweep
+                  // so that we can destroy them outside the lock.
+                  std::vector<std::shared_ptr<mapped_type>> stuffToSweep;
+                  {
+                      stuffToSweep.reserve(partition.size());
+                      auto cit = partition.begin();
+                      while (cit != partition.end())
+                      {
+                          if (cit->second.isWeak())
+                          {
+                              // weak
+                              if (cit->second.isExpired())
+                              {
+                                  ++mapRemovals;
+                                  cit = partition.erase(cit);
+                              }
+                              else
+                              {
+                                  ++cit;
+                              }
+                          }
+                          else if (cit->second.last_access <= when_expire)
+                          {
+                              // strong, expired
+                              --m_cache_count;
+                              ++cacheRemovals;
+                              if (cit->second.ptr.unique())
+                              {
+                                  stuffToSweep.push_back(cit->second.ptr);
+                                  ++mapRemovals;
+                                  cit = partition.erase(cit);
+                              }
+                              else
+                              {
+                                  // remains weakly cached
+                                  cit->second.ptr.reset();
+                                  ++cit;
+                              }
+                          }
+                          else
+                          {
+                              // strong, not expired
+                              ++cc;
+                              ++cit;
+                          }
+                      }
+                  }
+
+                  if (mapRemovals || cacheRemovals)
+                  {
+                      JLOG(m_journal.debug())
+                          << "tncache sweep " << m_name
+                          << ": cache = " << partition.size() << "-"
+                          << cacheRemovals << ", map-=" << mapRemovals;
+                  }
+
+                  std::unique_lock<std::mutex> lambdaLock(partitionMutex);
+                  --remaining;
+                  m_cache_count -= cacheRemovals;
+                  lambdaLock.unlock();
+                  partitionCv.notify_one();
+
+                  // At this point stuffToSweep will go out of scope outside the lock and decrement the reference count on each strong pointer.
+                });
             }
-            perf::END_TIMER(tracer, timer2);
-        }
 
-        if (mapRemovals || cacheRemovals)
-        {
-            JLOG(m_journal.debug()) << "sweep "
-                << m_name << ": cache = " << m_cache.size() << "-"
-                << cacheRemovals << ", map-=" << mapRemovals;
+            partitionLock.lock();
+            partitionCv.wait(partitionLock, [&remaining]{
+              return remaining == 0; });
         }
-
-        // At this point stuffToSweep will go out of scope outside the lock
-        // and decrement the reference count on each strong pointer.
     }
+
+    void
+    sweep() {}
+
+//    void
+//    sweep()
+//    {
+//        JLOG(m_journal.debug()) << "tncache sweep1";
+//        /*
+//        {
+//            typename partitioned_cache_type::iterator it;
+//            typename partitioned_cache_type::const_iterator cit;
+//            ++it;
+//            ++cit;
+//            it++;
+//            cit++;
+//            typename partitioned_cache_type::iterator it2;
+//            typename partitioned_cache_type::const_iterator cit2;
+//            if (it == it2)
+//            {}
+//            if (it != it2)
+//            {}
+//            if (cit == cit2)
+//            {}
+//            if (cit != cit2)
+//            {}
+//            if (it == cit)
+//            {}
+//            if (it != cit)
+//            {}
+//            if (cit == it)
+//            {}
+//            if (cit != it)
+//            {}
+//
+//            it = it2;
+//            cit = cit2;
+//            typename partitioned_cache_type::iterator it3(it);
+//            it3 = it;
+//            typename partitioned_cache_type::const_iterator cit3(cit);
+//
+//            typename partitioned_cache_type::const_iterator cit4(it);
+//            cit3 = it;
+//            // shouldn't work (const to non-const)
+////        typename partitioned_cache_type::iterator it4(cit);
+////        it = cit;
+//
+//            typename partitioned_cache_type::map_type::iterator mit;
+//            typename partitioned_cache_type::map_type::iterator mit2;
+//            if (mit == mit2) {}
+//            typename partitioned_cache_type::map_type::const_iterator cmit;
+//            typename partitioned_cache_type::map_type::const_iterator cmit2;
+//            if (cmit == cmit2) {}
+//
+//            it = partitioned_cache_.begin();
+//            it = partitioned_cache_.end();
+//            cit = partitioned_cache_.cbegin();
+//            cit = partitioned_cache_.cend();
+//        }
+//         */
+//
+//        int cacheRemovals = 0;
+//        int mapRemovals = 0;
+//        int cc = 0;
+//
+//        // Keep references to all the stuff we sweep
+//        // so that we can destroy them outside the lock.
+//        //
+//        std::vector<std::shared_ptr<mapped_type>> stuffToSweep;
+//
+////        cache_type tmpCache;
+//        {
+//            clock_type::time_point const now(m_clock.now());
+//            clock_type::time_point when_expire;
+//
+//            auto tracer = perf::TRACER_PTR;
+//            perf::LOCK_GUARD_TRACER(m_mutex, tracer, lock);
+//
+//// The result of the following is about 0.5us per item in cache.
+////            {
+////                auto const b4 = std::chrono::steady_clock::now();
+////                tmpCache = m_cache;
+////                JLOG(m_journal.debug()) << "copied cache size: "
+////                    << tmpCache.size() << "in "
+////                    << std::chrono::duration_cast<std::chrono::microseconds>(
+////                        std::chrono::steady_clock::now() - b4).count()
+////                    << "us";
+////            }
+//
+//            auto timer = perf::START_TIMER(tracer);
+//            if (m_target_size == 0 ||
+//                (static_cast<int>(m_cache.size()) <= m_target_size))
+//            {
+//                when_expire = now - m_target_age;
+//            }
+//            else
+//            {
+//                when_expire =
+//                    now - m_target_age * m_target_size / m_cache.size();
+//
+//                clock_type::duration const minimumAge(std::chrono::seconds(1));
+//                if (when_expire > (now - minimumAge))
+//                    when_expire = now - minimumAge;
+//
+//                JLOG(m_journal.trace())
+//                    << m_name << " is growing fast " << m_cache.size() << " of "
+//                    << m_target_size << " aging at "
+//                    << (now - when_expire).count() << " of "
+//                    << m_target_age.count();
+//            }
+//            perf::END_TIMER(tracer, timer);
+//
+//            auto timer2 = perf::START_TIMER(tracer);
+//            stuffToSweep.reserve(m_cache.size());
+//
+//            JLOG(m_journal.debug()) << "tncache sweep10";
+//            auto cit = m_cache.begin();
+//
+//            while (cit != m_cache.end())
+//            {
+//                if (cit->second.isWeak())
+//                {
+//                    // weak
+//                    if (cit->second.isExpired())
+//                    {
+//                        ++mapRemovals;
+//                        cit = m_cache.erase(cit);
+//                    }
+//                    else
+//                    {
+//                        ++cit;
+//                    }
+//                }
+//                else if (cit->second.last_access <= when_expire)
+//                {
+//                    // strong, expired
+//                    --m_cache_count;
+//                    ++cacheRemovals;
+//                    if (cit->second.ptr.unique())
+//                    {
+//                        stuffToSweep.push_back(cit->second.ptr);
+//                        ++mapRemovals;
+//                        cit = m_cache.erase(cit);
+//                    }
+//                    else
+//                    {
+//                        // remains weakly cached
+//                        cit->second.ptr.reset();
+//                        ++cit;
+//                    }
+//                }
+//                else
+//                {
+//                    // strong, not expired
+//                    ++cc;
+//                    ++cit;
+//                }
+//            }
+//            perf::END_TIMER(tracer, timer2);
+//        }
+//
+//        JLOG(m_journal.debug()) << "tncache sweep30";
+//        if (mapRemovals || cacheRemovals)
+//        {
+//            JLOG(m_journal.debug()) << "tncache sweep "
+//                << m_name << ": cache = " << m_cache.size() << "-"
+//                << cacheRemovals << ", map-=" << mapRemovals;
+//        }
+//
+//        // At this point stuffToSweep will go out of scope outside the lock
+//        // and decrement the reference count on each strong pointer.
+//    }
 
     /*
     bool
@@ -1238,6 +1405,8 @@ private:
     };
 
     using cache_type = hardened_hash_map<key_type, Entry, Hash, KeyEqual>;
+    using partitioned_cache_type = partitioned_unordered_map<key_type,
+        Entry, 4, Hash, KeyEqual>;
 
     beast::Journal m_journal;
     clock_type& m_clock;
@@ -1256,12 +1425,11 @@ private:
 
     // Number of items cached
     int m_cache_count;
-    cache_type m_cache;  // Hold strong reference to recent objects
+//    cache_type m_cache;  // Hold strong reference to recent objects
+    partitioned_cache_type m_cache;
     std::uint64_t m_hits;
     std::uint64_t m_misses;
 };
-
-
 
 }  // namespace ripple
 
