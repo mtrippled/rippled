@@ -34,6 +34,7 @@
 #include <chrono>
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <unordered_set>
@@ -316,6 +317,9 @@ public:
     int
     getValueFor(SizedItem item, boost::optional<std::size_t> node = boost::none)
         const;
+
+    std::optional<std::size_t>
+    cache_partitions() const;
 };
 
 }  // namespace ripple

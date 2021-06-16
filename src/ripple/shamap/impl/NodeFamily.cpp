@@ -40,9 +40,9 @@ NodeFamily::NodeFamily(Application& app, CollectorManager& cm)
           std::chrono::seconds(
               app.config().getValueFor(SizedItem::treeCacheAge)),
           stopwatch(),
-          j_))
-{
-}
+          j_,
+          app_.config().cache_partitions()))
+{}
 
 void
 NodeFamily::sweep(std::shared_ptr<perf::Tracer> const& tracer)

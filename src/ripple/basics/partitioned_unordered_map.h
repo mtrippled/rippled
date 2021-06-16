@@ -21,11 +21,13 @@
 #define RIPPLE_BASICS_PARTITIONED_UNORDERED_MAP_H
 
 #include <ripple/basics/Log.h>
-#include <array>
 #include <functional>
 #include <memory>
+#include <optional>
+#include <thread>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 /*
 template <
@@ -41,14 +43,20 @@ namespace ripple {
 
 template<typename Key,
     typename Value,
-    std::uint8_t PartitionBits,
     typename Hash = std::hash<Key>,
     typename Pred = std::equal_to<Key>,
     typename Alloc = std::allocator<std::pair<const Key, Value>>>
 class partitioned_unordered_map
 {
-    static_assert(PartitionBits > 0 && PartitionBits <= 64,
-        "The number of PartitionBits must be between 1 and 64.");
+    std::function<std::uint64_t(Key const&)> extractor_;
+//    std::function<std::uint64_t(Key const&)> extractor_ {
+//        [](Key const& key) {
+//            return static_cast<std::uint64_t>(key);
+//        }
+//    };
+
+    std::size_t partitions_;
+//    std::size_t partitionBits_ {0};
 
 public:
     using key_type = Key;
@@ -70,11 +78,9 @@ public:
     // node_type =
     // insert_return_type =
 
-    static constexpr std::size_t PARTITIONS = 1 << PartitionBits;
     using map_type = std::unordered_map<key_type, mapped_type, hasher,
                                         key_equal, allocator_type>;
-    using partition_map_type = std::array<map_type, PARTITIONS>;
-    static constexpr std::uint8_t SHIFT = 64 - PartitionBits;
+    using partition_map_type = std::vector<map_type>;
 
     struct iterator
     {
@@ -247,6 +253,35 @@ private:
     }
 
 public:
+    partitioned_unordered_map(std::function<std::uint64_t(Key const&)> f,
+            std::optional<std::size_t> partitions = std::nullopt)
+        : extractor_(f)
+    {
+        partitions_ = partitions && *partitions ? *partitions :
+                        std::thread::hardware_concurrency() * 2;
+        map_.resize(partitions_);
+        assert(partitions_);
+
+        //        std::size_t p = partitions && *partitions ? *partitions :
+//            std::thread::hardware_concurrency() * 2;
+//
+//        std::size_t v = 1;
+//        while (v < p)
+//        {
+//            v <<= 1;
+//            ++partitionBits_;
+//        }
+//        partitions_ = v;
+//        std::cerr << "p,v,bits,partitions_: " << p << ',' << v << ','
+//                  << partitionBits_ << ',' << partitions_ << '\n';
+    }
+
+    std::size_t
+    partitions() const
+    {
+        return partitions_;
+    }
+
     partition_map_type&
     map()
     {
@@ -301,7 +336,10 @@ private:
     std::uint64_t
     partitioner(key_type const& key)
     {
-        return *reinterpret_cast<std::uint64_t const*>(key.data()) >> SHIFT;
+//        static std::uint8_t const shift = 64 - partitionBits_;
+        return extractor_(key) % partitions_;
+//        return extractor_(key) >> shift;
+//        return *reinterpret_cast<std::uint64_t const*>(key.data()) >> shift;
     }
 
     template <class T>

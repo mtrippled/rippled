@@ -653,6 +653,7 @@ public:
         clock_type::duration expiration,
         clock_type& clock,
         beast::Journal journal,
+        std::optional<std::size_t> partitions = std::nullopt,
         beast::insight::Collector::ptr const& collector =
         beast::insight::NullCollector::New())
         : m_journal(journal)
@@ -665,6 +666,9 @@ public:
         , m_target_size(size)
         , m_target_age(expiration)
         , m_cache_count(0)
+        , m_cache([](Key const& key) {
+          return *reinterpret_cast<std::uint64_t const*>(key.data());},
+                  partitions)
         , m_hits(0)
         , m_misses(0)
     {
@@ -793,7 +797,7 @@ public:
             std::mutex partitionMutex;
             std::condition_variable partitionCv;
             std::unique_lock<std::mutex> partitionLock(partitionMutex);
-            std::size_t remaining = partitioned_cache_type::PARTITIONS;
+            std::size_t remaining = m_cache.partitions();
             partitionLock.unlock();
 
             for (auto& partition : m_cache.map())
@@ -1404,9 +1408,9 @@ private:
         }
     };
 
-    using cache_type = hardened_hash_map<key_type, Entry, Hash, KeyEqual>;
+//    using cache_type = hardened_hash_map<key_type, Entry, Hash, KeyEqual>;
     using partitioned_cache_type = partitioned_unordered_map<key_type,
-        Entry, 4, Hash, KeyEqual>;
+        Entry, Hash, KeyEqual>;
 
     beast::Journal m_journal;
     clock_type& m_clock;
@@ -1427,6 +1431,8 @@ private:
     int m_cache_count;
 //    cache_type m_cache;  // Hold strong reference to recent objects
     partitioned_cache_type m_cache;
+//    partitioned_cache_type m_cache{[](Key const& key) {
+//      return *reinterpret_cast<std::uint64_t const*>(key.data());}};
     std::uint64_t m_hits;
     std::uint64_t m_misses;
 };
