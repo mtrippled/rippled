@@ -81,11 +81,11 @@ public:
     sweep(std::shared_ptr<perf::Tracer> const& tracer)
     {
         auto timer = perf::START_TIMER(tracer);
-        m_ledgers_by_hash.sweep();
+        m_ledgers_by_hash.sweep(app_.getJobQueue());
         perf::END_TIMER(tracer, timer);
 //        std::this_thread::sleep_for(std::chrono::seconds(10));
         auto timer2 = perf::START_TIMER(tracer);
-        m_consensus_validated.sweep();
+        m_consensus_validated.sweep(app_.getJobQueue());
         perf::END_TIMER(tracer, timer2);
     }
 
@@ -136,7 +136,7 @@ private:
     beast::insight::Collector::ptr collector_;
     beast::insight::Counter mismatch_counter_;
 
-    using LedgersByHash = TaggedCache<LedgerHash, Ledger const>;
+    using LedgersByHash = TaggedCacheTrace<LedgerHash, Ledger const>;
 
     LedgersByHash m_ledgers_by_hash;
 
@@ -155,7 +155,7 @@ private:
         // Consensus metadata of built ledger
         boost::optional<Json::Value> consensus;
     };
-    using ConsensusValidated = TaggedCache<LedgerIndex, cv_entry>;
+    using ConsensusValidated = TaggedCacheTrace<LedgerIndex, cv_entry>;
     ConsensusValidated m_consensus_validated;
 
     // Maps ledger indexes to the corresponding hash.

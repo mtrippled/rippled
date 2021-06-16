@@ -41,6 +41,8 @@ NodeFamily::NodeFamily(Application& app, CollectorManager& cm)
               app.config().getValueFor(SizedItem::treeCacheAge)),
           stopwatch(),
           j_,
+          [](TreeNodeCache::key_type const& key) {
+            return *reinterpret_cast<std::uint64_t const*>(key.data());},
           app_.config().cache_partitions()))
 {}
 

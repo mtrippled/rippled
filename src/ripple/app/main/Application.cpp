@@ -198,7 +198,7 @@ public:
     std::unique_ptr<InboundLedgers> m_inboundLedgers;
     std::unique_ptr<InboundTransactions> m_inboundTransactions;
     std::unique_ptr<LedgerReplayer> m_ledgerReplayer;
-    TaggedCache<uint256, AcceptedLedger> m_acceptedLedgerCache;
+    TaggedCacheTrace<uint256, AcceptedLedger> m_acceptedLedgerCache;
     std::unique_ptr<NetworkOPs> m_networkOPs;
     std::unique_ptr<Cluster> cluster_;
     std::unique_ptr<PeerReservationTable> peerReservations_;
@@ -305,7 +305,11 @@ public:
               16384,
               std::chrono::seconds{90},
               stopwatch(),
-              logs_->journal("TaggedCache"))
+              logs_->journal("TaggedCache"),
+              [](NodeCache::key_type const& key) {
+                return *reinterpret_cast<std::uint64_t const*>(
+                      key.as_uint256().data());},
+              config_->cache_partitions())
 
         , m_collectorManager(CollectorManager::New(
               config_->section(SECTION_INSIGHT),
@@ -381,8 +385,11 @@ public:
               4,
               std::chrono::minutes{1},
               stopwatch(),
-              logs_->journal("TaggedCache"))
-
+              logs_->journal("TaggedCache"),
+              [](TaggedCacheTrace<uint256,
+                                  AcceptedLedger>::key_type const& key) {
+                return *reinterpret_cast<std::uint64_t const*>(key.data());},
+              config_->cache_partitions())
         , m_networkOPs(make_NetworkOPs(
               *this,
               stopwatch(),
@@ -610,7 +617,7 @@ public:
         return *m_inboundTransactions;
     }
 
-    TaggedCache<uint256, AcceptedLedger>&
+    TaggedCacheTrace<uint256, AcceptedLedger>&
     getAcceptedLedgerCache() override
     {
         return m_acceptedLedgerCache;
@@ -1307,7 +1314,7 @@ public:
         getLedgerReplayer().sweep();
         perf::END_TIMER(tracer, timer10);
         auto timer11 = perf::START_TIMER(tracer);
-        m_acceptedLedgerCache.sweep();
+        m_acceptedLedgerCache.sweep(getJobQueue());
         perf::END_TIMER(tracer, timer11);
         auto timer12 = perf::START_TIMER(tracer);
         cachedSLEs_.expire();

@@ -47,13 +47,19 @@ LedgerHistory::LedgerHistory(
           CACHED_LEDGER_NUM,
           CachedLedgerAge,
           stopwatch(),
-          app_.journal("TaggedCache"))
+          app_.journal("TaggedCache"),
+          [](LedgersByHash::key_type const& key) {
+            return *reinterpret_cast<std::uint64_t const*>(key.data());},
+          app_.config().cache_partitions())
     , m_consensus_validated(
           "ConsensusValidated",
           64,
           std::chrono::minutes{5},
           stopwatch(),
-          app_.journal("TaggedCache"))
+          app_.journal("TaggedCache"),
+          [](ConsensusValidated::key_type const& key) {
+            return static_cast<std::uint64_t const>(key);},
+          app_.config().cache_partitions())
     , j_(app.journal("LedgerHistory"))
 {
 }

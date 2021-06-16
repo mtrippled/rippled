@@ -21,6 +21,7 @@
 #define RIPPLE_BASICS_PARTITIONED_UNORDERED_MAP_H
 
 #include <ripple/basics/Log.h>
+#include <ripple/basics/UnorderedContainers.h>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -43,7 +44,7 @@ namespace ripple {
 
 template<typename Key,
     typename Value,
-    typename Hash = std::hash<Key>,
+    typename Hash,
     typename Pred = std::equal_to<Key>,
     typename Alloc = std::allocator<std::pair<const Key, Value>>>
 class partitioned_unordered_map
