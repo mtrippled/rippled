@@ -653,6 +653,8 @@ public:
         clock_type::duration expiration,
         clock_type& clock,
         beast::Journal journal,
+        std::function<std::uint64_t(Key const&)> extractor = [](Key const&) {
+            return 0;},
         std::optional<std::size_t> partitions = std::nullopt,
         beast::insight::Collector::ptr const& collector =
         beast::insight::NullCollector::New())
@@ -666,9 +668,7 @@ public:
         , m_target_size(size)
         , m_target_age(expiration)
         , m_cache_count(0)
-        , m_cache([](Key const& key) {
-          return *reinterpret_cast<std::uint64_t const*>(key.data());},
-                  partitions)
+        , m_cache(extractor, partitions)
         , m_hits(0)
         , m_misses(0)
     {
@@ -689,7 +689,6 @@ public:
         return m_target_size;
     }
 
-    /*
     void
     setTargetSize(int s)
     {
@@ -697,12 +696,18 @@ public:
         m_target_size = s;
 
         if (s > 0)
-            m_cache.rehash(static_cast<std::size_t>(
-                (s + (s >> 2)) / m_cache.max_load_factor() + 1));
+        {
+            for (auto& partition : m_cache.map())
+            {
+                partition.rehash(static_cast<std::size_t>(
+                    (s + (s >> 2)) /
+                    (partition.max_load_factor() * m_cache.partitions())
+                    + 1));
+            }
+        }
 
         JLOG(m_journal.debug()) << m_name << " target size set to " << s;
     }
-     */
 
     clock_type::duration
     getTargetAge() const
@@ -1051,7 +1056,6 @@ public:
 //        // and decrement the reference count on each strong pointer.
 //    }
 
-    /*
     bool
     del(const key_type& key, bool valid)
     {
@@ -1080,7 +1084,6 @@ public:
 
         return ret;
     }
-     */
 
     /** Replace aliased objects with originals.
 
@@ -1308,7 +1311,7 @@ public:
     }
      */
 
-    mutex_type&
+    perf::mutex<mutex_type>&
     peekMutex()
     {
         return m_mutex;
