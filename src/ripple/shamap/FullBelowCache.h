@@ -23,7 +23,9 @@
 #include <ripple/basics/KeyCache.h>
 #include <ripple/basics/base_uint.h>
 #include <ripple/beast/insight/Collector.h>
+#include <ripple/core/JobQueue.h>
 #include <atomic>
+#include <optional>
 #include <string>
 
 namespace ripple {
@@ -59,8 +61,10 @@ public:
         beast::insight::Collector::ptr const& collector =
             beast::insight::NullCollector::New(),
         std::size_t target_size = defaultCacheTargetSize,
-        std::chrono::seconds expiration = std::chrono::minutes{2})
-        : m_cache(name, clock, collector, target_size, expiration), m_gen(1)
+        std::chrono::seconds expiration = std::chrono::minutes{2},
+        std::optional<std::size_t> partitions = std::nullopt)
+        : m_cache(name, clock, collector, target_size, expiration, partitions),
+        m_gen(1)
     {
     }
 
@@ -87,8 +91,12 @@ public:
     */
     void
     sweep()
+    {}
+
+    void
+    sweep(JobQueue& jq)
     {
-        m_cache.sweep();
+        m_cache.sweep(jq);
     }
 
     /** Refresh the last access time of an item, if it exists.

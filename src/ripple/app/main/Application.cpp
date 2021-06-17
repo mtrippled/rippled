@@ -1302,7 +1302,7 @@ public:
         getLedgerMaster().sweep(tracer);
         perf::END_TIMER(tracer, timer6);
         auto timer7 = perf::START_TIMER(tracer);
-        getTempNodeCache().sweep();
+        getTempNodeCache().sweep(getJobQueue());
         perf::END_TIMER(tracer, timer7);
         auto timer8 = perf::START_TIMER(tracer);
         getValidations().expire();
