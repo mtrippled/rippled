@@ -334,7 +334,7 @@ public:
 
 private:
     std::uint64_t
-    partitioner(key_type const& key)
+    partitioner(key_type const& key) const
     {
 //        static std::uint8_t const shift = 64 - partitionBits_;
         return extractor_(key) % partitions_;
@@ -344,7 +344,7 @@ private:
 
     template <class T>
     void
-    find(key_type const& key, T& it)
+    find(key_type const& key, T& it) const
     {
         it.ait_ = it.map_->begin() + partitioner(key);
         it.mit_ = it.ait_->find(key);
