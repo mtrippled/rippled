@@ -22,9 +22,13 @@
 
 #include <ripple/basics/UnorderedContainers.h>
 #include <ripple/basics/hardened_hash.h>
+#include <ripple/basics/partitioned_unordered_map.h>
 #include <ripple/beast/clock/abstract_clock.h>
 #include <ripple/beast/insight/Insight.h>
+#include <ripple/core/Job.h>
+#include <ripple/core/JobQueue.h>
 #include <mutex>
+#include <optional>
 
 namespace ripple {
 
@@ -80,7 +84,8 @@ private:
         clock_type::time_point last_access;
     };
 
-    using map_type = hardened_hash_map<key_type, Entry, Hash, KeyEqual>;
+//    using map_type = hardened_hash_map<key_type, Entry, Hash, KeyEqual>;
+    using map_type = partitioned_unordered_map<key_type, Entry, Hash, KeyEqual>;
     using iterator = typename map_type::iterator;
 
 public:
@@ -106,8 +111,12 @@ public:
         clock_type& clock,
         beast::insight::Collector::ptr const& collector,
         size_type target_size = 0,
-        std::chrono::seconds expiration = std::chrono::minutes{2})
-        : m_stats(name, std::bind(&KeyCache::collect_metrics, this), collector)
+        std::chrono::seconds expiration = std::chrono::minutes{2},
+        std::optional<std::size_t> partitions = std::nullopt)
+        : m_map([](Key const& key) {
+            return *reinterpret_cast<std::uint64_t const*>(key.data());},
+                partitions)
+        , m_stats(name, std::bind(&KeyCache::collect_metrics, this), collector)
         , m_clock(clock)
         , m_name(name)
         , m_target_size(target_size)
@@ -121,7 +130,9 @@ public:
         clock_type& clock,
         size_type target_size = 0,
         std::chrono::seconds expiration = std::chrono::minutes{2})
-        : m_stats(
+        : m_map([](Key const& key) {
+            return *reinterpret_cast<std::uint64_t const*>(key.data());})
+        , m_stats(
               name,
               std::bind(&KeyCache::collect_metrics, this),
               beast::insight::NullCollector::New())
@@ -265,7 +276,64 @@ public:
     /** Remove stale entries from the cache. */
     void
     sweep()
+    {}
+
+    void
+    sweep(JobQueue& jq)
     {
+        clock_type::time_point const now(m_clock.now());
+        clock_type::time_point when_expire;
+
+        std::lock_guard lock(m_mutex);
+
+        if (m_target_size == 0 || (m_map.size() <= m_target_size))
+        {
+            when_expire = now - m_target_age;
+        }
+        else
+        {
+            when_expire = now - m_target_age * m_target_size / m_map.size();
+
+            clock_type::duration const minimumAge(std::chrono::seconds(1));
+            if (when_expire > (now - minimumAge))
+                when_expire = now - minimumAge;
+        }
+
+        std::mutex partitionMutex;
+        std::condition_variable partitionCv;
+        std::unique_lock<std::mutex> partitionLock(partitionMutex);
+        std::size_t remaining = m_map.partitions();
+        partitionLock.unlock();
+
+        for (auto& partition : m_map.map())
+        {
+            jq.template addJob(jtSWEEP, "keycache-partition-sweep", [&](Job&) {
+                auto it = partition.begin();
+                while (it != partition.end())
+                {
+                    if (it->second.last_access > now)
+                    {
+                        it->second.last_access = now;
+                        ++it;
+                    }
+                    else if (it->second.last_access <= when_expire)
+                    {
+                        it = partition.erase(it);
+                    }
+                    else
+                    {
+                        ++it;
+                    }
+                }
+            });
+        }
+
+        std::unique_lock<std::mutex> lambdaLock(partitionMutex);
+        --remaining;
+        lambdaLock.unlock();
+        partitionCv.notify_one();
+
+        /*
         clock_type::time_point const now(m_clock.now());
         clock_type::time_point when_expire;
 
@@ -302,280 +370,7 @@ public:
                 ++it;
             }
         }
-    }
-
-private:
-    void
-    collect_metrics()
-    {
-        m_stats.size.set(size());
-
-        {
-            beast::insight::Gauge::value_type hit_rate(0);
-            {
-                std::lock_guard lock(m_mutex);
-                auto const total(m_stats.hits + m_stats.misses);
-                if (total != 0)
-                    hit_rate = (m_stats.hits * 100) / total;
-            }
-            m_stats.hit_rate.set(hit_rate);
-        }
-    }
-};
-
-//------------------------------------------------------------------------------
-
-template <
-    class Key,
-    class Hash = hardened_hash<>,
-    class KeyEqual = std::equal_to<Key>,
-    // class Allocator = std::allocator <std::pair <Key const, Entry>>,
-    class Mutex = std::mutex>
-class KeyCacheRotating
-{
-public:
-    using key_type = Key;
-    using clock_type = beast::abstract_clock<std::chrono::steady_clock>;
-
-private:
-    struct Stats
-    {
-        template <class Handler>
-        Stats(
-            std::string const& prefix,
-            Handler const& handler,
-            beast::insight::Collector::ptr const& collector)
-            : hook(collector->make_hook(handler))
-            , size(collector->make_gauge(prefix, "size"))
-            , hit_rate(collector->make_gauge(prefix, "hit_rate"))
-            , hits(0)
-            , misses(0)
-        {
-        }
-
-        beast::insight::Hook hook;
-        beast::insight::Gauge size;
-        beast::insight::Gauge hit_rate;
-
-        std::size_t hits;
-        std::size_t misses;
-    };
-
-    struct Entry
-    {
-        explicit Entry(clock_type::time_point const& last_access_)
-            : last_access(last_access_)
-        {
-        }
-
-        clock_type::time_point last_access;
-    };
-
-    using map_type = hardened_hash_map<key_type, Entry, Hash, KeyEqual>;
-    using iterator = typename map_type::iterator;
-
-public:
-    using size_type = typename map_type::size_type;
-
-private:
-    Mutex mutable m_mutex;
-    map_type m_map;
-    map_type writableMap_;
-    map_type archiveMap_;
-    Stats mutable m_stats;
-    clock_type& m_clock;
-    std::string const m_name;
-    size_type m_target_size;
-    clock_type::duration m_target_age;
-
-public:
-    /** Construct with the specified name.
-
-        @param size The initial target size.
-        @param age  The initial expiration time.
-    */
-    KeyCacheRotating(
-        std::string const& name,
-        clock_type& clock,
-        beast::insight::Collector::ptr const& collector,
-        size_type target_size = 0,
-        std::chrono::seconds expiration = std::chrono::minutes{2})
-        : m_stats(name, std::bind(&KeyCacheRotating::collect_metrics, this), collector)
-        , m_clock(clock)
-        , m_name(name)
-        , m_target_size(target_size)
-        , m_target_age(expiration)
-    {
-    }
-
-    // VFALCO TODO Use a forwarding constructor call here
-    KeyCacheRotating(
-        std::string const& name,
-        clock_type& clock,
-        size_type target_size = 0,
-        std::chrono::seconds expiration = std::chrono::minutes{2})
-        : m_stats(
-        name,
-        std::bind(&KeyCacheRotating::collect_metrics, this),
-        beast::insight::NullCollector::New())
-        , m_clock(clock)
-        , m_name(name)
-        , m_target_size(target_size)
-        , m_target_age(expiration)
-    {
-    }
-
-    //--------------------------------------------------------------------------
-
-    /** Retrieve the name of this object. */
-    std::string const&
-    name() const
-    {
-        return m_name;
-    }
-
-    /** Return the clock associated with the cache. */
-    clock_type&
-    clock()
-    {
-        return m_clock;
-    }
-
-    /** Returns the number of items in the container. */
-    size_type
-    size() const
-    {
-        std::lock_guard lock(m_mutex);
-        return writableMap_.size() + archiveMap_.size();
-    }
-
-    /** Empty the cache */
-    void
-    clear()
-    {
-        std::lock_guard lock(m_mutex);
-        writableMap_.clear();
-        archiveMap_.clear();
-    }
-
-    void
-    reset()
-    {
-        std::lock_guard lock(m_mutex);
-        writableMap_.clear();
-        archiveMap_.clear();
-        m_stats.hits = 0;
-        m_stats.misses = 0;
-    }
-
-    void
-    setTargetSize(size_type s)
-    {
-        std::lock_guard lock(m_mutex);
-        m_target_size = s;
-    }
-
-    void
-    setTargetAge(std::chrono::seconds s)
-    {
-        std::lock_guard lock(m_mutex);
-        m_target_age = s;
-    }
-
-    /** Returns `true` if the key was found.
-        Does not update the last access time.
-    */
-    template <class KeyComparable>
-    bool
-    exists(KeyComparable const& key) const
-    {
-        std::lock_guard lock(m_mutex);
-        typename map_type::const_iterator iter(writableMap_.find(key));
-        if (iter != writableMap_.end())
-        {
-            ++m_stats.hits;
-            return true;
-        }
-
-        iter = archiveMap_.find(key);
-        if (iter != archiveMap_.end())
-        {
-            ++m_stats.hits;
-            return true;
-        }
-
-        ++m_stats.misses;
-        return false;
-    }
-
-    /** Insert the specified key.
-        The last access time is refreshed in all cases.
-        @return `true` If the key was newly inserted.
-    */
-    bool
-    insert(Key const& key)
-    {
-        std::lock_guard lock(m_mutex);
-        clock_type::time_point const now(m_clock.now());
-        auto [it, inserted] = writableMap_.emplace(
-            std::piecewise_construct,
-            std::forward_as_tuple(key),
-            std::forward_as_tuple(now));
-        if (!inserted)
-        {
-            it->second.last_access = now;
-            return false;
-        }
-        return true;
-    }
-
-    /** Refresh the last access time on a key if present.
-        @return `true` If the key was found.
-    */
-    template <class KeyComparable>
-    bool
-    touch_if_exists(KeyComparable const& key)
-    {
-        return exists(key);
-    }
-
-    /** Remove the specified cache entry.
-        @param key The key to remove.
-        @return `false` If the key was not found.
-    */
-    bool
-    erase(key_type const& key)
-    {
-        std::lock_guard lock(m_mutex);
-        if (writableMap_.erase(key) > 0)
-        {
-            ++m_stats.hits;
-            return true;
-        }
-        if (archiveMap_.erase(key) > 0)
-        {
-            ++m_stats.hits;
-            return true;
-        }
-
-        ++m_stats.misses;
-        return false;
-    }
-
-    /** Remove stale entries from the cache. */
-    void
-    sweep()
-    {}
-
-    void
-    rotate()
-    {
-        map_type tmp;
-        {
-            std::lock_guard<Mutex> lock(m_mutex);
-            archiveMap_.swap(tmp);
-            writableMap_.swap(tmp);
-        }
+*/
     }
 
 private:
