@@ -1467,11 +1467,15 @@ bool
 RelationalDBInterfaceSqliteImp::transactionDbHasSpace(Config const& config)
 {
     /* if database exists, use it */
-    if (existsTransaction())
+    bool const e = existsTransaction();
+    JLOG(j_.debug()) << "existsTransaction; " << e;
+//    if (existsTransaction())
+    if (e)
     {
         auto db = checkoutTransaction();
         return ripple::dbHasSpace(*db, config, j_);
     }
+    JLOG(j_.debug()) << "existsTransaction and about to crash: " << e;
 
     /* else use shard databases */
     return iterateTransactionBack(
