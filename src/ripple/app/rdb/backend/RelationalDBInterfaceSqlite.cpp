@@ -36,6 +36,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/range/adaptor/transformed.hpp>
 #include <soci/sqlite3/soci-sqlite3.h>
+#include <mutex>
 
 namespace ripple {
 
@@ -194,6 +195,7 @@ private:
     beast::Journal j_;
     std::unique_ptr<DatabaseCon> lgrdb_, txdb_;
     std::unique_ptr<DatabaseCon> lgrMetaDB_, txMetaDB_;
+    std::mutex mutex_;
 
     /**
      * @brief makeLedgerDBs Opens node ledger and transaction databases,
@@ -273,6 +275,7 @@ private:
     bool
     existsTransaction()
     {
+        std::lock_guard<std::mutex> lock(mutex_);
         JLOG(j_.debug()) << "txdb_,!!txdb_ " << bool(txdb_) << ',' << bool(!!txdb_);
         return !!txdb_;
     }
@@ -294,6 +297,7 @@ private:
     auto
     checkoutTransaction()
     {
+        std::lock_guard<std::mutex> lock(mutex_);
         return txdb_->checkoutDb();
     }
 
@@ -428,6 +432,7 @@ RelationalDBInterfaceSqliteImp::makeLedgerDBs(
 {
     auto [lgr, tx, res] =
         ripple::makeLedgerDBs(config, setup, checkpointerSetup);
+    std::lock_guard<std::mutex> lock(mutex_);
     txdb_ = std::move(tx);
     lgrdb_ = std::move(lgr);
     return res;
@@ -689,6 +694,7 @@ RelationalDBInterfaceSqliteImp::saveValidatedLedger(
     /* if databases exists, use them */
     if (existsLedger() && existsTransaction())
     {
+        std::lock_guard<std::mutex> lock(mutex_);
         if (!ripple::saveValidatedLedger(
                 *lgrdb_, *txdb_, app_, ledger, current))
             return false;
@@ -1518,6 +1524,7 @@ RelationalDBInterfaceSqliteImp::getKBUsedTransaction()
     /* if database exists, use it */
     if (existsTransaction())
     {
+        std::lock_guard<std::mutex> lock(mutex_);
         return ripple::getKBUsedDB(txdb_->getSession());
     }
 
@@ -1540,6 +1547,7 @@ RelationalDBInterfaceSqliteImp::closeLedgerDB()
 void
 RelationalDBInterfaceSqliteImp::closeTransactionDB()
 {
+    std::lock_guard<std::mutex> lock(mutex_);
     txdb_.reset();
 }
 
