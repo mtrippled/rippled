@@ -273,7 +273,7 @@ private:
     bool
     existsTransaction()
     {
-        JLOG(j_.debug()) << "txdb? " << bool(txdb_);
+        JLOG(j_.debug()) << "txdb_,!!txdb_ " << bool(txdb_) << ',' << bool(!!txdb_);
         return !!txdb_;
     }
 
