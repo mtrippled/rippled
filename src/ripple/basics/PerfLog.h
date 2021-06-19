@@ -49,8 +49,8 @@ struct Timers
     {
         struct Tag
         {
-            std::string label;
-            std::string mutex_label;
+            std::string_view label;
+            std::string_view mutex_label;
             std::uint64_t mutex_id{0};
 
             Tag() = default;
@@ -71,6 +71,8 @@ struct Timers
             {
                 if (mutex_id)
                 {
+                    std::cerr << "mutex_label " << mutex_label << '\n';
+                    std::cerr << "other.mutex_label " << other.mutex_label << '\n';
                     if (label < other.label)
                         return true;
                     if (mutex_label < other.mutex_label)
