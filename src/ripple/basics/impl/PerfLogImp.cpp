@@ -411,6 +411,8 @@ PerfLogImp::reportEvents()
 
     for (auto& tracerIntermediate : tracerIntermediates)
     {
+        std::cerr << "tracerIntermediate.first.mutex_label: " <<
+            tracerIntermediate.first.mutex_label << '\n';
         auto& endTracer = tracerEnds[tracerIntermediate.first];
         endTracer.first = tracerIntermediate.second.first;
         for (auto& subTimer : tracerIntermediate.second.second)
