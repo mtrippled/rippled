@@ -334,7 +334,7 @@ std::string_view const&
 startTimer(std::shared_ptr<Tracer> const& tracer,
            std::string_view const& label);
 
-inline std::string_view const&
+inline std::string const&
 startTimer(Tracer& tracer, std::string_view const& label)
 {
     return tracer.startTimer(Timers::Timer::Tag(label)).label;
