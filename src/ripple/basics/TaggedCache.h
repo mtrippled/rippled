@@ -689,7 +689,6 @@ public:
         return m_target_size;
     }
 
-    /*
     void
     setTargetSize(int s)
     {
@@ -697,12 +696,17 @@ public:
         m_target_size = s;
 
         if (s > 0)
-            m_cache.rehash(static_cast<std::size_t>(
-                (s + (s >> 2)) / m_cache.max_load_factor() + 1));
+        {
+            for (auto& p : m_cache.map())
+            {
+                p.rehash(static_cast<std::size_t>(
+                    (s + (s >> 2)) /
+                        (p.max_load_factor() * m_cache.partitions()) + 1));
+            }
+        }
 
         JLOG(m_journal.debug()) << m_name << " target size set to " << s;
     }
-     */
 
     clock_type::duration
     getTargetAge() const
@@ -1051,7 +1055,6 @@ public:
 //        // and decrement the reference count on each strong pointer.
 //    }
 
-    /*
     bool
     del(const key_type& key, bool valid)
     {
@@ -1080,7 +1083,6 @@ public:
 
         return ret;
     }
-     */
 
     /** Replace aliased objects with originals.
 
@@ -1308,7 +1310,7 @@ public:
     }
      */
 
-    mutex_type&
+    perf::mutex<mutex_type>&
     peekMutex()
     {
         return m_mutex;
