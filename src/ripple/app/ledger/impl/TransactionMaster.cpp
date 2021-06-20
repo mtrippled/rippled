@@ -155,10 +155,10 @@ TransactionMaster::canonicalize(std::shared_ptr<Transaction>* pTransaction)
 void
 TransactionMaster::sweep(void)
 {
-    mCache.sweep();
+    mCache.sweep(mApp.getJobQueue());
 }
 
-TaggedCache<uint256, Transaction>&
+TaggedCacheTrace<uint256, Transaction>&
 TransactionMaster::getCache()
 {
     return mCache;
