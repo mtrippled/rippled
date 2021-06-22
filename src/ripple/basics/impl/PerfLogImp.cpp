@@ -350,7 +350,7 @@ PerfLogImp::reportEvents()
     Json::Value detailJson{Json::arrayValue};
     for (auto const& event : events)
     {
-        std::cerr << __FILE__ << __LINE__ << "size: " << event.timer.tag.mutex_label << '\n';
+        std::cerr << __FILE__ << __LINE__ << "size: " << event.timer.tag.mutex_label.size() << '\n';
         Json::Value traceJson;
         if (event.render)
             traceJson = event.timer.toJson();
@@ -371,14 +371,14 @@ PerfLogImp::reportEvents()
             auto& lock = mutexIntermediate.second[event.timer.tag];
             ++lock.count;
             lock.duration_us += event.timer.duration_us;
-            std::cerr << __FILE__ << __LINE__ << "size: " << event.timer.tag.mutex_label << '\n';
+            std::cerr << __FILE__ << __LINE__ << "size: " << event.timer.tag.mutex_label.size() << '\n';
         }
 
         traceJson["sub_timers_size"] = std::to_string(event.sub_timers.size());
         Json::Value subTraceJson(Json::arrayValue);
         for (auto const& subTimer : event.sub_timers)
         {
-            std::cerr << __FILE__ << __LINE__ << "size: " << subTimer.tag.mutex_label << '\n';
+            std::cerr << __FILE__ << __LINE__ << "size: " << subTimer.tag.mutex_label.size() << '\n';
             if (event.render)
                 subTraceJson.append(subTimer.toJson());
 
@@ -398,7 +398,7 @@ PerfLogImp::reportEvents()
                 auto& lockAggregate = mutexIntermediate.second[subTimer.tag];
                 ++lockAggregate.count;
                 lockAggregate.duration_us += subTimer.duration_us;
-                std::cerr << __FILE__ << __LINE__ << "size: " << subTimer.tag.mutex_label << '\n';
+                std::cerr << __FILE__ << __LINE__ << "size: " << subTimer.tag.mutex_label.size() << '\n';
             }
         }
 
@@ -415,7 +415,7 @@ PerfLogImp::reportEvents()
 
     for (auto& tracerIntermediate : tracerIntermediates)
     {
-        std::cerr << __FILE__ << __LINE__ << "size: " << tracerIntermediate.first.mutex_label << '\n';
+        std::cerr << __FILE__ << __LINE__ << "size: " << tracerIntermediate.first.mutex_label.size() << '\n';
         auto& endTracer = tracerEnds[tracerIntermediate.first];
         endTracer.first = tracerIntermediate.second.first;
         for (auto& subTimer : tracerIntermediate.second.second)
