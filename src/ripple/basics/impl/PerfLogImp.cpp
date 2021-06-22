@@ -409,7 +409,7 @@ PerfLogImp::reportEvents()
     EndMap tracerEnds;
     EndMap mutexEnds;
 
-    for (auto& tracerIntermediate : tracerIntermediates)
+    for (auto tracerIntermediate : tracerIntermediates)
     {
         auto& endTracer = tracerEnds[tracerIntermediate.first];
         endTracer.first = tracerIntermediate.second.first;
