@@ -34,6 +34,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <iostream>
+
 namespace beast {
 class Journal;
 }
@@ -69,6 +71,8 @@ struct Timers
             {
                 if (mutex_id)
                 {
+                    std::cerr << "size,other.size: " << mutex_label.size()
+                              << ',' << other.mutex_label.size() << '\n';
                     if (label < other.label)
                         return true;
                     if (mutex_label < other.mutex_label)
