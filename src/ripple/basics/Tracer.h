@@ -28,6 +28,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <system_error>
 #include <thread>
@@ -57,7 +58,7 @@ private:
     std::mutex mutex_;
 
 public:
-    Tracer(std::string_view const& label, bool render = false)
+    Tracer(std::string const& label, bool render = false)
         : timers_(std::chrono::steady_clock::now(), label, {}, {}, {},
                   render, {})
     {
@@ -67,8 +68,8 @@ public:
 //        std::cerr << "Tracer1: " << Json::Compact{std::move(tag)} << '\n';
     }
 
-    Tracer(std::string_view const& label,
-        std::pair<std::string_view, std::uint64_t> const& mutexTag,
+    Tracer(std::string const& label,
+        std::pair<std::string, std::uint64_t> const& mutexTag,
            bool render = false)
         : timers_(std::chrono::steady_clock::now(), label, mutexTag.first,
                   mutexTag.second, {}, render, {})
@@ -95,15 +96,15 @@ class mutex
 {
 private:
     T mutex_;
-    std::pair<std::string_view, std::uint64_t> const tag_;
+    std::pair<std::string, std::uint64_t> const tag_;
 
 public:
-    mutex(std::string_view const& label)
+    mutex(std::string const& label)
         : tag_({label, uniqueId()})
     {
     }
 
-    std::pair<std::string_view, std::uint64_t> const&
+    std::pair<std::string, std::uint64_t> const&
     tag() const
     {
         return tag_;
@@ -138,7 +139,7 @@ private:
     Timers::Timer::Tag tracerTag_;
 
 public:
-    lock_guard(Mutex& mutex, std::string_view const& label,
+    lock_guard(Mutex& mutex, std::string const& label,
                bool render = false, std::shared_ptr<Tracer> const& tracer = {})
         : mutex_(mutex)
         , tracer_(tracer)
@@ -199,7 +200,7 @@ class unique_lock
     }
 
     void
-    startTimer(std::string_view const& label)
+    startTimer(std::string const& label)
     {
         // Either append to an existing tracer object, or create a simple one.
         auto const& tag = mutex_->tag();
@@ -210,7 +211,7 @@ class unique_lock
     }
 
 public:
-    unique_lock(Mutex& mutex, std::string_view const& label,
+    unique_lock(Mutex& mutex, std::string const& label,
         bool render = false, std::shared_ptr<Tracer> const& tracer = {})
         : mutex_(&mutex)
         , tracer_(tracer)
@@ -219,7 +220,7 @@ public:
         lock(label);
     }
 
-    unique_lock(Mutex& mutex, std::string_view const& label,
+    unique_lock(Mutex& mutex, std::string const& label,
         std::defer_lock_t, bool render = false,
         std::shared_ptr<Tracer> const& tracer = {})
         : mutex_(&mutex)
@@ -237,7 +238,7 @@ public:
     unique_lock& operator=(unique_lock const& other) = delete;
 
     void
-    lock(std::string_view const& label)
+    lock(std::string const& label)
     {
         check();
         mutex_->lock();
@@ -262,7 +263,7 @@ public:
     }
 
     bool
-    try_lock(std::string_view const& label)
+    try_lock(std::string const& label)
     {
         check();
 
@@ -294,7 +295,7 @@ public:
 
 template <class PerfLock, class StdLock>
 void
-lock(PerfLock& p, StdLock& s, std::string_view const& label)
+lock(PerfLock& p, StdLock& s, std::string const& label)
 {
     while (true)
     {
@@ -324,32 +325,32 @@ lock(PerfLock& p, StdLock& s, std::string_view const& label)
 
 
 std::shared_ptr<Tracer>
-make_Tracer(std::string_view const& label, bool render = false);
+make_Tracer(std::string const& label, bool render = false);
 
 std::shared_ptr<Tracer>
-make_Tracer(std::string_view const& label, std::string_view const& mutexLabel,
+make_Tracer(std::string const& label, std::string const& mutexLabel,
     std::uint64_t const mutexId, bool render = false);
 
-std::string_view const&
+std::string const&
 startTimer(std::shared_ptr<Tracer> const& tracer,
-           std::string_view const& label);
+           std::string const& label);
 
-inline std::string_view const&
-startTimer(Tracer& tracer, std::string_view const& label)
+inline std::string const&
+startTimer(Tracer& tracer, std::string const& label)
 {
     return tracer.startTimer(Timers::Timer::Tag(label)).label;
 }
 
 inline void
 endTimer(std::shared_ptr<Tracer> const& tracer,
-    std::string_view const& label)
+    std::string const& label)
 {
     if (tracer)
         tracer->endTimer(Timers::Timer::Tag(label));
 }
 
 inline void
-endTimer(Tracer& tracer, std::string_view const& label)
+endTimer(Tracer& tracer, std::string const& label)
 {
     tracer.endTimer(Timers::Timer::Tag(label));
 }

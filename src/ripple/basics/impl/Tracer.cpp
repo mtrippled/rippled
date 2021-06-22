@@ -40,7 +40,7 @@ uniqueId()
 }
 
 std::shared_ptr<Tracer>
-make_Tracer(std::string_view const& label, bool render)
+make_Tracer(std::string const& label, bool render)
 {
     return std::make_unique<Tracer>(label, render);
 }
@@ -70,9 +70,9 @@ Tracer::endTimer(Timers::Timer::Tag const& tag)
     timerTags_.erase(start);
 }
 
-std::string_view const&
+std::string const&
 startTimer(std::shared_ptr<Tracer> const& tracer,
-    std::string_view const& label)
+    std::string const& label)
 {
     if (tracer)
         tracer->startTimer(Timers::Timer::Tag(label));

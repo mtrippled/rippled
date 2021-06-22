@@ -49,18 +49,18 @@ struct Timers
     {
         struct Tag
         {
-            std::string_view label;
-            std::string_view mutex_label;
+            std::string label;
+            std::string mutex_label;
             std::uint64_t mutex_id{0};
 
             Tag() = default;
 
-            Tag(std::string_view const& labelArg)
+            Tag(std::string const& labelArg)
                 : label(labelArg)
             {}
 
-            Tag(std::string_view const& labelArg,
-                std::string_view const& mutexLabelArg, std::uint64_t mutexIdArg)
+            Tag(std::string const& labelArg,
+                std::string const& mutexLabelArg, std::uint64_t mutexIdArg)
                 : label(labelArg)
                 , mutex_label(mutexLabelArg)
                 , mutex_id(mutexIdArg)
@@ -146,8 +146,8 @@ struct Timers
         std::chrono::microseconds duration_us;
 
         Timer(std::chrono::steady_clock::time_point const& startTimeArg,
-            std::string_view const& labelArg,
-            std::string_view const& mutexLabelArg,
+            std::string const& labelArg,
+            std::string const& mutexLabelArg,
             std::uint64_t const mutexIdArg,
             std::chrono::microseconds const& durationUsArg)
                 : start_time(startTimeArg)
@@ -178,8 +178,8 @@ struct Timers
     std::vector<Timer> sub_timers;
 
     Timers(std::chrono::steady_clock::time_point const& startTimeArg,
-           std::string_view const& labelArg,
-           std::string_view const& mutexLabelArg,
+           std::string const& labelArg,
+           std::string const& mutexLabelArg,
            std::uint64_t const mutexIdArg,
            std::chrono::microseconds const& durationUsArg,
            bool const renderArg,
@@ -349,12 +349,12 @@ struct std::hash<ripple::perf::Timers::Timer::Tag>
     {
         if (tag.mutex_label.empty())
         {
-            return std::hash<std::string_view>()(tag.label);
+            return std::hash<std::string>()(tag.label);
         }
         else
         {
-            return std::hash<std::string_view>()(tag.label) +
-                std::hash<std::string_view>()(tag.mutex_label) +
+            return std::hash<std::string>()(tag.label) +
+                std::hash<std::string>()(tag.mutex_label) +
                 tag.mutex_id;
         }
     }
