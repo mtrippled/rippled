@@ -201,7 +201,6 @@ class unique_lock
     void
     startTimer(std::string_view const& label)
     {
-        return;
         // Either append to an existing tracer object, or create a simple one.
         auto const& tag = mutex_->tag();
         if (!tracer_)
@@ -286,7 +285,6 @@ public:
 
         mutex_->unlock();
         owns_ = false;
-        return;
         if (tracerTag_.label.size())
             tracer_->endTimer(tracerTag_);
     }
