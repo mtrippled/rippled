@@ -352,6 +352,7 @@ PerfLogImp::reportEvents()
     {
         std::cerr << __FILE__ << __LINE__ << "size: " << event.timer.tag.mutex_label.size() << '\n';
         Json::Value traceJson;
+
         if (event.render)
             traceJson = event.timer.toJson();
 
@@ -415,7 +416,9 @@ PerfLogImp::reportEvents()
 
     for (auto& tracerIntermediate : tracerIntermediates)
     {
-        std::cerr << __FILE__ << __LINE__ << "size: " << tracerIntermediate.first.mutex_label.size() << '\n';
+        std::cerr << __FILE__ << __LINE__ << " string,size: "
+                  << tracerIntermediate.first.mutex_label << ','
+                  << tracerIntermediate.first.mutex_label.size() << '\n';
         auto& endTracer = tracerEnds[tracerIntermediate.first];
         endTracer.first = tracerIntermediate.second.first;
         for (auto& subTimer : tracerIntermediate.second.second)
