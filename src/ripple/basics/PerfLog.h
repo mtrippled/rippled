@@ -73,7 +73,7 @@ struct Timers
                 {
                     std::cerr << __FILE__ << __LINE__
                               << " string,size,other.size: "
-                              << ',' << mutex_label
+                              << ',' << mutex_label << ','
                               << mutex_label.size()
                               << ',' << other.mutex_label.size() << '\n';
                     if (label < other.label)
