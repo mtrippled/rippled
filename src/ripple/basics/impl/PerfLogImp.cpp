@@ -410,9 +410,10 @@ PerfLogImp::reportEvents()
     EndMap tracerEnds;
     EndMap mutexEnds;
 
+    std::cerr << "cerr mapsize: " << tracerIntermediates.size() << '\n';
     for (auto& tracerIntermediate : tracerIntermediates)
     {
-        std::cerr << __FILE__ << __LINE__ << " string,size: "
+        std::cerr << __FILE__ << __LINE__ << "cerr string,size: "
                   << tracerIntermediate.first.mutex_label << ','
                   << tracerIntermediate.first.mutex_label.size() << '\n';
         auto& endTracer = tracerEnds[tracerIntermediate.first];
