@@ -72,7 +72,8 @@ struct Timers
                 if (mutex_id)
                 {
                     std::cerr << __FILE__ << __LINE__
-                              << " cerr size,other.size: "
+                              << " cerr label,other.label,size,other.size: "
+                              << label << ',' << other.label << ','
                               << mutex_label.size()
                               << ',' << other.mutex_label.size()
                               << '\n';
