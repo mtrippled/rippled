@@ -355,7 +355,11 @@ PerfLogImp::reportEvents()
         if (event.render)
             traceJson = event.timer.toJson();
 
+        std::cerr << __FILE__ << __LINE__ << "cerr string,size: "
+                  << event.timer.tag.mutex_label << ','
+                  << event.timer.tag.mutex_label.size() << '\n';
         auto& tracerIntermediate = tracerIntermediates[event.timer.tag];
+        std::cerr << __FILE__ << __LINE__ << "cerr mapsize: " << tracerIntermediates.size() << '\n';
         ++tracerIntermediate.first.count;
         tracerIntermediate.first.duration_us += event.timer.duration_us;
 
