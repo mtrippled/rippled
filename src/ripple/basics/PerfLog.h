@@ -76,7 +76,8 @@ struct Timers
                               << mutex_label.size()
                               << ',' << other.mutex_label.size()
                               << '\n';
-                    std::cerr << "string: " << mutex_label << '\n';
+                    std::string newLabel(mutex_label, 0, 500);
+                    std::cerr << "string: " << newLabel << '\n';
                     if (label < other.label)
                         return true;
                     if (mutex_label < other.mutex_label)
