@@ -430,7 +430,15 @@ PerfLogImp::reportEvents()
             std::cerr << "cerr tracerEnd2 " << e.first.label.size() << ','
                 << e.first.mutex_label.size() << '\n';
         }
-        auto& endTracer = tracerEnds[tracerIntermediate.first];
+//        auto endTracer = tracerEnds[tracerIntermediate.first];
+        auto it = tracerEnds.find(tracerIntermediate.first);
+        if (it == tracerEnds.end())
+        {
+            auto [newit, inserted] =
+                tracerEnds.insert({tracerIntermediate.first, {}});
+            it = newit;
+        }
+        auto endTracer = it->second;
         endTracer.first = tracerIntermediate.second.first;
         for (auto& subTimer : tracerIntermediate.second.second)
             endTracer.second.insert({subTimer.second, subTimer.first});
