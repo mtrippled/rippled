@@ -71,8 +71,6 @@ struct Timers
             {
                 if (mutex_id)
                 {
-                    std::cerr << "mutex_label " << mutex_label << '\n';
-                    std::cerr << "other.mutex_label " << other.mutex_label << '\n';
                     if (label < other.label)
                         return true;
                     if (mutex_label < other.mutex_label)

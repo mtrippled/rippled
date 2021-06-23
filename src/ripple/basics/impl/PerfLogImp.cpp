@@ -37,6 +37,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 
@@ -341,9 +342,10 @@ PerfLogImp::reportEvents()
     if (events.empty())
         return {};
 
+    using Intermediate = std::pair<Aggregate,
+        std::unordered_map<Timers::Timer::Tag, Aggregate>>;
     using IntermediateMap = std::unordered_map<Timers::Timer::Tag,
-          std::pair<Aggregate,
-                    std::unordered_map<Timers::Timer::Tag, Aggregate>>>;
+                                               Intermediate>;
     IntermediateMap tracerIntermediates;
     IntermediateMap mutexIntermediates;
 
@@ -411,19 +413,29 @@ PerfLogImp::reportEvents()
 
     for (auto& tracerIntermediate : tracerIntermediates)
     {
-        std::cerr << "tracerIntermediate.first.mutex_label: " <<
-            tracerIntermediate.first.mutex_label << '\n';
-        auto& endTracer = tracerEnds[tracerIntermediate.first];
-        endTracer.first = tracerIntermediate.second.first;
+        auto it = tracerEnds.find(tracerIntermediate.first);
+        if (it == tracerEnds.end())
+        {
+            bool inserted;
+            std::tie(it, inserted) = tracerEnds.insert(
+                {tracerIntermediate.first,
+                 {tracerIntermediate.second.first, {}}});
+        }
         for (auto& subTimer : tracerIntermediate.second.second)
-            endTracer.second.insert({subTimer.second, subTimer.first});
+            it->second.second.insert({subTimer.second, subTimer.first});
     }
     for (auto& mutexIntermediate : mutexIntermediates)
     {
-        auto& endMutex = mutexEnds[mutexIntermediate.first];
-        endMutex.first = mutexIntermediate.second.first;
+        auto it = mutexEnds.find(mutexIntermediate.first);
+        if (it == mutexEnds.end())
+        {
+            bool inserted;
+            std::tie(it, inserted) = mutexEnds.insert(
+                {mutexIntermediate.first,
+                 {mutexIntermediate.second.first, {}}});
+        }
         for (auto& lock : mutexIntermediate.second.second)
-            endMutex.second.insert({lock.second, lock.first});
+            it->second.second.insert({lock.second, lock.first});
     }
 
     Json::Value tracesJson{Json::objectValue};
