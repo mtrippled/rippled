@@ -72,10 +72,11 @@ struct Timers
                 if (mutex_id)
                 {
                     std::cerr << __FILE__ << __LINE__
-                              << " string,size,other.size: "
-                              << ',' << mutex_label << ','
+                              << " size,other.size: "
                               << mutex_label.size()
-                              << ',' << other.mutex_label.size() << '\n';
+                              << ',' << other.mutex_label.size()
+                              << '\n';
+                    std::cerr << "string: " << mutex_label << '\n';
                     if (label < other.label)
                         return true;
                     if (mutex_label < other.mutex_label)
