@@ -417,13 +417,28 @@ PerfLogImp::reportEvents()
     std::cerr << "cerr mapsize: " << tracerIntermediates.size() << '\n';
     for (auto const& tracerIntermediate : tracerIntermediates)
     {
+        for (auto const& e : tracerEnds)
+        {
+            std::cerr << "cerr tracerEnd1 " << e.first.label.size() << ','
+                      << e.first.mutex_label.size() << '\n';
+        }
         std::cerr << __FILE__ << __LINE__ << "cerr string,size: "
                   << tracerIntermediate.first.mutex_label << ','
                   << tracerIntermediate.first.mutex_label.size() << '\n';
+        for (auto const& e : tracerEnds)
+        {
+            std::cerr << "cerr tracerEnd2 " << e.first.label.size() << ','
+                << e.first.mutex_label.size() << '\n';
+        }
         auto& endTracer = tracerEnds[tracerIntermediate.first];
         endTracer.first = tracerIntermediate.second.first;
         for (auto& subTimer : tracerIntermediate.second.second)
             endTracer.second.insert({subTimer.second, subTimer.first});
+        for (auto const& e : tracerEnds)
+        {
+            std::cerr << "cerr tracerEnd3 " << e.first.label.size() << ','
+                      << e.first.mutex_label.size() << '\n';
+        }
     }
     for (auto& mutexIntermediate : mutexIntermediates)
     {
