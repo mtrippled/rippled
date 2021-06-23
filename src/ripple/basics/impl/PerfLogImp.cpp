@@ -438,7 +438,7 @@ PerfLogImp::reportEvents()
                 tracerEnds.insert({tracerIntermediate.first, {}});
             it = newit;
         }
-        auto endTracer = it->second;
+        auto& endTracer = it->second;
         endTracer.first = tracerIntermediate.second.first;
         for (auto& subTimer : tracerIntermediate.second.second)
             endTracer.second.insert({subTimer.second, subTimer.first});
