@@ -33,6 +33,7 @@ CachedViewImpl::exists(Keylet const& k) const
 std::shared_ptr<SLE const>
 CachedViewImpl::read(Keylet const& k) const
 {
+    auto tracer = perf::TRACER;
     {
         std::lock_guard lock(mutex_);
         auto const iter = map_.find(k.key);
@@ -46,7 +47,13 @@ CachedViewImpl::read(Keylet const& k) const
     auto const digest = base_.digest(k.key);
     if (!digest)
         return nullptr;
-    auto sle = cache_.fetch(*digest, [&]() { return base_.read(k); });
+    auto timer = perf::START_TIMER(tracer);
+    auto sle = cache_.fetch(*digest, [&]() {
+        auto timer2 = perf::START_TIMER(tracer);
+        auto ret = base_.read(k);
+        perf::END_TIMER(tracer, timer2);
+        return ret; });
+    perf::END_TIMER(tracer, timer);
     std::lock_guard lock(mutex_);
     auto const er = map_.emplace(k.key, sle);
     auto const& iter = er.first;
