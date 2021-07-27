@@ -961,8 +961,8 @@ NetworkOPsImp::processHeartbeatTimer()
     JLOG(m_journal.debug()) << "processHeartbeatTimer";
     {
         auto timer = perf::START_TIMER(tracer);
-//        std::unique_lock lock{*app_.getMasterMutex()};
-        perf::unique_lock lock(*app_.getMasterMutex(), FILE_LINE);
+        std::unique_lock lock{*app_.getMasterMutex()};
+//        perf::unique_lock lock(*app_.getMasterMutex(), FILE_LINE);
         perf::END_TIMER(tracer, timer);
         auto timer2 = perf::START_TIMER(tracer);
 
@@ -1302,16 +1302,16 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock,
     batchLock.unlock();
 
     {
-//        std::unique_lock masterLock{*app_.getMasterMutex(), std::defer_lock};
-        perf::unique_lock masterLock(*app_.getMasterMutex(), FILE_LINE,
-                             std::defer_lock);
+        std::unique_lock masterLock{*app_.getMasterMutex(), std::defer_lock};
+//        perf::unique_lock masterLock(*app_.getMasterMutex(), FILE_LINE,
+//                             std::defer_lock);
         bool changed = false;
         {
             std::unique_lock ledgerLock{
                 m_ledgerMaster.peekMutex(), std::defer_lock};
-//            std::lock(masterLock, ledgerLock);
             m_journal.debug() << logMsg << 20;
-            perf::lock(masterLock, ledgerLock, FILE_LINE);
+            std::lock(masterLock, ledgerLock);
+//            perf::lock(masterLock, ledgerLock, FILE_LINE);
             m_journal.debug() << logMsg << 21;
 
             app_.openLedger().modify([&](OpenView& view, beast::Journal j) {

@@ -34,8 +34,8 @@ namespace ripple {
 Json::Value
 doLedgerAccept(RPC::JsonContext& context)
 {
-//    std::unique_lock lock{*context.app.getMasterMutex()};
-    perf::unique_lock lock(*context.app.getMasterMutex(), FILE_LINE);
+    std::unique_lock lock{*context.app.getMasterMutex()};
+//    perf::unique_lock lock(*context.app.getMasterMutex(), FILE_LINE);
     Json::Value jvResult;
 
     if (!context.app.config().standalone() || context.app.config().reporting())
