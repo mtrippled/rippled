@@ -328,7 +328,7 @@ public:
      * @param Lock that protects the transaction batching
      */
     void
-    apply(std::unique_lock<std::mutex>& batchLock);
+    apply(std::unique_lock<std::mutex>& batchLock, std::string const& logMsg);
 
     //
     // Owner functions.
@@ -1220,7 +1220,20 @@ NetworkOPsImp::doTransactionSync(
     bool bUnlimited,
     FailHard failType)
 {
+    thread_local std::string const tid = []() {
+        std::stringstream ss;
+        ss << "doTransactionSync " << std::this_thread::get_id() << '-';
+        return ss.str();
+    }();
+    thread_local std::size_t invocation = 0;
+    std::stringstream logMsgSs;
+    logMsgSs << tid << ++invocation << ": ";
+    std::string const& logMsg = logMsgSs.str();
+
+    JLOG(m_journal.debug()) << logMsg << 1;
+
     std::unique_lock<std::mutex> lock(mMutex);
+    JLOG(m_journal.debug()) << logMsg << 2;
 
     if (!transaction->getApplying())
     {
@@ -1234,11 +1247,14 @@ NetworkOPsImp::doTransactionSync(
         if (mDispatchState == DispatchState::running)
         {
             // A batch processing job is already running, so wait.
+            JLOG(m_journal.debug()) << logMsg << 10;
             mCond.wait(lock);
+            JLOG(m_journal.debug()) << logMsg << 11;
         }
         else
         {
-            apply(lock);
+            apply(lock, logMsg);
+            JLOG(m_journal.debug()) << logMsg << 40;
 
             if (mTransactions.size())
             {
@@ -1253,6 +1269,8 @@ NetworkOPsImp::doTransactionSync(
             }
         }
     } while (transaction->getApplying());
+
+    JLOG(m_journal.debug()) << logMsg << 1000;
 }
 
 void
@@ -1265,12 +1283,13 @@ NetworkOPsImp::transactionBatch()
 
     while (mTransactions.size())
     {
-        apply(lock);
+        apply(lock, "");
     }
 }
 
 void
-NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
+NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock,
+                     std::string const& logMsg)
 {
     std::vector<TransactionStatus> submit_held;
     std::vector<TransactionStatus> transactions;
@@ -1291,7 +1310,9 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
             std::unique_lock ledgerLock{
                 m_ledgerMaster.peekMutex(), std::defer_lock};
 //            std::lock(masterLock, ledgerLock);
+            m_journal.debug() << logMsg << 20;
             perf::lock(masterLock, ledgerLock, FILE_LINE);
+            m_journal.debug() << logMsg << 21;
 
             app_.openLedger().modify([&](OpenView& view, beast::Journal j) {
                 for (TransactionStatus& e : transactions)
@@ -1458,7 +1479,9 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
         }
     }
 
+    m_journal.debug() << logMsg << 30;
     batchLock.lock();
+    m_journal.debug() << logMsg << 31;
 
     for (TransactionStatus& e : transactions)
         e.transaction->clearApplying();
