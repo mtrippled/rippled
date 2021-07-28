@@ -39,6 +39,7 @@
 #include <ripple/app/misc/impl/AccountTxPaging.h>
 #include <ripple/app/reporting/ReportingETL.h>
 #include <ripple/app/tx/apply.h>
+#include <ripple/basics/contract.h>
 #include <ripple/basics/PerfLog.h>
 #include <ripple/basics/UptimeClock.h>
 #include <ripple/basics/base64.h>
@@ -1253,7 +1254,20 @@ NetworkOPsImp::doTransactionSync(
         }
         else
         {
-            apply(lock, logMsg);
+            try
+            {
+                apply(lock, logMsg);
+            }
+            catch (std::exception const& e)
+            {
+                std::stringstream ss;
+                ss << "apply sync exception: " << e.what();
+                LogicError(ss.str());
+            }
+            catch (...)
+            {
+                LogicError("apply sync exception unknown");
+            }
             JLOG(m_journal.debug()) << logMsg << 40;
 
             if (mTransactions.size())
@@ -1283,7 +1297,20 @@ NetworkOPsImp::transactionBatch()
 
     while (mTransactions.size())
     {
-        apply(lock, "");
+        try
+        {
+            apply(lock, "");
+        }
+        catch (std::exception const& e)
+        {
+            std::stringstream ss;
+            ss << "apply batch exception: " << e.what();
+            LogicError(ss.str());
+        }
+        catch (...)
+        {
+            LogicError("apply batch exception unknown");
+        }
     }
 }
 
