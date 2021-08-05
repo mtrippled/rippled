@@ -27,6 +27,9 @@
 #include <ripple/beast/insight/Insight.h>
 #include <ripple/core/Job.h>
 #include <ripple/core/JobQueue.h>
+#include <boost/asio.hpp>
+#include <boost/asio/spawn.hpp>
+#include <memory>
 #include <mutex>
 #include <optional>
 
@@ -45,6 +48,7 @@ template <
     // class Allocator = std::allocator <std::pair <Key const, Entry>>,
     class Mutex = std::mutex>
 class KeyCache
+    : public std::enable_shared_from_this<KeyCache<Key, Hash, KeyEqual, Mutex>>
 {
 public:
     using key_type = Key;
@@ -99,6 +103,7 @@ private:
     std::string const m_name;
     size_type m_target_size;
     clock_type::duration m_target_age;
+    std::shared_ptr<KeyCache<Key, Hash, KeyEqual, Mutex>> me_;
 
 public:
     /** Construct with the specified name.
@@ -122,6 +127,7 @@ public:
         , m_target_size(target_size)
         , m_target_age(expiration)
     {
+        me_.reset(this);
     }
 
     // VFALCO TODO Use a forwarding constructor call here
@@ -279,7 +285,7 @@ public:
     {}
 
     void
-    sweep(JobQueue& jq)
+    sweep(boost::asio::io_service& io)
     {
         clock_type::time_point const now(m_clock.now());
         clock_type::time_point when_expire;
@@ -305,9 +311,11 @@ public:
         std::size_t remaining = m_map.partitions();
         partitionLock.unlock();
 
+        auto self = this->shared_from_this();
         for (auto& partition : m_map.map())
         {
-            jq.template addJob(jtSWEEP, "keycache-partition-sweep", [&](Job&) {
+//            jq.template addJob(jtSWEEP, "keycache-partition-sweep", [&](Job&) {
+            boost::asio::spawn(io, [&, self](boost::asio::yield_context yield) {
                 auto it = partition.begin();
                 while (it != partition.end())
                 {

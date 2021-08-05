@@ -31,6 +31,7 @@ class BasicApp
 private:
     std::optional<boost::asio::io_service::work> work_;
     std::vector<std::thread> threads_;
+protected:
     boost::asio::io_service io_service_;
 
 public:
@@ -40,7 +41,7 @@ public:
     boost::asio::io_service&
     get_io_service()
     {
-        return io_service_;
+            return io_service_;
     }
 };
 

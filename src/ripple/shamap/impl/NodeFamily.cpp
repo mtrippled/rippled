@@ -51,10 +51,10 @@ void
 NodeFamily::sweep(std::shared_ptr<perf::Tracer> const& tracer)
 {
     auto timer = perf::START_TIMER(tracer);
-    fbCache_->sweep(app_.getJobQueue());
+    fbCache_->sweep(app_.getIOService());
     perf::END_TIMER(tracer, timer);
     auto timer2 = perf::START_TIMER(tracer);
-    tnCache_->sweep(app_.getJobQueue());
+    tnCache_->sweep(app_.getIOService());
     perf::END_TIMER(tracer, timer2);
 }
 

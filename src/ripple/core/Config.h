@@ -323,7 +323,7 @@ public:
     getValueFor(SizedItem item, std::optional<std::size_t> node = std::nullopt)
         const;
 
-    std::optional<std::size_t>
+    std::size_t
     cache_partitions() const;
 };
 

@@ -241,19 +241,9 @@ public:
     static std::size_t
     numberOfThreads(Config const& config)
     {
-#if RIPPLE_SINGLE_IO_SERVICE_THREAD
-        return 1;
-#else
-        auto const cores = std::thread::hardware_concurrency();
-
-        // Use a single thread when running on under-provisioned systems
-        // or if we are configured to use minimal resources.
-        if ((cores == 1) || ((config.NODE_SIZE == 0) && (cores == 2)))
-            return 1;
-
-        // Otherwise, prefer two threads.
-        return 2;
-#endif
+        // Allow caches to be swept and network io.
+        static std::size_t ret = config.cache_partitions() + 1;
+        return ret;
     }
 
     //--------------------------------------------------------------------------
@@ -1140,7 +1130,7 @@ public:
         getLedgerMaster().sweep(tracer);
         perf::END_TIMER(tracer, timer6);
         auto timer7 = perf::START_TIMER(tracer);
-        getTempNodeCache().sweep(getJobQueue());
+        getTempNodeCache().sweep(getIOService());
         perf::END_TIMER(tracer, timer7);
         auto timer8 = perf::START_TIMER(tracer);
         getValidations().expire();
@@ -1152,7 +1142,7 @@ public:
         getLedgerReplayer().sweep();
         perf::END_TIMER(tracer, timer10);
         auto timer11 = perf::START_TIMER(tracer);
-        m_acceptedLedgerCache.sweep(getJobQueue());
+        m_acceptedLedgerCache.sweep(io_service_);
         perf::END_TIMER(tracer, timer11);
         auto timer12 = perf::START_TIMER(tracer);
         cachedSLEs_.expire();

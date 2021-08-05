@@ -989,14 +989,14 @@ Config::getValueFor(SizedItem item, std::optional<std::size_t> node) const
     return sizedItems.at(index).second.at(node.value_or(NODE_SIZE));
 }
 
-std::optional<std::size_t>
+std::size_t
 Config::cache_partitions() const
 {
     int ret;
     static Section tweaks = section("tweaks");
     if (get_if_exists(tweaks, "partitions", ret))
         return static_cast<std::size_t>(ret);
-    return std::nullopt;
+    return std::thread::hardware_concurrency() * 2;
 }
 
 }  // namespace ripple

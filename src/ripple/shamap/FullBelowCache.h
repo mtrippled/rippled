@@ -24,6 +24,7 @@
 #include <ripple/basics/base_uint.h>
 #include <ripple/beast/insight/Collector.h>
 #include <ripple/core/JobQueue.h>
+#include <boost/asio.hpp>
 #include <atomic>
 #include <optional>
 #include <string>
@@ -94,9 +95,9 @@ public:
     {}
 
     void
-    sweep(JobQueue& jq)
+    sweep(boost::asio::io_service& io)
     {
-        m_cache.sweep(jq);
+        m_cache.sweep(io);
     }
 
     /** Refresh the last access time of an item, if it exists.

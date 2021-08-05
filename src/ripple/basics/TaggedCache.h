@@ -28,8 +28,11 @@
 #include <ripple/core/JobQueue.h>
 #include <ripple/beast/clock/abstract_clock.h>
 #include <ripple/beast/insight/Insight.h>
+#include <boost/asio.hpp>
+#include <boost/asio/spawn.hpp>
 #include <condition_variable>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <type_traits>
 #include <vector>
@@ -639,6 +642,8 @@ template <
     class KeyEqual = std::equal_to<Key>,
     class Mutex = std::recursive_mutex>
 class TaggedCacheTrace
+    : public std::enable_shared_from_this<TaggedCacheTrace<
+        Key, T, Hash, KeyEqual, Mutex>>
 {
 public:
     using mutex_type = Mutex;
@@ -672,6 +677,7 @@ public:
         , m_hits(0)
         , m_misses(0)
     {
+        me_.reset(this);
     }
 
 public:
@@ -766,7 +772,7 @@ public:
     }
 
     void
-    sweep(JobQueue& jq)
+    sweep(boost::asio::io_service& io)
     {
         {
             clock_type::time_point const now(m_clock.now());
@@ -805,9 +811,11 @@ public:
             std::size_t remaining = m_cache.partitions();
             partitionLock.unlock();
 
+            auto self = this->shared_from_this();
             for (auto& partition : m_cache.map())
             {
-                jq.addJob(jtSWEEP, "partition-sweep", [&](Job&) {
+                boost::asio::spawn(
+                    io, [&, self](boost::asio::yield_context yield) {
                   int cacheRemovals = 0;
                   int mapRemovals = 0;
                   int cc = 0;
@@ -1438,6 +1446,8 @@ private:
 //      return *reinterpret_cast<std::uint64_t const*>(key.data());}};
     std::uint64_t m_hits;
     std::uint64_t m_misses;
+
+    std::shared_ptr<TaggedCacheTrace<Key, T, Hash, KeyEqual, Mutex>> me_;
 };
 
 }  // namespace ripple
