@@ -29,6 +29,7 @@
 #include <ripple/core/JobQueue.h>
 #include <boost/asio.hpp>
 #include <boost/asio/spawn.hpp>
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -74,8 +75,8 @@ private:
         beast::insight::Gauge size;
         beast::insight::Gauge hit_rate;
 
-        std::size_t hits;
-        std::size_t misses;
+        std::atomic<std::size_t> hits;
+        std::atomic<std::size_t> misses;
     };
 
     struct Entry
@@ -101,8 +102,9 @@ private:
     Stats mutable m_stats;
     clock_type& m_clock;
     std::string const m_name;
-    size_type m_target_size;
-    clock_type::duration m_target_age;
+    std::atomic<size_type> m_target_size;
+    std::atomic<std::int64_t> m_target_age;
+//    clock_type::duration m_target_age;
     std::shared_ptr<KeyCache<Key, Hash, KeyEqual, Mutex>> me_;
 
 public:
@@ -125,7 +127,7 @@ public:
         , m_clock(clock)
         , m_name(name)
         , m_target_size(target_size)
-        , m_target_age(expiration)
+        , m_target_age(std::chrono::duration_cast<std::chrono::seconds>(expiration).count())
     {
         me_.reset(this);
     }
@@ -145,7 +147,7 @@ public:
         , m_clock(clock)
         , m_name(name)
         , m_target_size(target_size)
-        , m_target_age(expiration)
+        , m_target_age(std::chrono::duration_cast<std::chrono::seconds>(expiration).count())
     {
     }
 
@@ -169,7 +171,7 @@ public:
     size_type
     size() const
     {
-        std::lock_guard lock(m_mutex);
+//        std::lock_guard lock(m_mutex);
         return m_map.size();
     }
 
@@ -177,14 +179,14 @@ public:
     void
     clear()
     {
-        std::lock_guard lock(m_mutex);
+//        std::lock_guard lock(m_mutex);
         m_map.clear();
     }
 
     void
     reset()
     {
-        std::lock_guard lock(m_mutex);
+//        std::lock_guard lock(m_mutex);
         m_map.clear();
         m_stats.hits = 0;
         m_stats.misses = 0;
@@ -193,15 +195,15 @@ public:
     void
     setTargetSize(size_type s)
     {
-        std::lock_guard lock(m_mutex);
+//        std::lock_guard lock(m_mutex);
         m_target_size = s;
     }
 
     void
     setTargetAge(std::chrono::seconds s)
     {
-        std::lock_guard lock(m_mutex);
-        m_target_age = s;
+//        std::lock_guard lock(m_mutex);
+        m_target_age = s.count();
     }
 
     /** Returns `true` if the key was found.
@@ -211,7 +213,7 @@ public:
     bool
     exists(KeyComparable const& key) const
     {
-        std::lock_guard lock(m_mutex);
+//        std::lock_guard lock(m_mutex);
         typename map_type::const_iterator const iter(m_map.find(key));
         if (iter != m_map.end())
         {
@@ -229,18 +231,28 @@ public:
     bool
     insert(Key const& key)
     {
-        std::lock_guard lock(m_mutex);
-        clock_type::time_point const now(m_clock.now());
-        auto [it, inserted] = m_map.emplace(
-            std::piecewise_construct,
-            std::forward_as_tuple(key),
-            std::forward_as_tuple(now));
-        if (!inserted)
-        {
-            it->second.last_access = now;
-            return false;
-        }
-        return true;
+//        std::lock_guard lock(m_mutex);
+        bool ret;
+        m_map.lockPartitionExec(key,
+            [&key, &ret, this]
+            (typename map_type::map_type& map) {
+                clock_type::time_point const now(m_clock.now());
+                auto [it, inserted] = map.emplace(
+                    std::piecewise_construct,
+                    std::forward_as_tuple(key),
+                    std::forward_as_tuple(now));
+              if (!inserted)
+              {
+                  it->second.last_access = now;
+                  ret = false;
+              }
+              else
+              {
+                  ret = true;
+              }
+            });
+
+        return ret;
     }
 
     /** Refresh the last access time on a key if present.
@@ -250,16 +262,26 @@ public:
     bool
     touch_if_exists(KeyComparable const& key)
     {
-        std::lock_guard lock(m_mutex);
-        iterator const iter(m_map.find(key));
-        if (iter == m_map.end())
-        {
-            ++m_stats.misses;
-            return false;
-        }
-        iter->second.last_access = m_clock.now();
-        ++m_stats.hits;
-        return true;
+//        std::lock_guard lock(m_mutex);
+        bool ret;
+        m_map.lockPartitionExec(key,
+            [&key, &ret, this]
+            (typename map_type::map_type& map) {
+            iterator const iter(m_map.find(key));
+            if (iter == m_map.end())
+            {
+                ++m_stats.misses;
+                ret = false;
+            }
+            else
+            {
+                iter->second.last_access = m_clock.now();
+                ++m_stats.hits;
+                ret = true;
+            }
+            });
+
+        return ret;
     }
 
     /** Remove the specified cache entry.
@@ -269,7 +291,7 @@ public:
     bool
     erase(key_type const& key)
     {
-        std::lock_guard lock(m_mutex);
+//        std::lock_guard lock(m_mutex);
         if (m_map.erase(key) > 0)
         {
             ++m_stats.hits;
@@ -294,11 +316,12 @@ public:
 
         if (m_target_size == 0 || (m_map.size() <= m_target_size))
         {
-            when_expire = now - m_target_age;
+            when_expire = now - std::chrono::seconds(m_target_age);
         }
         else
         {
-            when_expire = now - m_target_age * m_target_size / m_map.size();
+            when_expire = now -
+                std::chrono::seconds(m_target_age) * m_target_size.load() / m_map.size();
 
             clock_type::duration const minimumAge(std::chrono::seconds(1));
             if (when_expire > (now - minimumAge))
@@ -316,8 +339,9 @@ public:
         {
 //            jq.template addJob(jtSWEEP, "keycache-partition-sweep", [&](Job&) {
             boost::asio::spawn(io, [&, self](boost::asio::yield_context yield) {
-                auto it = partition.begin();
-                while (it != partition.end())
+                std::lock_guard<std::mutex> lock(partition.mutex);
+                auto it = partition.map.begin();
+                while (it != partition.map.end())
                 {
                     if (it->second.last_access > now)
                     {
@@ -326,7 +350,7 @@ public:
                     }
                     else if (it->second.last_access <= when_expire)
                     {
-                        it = partition.erase(it);
+                        it = partition.map.erase(it);
                     }
                     else
                     {
@@ -390,7 +414,7 @@ private:
         {
             beast::insight::Gauge::value_type hit_rate(0);
             {
-                std::lock_guard lock(m_mutex);
+//                std::lock_guard lock(m_mutex);
                 auto const total(m_stats.hits + m_stats.misses);
                 if (total != 0)
                     hit_rate = (m_stats.hits * 100) / total;

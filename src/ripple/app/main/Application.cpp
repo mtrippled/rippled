@@ -298,7 +298,15 @@ public:
                       key.as_uint256().data());},
               config_->cache_partitions())
 
-        , cachedSLEs_(std::chrono::minutes(1), stopwatch())
+//        , cachedSLEs_(std::chrono::minutes(1), stopwatch())
+        , cachedSLEs_("Cached SLEs",
+                      0,
+                      std::chrono::seconds(0),
+                      stopwatch(),
+                      logs_->journal("CachedSLEs"),
+                      [](uint256 const& key) {
+                          return *reinterpret_cast<std::uint64_t const*>(key.data());},
+                      config_->cache_partitions())
         , validatorKeys_(*config_, m_journal)
 
         , m_resourceManager(Resource::make_Manager(
@@ -1145,7 +1153,7 @@ public:
         m_acceptedLedgerCache.sweep(io_service_);
         perf::END_TIMER(tracer, timer11);
         auto timer12 = perf::START_TIMER(tracer);
-        cachedSLEs_.expire();
+        cachedSLEs_.sweep(io_service_);
         perf::END_TIMER(tracer, timer12);
 
 #ifdef RIPPLED_REPORTING

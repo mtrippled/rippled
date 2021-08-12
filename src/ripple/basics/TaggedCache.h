@@ -30,6 +30,7 @@
 #include <ripple/beast/insight/Insight.h>
 #include <boost/asio.hpp>
 #include <boost/asio/spawn.hpp>
+#include <atomic>
 #include <condition_variable>
 #include <functional>
 #include <memory>
@@ -671,7 +672,7 @@ public:
             collector)
         , m_name(name)
         , m_target_size(size)
-        , m_target_age(expiration)
+        , m_target_age(std::chrono::duration_cast<std::chrono::seconds>(expiration).count())
         , m_cache_count(0)
         , m_cache(extractor, partitions)
         , m_hits(0)
@@ -691,23 +692,24 @@ public:
     int
     getTargetSize() const
     {
-        perf::LOCK_GUARD(m_mutex, lock);
+//        perf::LOCK_GUARD(m_mutex, lock);
         return m_target_size;
     }
 
     void
     setTargetSize(int s)
     {
-        perf::LOCK_GUARD(m_mutex, lock);
+//        perf::LOCK_GUARD(m_mutex, lock);
         m_target_size = s;
 
         if (s > 0)
         {
             for (auto& partition : m_cache.map())
             {
-                partition.rehash(static_cast<std::size_t>(
+                std::lock_guard<std::mutex> lock(partition.mutex);
+                partition.map.rehash(static_cast<std::size_t>(
                     (s + (s >> 2)) /
-                    (partition.max_load_factor() * m_cache.partitions())
+                    (partition.map.max_load_factor() * m_cache.partitions())
                     + 1));
             }
         }
@@ -718,37 +720,37 @@ public:
     clock_type::duration
     getTargetAge() const
     {
-        perf::LOCK_GUARD(m_mutex, lock);
-        return m_target_age;
+//        perf::LOCK_GUARD(m_mutex, lock);
+        return std::chrono::seconds(m_target_age);
     }
 
     void
     setTargetAge(clock_type::duration s)
     {
-        perf::LOCK_GUARD(m_mutex, lock);
-        m_target_age = s;
+//        perf::LOCK_GUARD(m_mutex, lock);
+        m_target_age = std::chrono::duration_cast<std::chrono::seconds>(s).count();
         JLOG(m_journal.debug())
-            << m_name << " target age set to " << m_target_age.count();
+            << m_name << " target age set to " << m_target_age;
     }
 
     int
     getCacheSize() const
     {
-        perf::LOCK_GUARD(m_mutex, lock);
+//        perf::LOCK_GUARD(m_mutex, lock);
         return m_cache_count;
     }
 
     int
     getTrackSize() const
     {
-        perf::LOCK_GUARD(m_mutex, lock);
+//        perf::LOCK_GUARD(m_mutex, lock);
         return m_cache.size();
     }
 
     float
     getHitRate()
     {
-        perf::LOCK_GUARD(m_mutex, lock);
+//        perf::LOCK_GUARD(m_mutex, lock);
         auto const total = static_cast<float>(m_hits + m_misses);
         return m_hits * (100.0f / std::max(1.0f, total));
     }
@@ -756,7 +758,7 @@ public:
     void
     clear()
     {
-        perf::LOCK_GUARD(m_mutex, lock);
+//        perf::LOCK_GUARD(m_mutex, lock);
         m_cache.clear();
         m_cache_count = 0;
     }
@@ -764,7 +766,7 @@ public:
     void
     reset()
     {
-        perf::LOCK_GUARD(m_mutex, lock);
+//        perf::LOCK_GUARD(m_mutex, lock);
         m_cache.clear();
         m_cache_count = 0;
         m_hits = 0;
@@ -779,19 +781,20 @@ public:
             clock_type::time_point when_expire;
 
             auto tracer = perf::TRACER_PTR;
-            perf::LOCK_GUARD_TRACER(m_mutex, tracer, lock);
+//            perf::LOCK_GUARD_TRACER(m_mutex, tracer, lock);
 
             std::size_t const cacheSize = m_cache.size();
             auto timer = perf::START_TIMER(tracer);
+            std::chrono::seconds const age(m_target_age);
             if (m_target_size == 0 ||
                 (static_cast<int>(cacheSize) <= m_target_size))
             {
-                when_expire = now - m_target_age;
+                when_expire = now - age;
             }
             else
             {
                 when_expire =
-                    now - m_target_age * m_target_size / cacheSize;
+                    now - age * m_target_size.load() / cacheSize;
 
                 clock_type::duration const minimumAge(std::chrono::seconds(1));
                 if (when_expire > (now - minimumAge))
@@ -801,15 +804,14 @@ public:
                     << m_name << " is growing fast " << m_cache.size() << " of "
                     << m_target_size << " aging at "
                     << (now - when_expire).count() << " of "
-                    << m_target_age.count();
+                    << m_target_age;
             }
             perf::END_TIMER(tracer, timer);
 
-            std::mutex partitionMutex;
-            std::condition_variable partitionCv;
-            std::unique_lock<std::mutex> partitionLock(partitionMutex);
+            std::mutex mtx;
+            std::condition_variable cond;
+            std::unique_lock<std::mutex> lock(mtx, std::defer_lock);
             std::size_t remaining = m_cache.partitions();
-            partitionLock.unlock();
 
             auto self = this->shared_from_this();
             for (auto& partition : m_cache.map())
@@ -824,9 +826,11 @@ public:
                   // so that we can destroy them outside the lock.
                   std::vector<std::shared_ptr<mapped_type>> stuffToSweep;
                   {
-                      stuffToSweep.reserve(partition.size());
-                      auto cit = partition.begin();
-                      while (cit != partition.end())
+                      std::lock_guard<std::mutex> partitionLock(
+                          partition.mutex);
+                      stuffToSweep.reserve(partition.map.size());
+                      auto cit = partition.map.begin();
+                      while (cit != partition.map.end())
                       {
                           if (cit->second.isWeak())
                           {
@@ -834,7 +838,7 @@ public:
                               if (cit->second.isExpired())
                               {
                                   ++mapRemovals;
-                                  cit = partition.erase(cit);
+                                  cit = partition.map.erase(cit);
                               }
                               else
                               {
@@ -850,7 +854,7 @@ public:
                               {
                                   stuffToSweep.push_back(cit->second.ptr);
                                   ++mapRemovals;
-                                  cit = partition.erase(cit);
+                                  cit = partition.map.erase(cit);
                               }
                               else
                               {
@@ -872,22 +876,22 @@ public:
                   {
                       JLOG(m_journal.debug())
                           << "tncache sweep " << m_name
-                          << ": cache = " << partition.size() << "-"
+                          << ": cache = " << partition.map.size() << "-"
                           << cacheRemovals << ", map-=" << mapRemovals;
                   }
 
-                  std::unique_lock<std::mutex> lambdaLock(partitionMutex);
+                  lock.lock();
                   --remaining;
                   m_cache_count -= cacheRemovals;
-                  lambdaLock.unlock();
-                  partitionCv.notify_one();
+                  lock.unlock();
+                  cond.notify_one();
 
                   // At this point stuffToSweep will go out of scope outside the lock and decrement the reference count on each strong pointer.
                 });
             }
 
-            partitionLock.lock();
-            partitionCv.wait(partitionLock, [&remaining]{
+            lock.lock();
+            cond.wait(lock, [&remaining]{
               return remaining == 0; });
         }
     }
@@ -1069,26 +1073,31 @@ public:
     {
         // Remove from cache, if !valid, remove from map too. Returns true if
         // removed from cache
-        perf::LOCK_GUARD(m_mutex, lock);
-
-        auto cit = m_cache.find(key);
-
-        if (cit == m_cache.end())
-            return false;
-
-        Entry& entry = cit->second;
+//        perf::LOCK_GUARD(m_mutex, lock);
 
         bool ret = false;
+        m_cache.lockPartitionExec(key,
+            [&key, &valid, &ret, this]
+            (typename partitioned_cache_type::map_type& map) {
+            auto cit = map.find(key);
 
-        if (entry.isCached())
-        {
-            --m_cache_count;
-            entry.ptr.reset();
-            ret = true;
-        }
+            if (cit == map.end())
+                return;
 
-        if (!valid || entry.isExpired())
-            m_cache.erase(cit);
+            Entry& entry = cit->second;
+
+            //        bool ret = false;
+
+            if (entry.isCached())
+            {
+                --m_cache_count;
+                entry.ptr.reset();
+                ret = true;
+            }
+
+            if (!valid || entry.isExpired())
+                map.erase(cit);
+        });
 
         return ret;
     }
@@ -1119,73 +1128,82 @@ private:
     {
         // Return canonical value, store if needed, refresh in cache
         // Return values: true=we had the data already
-        perf::LOCK_GUARD_TRACER(m_mutex, tracer, lock);
+//        perf::LOCK_GUARD_TRACER(m_mutex, tracer, lock);
         auto label = perf::START_TIMER(tracer);
 
         auto label2 = perf::START_TIMER(tracer);
-        auto cit = m_cache.find(key);
-        perf::END_TIMER(tracer, label2);
+        bool ret = false;
+        std::lock_guard<std::mutex> lock(m_cache.partitionMutex(key));
+        m_cache.partitionExec(key,
+            [&, this]
+            (typename partitioned_cache_type::map_type& map) {
+            auto cit = map.find(key);
+            perf::END_TIMER(tracer, label2);
 
-        if (cit == m_cache.end())
-        {
-            auto label3 = perf::START_TIMER(tracer);
-            m_cache.emplace(
-                std::piecewise_construct,
-                std::forward_as_tuple(key),
-                std::forward_as_tuple(m_clock.now(), data));
+            if (cit == map.end())
+            {
+                auto label3 = perf::START_TIMER(tracer);
+                map.emplace(
+                    std::piecewise_construct,
+                    std::forward_as_tuple(key),
+                    std::forward_as_tuple(m_clock.now(), data));
+                ++m_cache_count;
+                perf::END_TIMER(tracer, label3);
+                perf::END_TIMER(tracer, label);
+                return;
+            }
+
+            Entry& entry = cit->second;
+            entry.touch(m_clock.now());
+
+            if (entry.isCached())
+            {
+                if constexpr (replace)
+                {
+                    entry.ptr = data;
+                    entry.weak_ptr = data;
+                }
+                else
+                {
+                    data = entry.ptr;
+                }
+
+                perf::END_TIMER(tracer, label);
+                ret = true;
+                return;
+            }
+            perf::END_TIMER(tracer, label);
+            label = perf::START_TIMER(tracer);
+
+            auto cachedData = entry.lock();
+
+            if (cachedData)
+            {
+                if constexpr (replace)
+                {
+                    entry.ptr = data;
+                    entry.weak_ptr = data;
+                }
+                else
+                {
+                    entry.ptr = cachedData;
+                    data = cachedData;
+                }
+
+                ++m_cache_count;
+                perf::END_TIMER(tracer, label);
+                ret = true;
+                return;
+            }
+
+            entry.ptr = data;
+            entry.weak_ptr = data;
             ++m_cache_count;
-            perf::END_TIMER(tracer, label3);
-            perf::END_TIMER(tracer, label);
-            return false;
-        }
-
-        Entry& entry = cit->second;
-        entry.touch(m_clock.now());
-
-        if (entry.isCached())
-        {
-            if constexpr (replace)
-            {
-                entry.ptr = data;
-                entry.weak_ptr = data;
-            }
-            else
-            {
-                data = entry.ptr;
-            }
-
-            perf::END_TIMER(tracer, label);
-            return true;
-        }
-        perf::END_TIMER(tracer, label);
-        label = perf::START_TIMER(tracer);
-
-        auto cachedData = entry.lock();
-
-        if (cachedData)
-        {
-            if constexpr (replace)
-            {
-                entry.ptr = data;
-                entry.weak_ptr = data;
-            }
-            else
-            {
-                entry.ptr = cachedData;
-                data = cachedData;
-            }
-
-            ++m_cache_count;
-            perf::END_TIMER(tracer, label);
-            return true;
-        }
-
-        entry.ptr = data;
-        entry.weak_ptr = data;
-        ++m_cache_count;
+        });
 
         perf::END_TIMER(tracer, label);
-        return false;
+        return ret;
+//        return false;
     }
 
 public:
@@ -1208,27 +1226,31 @@ public:
     fetch(const key_type& key)
     {
         // fetch us a shared pointer to the stored data object
-        perf::LOCK_GUARD(m_mutex, lock);
+//        perf::LOCK_GUARD(m_mutex, lock);
 
-        auto cit = m_cache.find(key);
-
-        if (cit == m_cache.end())
-        {
-            ++m_misses;
+        typename partitioned_cache_type::map_type::iterator cit;
+        bool found = false;
+        std::lock_guard<std::mutex> lock(m_cache.partitionMutex(key));
+        m_cache.partitionExec(key,
+            [&key, &cit, &found, this]
+            (typename partitioned_cache_type::map_type& map) {
+                    cit = map.find(key);
+                    if (cit == map.end())
+                        ++m_misses;
+                    else
+                        found = true;
+        });
+        if (!found)
             return {};
-        }
 
         Entry& entry = cit->second;
         entry.touch(m_clock.now());
-
         if (entry.isCached())
         {
             ++m_hits;
             return entry.ptr;
         }
-
         entry.ptr = entry.lock();
-
         if (entry.isCached())
         {
             // independent of cache size, so not counted as a hit
@@ -1236,9 +1258,88 @@ public:
             return entry.ptr;
         }
 
-        m_cache.erase(cit);
+        m_cache.partitionExec(key,
+            [&cit]
+            (typename partitioned_cache_type::map_type& map) {
+               map.erase(cit);
+        });
         ++m_misses;
         return {};
+    }
+
+    /** Fetch an item from the cache.
+
+        If the digest was not found, Handler
+        will be called with this signature:
+
+            std::shared_ptr<SLE const>(void)
+    */
+    template <class Handler>
+    std::shared_ptr<T>
+    fetch(key_type const& digest, Handler const& h)
+    {
+        {
+            typename partitioned_cache_type::map_type::iterator iter;
+            bool found;
+            std::unique_lock<std::mutex> lock(m_cache.partitionMutex(digest));
+            m_cache.partitionExec(
+                digest,
+                [&digest, &iter, &found]
+                (typename partitioned_cache_type::map_type& map) {
+                    iter = map.find(digest);
+                    found = iter != map.end();
+                });
+
+            if (found)
+            {
+                ++m_hits;
+                Entry& entry = iter->second;
+                entry.touch(m_clock.now());
+                if (entry.isCached())
+                {
+                    ++m_hits;
+                    return entry.ptr;
+                }
+
+                entry.ptr = entry.lock();
+                if (entry.isCached())
+                {
+                    // independent of cache size, so not counted as a
+                    // hit
+                    ++m_cache_count;
+                    return entry.ptr;
+                }
+
+                m_cache.partitionExec(
+                    digest,
+                    [&iter](
+                        typename partitioned_cache_type::map_type& map) {
+                            map.erase(iter);
+                    });
+            }
+        }
+
+        auto sle = h();
+        if (!sle)
+            return {};
+//        perf::LOCK_GUARD(m_mutex, lock);
+        ++m_misses;
+
+        typename partitioned_cache_type::map_type::iterator it;
+        m_cache.lockPartitionExec(
+            digest,
+            [&digest, &it, &sle, this]
+            (typename partitioned_cache_type::map_type& map) {
+                bool inserted;
+                std::tie(it, inserted) = map.emplace(
+                    std::piecewise_construct,
+                    std::forward_as_tuple(digest),
+                    std::forward_as_tuple(m_clock.now(), sle));
+                if (!inserted)
+                    it->second.touch(m_clock.now());
+        });
+
+        return it->second.ptr;
     }
 
     /** Insert the element into the container.
@@ -1319,10 +1420,11 @@ public:
     }
      */
 
+//    mutex_type&
     perf::mutex<mutex_type>&
     peekMutex()
     {
-        return m_mutex;
+        return m_mutex2;
     }
 
     std::vector<key_type>
@@ -1331,13 +1433,29 @@ public:
         std::vector<key_type> v;
 
         {
-            perf::LOCK_GUARD(m_mutex, lock);
+//            perf::LOCK_GUARD(m_mutex, lock);
             v.reserve(m_cache.size());
             for (auto const& _ : m_cache)
                 v.push_back(_.first);
         }
 
         return v;
+    }
+
+    double
+    rate() const
+    {
+//        perf::LOCK_GUARD(m_mutex, lock);
+        auto const tot = m_hits + m_misses;
+        if (tot == 0)
+            return 0;
+        return double(m_hits) / tot;
+    }
+
+    void
+    expire()
+    {
+        sweep();
     }
 
 private:
@@ -1349,7 +1467,7 @@ private:
         {
             beast::insight::Gauge::value_type hit_rate(0);
             {
-                perf::LOCK_GUARD(m_mutex, lock);
+//                perf::LOCK_GUARD(m_mutex, lock);
                 auto const total(m_hits + m_misses);
                 if (total != 0)
                     hit_rate = (m_hits * 100) / total;
@@ -1427,25 +1545,27 @@ private:
     clock_type& m_clock;
     Stats m_stats;
 
-    perf::mutex<mutex_type> mutable m_mutex{FILE_LINE};
+//    mutex_type mutable m_mutex;
+    perf::mutex<mutex_type> mutable m_mutex2{FILE_LINE};
 
     // Used for logging
     std::string m_name;
 
     // Desired number of cache entries (0 = ignore)
-    int m_target_size;
+    std::atomic<int> m_target_size;
 
     // Desired maximum cache age
-    clock_type::duration m_target_age;
+    std::atomic<std::int64_t> m_target_age;
+//    clock_type::duration m_target_age;
 
     // Number of items cached
-    int m_cache_count;
+    std::atomic<int> m_cache_count;
 //    cache_type m_cache;  // Hold strong reference to recent objects
     partitioned_cache_type m_cache;
 //    partitioned_cache_type m_cache{[](Key const& key) {
 //      return *reinterpret_cast<std::uint64_t const*>(key.data());}};
-    std::uint64_t m_hits;
-    std::uint64_t m_misses;
+    std::atomic<std::uint64_t> m_hits;
+    std::atomic<std::uint64_t> m_misses;
 
     std::shared_ptr<TaggedCacheTrace<Key, T, Hash, KeyEqual, Mutex>> me_;
 };

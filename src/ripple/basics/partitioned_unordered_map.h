@@ -80,7 +80,22 @@ public:
 
     using map_type = std::unordered_map<key_type, mapped_type, hasher,
                                         key_equal, allocator_type>;
-    using partition_map_type = std::vector<map_type>;
+    using mutex_type = std::mutex;
+
+    struct Partition
+    {
+         map_type map;
+         mutex_type mutex;
+
+         Partition() = default;
+
+         Partition(Partition const& other)
+         {
+             map = other.map;
+         }
+    };
+
+    using partition_map_type = std::vector<Partition>;
 
     struct iterator
     {
@@ -111,14 +126,26 @@ public:
         void
         inc()
         {
+            std::unique_lock<mutex_type> lock(ait_->mutex);
             ++mit_;
-            while (mit_ == ait_->end())
+            while (mit_ == ait_->map.end())
             {
+                lock.unlock();
                 ++ait_;
                 if (ait_ == map_->end())
                     return;
-                mit_ = ait_->begin();
+                lock = std::unique_lock<mutex_type>(ait_->mutex);
+                mit_ = ait_->map.begin();
             }
+
+//            ++mit_;
+//            while (mit_ == ait_->end())
+//            {
+//                ++ait_;
+//                if (ait_ == map_->end())
+//                    return;
+//                mit_ = ait_->begin();
+//            }
         }
 
         // ++it
@@ -188,14 +215,26 @@ public:
         void
         inc()
         {
+            std::unique_lock<mutex_type> lock(ait_->mutex);
             ++mit_;
-            while (mit_ == ait_->end())
+            while (mit_ == ait_->map.end())
             {
+                lock.unlock();
                 ++ait_;
                 if (ait_ == map_->end())
                     return;
-                mit_ = ait_->begin();
+                lock = std::unique_lock<mutex_type>(ait_->mutex);
+                mit_ = ait_->map.begin();
             }
+
+//            ++mit_;
+//            while (mit_ == ait_->end())
+//            {
+//                ++ait_;
+//                if (ait_ == map_->end())
+//                    return;
+//                mit_ = ait_->begin();
+//            }
         }
 
         // ++it
@@ -235,7 +274,8 @@ private:
     end(T& it)
     {
         it.ait_ = it.map_->end();
-        it.mit_ = it.map_->back().end();
+        std::lock_guard<mutex_type> lock(it.map_->back().mutex);
+        it.mit_ = it.map_->back().map.end();
     }
 
     template <class T>
@@ -244,12 +284,22 @@ private:
     {
         for (it.ait_ = it.map_->begin(); it.ait_ != it.map_->end(); ++it.ait_)
         {
-            if (it.ait_->begin() == it.ait_->end())
+            std::lock_guard<mutex_type> lock(it.ait_->mutex);
+            if (it.ait_->map.begin() == it.ait_->map.end())
                 continue;
-            it.mit_ = it.ait_->begin();
+            it.mit_ = it.ait_->map.begin();
             return;
         }
         end(it);
+
+//        for (it.ait_ = it.map_->begin(); it.ait_ != it.map_->end(); ++it.ait_)
+//        {
+//            if (it.ait_->begin() == it.ait_->end())
+//                continue;
+//            it.mit_ = it.ait_->begin();
+//            return;
+//        }
+//        end(it);
     }
 
 public:
@@ -347,9 +397,18 @@ private:
     find(key_type const& key, T& it) const
     {
         it.ait_ = it.map_->begin() + partitioner(key);
-        it.mit_ = it.ait_->find(key);
-        if (it.mit_ == it.ait_->end())
+        std::unique_lock<mutex_type> lock(it.ait_->mutex);
+        it.mit_ = it.ait_->map.find(key);
+        if (it.mit_ == it.ait_->map.end())
+        {
+            lock.unlock();
             end(it);
+        }
+
+//        it.ait_ = it.map_->begin() + partitioner(key);
+//        it.mit_ = it.ait_->find(key);
+//        if (it.mit_ == it.ait_->end())
+//            end(it);
     }
 
 public:
@@ -376,19 +435,37 @@ public:
         auto& key = std::get<0>(keyTuple);
         iterator it(&map_);
         it.ait_ = it.map_->begin() + partitioner(key);
-        auto emplaced = it.ait_->emplace(
-            std::piecewise_construct,
-            std::move(keyTuple),
-            std::move(valueTuple));
+
+        std::pair<typename map_type::iterator, bool> emplaced;
+        {
+            std::lock_guard<mutex_type> lock(it.ait_->mutex);
+            emplaced = it.ait_->map.emplace(
+                std::piecewise_construct,
+                std::move(keyTuple),
+                std::move(valueTuple));
+        }
         it.mit_ = emplaced.first;
         return {it, emplaced.second};
+
+//        auto& key = std::get<0>(keyTuple);
+//        iterator it(&map_);
+//        it.ait_ = it.map_->begin() + partitioner(key);
+//        auto emplaced = it.ait_->emplace(
+//            std::piecewise_construct,
+//            std::move(keyTuple),
+//            std::move(valueTuple));
+//        it.mit_ = emplaced.first;
+//        return {it, emplaced.second};
     }
 
     void
     clear()
     {
         for (auto& p : map_)
-            p.clear();
+        {
+            std::lock_guard<mutex_type> lock(p.mutex);
+            p.map.clear();
+        }
     }
 
     iterator
@@ -396,16 +473,23 @@ public:
     {
         iterator it(&map_);
         it.ait_ = position.ait_;
-        it.mit_ = position.ait_->erase(position.mit_);
+        std::unique_lock<mutex_type> lock(position.ait_->mutex);
+        it.mit_ = position.ait_->map.erase(position.mit_);
 
-        while (it.mit_ == it.ait_->end())
+        if (it.mit_ != it.ait_->map.end())
+            return it;
+
+        while (it.mit_ == it.ait_->map.end())
         {
+            lock.unlock();
             ++it.ait_;
             if (it.ait_ == it.map_->end())
-                break;
-            it.mit_ = it.ait_->begin();
+                return it;
+            lock = std::unique_lock<mutex_type>(it.ait_->mutex);
+            it.mit_ = it.ait_->map.begin();
         }
 
+        end(it);
         return it;
     }
 
@@ -414,9 +498,42 @@ public:
     {
         std::size_t ret = 0;
         for (auto& p : map_)
-            ret += p.size();
+        {
+            std::lock_guard<mutex_type> lock(p.mutex);
+            ret += p.map.size();
+        }
         return ret;
     }
+
+    void
+    partitionExec(Partition& partition,
+        std::function<void(map_type& map)> f)
+    {
+        f(partition.map);
+    }
+
+    void
+    partitionExec(key_type const& key,
+                      std::function<void(map_type& map)> f)
+    {
+        partitionExec(map_[partitioner(key)], f);
+    }
+
+    mutex_type&
+    partitionMutex(key_type const& key)
+    {
+        return map_[partitioner(key)].mutex;
+    }
+
+    void
+    lockPartitionExec(key_type const& key,
+    std::function<void(map_type& map)> f)
+    {
+        Partition partition = map_[partitioner(key)];
+        std::lock_guard<mutex_type> lock(partition.mutex);
+        partitionExec(partition, f);
+    }
+
 
 private:
     mutable partition_map_type map_{};
