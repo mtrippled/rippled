@@ -210,6 +210,12 @@ public:
     peekItem(uint256 const& id, SHAMapHash& hash) const;
 
     // traverse functions
+    /** Find the first item after the given item.
+
+        @param id the identifier of the item.
+
+        @note The item does not need to exist.
+     */
     const_iterator
     upper_bound(uint256 const& id) const;
 

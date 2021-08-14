@@ -33,6 +33,7 @@ private:
     list_type v_;
 
 public:
+    using value_type = STObject;
     using size_type = list_type::size_type;
     using iterator = list_type::iterator;
     using const_iterator = list_type::const_iterator;
@@ -44,6 +45,21 @@ public:
     STArray(SerialIter& sit, SField const& f, int depth = 0);
     explicit STArray(int n);
     explicit STArray(SField const& f);
+
+    template <
+        class Iter,
+        class = std::enable_if_t<std::is_convertible_v<
+            typename std::iterator_traits<Iter>::reference,
+            STObject>>>
+    explicit STArray(Iter first, Iter last);
+
+    template <
+        class Iter,
+        class = std::enable_if_t<std::is_convertible_v<
+            typename std::iterator_traits<Iter>::reference,
+            STObject>>>
+    STArray(SField const& f, Iter first, Iter last);
+
     STArray&
     operator=(STArray const&) = default;
     STArray&
@@ -191,7 +207,42 @@ public:
     {
         return v_.empty();
     }
+
+    iterator
+    erase(iterator pos)
+    {
+        return v_.erase(pos);
+    }
+
+    iterator
+    erase(const_iterator pos)
+    {
+        return v_.erase(pos);
+    }
+
+    iterator
+    erase(iterator first, iterator last)
+    {
+        return v_.erase(first, last);
+    }
+
+    iterator
+    erase(const_iterator first, const_iterator last)
+    {
+        return v_.erase(first, last);
+    }
 };
+
+template <class Iter, class>
+STArray::STArray(Iter first, Iter last) : v_(first, last)
+{
+}
+
+template <class Iter, class>
+STArray::STArray(SField const& f, Iter first, Iter last)
+    : STBase(f), v_(first, last)
+{
+}
 
 }  // namespace ripple
 
