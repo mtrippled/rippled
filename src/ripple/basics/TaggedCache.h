@@ -876,11 +876,12 @@ public:
                           << cacheRemovals << ", map-=" << mapRemovals;
                   }
 
-                  partitionLock.lock();
-                  --remaining;
-                  m_cache_count -= cacheRemovals;
-                  partitionLock.unlock();
+                  {
+                      std::lock_guard<std::mutex> l(partitionMutex);
+                      --remaining;
+                  }
                   partitionCv.notify_one();
+                  m_cache_count -= cacheRemovals;
 
                   // At this point stuffToSweep will go out of scope outside the lock and decrement the reference count on each strong pointer.
                 });
@@ -1338,6 +1339,68 @@ public:
         }
 
         return v;
+    }
+
+    double
+    rate() const
+    {
+        perf::LOCK_GUARD(m_mutex, lock);
+        auto const tot = m_hits + m_misses;
+        if (tot == 0)
+            return 0;
+        return double(m_hits) / tot;
+    }
+
+    /** Fetch an item from the cache.
+        If the digest was not found, Handler
+        will be called with this signature:
+            std::shared_ptr<SLE const>(void)
+    */
+    template <class Handler>
+    std::shared_ptr<T>
+    fetch(key_type const& digest, Handler const& h)
+    {
+        {
+            perf::LOCK_GUARD(m_mutex, lock);
+            auto iter = m_cache.find(digest);
+            if (iter != m_cache.end())
+            {
+                ++m_hits;
+                Entry& entry = iter->second;
+                entry.touch(m_clock.now());
+                if (entry.isCached())
+                {
+                    ++m_hits;
+                    return entry.ptr;
+                }
+
+                entry.ptr = entry.lock();
+                if (entry.isCached())
+                {
+                    // independent of cache size, so not counted as a
+                    // hit
+                    ++m_cache_count;
+                    return entry.ptr;
+                }
+
+                m_cache.erase(iter);
+            }
+        }
+
+        auto sle = h();
+        if (!sle)
+            return {};
+        perf::LOCK_GUARD(m_mutex, lock);
+        ++m_misses;
+
+        auto const [it, inserted] = m_cache.emplace(
+                    std::piecewise_construct,
+                    std::forward_as_tuple(digest),
+                    std::forward_as_tuple(m_clock.now(), sle));
+                if (!inserted)
+                    it->second.touch(m_clock.now());
+
+        return it->second.ptr;
     }
 
 private:
