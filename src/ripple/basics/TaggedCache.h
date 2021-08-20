@@ -876,10 +876,10 @@ public:
                           << cacheRemovals << ", map-=" << mapRemovals;
                   }
 
-                  std::unique_lock<std::mutex> lambdaLock(partitionMutex);
+                  partitionLock.lock();
                   --remaining;
                   m_cache_count -= cacheRemovals;
-                  lambdaLock.unlock();
+                  partitionLock.unlock();
                   partitionCv.notify_one();
 
                   // At this point stuffToSweep will go out of scope outside the lock and decrement the reference count on each strong pointer.
