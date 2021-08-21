@@ -810,85 +810,12 @@ public:
 
             std::mutex mtx;
             std::condition_variable cond;
-            std::unique_lock<std::mutex> lock(mtx, std::defer_lock);
+            std::unique_lock<std::mutex> lock(mtx);
             std::size_t remaining = m_cache.partitions();
+            lock.unlock();
 
-            auto self = this->shared_from_this();
-            for (auto& partition : m_cache.map())
-            {
-                boost::asio::spawn(
-                    io, [&, self](boost::asio::yield_context yield) {
-                  int cacheRemovals = 0;
-                  int mapRemovals = 0;
-                  int cc = 0;
-
-                  // Keep references to all the stuff we sweep
-                  // so that we can destroy them outside the lock.
-                  std::vector<std::shared_ptr<mapped_type>> stuffToSweep;
-                  {
-                      std::lock_guard<std::mutex> partitionLock(
-                          partition.mutex);
-                      stuffToSweep.reserve(partition.map.size());
-                      auto cit = partition.map.begin();
-                      while (cit != partition.map.end())
-                      {
-                          if (cit->second.isWeak())
-                          {
-                              // weak
-                              if (cit->second.isExpired())
-                              {
-                                  ++mapRemovals;
-                                  cit = partition.map.erase(cit);
-                              }
-                              else
-                              {
-                                  ++cit;
-                              }
-                          }
-                          else if (cit->second.last_access <= when_expire)
-                          {
-                              // strong, expired
-                              --m_cache_count;
-                              ++cacheRemovals;
-                              if (cit->second.ptr.unique())
-                              {
-                                  stuffToSweep.push_back(cit->second.ptr);
-                                  ++mapRemovals;
-                                  cit = partition.map.erase(cit);
-                              }
-                              else
-                              {
-                                  // remains weakly cached
-                                  cit->second.ptr.reset();
-                                  ++cit;
-                              }
-                          }
-                          else
-                          {
-                              // strong, not expired
-                              ++cc;
-                              ++cit;
-                          }
-                      }
-                  }
-
-                  if (mapRemovals || cacheRemovals)
-                  {
-                      JLOG(m_journal.debug())
-                          << "tncache sweep " << m_name
-                          << ": cache = " << partition.map.size() << "-"
-                          << cacheRemovals << ", map-=" << mapRemovals;
-                  }
-
-                  lock.lock();
-                  --remaining;
-                  m_cache_count -= cacheRemovals;
-                  lock.unlock();
-                  cond.notify_one();
-
-                  // At this point stuffToSweep will go out of scope outside the lock and decrement the reference count on each strong pointer.
-                });
-            }
+            for (std::size_t p = 0; p < m_cache.partitions(); ++p)
+                sweepPartition(io, p, remaining, when_expire, mtx, cond);
 
             lock.lock();
             cond.wait(lock, [&remaining]{
@@ -1204,6 +1131,93 @@ private:
         perf::END_TIMER(tracer, label);
         return ret;
 //        return false;
+    }
+
+    void
+    sweepPartition(boost::asio::io_service& io,
+                   std::size_t const p,
+                   std::size_t& remaining,
+                   clock_type::time_point const& when_expire,
+                   std::mutex& mtx,
+                   std::condition_variable& cond)
+    {
+        auto self = this->shared_from_this();
+        std::vector<std::shared_ptr<mapped_type>> stuffToSweep;
+        boost::asio::spawn(
+            io, [&, self](boost::asio::yield_context yield) {
+                auto& partition = m_cache.map()[p];
+
+                int cacheRemovals = 0;
+                int mapRemovals = 0;
+                int cc = 0;
+
+                // Keep references to all the stuff we sweep
+                // so that we can destroy them outside the lock.
+                //                  std::vector<std::shared_ptr<mapped_type>> stuffToSweep;
+                {
+                    std::lock_guard<std::mutex> partitionLock(
+                        partition.mutex);
+                    stuffToSweep.reserve(partition.map.size());
+                    auto cit = partition.map.begin();
+                    while (cit != partition.map.end())
+                    {
+                        if (cit->second.isWeak())
+                        {
+                            // weak
+                            if (cit->second.isExpired())
+                            {
+                                ++mapRemovals;
+                                cit = partition.map.erase(cit);
+                            }
+                            else
+                            {
+                                ++cit;
+                            }
+                        }
+                        else if (cit->second.last_access <= when_expire)
+                        {
+                            // strong, expired
+                            --m_cache_count;
+                            ++cacheRemovals;
+                            if (cit->second.ptr.unique())
+                            {
+                                stuffToSweep.push_back(cit->second.ptr);
+                                ++mapRemovals;
+                                cit = partition.map.erase(cit);
+                            }
+                            else
+                            {
+                                // remains weakly cached
+                                cit->second.ptr.reset();
+                                ++cit;
+                            }
+                        }
+                        else
+                        {
+                            // strong, not expired
+                            ++cc;
+                            ++cit;
+                        }
+                    }
+                }
+
+                {
+                    std::lock_guard<std::mutex> partitionLock(mtx);
+                    --remaining;
+                }
+                cond.notify_one();
+
+                if (mapRemovals || cacheRemovals)
+                {
+                    JLOG(m_journal.debug())
+                    << "tncache sweep " << m_name
+                    << ": cache = " << partition.map.size() << "-"
+                    << cacheRemovals << ", map-=" << mapRemovals;
+                }
+                m_cache_count -= cacheRemovals;
+
+                // At this point stuffToSweep will go out of scope outside the lock and decrement the reference count on each strong pointer.
+            });
     }
 
 public:
