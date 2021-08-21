@@ -1145,7 +1145,7 @@ private:
         std::vector<std::shared_ptr<mapped_type>> stuffToSweep;
         boost::asio::spawn(
             io, [&, self](boost::asio::yield_context yield) {
-                auto& partition = m_cache.map()[p];
+                auto& partition = self->m_cache.map()[p];
 
                 int cacheRemovals = 0;
                 int mapRemovals = 0;
@@ -1177,7 +1177,7 @@ private:
                         else if (cit->second.last_access <= when_expire)
                         {
                             // strong, expired
-                            --m_cache_count;
+                            --self->m_cache_count;
                             ++cacheRemovals;
                             if (cit->second.ptr.unique())
                             {
@@ -1209,12 +1209,12 @@ private:
 
                 if (mapRemovals || cacheRemovals)
                 {
-                    JLOG(m_journal.debug())
-                    << "tncache sweep " << m_name
+                    JLOG(self->m_journal.debug())
+                    << "tncache sweep " << self->m_name
                     << ": cache = " << partition.map.size() << "-"
                     << cacheRemovals << ", map-=" << mapRemovals;
                 }
-                m_cache_count -= cacheRemovals;
+                self->m_cache_count -= cacheRemovals;
 
                 // At this point stuffToSweep will go out of scope outside the lock and decrement the reference count on each strong pointer.
             });
