@@ -1142,9 +1142,9 @@ private:
                    std::condition_variable& cond)
     {
         auto self = this->shared_from_this();
-        std::vector<std::shared_ptr<mapped_type>> stuffToSweep;
         boost::asio::spawn(
             io, [&, self](boost::asio::yield_context yield) {
+                std::vector<std::shared_ptr<mapped_type>> stuffToSweep;
                 auto& partition = self->m_cache.map()[p];
 
                 int cacheRemovals = 0;
