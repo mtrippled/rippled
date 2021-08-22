@@ -2690,11 +2690,11 @@ NetworkOPsImp::pubLedger(std::shared_ptr<ReadView const> const& lpAccepted)
     // Holes are filled across connection loss or other catastrophe
 
     std::shared_ptr<AcceptedLedger> alpAccepted =
-        app_.getAcceptedLedgerCache().fetch(lpAccepted->info().hash);
+        app_.getAcceptedLedgerCache()->fetch(lpAccepted->info().hash);
     if (!alpAccepted)
     {
         alpAccepted = std::make_shared<AcceptedLedger>(lpAccepted, app_);
-        app_.getAcceptedLedgerCache().canonicalize_replace_client(
+        app_.getAcceptedLedgerCache()->canonicalize_replace_client(
             lpAccepted->info().hash, alpAccepted);
     }
 

@@ -1137,7 +1137,7 @@ private:
     sweepPartition(boost::asio::io_service& io,
                    std::size_t const p,
                    std::size_t& remaining,
-                   clock_type::time_point const& when_expire,
+                   clock_type::time_point const when_expire,
                    std::mutex& mtx,
                    std::condition_variable& cond)
     {

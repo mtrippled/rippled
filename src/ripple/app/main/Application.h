@@ -212,7 +212,7 @@ public:
     virtual InboundTransactions&
     getInboundTransactions() = 0;
 
-    virtual TaggedCacheTrace<uint256, AcceptedLedger>&
+    virtual std::shared_ptr<TaggedCacheTrace<uint256, AcceptedLedger>> const&
     getAcceptedLedgerCache() = 0;
 
     virtual LedgerMaster&
