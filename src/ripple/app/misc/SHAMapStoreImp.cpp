@@ -365,19 +365,19 @@ SHAMapStoreImp::run()
             JLOG(journal_.debug()) << "copied ledger " << validatedSeq
                                    << " nodecount " << nodeCount;
 
-            JLOG(journal_.debug()) << "freshening caches";
-            freshenCaches();
-            switch (health())
-            {
-                case Health::stopping:
-                    return;
-                case Health::unhealthy:
-                    continue;
-                case Health::ok:
-                default:;
-            }
+//            JLOG(journal_.debug()) << "freshening caches";
+//            freshenCaches();
+//            switch (health())
+//            {
+//                case Health::stopping:
+//                    return;
+//                case Health::unhealthy:
+//                    continue;
+//                case Health::ok:
+//                default:;
+//            }
             // Only log if we completed without a "health" abort
-            JLOG(journal_.debug()) << validatedSeq << " freshened caches";
+//            JLOG(journal_.debug()) << validatedSeq << " freshened caches";
 
             JLOG(journal_.trace()) << "Making a new backend";
             auto newBackend = makeBackendRotating();
