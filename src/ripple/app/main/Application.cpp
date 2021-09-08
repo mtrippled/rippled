@@ -1138,7 +1138,7 @@ public:
         getLedgerMaster().sweep(tracer);
         perf::END_TIMER(tracer, timer6);
         auto timer7 = perf::START_TIMER(tracer);
-        getTempNodeCache().sweep(getIOService());
+        getTempNodeCache().sweep(getJobQueue());
         perf::END_TIMER(tracer, timer7);
         auto timer8 = perf::START_TIMER(tracer);
         getValidations().expire();
@@ -1150,10 +1150,10 @@ public:
         getLedgerReplayer().sweep();
         perf::END_TIMER(tracer, timer10);
         auto timer11 = perf::START_TIMER(tracer);
-        m_acceptedLedgerCache.sweep(io_service_);
+        m_acceptedLedgerCache.sweep(getJobQueue());
         perf::END_TIMER(tracer, timer11);
         auto timer12 = perf::START_TIMER(tracer);
-        cachedSLEs_.sweep(io_service_);
+        cachedSLEs_.sweep(getJobQueue());
         perf::END_TIMER(tracer, timer12);
 
 #ifdef RIPPLED_REPORTING

@@ -1848,7 +1848,7 @@ LedgerMaster::sweep(std::shared_ptr<perf::Tracer> const& tracer)
     perf::END_TIMER(tracer, timer);
 //    std::this_thread::sleep_for(std::chrono::seconds(10));
     auto timer2 = perf::START_TIMER(tracer);
-    fetch_packs_.sweep(app_.getIOService());
+    fetch_packs_.sweep(app_.getJobQueue());
     perf::END_TIMER(tracer, timer2);
 //    std::this_thread::sleep_for(std::chrono::seconds(10));
 }

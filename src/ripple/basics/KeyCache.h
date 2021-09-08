@@ -285,7 +285,7 @@ public:
     {}
 
     void
-    sweep(boost::asio::io_service& io)
+    sweep(JobQueue& jq)
     {
         clock_type::time_point const now(m_clock.now());
         clock_type::time_point when_expire;
@@ -314,8 +314,8 @@ public:
         auto self = this->shared_from_this();
         for (auto& partition : m_map.map())
         {
-//            jq.template addJob(jtSWEEP, "keycache-partition-sweep", [&](Job&) {
-            boost::asio::spawn(io, [&, self](boost::asio::yield_context yield) {
+            jq.template addJob(jtSWEEP, "keycache-partition-sweep", [&](Job&) {
+//            boost::asio::spawn(io, [&, self](boost::asio::yield_context yield) {
                 auto it = partition.begin();
                 while (it != partition.end())
                 {

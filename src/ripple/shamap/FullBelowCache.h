@@ -95,9 +95,10 @@ public:
     {}
 
     void
-    sweep(boost::asio::io_service& io)
+//    sweep(boost::asio::io_service& io)
+    sweep(JobQueue& jq)
     {
-        m_cache.sweep(io);
+        m_cache.sweep(jq);
     }
 
     /** Refresh the last access time of an item, if it exists.

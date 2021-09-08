@@ -772,7 +772,7 @@ public:
     }
 
     void
-    sweep(boost::asio::io_service& io)
+    sweep(JobQueue& jq)
     {
         {
             clock_type::time_point const now(m_clock.now());
@@ -814,8 +814,7 @@ public:
             auto self = this->shared_from_this();
             for (auto& partition : m_cache.map())
             {
-                boost::asio::spawn(
-                    io, [&, self](boost::asio::yield_context yield) {
+                jq.addJob(jtSWEEP, "partition-sweep", [&](Job&) {
                   int cacheRemovals = 0;
                   int mapRemovals = 0;
                   int cc = 0;
