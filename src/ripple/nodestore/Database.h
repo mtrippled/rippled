@@ -21,6 +21,7 @@
 #define RIPPLE_NODESTORE_DATABASE_H_INCLUDED
 
 #include <ripple/core/Stoppable.h>
+#include <ripple/basics/TaggedCache.h>
 #include <ripple/nodestore/Backend.h>
 #include <ripple/nodestore/NodeObject.h>
 #include <ripple/nodestore/Scheduler.h>
