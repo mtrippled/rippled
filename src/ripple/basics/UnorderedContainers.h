@@ -21,6 +21,7 @@
 #define RIPPLE_BASICS_UNORDEREDCONTAINERS_H_INCLUDED
 
 #include <ripple/basics/hardened_hash.h>
+#include <ripple/basics/partitioned_unordered_map.h>
 #include <ripple/beast/hash/hash_append.h>
 #include <ripple/beast/hash/uhash.h>
 #include <ripple/beast/hash/xxhasher.h>
@@ -57,6 +58,14 @@ template <
     class Hash = beast::uhash<>,
     class Pred = std::equal_to<Key>,
     class Allocator = std::allocator<std::pair<Key const, Value>>>
+using partitioned_hash_map = partitioned_unordered_map<Key, Value, Hash, Pred, Allocator>;
+
+template <
+    class Key,
+    class Value,
+    class Hash = beast::uhash<>,
+    class Pred = std::equal_to<Key>,
+    class Allocator = std::allocator<std::pair<Key const, Value>>>
 using hash_multimap =
     std::unordered_multimap<Key, Value, Hash, Pred, Allocator>;
 
@@ -85,6 +94,14 @@ template <
     class Pred = std::equal_to<Key>,
     class Allocator = std::allocator<std::pair<Key const, Value>>>
 using hardened_hash_map = std::unordered_map<Key, Value, Hash, Pred, Allocator>;
+
+template <
+    class Key,
+    class Value,
+    class Hash = hardened_hash<strong_hash>,
+    class Pred = std::equal_to<Key>,
+    class Allocator = std::allocator<std::pair<Key const, Value>>>
+using hardened_partitioned_hash_map = partitioned_unordered_map<Key, Value, Hash, Pred, Allocator>;
 
 template <
     class Key,
