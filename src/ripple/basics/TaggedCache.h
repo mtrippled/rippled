@@ -522,6 +522,68 @@ public:
         return v;
     }
 
+    // CachedSLEs functions.
+    /** Returns the fraction of cache hits. */
+    double
+    rate() const
+    {
+        std::lock_guard lock(m_mutex);
+        auto const tot = m_hits + m_misses;
+        if (tot == 0)
+            return 0;
+        return double(m_hits) / tot;
+    }
+    /** Fetch an item from the cache.
+        If the digest was not found, Handler
+        will be called with this signature:
+            std::shared_ptr<SLE const>(void)
+    */
+    template <class Handler>
+    std::shared_ptr<T>
+    fetch(key_type const& digest, Handler const& h)
+    {
+        {
+            std::lock_guard lock(m_mutex);
+            auto iter = m_cache.find(digest);
+            if (iter != m_cache.end())
+            {
+                ++m_hits;
+                Entry& entry = iter->second;
+                entry.touch(m_clock.now());
+                if (entry.isCached())
+                {
+                    ++m_hits;
+                    return entry.ptr;
+                }
+
+                entry.ptr = entry.lock();
+                if (entry.isCached())
+                {
+                    // independent of cache size, so not counted as a hit
+                    ++m_cache_count;
+                    return entry.ptr;
+                }
+
+                m_cache.erase(iter);
+            }
+        }
+
+        auto sle = h();
+        if (!sle)
+            return {};
+        std::lock_guard lock(m_mutex);
+        ++m_misses;
+
+        auto const [it, inserted] = m_cache.emplace(
+            std::piecewise_construct,
+            std::forward_as_tuple(digest),
+            std::forward_as_tuple(m_clock.now(), sle));
+        if (!inserted)
+            it->second.touch(m_clock.now());
+        return it->second.ptr;
+    }
+// End CachedSLEs functions.
+
 private:
     void
     collect_metrics()
