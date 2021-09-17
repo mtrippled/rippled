@@ -479,7 +479,6 @@ target_sources (rippled PRIVATE
   src/ripple/ledger/impl/ApplyViewBase.cpp
   src/ripple/ledger/impl/ApplyViewImpl.cpp
   src/ripple/ledger/impl/BookDirs.cpp
-  src/ripple/ledger/impl/CachedSLEs.cpp
   src/ripple/ledger/impl/CachedView.cpp
   src/ripple/ledger/impl/Directory.cpp
   src/ripple/ledger/impl/OpenView.cpp
