@@ -27,6 +27,8 @@
 #include <ripple/beast/insight/Insight.h>
 #include <functional>
 #include <mutex>
+#include <stack>
+#include <thread>
 #include <vector>
 
 namespace ripple {
@@ -89,13 +91,6 @@ public:
         return m_clock;
     }
 
-    int
-    getTargetSize() const
-    {
-        std::lock_guard lock(m_mutex);
-        return m_target_size;
-    }
-
     void
     setTargetSize(int s)
     {
@@ -103,8 +98,15 @@ public:
         m_target_size = s;
 
         if (s > 0)
-            m_cache.rehash(static_cast<std::size_t>(
-                (s + (s >> 2)) / m_cache.max_load_factor() + 1));
+        {
+            for (auto& partition : m_cache.map())
+            {
+                partition.rehash(static_cast<std::size_t>(
+                    (s + (s >> 2)) /
+                        (partition.max_load_factor() * m_cache.partitions()) +
+                    1));
+            }
+        }
 
         JLOG(m_journal.debug()) << m_name << " target size set to " << s;
     }
@@ -168,96 +170,112 @@ public:
     void
     sweep()
     {
-        int cacheRemovals = 0;
-        int mapRemovals = 0;
-        int cc = 0;
-
         // Keep references to all the stuff we sweep
-        // so that we can destroy them outside the lock.
-        //
-        std::vector<std::shared_ptr<mapped_type>> stuffToSweep;
+        // For performance, each worker thread should exit before the swept data
+        // is destroyed but still within the main cache lock.
+        std::stack<std::vector<std::shared_ptr<mapped_type>>> allStuffToSweep;
+        std::mutex sweepMutex;
 
+        clock_type::time_point const now(m_clock.now());
+        clock_type::time_point when_expire;
+
+        std::lock_guard lock(m_mutex);
+
+        if (m_target_size == 0 ||
+            (static_cast<int>(m_cache.size()) <= m_target_size))
         {
-            clock_type::time_point const now(m_clock.now());
-            clock_type::time_point when_expire;
-
-            std::lock_guard lock(m_mutex);
-
-            if (m_target_size == 0 ||
-                (static_cast<int>(m_cache.size()) <= m_target_size))
-            {
-                when_expire = now - m_target_age;
-            }
-            else
-            {
-                when_expire =
-                    now - m_target_age * m_target_size / m_cache.size();
-
-                clock_type::duration const minimumAge(std::chrono::seconds(1));
-                if (when_expire > (now - minimumAge))
-                    when_expire = now - minimumAge;
-
-                JLOG(m_journal.trace())
-                    << m_name << " is growing fast " << m_cache.size() << " of "
-                    << m_target_size << " aging at "
-                    << (now - when_expire).count() << " of "
-                    << m_target_age.count();
-            }
-
-            stuffToSweep.reserve(m_cache.size());
-
-            auto cit = m_cache.begin();
-
-            while (cit != m_cache.end())
-            {
-                if (cit->second.isWeak())
-                {
-                    // weak
-                    if (cit->second.isExpired())
-                    {
-                        ++mapRemovals;
-                        cit = m_cache.erase(cit);
-                    }
-                    else
-                    {
-                        ++cit;
-                    }
-                }
-                else if (cit->second.last_access <= when_expire)
-                {
-                    // strong, expired
-                    --m_cache_count;
-                    ++cacheRemovals;
-                    if (cit->second.ptr.unique())
-                    {
-                        stuffToSweep.push_back(cit->second.ptr);
-                        ++mapRemovals;
-                        cit = m_cache.erase(cit);
-                    }
-                    else
-                    {
-                        // remains weakly cached
-                        cit->second.ptr.reset();
-                        ++cit;
-                    }
-                }
-                else
-                {
-                    // strong, not expired
-                    ++cc;
-                    ++cit;
-                }
-            }
+            when_expire = now - m_target_age;
         }
-
-        if (mapRemovals || cacheRemovals)
+        else
         {
+            when_expire = now - m_target_age * m_target_size / m_cache.size();
+
+            clock_type::duration const minimumAge(std::chrono::seconds(1));
+            if (when_expire > (now - minimumAge))
+                when_expire = now - minimumAge;
+
             JLOG(m_journal.trace())
-                << m_name << ": cache = " << m_cache.size() << "-"
-                << cacheRemovals << ", map-=" << mapRemovals;
+                << m_name << " is growing fast " << m_cache.size() << " of "
+                << m_target_size << " aging at " << (now - when_expire).count()
+                << " of " << m_target_age.count();
         }
 
-        // At this point stuffToSweep will go out of scope outside the lock
+        std::vector<std::thread> workers;
+        workers.reserve(m_cache.partitions());
+
+        for (auto& partition : m_cache.map())
+        {
+            workers.push_back(std::thread([&, this]() {
+                int cacheRemovals = 0;
+                int mapRemovals = 0;
+                int cc = 0;
+
+                // Keep references to all the stuff we sweep
+                // so that we can destroy them outside the lock.
+                std::vector<std::shared_ptr<mapped_type>> stuffToSweep;
+                {
+                    stuffToSweep.reserve(partition.size());
+                    auto cit = partition.begin();
+                    while (cit != partition.end())
+                    {
+                        if (cit->second.isWeak())
+                        {
+                            // weak
+                            if (cit->second.isExpired())
+                            {
+                                ++mapRemovals;
+                                cit = partition.erase(cit);
+                            }
+                            else
+                            {
+                                ++cit;
+                            }
+                        }
+                        else if (cit->second.last_access <= when_expire)
+                        {
+                            // strong, expired
+                            --m_cache_count;
+                            ++cacheRemovals;
+                            if (cit->second.ptr.unique())
+                            {
+                                stuffToSweep.push_back(cit->second.ptr);
+                                ++mapRemovals;
+                                cit = partition.erase(cit);
+                            }
+                            else
+                            {
+                                // remains weakly cached
+                                cit->second.ptr.reset();
+                                ++cit;
+                            }
+                        }
+                        else
+                        {
+                            // strong, not expired
+                            ++cc;
+                            ++cit;
+                        }
+                    }
+                }
+
+                if (mapRemovals || cacheRemovals)
+                {
+                    JLOG(m_journal.debug())
+                        << "TaggedCache partition sweep " << m_name
+                        << ": cache = " << partition.size() << "-"
+                        << cacheRemovals << ", map-=" << mapRemovals;
+                }
+
+                m_cache_count -= cacheRemovals;
+
+                std::lock_guard<std::mutex> sweepLock(sweepMutex);
+                allStuffToSweep.push(std::move(stuffToSweep));
+            }));
+        }
+        for (std::thread& worker : workers)
+            worker.join();
+
+        // At this point allStuffToSweep will go out of scope outside the lock
         // and decrement the reference count on each strong pointer.
     }
 
@@ -391,38 +409,13 @@ public:
     std::shared_ptr<T>
     fetch(const key_type& key)
     {
-        // fetch us a shared pointer to the stored data object
-        std::lock_guard lock(m_mutex);
-
-        auto cit = m_cache.find(key);
-
-        if (cit == m_cache.end())
+        auto ret = initialFetch(key);
+        if (!ret)
         {
+            std::lock_guard<Mutex> lock(m_mutex);
             ++m_misses;
-            return {};
         }
-
-        Entry& entry = cit->second;
-        entry.touch(m_clock.now());
-
-        if (entry.isCached())
-        {
-            ++m_hits;
-            return entry.ptr;
-        }
-
-        entry.ptr = entry.lock();
-
-        if (entry.isCached())
-        {
-            // independent of cache size, so not counted as a hit
-            ++m_cache_count;
-            return entry.ptr;
-        }
-
-        m_cache.erase(cit);
-        ++m_misses;
-        return {};
+        return ret;
     }
 
     /** Insert the element into the container.
@@ -452,53 +445,6 @@ public:
 
         data = *entry;
         return true;
-    }
-
-    /** Refresh the expiration time on a key.
-
-        @param key The key to refresh.
-        @return `true` if the key was found and the object is cached.
-    */
-    bool
-    refreshIfPresent(const key_type& key)
-    {
-        bool found = false;
-
-        // If present, make current in cache
-        std::lock_guard lock(m_mutex);
-
-        if (auto cit = m_cache.find(key); cit != m_cache.end())
-        {
-            Entry& entry = cit->second;
-
-            if (!entry.isCached())
-            {
-                // Convert weak to strong.
-                entry.ptr = entry.lock();
-
-                if (entry.isCached())
-                {
-                    // We just put the object back in cache
-                    ++m_cache_count;
-                    entry.touch(m_clock.now());
-                    found = true;
-                }
-                else
-                {
-                    // Couldn't get strong pointer,
-                    // object fell out of the cache so remove the entry.
-                    m_cache.erase(cit);
-                }
-            }
-            else
-            {
-                // It's cached so update the timer
-                entry.touch(m_clock.now());
-                found = true;
-            }
-        }
-
-        return found;
     }
 
     mutex_type&
@@ -533,6 +479,7 @@ public:
             return 0;
         return double(m_hits) / tot;
     }
+
     /** Fetch an item from the cache.
         If the digest was not found, Handler
         will be called with this signature:
@@ -542,38 +489,16 @@ public:
     std::shared_ptr<T>
     fetch(key_type const& digest, Handler const& h)
     {
-        {
-            std::lock_guard lock(m_mutex);
-            auto iter = m_cache.find(digest);
-            if (iter != m_cache.end())
-            {
-                ++m_hits;
-                Entry& entry = iter->second;
-                entry.touch(m_clock.now());
-                if (entry.isCached())
-                {
-                    ++m_hits;
-                    return entry.ptr;
-                }
-
-                entry.ptr = entry.lock();
-                if (entry.isCached())
-                {
-                    // independent of cache size, so not counted as a hit
-                    ++m_cache_count;
-                    return entry.ptr;
-                }
-
-                m_cache.erase(iter);
-            }
-        }
+        auto ret = initialFetch(digest);
+        if (ret)
+            return ret;
 
         auto sle = h();
         if (!sle)
             return {};
+
         std::lock_guard lock(m_mutex);
         ++m_misses;
-
         auto const [it, inserted] = m_cache.emplace(
             std::piecewise_construct,
             std::forward_as_tuple(digest),
@@ -582,9 +507,37 @@ public:
             it->second.touch(m_clock.now());
         return it->second.ptr;
     }
-// End CachedSLEs functions.
+    // End CachedSLEs functions.
 
 private:
+    std::shared_ptr<T>
+    initialFetch(key_type const& key)
+    {
+        std::lock_guard<mutex_type> lock(m_mutex);
+        auto cit = m_cache.find(key);
+        if (cit == m_cache.end())
+            return {};
+
+        Entry& entry = cit->second;
+        if (entry.isCached())
+        {
+            ++m_hits;
+            entry.touch(m_clock.now());
+            return entry.ptr;
+        }
+        entry.ptr = entry.lock();
+        if (entry.isCached())
+        {
+            // independent of cache size, so not counted as a hit
+            ++m_cache_count;
+            entry.touch(m_clock.now());
+            return entry.ptr;
+        }
+
+        m_cache.erase(cit);
+        return {};
+    }
+
     void
     collect_metrics()
     {
@@ -662,7 +615,8 @@ private:
         }
     };
 
-    using cache_type = hardened_hash_map<key_type, Entry, Hash, KeyEqual>;
+    using cache_type =
+        hardened_partitioned_hash_map<key_type, Entry, Hash, KeyEqual>;
 
     beast::Journal m_journal;
     clock_type& m_clock;
