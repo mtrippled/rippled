@@ -29,6 +29,10 @@
 
 namespace ripple {
 
+template <typename Key>
+std::size_t
+partitioner(Key const& key, std::size_t numPartitions);
+
 template <
     typename Key,
     typename Value,
@@ -293,14 +297,11 @@ public:
     }
 
 private:
-    std::size_t
-    partitioner(key_type const& key) const;
-
     template <class T>
     void
     find(key_type const& key, T& it) const
     {
-        it.ait_ = it.map_->begin() + partitioner(key);
+        it.ait_ = it.map_->begin() + partitioner(key, partitions_);
         it.mit_ = it.ait_->find(key);
         if (it.mit_ == it.ait_->end())
             end(it);
@@ -329,7 +330,7 @@ public:
     {
         auto& key = std::get<0>(keyTuple);
         iterator it(&map_);
-        it.ait_ = it.map_->begin() + partitioner(key);
+        it.ait_ = it.map_->begin() + partitioner(key, partitions_);
         auto emplaced = it.ait_->emplace(
             std::piecewise_construct,
             std::move(keyTuple),
