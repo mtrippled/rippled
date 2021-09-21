@@ -23,6 +23,7 @@
 #include <ripple/app/ledger/LedgerMaster.h>
 #include <ripple/app/ledger/LedgerReplayTask.h>
 #include <ripple/app/main/Application.h>
+#include <ripple/basics/partitioned_unordered_map.h>
 #include <ripple/beast/utility/Journal.h>
 
 #include <memory>

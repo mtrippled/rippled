@@ -21,6 +21,8 @@
 #include <ripple/basics/partitioned_unordered_map.h>
 #include <ripple/protocol/Protocol.h>
 #include <ripple/shamap/SHAMapTreeNode.h>
+#include <limits>
+#include <string>
 
 namespace ripple {
 
@@ -42,6 +44,16 @@ extract(LedgerIndex const key)
     return static_cast<std::size_t const>(key);
 }
 
+std::size_t
+extract(std::string key)
+{
+    constexpr std::size_t retSize =
+        (sizeof(std::size_t) % CHAR_BIT ? (sizeof(std::size_t) / CHAR_BIT + 1) : sizeof(std::size_t) / CHAR_BIT);
+    if (key.size() < retSize)
+        key.resize(retSize);
+    return *reinterpret_cast<std::size_t const*>(key.data());
+}
+
 template <typename Key>
 std::size_t
 partitioner(Key const& key, std::size_t numPartitions)
@@ -58,5 +70,8 @@ std::size_t partitioner<uint256>(
 template
 std::size_t partitioner<SHAMapHash>(
     SHAMapHash const& key, std::size_t numPartitions);
+template
+std::size_t partitioner<std::string>(
+    std::string const& key, std::size_t numPartitions);
 
 }  // namespace ripple

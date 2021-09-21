@@ -29,6 +29,7 @@
 #include <mutex>
 #include <stack>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
 namespace ripple {
@@ -48,6 +49,7 @@ namespace ripple {
 template <
     class Key,
     class T,
+    bool  IsKeyCache = false,
     class Hash = hardened_hash<>,
     class KeyEqual = std::equal_to<Key>,
     class Mutex = std::recursive_mutex>
@@ -89,6 +91,14 @@ public:
     clock()
     {
         return m_clock;
+    }
+
+    /** Returns the number of items in the container. */
+    std::size_t
+    size() const
+    {
+        std::lock_guard lock(m_mutex);
+        return m_cache.size();
     }
 
     void
@@ -167,13 +177,32 @@ public:
         m_misses = 0;
     }
 
+    /** Refresh the last access time on a key if present.
+        @return `true` If the key was found.
+    */
+    template <class KeyComparable>
+    bool
+    touch_if_exists(KeyComparable const& key)
+    {
+        std::lock_guard lock(m_mutex);
+        auto const iter(m_cache.find(key));
+        if (iter == m_cache.end())
+        {
+            ++m_stats.misses;
+            return false;
+        }
+        iter->second.last_access = m_clock.now();
+        ++m_stats.hits;
+        return true;
+    }
+
     void
     sweep()
     {
         // Keep references to all the stuff we sweep
         // For performance, each worker thread should exit before the swept data
         // is destroyed but still within the main cache lock.
-        std::stack<std::vector<std::shared_ptr<mapped_type>>> allStuffToSweep;
+        std::stack<std::stack<std::shared_ptr<mapped_type>>> allStuffToSweep;
         std::mutex sweepMutex;
 
         clock_type::time_point const now(m_clock.now());
@@ -202,58 +231,74 @@ public:
 
         std::vector<std::thread> workers;
         workers.reserve(m_cache.partitions());
+        int allRemovals = 0;
 
         for (auto& partition : m_cache.map())
         {
             workers.push_back(std::thread([&, this]() {
                 int cacheRemovals = 0;
                 int mapRemovals = 0;
-                int cc = 0;
 
                 // Keep references to all the stuff we sweep
                 // so that we can destroy them outside the lock.
-                std::vector<std::shared_ptr<mapped_type>> stuffToSweep;
+                std::stack<std::shared_ptr<mapped_type>> stuffToSweep;
                 {
-                    stuffToSweep.reserve(partition.size());
                     auto cit = partition.begin();
                     while (cit != partition.end())
                     {
-                        if (cit->second.isWeak())
+                        if constexpr (!IsKeyCache)
                         {
-                            // weak
-                            if (cit->second.isExpired())
+                            if (cit->second.isWeak())
                             {
-                                ++mapRemovals;
-                                cit = partition.erase(cit);
+                                // weak
+                                if (cit->second.isExpired())
+                                {
+                                    ++mapRemovals;
+                                    cit = partition.erase(cit);
+                                }
+                                else
+                                {
+                                    ++cit;
+                                }
+                            } else if (cit->second.last_access <= when_expire)
+                            {
+                                // strong, expired
+                                --m_cache_count;
+                                ++cacheRemovals;
+                                if (cit->second.ptr.unique())
+                                {
+                                    stuffToSweep.push(cit->second.ptr);
+                                    ++mapRemovals;
+                                    cit = partition.erase(cit);
+                                }
+                                else
+                                {
+                                    // remains weakly cached
+                                    cit->second.ptr.reset();
+                                    ++cit;
+                                }
                             }
                             else
                             {
-                                ++cit;
-                            }
-                        }
-                        else if (cit->second.last_access <= when_expire)
-                        {
-                            // strong, expired
-                            --m_cache_count;
-                            ++cacheRemovals;
-                            if (cit->second.ptr.unique())
-                            {
-                                stuffToSweep.push_back(cit->second.ptr);
-                                ++mapRemovals;
-                                cit = partition.erase(cit);
-                            }
-                            else
-                            {
-                                // remains weakly cached
-                                cit->second.ptr.reset();
+                                // strong, not expired
                                 ++cit;
                             }
                         }
                         else
                         {
-                            // strong, not expired
-                            ++cc;
-                            ++cit;
+                            if (cit->second.last_access > now)
+                            {
+                                cit->second.last_access = now;
+                                ++cit;
+                            }
+                            else if (cit->second.last_access <= when_expire)
+                            {
+                                cit = partition.erase(cit);
+                            }
+                            else
+                            {
+                                ++cit;
+                            }
                         }
                     }
                 }
@@ -266,14 +311,15 @@ public:
                         << cacheRemovals << ", map-=" << mapRemovals;
                 }
 
-                m_cache_count -= cacheRemovals;
-
                 std::lock_guard<std::mutex> sweepLock(sweepMutex);
                 allStuffToSweep.push(std::move(stuffToSweep));
+                allRemovals += cacheRemovals;
             }));
         }
         for (std::thread& worker : workers)
             worker.join();
+
+        m_cache_count -= allRemovals;
 
         // At this point allStuffToSweep will go out of scope outside the lock
         // and decrement the reference count on each strong pointer.
@@ -429,6 +475,20 @@ public:
         return canonicalize_replace_client(key, p);
     }
 
+    bool
+    insert(key_type const& key)
+    {
+        std::lock_guard lock(m_mutex);
+        clock_type::time_point const now(m_clock.now());
+        auto [it, inserted] = m_cache.emplace(
+            std::piecewise_construct,
+            std::forward_as_tuple(key),
+            std::forward_as_tuple(now));
+        if (!inserted)
+            it->second.last_access = now;
+        return inserted;
+    }
+
     // VFALCO NOTE It looks like this returns a copy of the data in
     //             the output parameter 'data'. This could be expensive.
     //             Perhaps it should work like standard containers, which
@@ -566,22 +626,39 @@ private:
             : hook(collector->make_hook(handler))
             , size(collector->make_gauge(prefix, "size"))
             , hit_rate(collector->make_gauge(prefix, "hit_rate"))
+            , hits(0)
+            , misses(0)
         {
         }
 
         beast::insight::Hook hook;
         beast::insight::Gauge size;
         beast::insight::Gauge hit_rate;
+
+        std::size_t hits;
+        std::size_t misses;
     };
 
-    class Entry
+    class KeyOnlyEntry
+    {
+    public:
+        clock_type::time_point last_access;
+
+        explicit KeyOnlyEntry(
+            clock_type::time_point const& last_access_)
+            : last_access(last_access_)
+        {
+        }
+    };
+
+    class ValueEntry
     {
     public:
         std::shared_ptr<mapped_type> ptr;
         std::weak_ptr<mapped_type> weak_ptr;
         clock_type::time_point last_access;
 
-        Entry(
+        ValueEntry(
             clock_type::time_point const& last_access_,
             std::shared_ptr<mapped_type> const& ptr_)
             : ptr(ptr_), weak_ptr(ptr_), last_access(last_access_)
@@ -615,6 +692,8 @@ private:
         }
     };
 
+    typedef typename std::conditional<IsKeyCache, KeyOnlyEntry, ValueEntry>::type Entry;
+
     using cache_type =
         hardened_partitioned_hash_map<key_type, Entry, Hash, KeyEqual>;
 
@@ -639,6 +718,7 @@ private:
     std::uint64_t m_hits;
     std::uint64_t m_misses;
 };
+
 
 }  // namespace ripple
 
