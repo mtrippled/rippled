@@ -17,9 +17,11 @@
 */
 //==============================================================================
 
-#include <ripple/basics/KeyCache.h>
 #include <ripple/basics/chrono.h>
+#include <ripple/protocol/Protocol.h>
+#include <ripple/basics/TaggedCache.h>
 #include <ripple/beast/clock/manual_clock.h>
+#include <ripple/beast/utility/Journal.h>
 #include <ripple/beast/unit_test.h>
 
 namespace ripple {
@@ -35,32 +37,31 @@ public:
         clock.set(0);
 
         using Key = std::string;
-        using Cache = KeyCache<Key>;
+        using Cache = TaggedCache<Key, int, true>;
+
+        test::SuiteJournal j("KeyCacheTest", *this);
 
         // Insert an item, retrieve it, and age it so it gets purged.
         {
-            Cache c("test", clock, 1, 2s);
+            Cache c("test", LedgerIndex(1), 2s, clock, j);
 
             BEAST_EXPECT(c.size() == 0);
             BEAST_EXPECT(c.insert("one"));
             BEAST_EXPECT(!c.insert("one"));
             BEAST_EXPECT(c.size() == 1);
-            BEAST_EXPECT(c.exists("one"));
             BEAST_EXPECT(c.touch_if_exists("one"));
             ++clock;
             c.sweep();
             BEAST_EXPECT(c.size() == 1);
-            BEAST_EXPECT(c.exists("one"));
             ++clock;
             c.sweep();
             BEAST_EXPECT(c.size() == 0);
-            BEAST_EXPECT(!c.exists("one"));
             BEAST_EXPECT(!c.touch_if_exists("one"));
         }
 
         // Insert two items, have one expire
         {
-            Cache c("test", clock, 2, 2s);
+            Cache c("test", LedgerIndex(2), 2s, clock, j);
 
             BEAST_EXPECT(c.insert("one"));
             BEAST_EXPECT(c.size() == 1);
@@ -73,12 +74,11 @@ public:
             ++clock;
             c.sweep();
             BEAST_EXPECT(c.size() == 1);
-            BEAST_EXPECT(c.exists("two"));
         }
 
         // Insert three items (1 over limit), sweep
         {
-            Cache c("test", clock, 2, 3s);
+            Cache c("test", LedgerIndex(2), 3s, clock, j);
 
             BEAST_EXPECT(c.insert("one"));
             ++clock;

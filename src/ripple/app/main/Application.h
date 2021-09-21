@@ -56,6 +56,7 @@ class AmendmentTable;
 template <
     class Key,
     class T,
+    bool  IsKeyCache,
     class Hash,
     class KeyEqual,
     class Mutex>
