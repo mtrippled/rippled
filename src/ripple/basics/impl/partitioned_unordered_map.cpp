@@ -56,22 +56,22 @@ extract(std::string key)
 
 template <typename Key>
 std::size_t
-partitioner(Key const& key, std::size_t numPartitions)
+partitioner(Key const& key, std::size_t const numPartitions)
 {
     return extract(key) % numPartitions;
 }
 
 template
 std::size_t partitioner<LedgerIndex>(
-    LedgerIndex const& key, std::size_t numPartitions);
+    LedgerIndex const& key, std::size_t const numPartitions);
 template
 std::size_t partitioner<uint256>(
-    uint256 const& key, std::size_t numPartitions);
+    uint256 const& key, std::size_t const numPartitions);
 template
 std::size_t partitioner<SHAMapHash>(
-    SHAMapHash const& key, std::size_t numPartitions);
+    SHAMapHash const& key, std::size_t const numPartitions);
 template
 std::size_t partitioner<std::string>(
-    std::string const& key, std::size_t numPartitions);
+    std::string const& key, std::size_t const numPartitions);
 
 }  // namespace ripple
