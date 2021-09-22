@@ -129,8 +129,8 @@ public:
 private:
     mutable std::mutex mtx_;
     std::vector<std::shared_ptr<LedgerReplayTask>> tasks_;
-    hash_map<uint256, std::weak_ptr<LedgerDeltaAcquire>> deltas_;
-    hash_map<uint256, std::weak_ptr<SkipListAcquire>> skipLists_;
+    partitioned_hash_map<uint256, std::weak_ptr<LedgerDeltaAcquire>> deltas_;
+    partitioned_hash_map<uint256, std::weak_ptr<SkipListAcquire>> skipLists_;
 
     Application& app_;
     InboundLedgers& inboundLedgers_;
