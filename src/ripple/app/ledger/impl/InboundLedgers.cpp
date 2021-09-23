@@ -30,6 +30,7 @@
 #include <ripple/protocol/jss.h>
 #include <memory>
 #include <mutex>
+#include <stack>
 
 namespace ripple {
 
@@ -96,7 +97,9 @@ public:
                     reason,
                     std::ref(m_clock),
                     mPeerSetBuilder->build());
-                mLedgers.emplace(hash, inbound);
+                mLedgers.emplace(std::piecewise_construct,
+                    std::forward_as_tuple(hash),
+                    std::forward_as_tuple(inbound));
                 inbound->init(sl);
                 ++mCounter;
             }
@@ -350,13 +353,12 @@ public:
         clock_type::time_point const now(m_clock.now());
 
         // Make a list of things to sweep, while holding the lock
-        std::vector<MapType::mapped_type> stuffToSweep;
+        std::stack<MapType::mapped_type> stuffToSweep;
         std::size_t total;
         {
             ScopedLockType sl(mLock);
             MapType::iterator it(mLedgers.begin());
             total = mLedgers.size();
-            stuffToSweep.reserve(total);
 
             while (it != mLedgers.end())
             {
@@ -369,7 +371,7 @@ public:
                     (it->second->getLastAction() + std::chrono::minutes(1)) <
                     now)
                 {
-                    stuffToSweep.push_back(it->second);
+                    stuffToSweep.push(it->second);
                     // shouldn't cause the actual final delete
                     // since we are holding a reference in the vector.
                     it = mLedgers.erase(it);
@@ -403,7 +405,7 @@ private:
     std::recursive_mutex mLock;
 
     bool stopping_ = false;
-    using MapType = hash_map<uint256, std::shared_ptr<InboundLedger>>;
+    using MapType = partitioned_hash_map<uint256, std::shared_ptr<InboundLedger>>;
     MapType mLedgers;
 
     beast::aged_map<uint256, std::uint32_t> mRecentFailures;

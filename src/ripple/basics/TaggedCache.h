@@ -263,7 +263,6 @@ public:
                             } else if (cit->second.last_access <= when_expire)
                             {
                                 // strong, expired
-                                --m_cache_count;
                                 ++cacheRemovals;
                                 if (cit->second.ptr.unique())
                                 {
