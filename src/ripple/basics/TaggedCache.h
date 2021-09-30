@@ -233,9 +233,12 @@ public:
         workers.reserve(m_cache.partitions());
         int allRemovals = 0;
 
-        for (auto& partition : m_cache.map())
+//        for (auto& partition : m_cache.map())
+        for (std::size_t p = 0; p < m_cache.partitions(); ++p)
         {
-            workers.push_back(std::thread([&, this]() {
+            workers.push_back(std::thread([&, this](
+                std::size_t const partitionNum) {
+                auto& partition = m_cache.map()[partitionNum];
                 int cacheRemovals = 0;
                 int mapRemovals = 0;
 
@@ -313,7 +316,7 @@ public:
                 std::lock_guard<std::mutex> sweepLock(sweepMutex);
                 allStuffToSweep.push(std::move(stuffToSweep));
                 allRemovals += cacheRemovals;
-            }));
+            }, p));
         }
         for (std::thread& worker : workers)
             worker.join();
