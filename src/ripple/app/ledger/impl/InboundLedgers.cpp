@@ -97,9 +97,7 @@ public:
                     reason,
                     std::ref(m_clock),
                     mPeerSetBuilder->build());
-                mLedgers.emplace(std::piecewise_construct,
-                    std::forward_as_tuple(hash),
-                    std::forward_as_tuple(inbound));
+                mLedgers.emplace(hash, inbound);
                 inbound->init(sl);
                 ++mCounter;
             }
