@@ -562,9 +562,7 @@ public:
         std::lock_guard lock(m_mutex);
         ++m_misses;
         auto const [it, inserted] = m_cache.emplace(
-            std::piecewise_construct,
-            std::forward_as_tuple(digest),
-            std::forward_as_tuple(m_clock.now(), sle));
+            digest, Entry(m_clock.now(), std::move(sle)));
         if (!inserted)
             it->second.touch(m_clock.now());
         return it->second.ptr;

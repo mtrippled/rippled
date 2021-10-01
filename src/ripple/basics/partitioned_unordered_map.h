@@ -334,15 +334,26 @@ public:
     std::pair<iterator, bool>
     emplace(std::piecewise_construct_t const&, T&& keyTuple, U&& valueTuple)
     {
-        auto& key = std::get<0>(keyTuple);
+        auto const& key = std::get<0>(keyTuple);
         iterator it(&map_);
         it.ait_ = it.map_->begin() + partitioner(key);
-        auto emplaced = it.ait_->emplace(
+        auto [eit, inserted] = it.ait_->emplace(
             std::piecewise_construct,
-            std::move(keyTuple),
-            std::move(valueTuple));
-        it.mit_ = emplaced.first;
-        return {it, emplaced.second};
+            std::forward<T>(keyTuple),
+            std::forward<U>(valueTuple));
+        it.mit_ = eit;
+        return {it, inserted};
+    }
+
+    template <class T, class U>
+    std::pair<iterator, bool>
+    emplace(T key, U val)
+    {
+        iterator it(&map_);
+        it.ait_ = it.map_->begin() + partitioner(key);
+        auto [eit, inserted] = it.ait_->emplace(std::forward<T>(key), std::forward<U>(val));
+        it.mit_  = eit;
+        return {it, inserted};
     }
 
     void
