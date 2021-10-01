@@ -79,12 +79,14 @@
 
 #include <date/date.h>
 
+#include <chrono>
 #include <condition_variable>
 #include <cstring>
 #include <iostream>
 #include <limits>
 #include <mutex>
 #include <optional>
+#include <sstream>
 #include <utility>
 #include <variant>
 
@@ -1116,20 +1118,52 @@ public:
         // VFALCO TODO fix the dependency inversion using an observer,
         //         have listeners register for "onSweep ()" notification.
 
-        nodeFamily_.sweep();
-        if (shardFamily_)
-            shardFamily_->sweep();
-        getMasterTransaction().sweep();
-        getNodeStore().sweep();
-        if (shardStore_)
-            shardStore_->sweep();
-        getLedgerMaster().sweep();
-        getTempNodeCache().sweep();
-        getValidations().expire();
-        getInboundLedgers().sweep();
-        getLedgerReplayer().sweep();
-        m_acceptedLedgerCache.sweep();
-        cachedSLEs_.sweep();
+        {
+            auto sweepMsg = [](std::stringstream& msg, std::chrono::steady_clock::time_point const& start, char const* name)
+            {
+                auto const now = std::chrono::steady_clock::now();
+                msg << name << ':' << std::chrono::duration_cast<std::chrono::microseconds>(now - start).count() << "us ";
+                return now;
+            };
+
+            std::stringstream sweepTiming;
+            std::chrono::steady_clock::time_point const start = std::chrono::steady_clock::now();
+
+            nodeFamily_.sweep();
+            auto subStart = sweepMsg(sweepTiming, start, "node family");
+            if (shardFamily_)
+            {
+                shardFamily_->sweep();
+                subStart = sweepMsg(sweepTiming, subStart, "shard family");
+            }
+            getMasterTransaction().sweep();
+            subStart = sweepMsg(sweepTiming, subStart, "transaction master");
+            getNodeStore().sweep();
+            subStart = sweepMsg(sweepTiming, subStart, "node store");
+            if (shardStore_)
+            {
+                shardStore_->sweep();
+                subStart = sweepMsg(sweepTiming, subStart, "shard store");
+            }
+            getLedgerMaster().sweep();
+            subStart = sweepMsg(sweepTiming, subStart, "ledger master");
+            getTempNodeCache().sweep();
+            subStart = sweepMsg(sweepTiming, subStart, "temp node cache");
+            getValidations().expire();
+            subStart = sweepMsg(sweepTiming, subStart, "validations");
+            getInboundLedgers().sweep();
+            subStart = sweepMsg(sweepTiming, subStart, "inbound ledgers");
+            getLedgerReplayer().sweep();
+            subStart = sweepMsg(sweepTiming, subStart, "ledger replayer");
+            m_acceptedLedgerCache.sweep();
+            subStart = sweepMsg(sweepTiming, subStart, "accepted ledger");
+            cachedSLEs_.sweep();
+            subStart = sweepMsg(sweepTiming, subStart, "cached sles");
+            sweepMsg(sweepTiming, start, "total");
+
+            JLOG(m_journal.info()) << "Cache sweep timing in microseconds: "
+                << sweepTiming.str();
+        }
 
 #ifdef RIPPLED_REPORTING
         if (auto pg = dynamic_cast<RelationalDBInterfacePostgres*>(
