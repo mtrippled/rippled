@@ -239,9 +239,11 @@ public:
     partitioned_unordered_map(
         std::optional<std::size_t> partitions = std::nullopt)
     {
+        // Set partitions to the number of hardware threads if the parameter
+        // is either empty or set to 0.
         partitions_ = partitions && *partitions
             ? *partitions
-            : std::thread::hardware_concurrency() * 2;
+            : std::thread::hardware_concurrency();
         map_.resize(partitions_);
         assert(partitions_);
     }

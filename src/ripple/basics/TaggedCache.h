@@ -25,11 +25,12 @@
 #include <ripple/basics/hardened_hash.h>
 #include <ripple/beast/clock/abstract_clock.h>
 #include <ripple/beast/insight/Insight.h>
+#include <atomic>
 #include <functional>
 #include <mutex>
-#include <stack>
 #include <thread>
 #include <type_traits>
+#include <stack>
 #include <vector>
 
 namespace ripple {
@@ -202,129 +203,127 @@ public:
         // Keep references to all the stuff we sweep
         // For performance, each worker thread should exit before the swept data
         // is destroyed but still within the main cache lock.
-        std::stack<std::stack<std::shared_ptr<mapped_type>>> allStuffToSweep;
-        std::mutex sweepMutex;
+        std::vector<std::stack<std::shared_ptr<mapped_type>>> allStuffToSweep(m_cache.partitions());
 
         clock_type::time_point const now(m_clock.now());
         clock_type::time_point when_expire;
 
-        std::lock_guard lock(m_mutex);
-
-        if (m_target_size == 0 ||
-            (static_cast<int>(m_cache.size()) <= m_target_size))
         {
-            when_expire = now - m_target_age;
-        }
-        else
-        {
-            when_expire = now - m_target_age * m_target_size / m_cache.size();
+            std::lock_guard lock(m_mutex);
 
-            clock_type::duration const minimumAge(std::chrono::seconds(1));
-            if (when_expire > (now - minimumAge))
-                when_expire = now - minimumAge;
+            if (m_target_size == 0 ||
+                (static_cast<int>(m_cache.size()) <= m_target_size))
+            {
+                when_expire = now - m_target_age;
+            } else
+            {
+                when_expire =
+                    now - m_target_age * m_target_size / m_cache.size();
 
-            JLOG(m_journal.trace())
-                << m_name << " is growing fast " << m_cache.size() << " of "
-                << m_target_size << " aging at " << (now - when_expire).count()
-                << " of " << m_target_age.count();
-        }
+                clock_type::duration const minimumAge(std::chrono::seconds(1));
+                if (when_expire > (now - minimumAge))
+                    when_expire = now - minimumAge;
 
-        std::vector<std::thread> workers;
-        workers.reserve(m_cache.partitions());
-        int allRemovals = 0;
+                JLOG(m_journal.trace())
+                    << m_name << " is growing fast " << m_cache.size() << " of "
+                    << m_target_size << " aging at "
+                    << (now - when_expire).count()
+                    << " of " << m_target_age.count();
+            }
 
-//        for (auto& partition : m_cache.map())
-        for (std::size_t p = 0; p < m_cache.partitions(); ++p)
-        {
-            workers.push_back(std::thread([&, this](
-                std::size_t const partitionNum) {
-                auto& partition = m_cache.map()[partitionNum];
-                int cacheRemovals = 0;
-                int mapRemovals = 0;
+            std::vector<std::thread> workers;
+            workers.reserve(m_cache.partitions());
+            std::atomic<int> allRemovals = 0;
 
-                // Keep references to all the stuff we sweep
-                // so that we can destroy them outside the lock.
-                std::stack<std::shared_ptr<mapped_type>> stuffToSweep;
+            for (std::size_t p = 0; p < m_cache.partitions(); ++p)
+            {
+                workers.push_back(std::thread([&, this](
+                    std::size_t const partitionNum)
                 {
-                    auto cit = partition.begin();
-                    while (cit != partition.end())
+                    auto &partition = m_cache.map()[partitionNum];
+                    int cacheRemovals = 0;
+                    int mapRemovals = 0;
+
+                    // Keep references to all the stuff we sweep
+                    // so that we can destroy them outside the lock.
+                    auto &stuffToSweep =
+                        allStuffToSweep[partitionNum];
                     {
-                        if constexpr (!IsKeyCache)
+                        auto cit = partition.begin();
+                        while (cit != partition.end())
                         {
-                            if (cit->second.isWeak())
+                            if constexpr (!IsKeyCache)
                             {
-                                // weak
-                                if (cit->second.isExpired())
+                                if (cit->second.isWeak())
                                 {
-                                    ++mapRemovals;
-                                    cit = partition.erase(cit);
+                                    // weak
+                                    if (cit->second.isExpired())
+                                    {
+                                        ++mapRemovals;
+                                        cit = partition.erase(cit);
+                                    } else
+                                    {
+                                        ++cit;
+                                    }
+                                } else if (cit->second.last_access <=
+                                           when_expire)
+                                {
+                                    // strong, expired
+                                    ++cacheRemovals;
+                                    if (cit->second.ptr.unique())
+                                    {
+                                        stuffToSweep.push(cit->second.ptr);
+                                        ++mapRemovals;
+                                        cit = partition.erase(cit);
+                                    } else
+                                    {
+                                        // remains weakly cached
+                                        cit->second.ptr.reset();
+                                        ++cit;
+                                    }
+                                } else
+                                {
+                                    // strong, not expired
+                                    ++cit;
                                 }
-                                else
+                            } else
+                            {
+                                if (cit->second.last_access > now)
+                                {
+                                    cit->second.last_access = now;
+                                    ++cit;
+                                } else if (cit->second.last_access <=
+                                           when_expire)
+                                {
+                                    cit = partition.erase(cit);
+                                } else
                                 {
                                     ++cit;
                                 }
-                            } else if (cit->second.last_access <= when_expire)
-                            {
-                                // strong, expired
-                                ++cacheRemovals;
-                                if (cit->second.ptr.unique())
-                                {
-                                    stuffToSweep.push(cit->second.ptr);
-                                    ++mapRemovals;
-                                    cit = partition.erase(cit);
-                                }
-                                else
-                                {
-                                    // remains weakly cached
-                                    cit->second.ptr.reset();
-                                    ++cit;
-                                }
-                            }
-                            else
-                            {
-                                // strong, not expired
-                                ++cit;
-                            }
-                        }
-                        else
-                        {
-                            if (cit->second.last_access > now)
-                            {
-                                cit->second.last_access = now;
-                                ++cit;
-                            }
-                            else if (cit->second.last_access <= when_expire)
-                            {
-                                cit = partition.erase(cit);
-                            }
-                            else
-                            {
-                                ++cit;
                             }
                         }
                     }
-                }
 
-                if (mapRemovals || cacheRemovals)
-                {
-                    JLOG(m_journal.debug())
-                        << "TaggedCache partition sweep " << m_name
-                        << ": cache = " << partition.size() << "-"
-                        << cacheRemovals << ", map-=" << mapRemovals;
-                }
+                    if (mapRemovals || cacheRemovals)
+                    {
+                        JLOG(m_journal.debug())
+                            << "TaggedCache partition sweep " << m_name
+                            << ": cache = " << partition.size() << "-"
+                            << cacheRemovals << ", map-=" << mapRemovals;
+                    }
 
-                std::lock_guard<std::mutex> sweepLock(sweepMutex);
-                allStuffToSweep.push(std::move(stuffToSweep));
-                allRemovals += cacheRemovals;
-            }, p));
+                    allRemovals -= cacheRemovals;
+                }, p));
+            }
+            for (std::thread &worker: workers)
+                worker.join();
+
+            m_cache_count -= allRemovals;
         }
-        for (std::thread& worker : workers)
-            worker.join();
-
-        m_cache_count -= allRemovals;
-
         // At this point allStuffToSweep will go out of scope outside the lock
         // and decrement the reference count on each strong pointer.
+        JLOG(m_journal.debug()) << m_name << " TaggedCache sweep finished, "
+            "lock released (return and garbage destruction remaining)";
     }
 
     bool
