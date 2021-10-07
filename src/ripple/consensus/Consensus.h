@@ -1135,10 +1135,14 @@ Consensus<Adaptor>::phaseOpen()
             j_))
     {
         closeLedger();
+        JLOG(j_.debug()) << "not sweepOne";
     }
     else
     {
+        JLOG(j_.debug()) << "sweepOne";
         adaptor_.getSweepQueue().sweepOne();
+        JLOG(j_.debug()) << "sweepOne2";
+
     }
 }
 

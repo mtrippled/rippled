@@ -1119,6 +1119,7 @@ public:
             signalStop();
         }
 
+        JLOG(m_journal.debug()) << "doSweep";
         std::queue<Sweepable*> toSweep;
         toSweep.push(nodeFamily_.getFullBelowCache(0).get());
         toSweep.push(nodeFamily_.getTreeNodeCache(0).get());
@@ -1138,6 +1139,7 @@ public:
         toSweep.push(&getAcceptedLedgerCache());
         toSweep.push(&cachedSLEs_);
         sweepQueue_.replace(std::move(toSweep));
+        JLOG(m_journal.debug()) << "enqueued caches to sweep";
 
 #ifdef RIPPLED_REPORTING
         if (auto pg = dynamic_cast<RelationalDBInterfacePostgres*>(
