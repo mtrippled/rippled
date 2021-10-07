@@ -33,14 +33,15 @@ SweepQueue::replace(std::queue<Sweepable*>&& q)
 void
 SweepQueue::sweepOne()
 {
+    static JobQueue& jq = app_.getJobQueue();
     std::lock_guard<std::mutex> lock(mutex_);
     if (q_.empty())
         return;
-    if (app_.getJobQueue().addJob(
+    if (jq.addJob(
         jtSWEEP,
         "sweepOne",
         [this](Job&) {
-            q_.back()->sweep();
+            q_.front()->sweep();
         }))
     {
         q_.pop();
