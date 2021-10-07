@@ -23,6 +23,7 @@
 #include <ripple/basics/Log.h>
 #include <ripple/basics/UnorderedContainers.h>
 #include <ripple/basics/hardened_hash.h>
+#include <ripple/basics/Sweepable.h>
 #include <ripple/beast/clock/abstract_clock.h>
 #include <ripple/beast/insight/Insight.h>
 #include <atomic>
@@ -54,7 +55,7 @@ template <
     class Hash = hardened_hash<>,
     class KeyEqual = std::equal_to<Key>,
     class Mutex = std::recursive_mutex>
-class TaggedCache
+class TaggedCache : public Sweepable
 {
 public:
     using mutex_type = Mutex;
@@ -198,7 +199,7 @@ public:
     }
 
     void
-    sweep()
+    sweep() override
     {
         // Keep references to all the stuff we sweep
         // For performance, each worker thread should exit before the swept data

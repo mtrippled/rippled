@@ -21,6 +21,7 @@
 #define RIPPLE_APP_LEDGER_INBOUNDLEDGERS_H_INCLUDED
 
 #include <ripple/app/ledger/InboundLedger.h>
+#include <ripple/basics/Sweepable.h>
 #include <ripple/protocol/RippleLedgerHash.h>
 #include <memory>
 
@@ -30,7 +31,7 @@ namespace ripple {
 
     @see InboundLedger
 */
-class InboundLedgers
+class InboundLedgers : public Sweepable
 {
 public:
     using clock_type = beast::abstract_clock<std::chrono::steady_clock>;
@@ -79,7 +80,7 @@ public:
     virtual void
     gotFetchPack() = 0;
     virtual void
-    sweep() = 0;
+    sweep() override = 0;
 
     virtual void
     stop() = 0;

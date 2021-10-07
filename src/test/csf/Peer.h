@@ -19,13 +19,13 @@
 #ifndef RIPPLE_TEST_CSF_PEER_H_INCLUDED
 #define RIPPLE_TEST_CSF_PEER_H_INCLUDED
 
+#include <ripple/beast/unit_test.h>
 #include <ripple/beast/utility/WrappedSink.h>
 #include <ripple/consensus/Consensus.h>
 #include <ripple/consensus/Validations.h>
 #include <ripple/protocol/PublicKey.h>
 #include <boost/container/flat_map.hpp>
 #include <boost/container/flat_set.hpp>
-#include <algorithm>
 #include <test/csf/CollectorRef.h>
 #include <test/csf/Scheduler.h>
 #include <test/csf/TrustGraph.h>
@@ -33,6 +33,9 @@
 #include <test/csf/Validation.h>
 #include <test/csf/events.h>
 #include <test/csf/ledgers.h>
+#include <test/jtx/Env.h>
+#include <algorithm>
+#include <memory>
 
 namespace ripple {
 namespace test {
@@ -51,7 +54,7 @@ namespace bc = boost::container;
        by Collectors
      - Exposes most internal state for forcibly simulating arbitrary scenarios
 */
-struct Peer
+struct Peer : public beast::unit_test::suite
 {
     /** Basic wrapper of a proposed position taken by a peer.
 
@@ -250,6 +253,8 @@ struct Peer
     //! The collectors to report events to
     CollectorRefs& collectors;
 
+    std::unique_ptr<jtx::Env> env;
+
     /** Constructor
 
         @param i Unique PeerID
@@ -288,6 +293,8 @@ struct Peer
 
         // nodes always trust themselves . . SHOULD THEY?
         trustGraph.trust(this, this);
+
+        env = std::make_unique<jtx::Env>(*this);
     }
 
     /**  Schedule the provided callback in `when` duration, but if
@@ -870,6 +877,11 @@ struct Peer
     {
     }
 
+    SweepQueue&
+    getSweepQueue()
+    {
+        return env->app().getSweepQueue();
+    }
     //--------------------------------------------------------------------------
     //  A locally submitted transaction
     void
@@ -919,7 +931,7 @@ struct Peer
     start()
     {
         // TODO: Expire validations less frequently?
-        validations.expire();
+        validations.sweep();
         scheduler.in(parms().ledgerGRANULARITY, [&]() { timerEntry(); });
         startRound();
     }
@@ -973,6 +985,9 @@ struct Peer
 
         return TxSet{res};
     }
+
+    void
+    run() override {}
 };
 
 }  // namespace csf

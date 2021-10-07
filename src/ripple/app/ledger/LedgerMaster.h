@@ -294,6 +294,18 @@ public:
     std::optional<LedgerIndex>
     minSqlSeq();
 
+    LedgerHistory*
+    getLedgerHistory()
+    {
+        return &mLedgerHistory;
+    }
+
+    TaggedCache<uint256, Blob>*
+    getFetchPacks()
+    {
+        return &fetch_packs_;
+    }
+
 private:
     void
     setValidLedger(std::shared_ptr<Ledger const> const& l);
@@ -332,6 +344,8 @@ private:
     // The passed lock is a reminder to callers.
     bool
     newPFWork(const char* name, std::unique_lock<std::recursive_mutex>&);
+
+
 
     Application& app_;
     beast::Journal m_journal;

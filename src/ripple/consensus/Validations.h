@@ -23,6 +23,7 @@
 #include <ripple/basics/Log.h>
 #include <ripple/basics/UnorderedContainers.h>
 #include <ripple/basics/chrono.h>
+#include <ripple/basics/Sweepable.h>
 #include <ripple/beast/container/aged_container_utility.h>
 #include <ripple/beast/container/aged_unordered_map.h>
 #include <ripple/consensus/LedgerTrie.h>
@@ -283,7 +284,7 @@ to_string(ValStatus m)
     @tparam Adaptor Provides type definitions and callbacks
 */
 template <class Adaptor>
-class Validations
+class Validations : public Sweepable
 {
     using Mutex = typename Adaptor::Mutex;
     using Validation = typename Adaptor::Validation;
@@ -722,7 +723,7 @@ public:
         validationSET_EXPIRES ago and were not asked to keep.
     */
     void
-    expire()
+    sweep() override
     {
         std::lock_guard lock{mutex_};
         if (toKeep_)

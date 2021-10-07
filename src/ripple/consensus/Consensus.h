@@ -1136,6 +1136,10 @@ Consensus<Adaptor>::phaseOpen()
     {
         closeLedger();
     }
+    else
+    {
+        adaptor_.getSweepQueue().sweepOne();
+    }
 }
 
 template <class Adaptor>

@@ -23,7 +23,7 @@
 #include <ripple/app/ledger/LedgerMaster.h>
 #include <ripple/app/ledger/LedgerReplayTask.h>
 #include <ripple/app/main/Application.h>
-#include <ripple/basics/partitioned_unordered_map.h>
+#include <ripple/basics/Sweepable.h>
 #include <ripple/beast/utility/Journal.h>
 
 #include <memory>
@@ -70,7 +70,7 @@ std::uint32_t constexpr MAX_QUEUED_TASKS = 100;
 /**
  * Manages the lifetime of ledger replay tasks.
  */
-class LedgerReplayer final
+class LedgerReplayer final : public Sweepable
 {
 public:
     LedgerReplayer(
@@ -121,7 +121,7 @@ public:
 
     /** Remove completed tasks */
     void
-    sweep();
+    sweep() override;
 
     void
     stop();
@@ -129,8 +129,8 @@ public:
 private:
     mutable std::mutex mtx_;
     std::vector<std::shared_ptr<LedgerReplayTask>> tasks_;
-    partitioned_hash_map<uint256, std::weak_ptr<LedgerDeltaAcquire>> deltas_;
-    partitioned_hash_map<uint256, std::weak_ptr<SkipListAcquire>> skipLists_;
+    hash_map<uint256, std::weak_ptr<LedgerDeltaAcquire>> deltas_;
+    hash_map<uint256, std::weak_ptr<SkipListAcquire>> skipLists_;
 
     Application& app_;
     InboundLedgers& inboundLedgers_;

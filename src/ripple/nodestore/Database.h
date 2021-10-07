@@ -20,6 +20,7 @@
 #ifndef RIPPLE_NODESTORE_DATABASE_H_INCLUDED
 #define RIPPLE_NODESTORE_DATABASE_H_INCLUDED
 
+#include <ripple/basics/Sweepable.h>
 #include <ripple/basics/TaggedCache.h>
 #include <ripple/nodestore/Backend.h>
 #include <ripple/nodestore/NodeObject.h>
@@ -48,7 +49,7 @@ namespace NodeStore {
 
     @see NodeObject
 */
-class Database
+class Database : public Sweepable
 {
 public:
     Database() = delete;
@@ -171,7 +172,7 @@ public:
 
     /** Remove expired entries from the positive and negative caches. */
     virtual void
-    sweep() = 0;
+    sweep() override = 0;
 
     /** Gather statistics pertaining to read and write activities.
      *

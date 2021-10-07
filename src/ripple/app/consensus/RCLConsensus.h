@@ -24,10 +24,12 @@
 #include <ripple/app/consensus/RCLCxLedger.h>
 #include <ripple/app/consensus/RCLCxPeerPos.h>
 #include <ripple/app/consensus/RCLCxTx.h>
+#include <ripple/app/main/Application.h>
 #include <ripple/app/misc/FeeVote.h>
 #include <ripple/app/misc/NegativeUNLVote.h>
 #include <ripple/basics/CountedObject.h>
 #include <ripple/basics/Log.h>
+#include <ripple/basics/Sweepable.h>
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/consensus/Consensus.h>
 #include <ripple/core/JobQueue.h>
@@ -38,11 +40,13 @@
 #include <atomic>
 #include <mutex>
 #include <set>
+
 namespace ripple {
 
 class InboundTransactions;
 class LocalTxs;
 class LedgerMaster;
+class SweepQueue;
 class ValidatorKeys;
 
 /** Manages the generic consensus algorithm for use by the RCL.
@@ -176,6 +180,12 @@ class RCLConsensus
         parms() const
         {
             return parms_;
+        }
+
+        SweepQueue&
+        getSweepQueue()
+        {
+            return app_.getSweepQueue();
         }
 
     private:

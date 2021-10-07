@@ -22,6 +22,7 @@
 
 #include <ripple/app/misc/Transaction.h>
 #include <ripple/basics/RangeSet.h>
+#include <ripple/basics/Sweepable.h>
 #include <ripple/protocol/ErrorCodes.h>
 #include <ripple/shamap/SHAMapItem.h>
 #include <ripple/shamap/SHAMapTreeNode.h>
@@ -33,7 +34,7 @@ class STTx;
 
 // Tracks all transactions in memory
 
-class TransactionMaster
+class TransactionMaster : public Sweepable
 {
 public:
     TransactionMaster(Application& app);
@@ -80,7 +81,7 @@ public:
     canonicalize(std::shared_ptr<Transaction>* pTransaction);
 
     void
-    sweep(void);
+    sweep() override;
 
     TaggedCache<uint256, Transaction>&
     getCache();

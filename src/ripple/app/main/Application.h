@@ -30,6 +30,7 @@
 #include <boost/asio.hpp>
 #include <memory>
 #include <mutex>
+#include <queue>
 
 namespace ripple {
 
@@ -89,6 +90,7 @@ class PathRequests;
 class PendingSaves;
 class PublicKey;
 class SecretKey;
+class Sweepable;
 class AccountIDCache;
 class STLedgerEntry;
 class TimeKeeper;
@@ -111,6 +113,8 @@ template <class Adaptor>
 class Validations;
 class RCLValidationsAdaptor;
 using RCLValidations = Validations<RCLValidationsAdaptor>;
+
+class SweepQueue;
 
 class Application : public beast::PropertyStream::Source
 {
@@ -278,6 +282,9 @@ public:
      * than the last ledger it persisted. */
     virtual LedgerIndex
     getMaxDisallowedLedger() = 0;
+
+    virtual SweepQueue&
+    getSweepQueue() = 0;
 };
 
 std::unique_ptr<Application>

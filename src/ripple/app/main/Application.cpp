@@ -52,6 +52,7 @@
 #include <ripple/basics/ByteUtilities.h>
 #include <ripple/basics/PerfLog.h>
 #include <ripple/basics/ResolverAsio.h>
+#include <ripple/basics/Sweepable.h>
 #include <ripple/basics/safe_cast.h>
 #include <ripple/beast/asio/io_latency_probe.h>
 #include <ripple/beast/core/LexicalCast.h>
@@ -169,11 +170,12 @@ public:
     std::unique_ptr<perf::PerfLog> perfLog_;
     Application::MutexType m_masterMutex;
 
+    std::unique_ptr<CollectorManager> m_collectorManager;
+    std::unique_ptr<JobQueue> m_jobQueue;
+
     // Required by the SHAMapStore
     TransactionMaster m_txMaster;
 
-    std::unique_ptr<CollectorManager> m_collectorManager;
-    std::unique_ptr<JobQueue> m_jobQueue;
     NodeStoreScheduler m_nodeStoreScheduler;
     std::unique_ptr<SHAMapStore> m_shaMapStore;
     PendingSaves pendingSaves_;
@@ -216,6 +218,7 @@ public:
     std::unique_ptr<LoadManager> m_loadManager;
     std::unique_ptr<TxQ> txQ_;
     ClosureCounter<void, boost::system::error_code const&> waitHandlerCounter_;
+    SweepQueue sweepQueue_;
     boost::asio::steady_timer sweepTimer_;
     boost::asio::steady_timer entropyTimer_;
 
@@ -278,8 +281,6 @@ public:
               logs_->journal("PerfLog"),
               [this] { signalStop(); }))
 
-        , m_txMaster(*this)
-
         , m_collectorManager(make_CollectorManager(
               config_->section(SECTION_INSIGHT),
               logs_->journal("Collector")))
@@ -289,6 +290,8 @@ public:
               logs_->journal("JobQueue"),
               *logs_,
               *perfLog_))
+
+        , m_txMaster(*this)
 
         , m_nodeStoreScheduler(*m_jobQueue)
 
@@ -431,6 +434,8 @@ public:
 
         , txQ_(
               std::make_unique<TxQ>(setup_TxQ(*config_), logs_->journal("TxQ")))
+
+        , sweepQueue_(*m_jobQueue)
 
         , sweepTimer_(get_io_service())
 
@@ -1114,56 +1119,25 @@ public:
             signalStop();
         }
 
-        // VFALCO NOTE Does the order of calls matter?
-        // VFALCO TODO fix the dependency inversion using an observer,
-        //         have listeners register for "onSweep ()" notification.
-
-        {
-            auto sweepMsg = [](std::stringstream& msg, std::chrono::steady_clock::time_point const& start, char const* name)
-            {
-                auto const now = std::chrono::steady_clock::now();
-                msg << name << ':' << std::chrono::duration_cast<std::chrono::microseconds>(now - start).count() << "us ";
-                return now;
-            };
-
-            std::stringstream sweepTiming;
-            std::chrono::steady_clock::time_point const start = std::chrono::steady_clock::now();
-
-            nodeFamily_.sweep();
-            auto subStart = sweepMsg(sweepTiming, start, "node family");
-            if (shardFamily_)
-            {
-                shardFamily_->sweep();
-                subStart = sweepMsg(sweepTiming, subStart, "shard family");
-            }
-            getMasterTransaction().sweep();
-            subStart = sweepMsg(sweepTiming, subStart, "transaction master");
-            getNodeStore().sweep();
-            subStart = sweepMsg(sweepTiming, subStart, "node store");
-            if (shardStore_)
-            {
-                shardStore_->sweep();
-                subStart = sweepMsg(sweepTiming, subStart, "shard store");
-            }
-            getLedgerMaster().sweep();
-            subStart = sweepMsg(sweepTiming, subStart, "ledger master");
-            getTempNodeCache().sweep();
-            subStart = sweepMsg(sweepTiming, subStart, "temp node cache");
-            getValidations().expire();
-            subStart = sweepMsg(sweepTiming, subStart, "validations");
-            getInboundLedgers().sweep();
-            subStart = sweepMsg(sweepTiming, subStart, "inbound ledgers");
-            getLedgerReplayer().sweep();
-            subStart = sweepMsg(sweepTiming, subStart, "ledger replayer");
-            m_acceptedLedgerCache.sweep();
-            subStart = sweepMsg(sweepTiming, subStart, "accepted ledger");
-            cachedSLEs_.sweep();
-            subStart = sweepMsg(sweepTiming, subStart, "cached sles");
-            sweepMsg(sweepTiming, start, "total");
-
-            JLOG(m_journal.info()) << "Cache sweep timing in microseconds: "
-                << sweepTiming.str();
-        }
+        std::queue<Sweepable*> toSweep;
+        toSweep.push(nodeFamily_.getFullBelowCache(0).get());
+        toSweep.push(nodeFamily_.getTreeNodeCache(0).get());
+        if (shardFamily_)
+            toSweep.push(shardFamily_.get());
+        toSweep.push(&getMasterTransaction());
+        toSweep.push(&getNodeStore());
+        if (shardStore_)
+            toSweep.push(shardStore_.get());
+        toSweep.push(getLedgerMaster().getLedgerHistory()->getLedgersByHash());
+        toSweep.push(getLedgerMaster().getLedgerHistory()->getConsensusValidated());
+        toSweep.push(getLedgerMaster().getFetchPacks());
+        toSweep.push(&getTempNodeCache());
+        toSweep.push(&getValidations());
+        toSweep.push(&getInboundLedgers());
+        toSweep.push(&getLedgerReplayer());
+        toSweep.push(&getAcceptedLedgerCache());
+        toSweep.push(&cachedSLEs_);
+        sweepQueue_.replace(std::move(toSweep));
 
 #ifdef RIPPLED_REPORTING
         if (auto pg = dynamic_cast<RelationalDBInterfacePostgres*>(
@@ -1179,6 +1153,12 @@ public:
     getMaxDisallowedLedger() override
     {
         return maxDisallowedLedger_;
+    }
+
+    SweepQueue&
+    getSweepQueue() override
+    {
+        return sweepQueue_;
     }
 
 private:

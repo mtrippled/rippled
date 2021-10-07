@@ -22,6 +22,7 @@
 
 #include <ripple/basics/base_uint.h>
 #include <ripple/basics/KeyCache.h>
+#include <ripple/basics/Sweepable.h>
 #include <ripple/basics/TaggedCache.h>
 #include <ripple/beast/insight/Collector.h>
 #include <ripple/beast/utility/Journal.h>
@@ -35,7 +36,7 @@ namespace detail {
 /** Remembers which tree keys have all descendants resident.
     This optimizes the process of acquiring a complete tree.
 */
-class BasicFullBelowCache
+class BasicFullBelowCache : public Sweepable
 {
 private:
     using CacheType = KeyCache;
@@ -93,7 +94,7 @@ public:
             Safe to call from any thread.
     */
     void
-    sweep()
+    sweep() override
     {
         m_cache.sweep();
     }

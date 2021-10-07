@@ -713,10 +713,10 @@ class Validations_test : public beast::unit_test::suite
         Ledger const ledgerA = h["a"];
         BEAST_EXPECT(ValStatus::current == harness.add(a.validate(ledgerA)));
         BEAST_EXPECT(harness.vals().numTrustedForLedger(ledgerA.id()) == 1);
-        harness.vals().expire();
+        harness.vals().sweep();
         BEAST_EXPECT(harness.vals().numTrustedForLedger(ledgerA.id()) == 1);
         harness.clock().advance(harness.parms().validationSET_EXPIRES);
-        harness.vals().expire();
+        harness.vals().sweep();
         BEAST_EXPECT(harness.vals().numTrustedForLedger(ledgerA.id()) == 0);
 
         // use setSeqToKeep to keep the validation from expire
@@ -725,7 +725,7 @@ class Validations_test : public beast::unit_test::suite
         BEAST_EXPECT(harness.vals().numTrustedForLedger(ledgerB.id()) == 1);
         harness.vals().setSeqToKeep(ledgerB.seq(), ledgerB.seq() + one);
         harness.clock().advance(harness.parms().validationSET_EXPIRES);
-        harness.vals().expire();
+        harness.vals().sweep();
         BEAST_EXPECT(harness.vals().numTrustedForLedger(ledgerB.id()) == 1);
         // change toKeep
         harness.vals().setSeqToKeep(ledgerB.seq() + one, ledgerB.seq() + two);
@@ -736,7 +736,7 @@ class Validations_test : public beast::unit_test::suite
         for (int i = 0; i < loops; ++i)
         {
             harness.clock().advance(harness.parms().validationFRESHNESS);
-            harness.vals().expire();
+            harness.vals().sweep();
         }
         BEAST_EXPECT(harness.vals().numTrustedForLedger(ledgerB.id()) == 0);
 
@@ -746,7 +746,7 @@ class Validations_test : public beast::unit_test::suite
         BEAST_EXPECT(harness.vals().numTrustedForLedger(ledgerC.id()) == 1);
         harness.vals().setSeqToKeep(ledgerC.seq() - one, ledgerC.seq());
         harness.clock().advance(harness.parms().validationSET_EXPIRES);
-        harness.vals().expire();
+        harness.vals().sweep();
         BEAST_EXPECT(harness.vals().numTrustedForLedger(ledgerC.id()) == 0);
     }
 

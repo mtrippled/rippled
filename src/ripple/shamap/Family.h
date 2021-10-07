@@ -21,6 +21,7 @@
 #define RIPPLE_SHAMAP_FAMILY_H_INCLUDED
 
 #include <ripple/basics/Log.h>
+#include <ripple/basics/Sweepable.h>
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/nodestore/Database.h>
 #include <ripple/shamap/FullBelowCache.h>
@@ -29,7 +30,7 @@
 
 namespace ripple {
 
-class Family
+class Family : public Sweepable
 {
 public:
     Family(Family const&) = delete;
@@ -70,7 +71,7 @@ public:
     getTreeNodeCache(std::uint32_t ledgerSeq) = 0;
 
     virtual void
-    sweep() = 0;
+    sweep() override = 0;
 
     virtual bool
     isShardBacked() const = 0;

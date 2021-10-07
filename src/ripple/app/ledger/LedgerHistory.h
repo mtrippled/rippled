@@ -159,6 +159,20 @@ private:
     std::map<LedgerIndex, LedgerHash> mLedgersByIndex;  // validated ledgers
 
     beast::Journal j_;
+
+public:
+    LedgersByHash*
+    getLedgersByHash()
+    {
+        return &m_ledgers_by_hash;
+    }
+
+    ConsensusValidated*
+    getConsensusValidated()
+    {
+        return &m_consensus_validated;
+    }
+
 };
 
 }  // namespace ripple
