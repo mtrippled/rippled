@@ -22,6 +22,7 @@
 
 #include <mutex>
 #include <queue>
+#include <utility>
 
 namespace ripple {
 
@@ -40,7 +41,7 @@ class SweepQueue
 {
     Application& app_;
 
-    std::queue<Sweepable*> q_;
+    std::queue<std::pair<Sweepable*, char const*>> q_;
     std::mutex mutex_;
 
 public:
@@ -49,7 +50,7 @@ public:
     {}
 
     void
-    replace(std::queue<Sweepable*>&& q);
+    replace(std::queue<std::pair<Sweepable*, char const*>>&& q);
 
     void
     sweepOne();

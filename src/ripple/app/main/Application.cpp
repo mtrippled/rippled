@@ -1118,24 +1118,24 @@ public:
         }
 
         JLOG(m_journal.debug()) << "doSweep";
-        std::queue<Sweepable*> toSweep;
-        toSweep.push(nodeFamily_.getFullBelowCache(0).get());
-        toSweep.push(nodeFamily_.getTreeNodeCache(0).get());
+        std::queue<std::pair<Sweepable*, char const*>> toSweep;
+        toSweep.push({nodeFamily_.getFullBelowCache(0).get(), "full below cache"});
+        toSweep.push({nodeFamily_.getTreeNodeCache(0).get(), "tree node cache"});
         if (shardFamily_)
-            toSweep.push(shardFamily_.get());
-        toSweep.push(&getMasterTransaction());
-        toSweep.push(&getNodeStore());
+            toSweep.push({shardFamily_.get(), "shard family"});
+        toSweep.push({&getMasterTransaction(), "master transaction"});
+        toSweep.push({&getNodeStore(), "node store"});
         if (shardStore_)
-            toSweep.push(shardStore_.get());
-        toSweep.push(getLedgerMaster().getLedgerHistory()->getLedgersByHash());
-        toSweep.push(getLedgerMaster().getLedgerHistory()->getConsensusValidated());
-        toSweep.push(getLedgerMaster().getFetchPacks());
-        toSweep.push(&getTempNodeCache());
-        toSweep.push(&getValidations());
-        toSweep.push(&getInboundLedgers());
-        toSweep.push(&getLedgerReplayer());
-        toSweep.push(&getAcceptedLedgerCache());
-        toSweep.push(&cachedSLEs_);
+            toSweep.push({shardStore_.get(), "shard store"});
+        toSweep.push({getLedgerMaster().getLedgerHistory()->getLedgersByHash(), "ledgers by hash"});
+        toSweep.push({getLedgerMaster().getLedgerHistory()->getConsensusValidated(), "consensus validated"});
+        toSweep.push({getLedgerMaster().getFetchPacks(), "fetch packs"});
+        toSweep.push({&getTempNodeCache(), "temp node cache"});
+        toSweep.push({&getValidations(), "validations"});
+        toSweep.push({&getInboundLedgers(), "inbound ledgers"});
+        toSweep.push({&getLedgerReplayer(), "ledger replayer"});
+        toSweep.push({&getAcceptedLedgerCache(), "accepted ledger cache"});
+        toSweep.push({&cachedSLEs_, "cached sles"});
         sweepQueue_.replace(std::move(toSweep));
         JLOG(m_journal.debug()) << "enqueued caches to sweep";
 

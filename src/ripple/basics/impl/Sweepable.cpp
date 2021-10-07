@@ -24,7 +24,7 @@
 namespace ripple {
 
 void
-SweepQueue::replace(std::queue<Sweepable*>&& q)
+SweepQueue::replace(std::queue<std::pair<Sweepable*, char const*>>&& q)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     q_ = std::move(q);
@@ -39,11 +39,12 @@ SweepQueue::sweepOne()
     std::cerr << "sweep q size " << q_.size() << '\n';
     if (q_.empty())
         return;
+    std::cerr << "sweep q job " << q_.front().second << '\n';
     if (jq.addJob(
         jtSWEEP,
         "sweepOne",
         [this](Job&) {
-            q_.front()->sweep();
+            q_.front().first->sweep();
         }))
     {
         q_.pop();
