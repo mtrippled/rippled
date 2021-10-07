@@ -28,7 +28,6 @@ SweepQueue::replace(std::queue<std::pair<Sweepable*, char const*>>&& q)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     q_ = std::move(q);
-    std::cerr << "sweep q size " << q_.size() << '\n';
 }
 
 void
@@ -36,27 +35,23 @@ SweepQueue::sweepOne()
 {
     static JobQueue& jq = app_.getJobQueue();
     std::unique_lock<std::mutex> lock(mutex_);
-    std::cerr << "sweep q size " << q_.size() << '\n';
     if (q_.empty())
         return;
     auto toSweep = q_.front();
-    std::cerr << "sweep q job " << toSweep.second << '\n';
     if (jq.addJob(
         jtSWEEP,
         "sweepOne",
-        [this, toSweep](Job&) {
+        [toSweep](Job&) {
             toSweep.first->sweep();
         }))
     {
         q_.pop();
     }
-    std::cerr << "sweep q size " << q_.size() << '\n';
     if (q_.empty())
     {
         lock.unlock();
         app_.setSweepTimer();
     }
-    std::cerr << "sweep q size " << q_.size() << '\n';
 }
 
 

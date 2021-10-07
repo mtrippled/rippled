@@ -191,6 +191,10 @@ public:
     void
     closeTransactionDB() override;
 
+    void
+    sweep() override
+    {}
+
 private:
     Application& app_;
     bool const useTxTables_;

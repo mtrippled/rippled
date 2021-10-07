@@ -23,6 +23,7 @@
 #include <ripple/app/ledger/Ledger.h>
 #include <ripple/app/main/Application.h>
 #include <ripple/app/misc/Transaction.h>
+#include <ripple/basics/Sweepable.h>
 #include <ripple/core/Config.h>
 #include <ripple/core/DatabaseCon.h>
 #include <ripple/peerfinder/impl/Store.h>
@@ -45,7 +46,7 @@ struct LedgerRange
     uint32_t max;
 };
 
-class RelationalDBInterface
+class RelationalDBInterface : public Sweepable
 {
 public:
     struct CountMinMax
@@ -239,6 +240,9 @@ public:
      */
     virtual bool
     transactionDbHasSpace(Config const& config) = 0;
+
+    virtual void
+    sweep() override = 0;
 };
 
 template <class T, class C>

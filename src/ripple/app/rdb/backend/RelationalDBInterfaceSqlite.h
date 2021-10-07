@@ -295,6 +295,9 @@ public:
      */
     virtual void
     closeTransactionDB() = 0;
+
+    virtual void
+    sweep() override = 0;
 };
 
 }  // namespace ripple

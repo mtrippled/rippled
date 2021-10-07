@@ -1136,14 +1136,15 @@ public:
         toSweep.push({&getLedgerReplayer(), "ledger replayer"});
         toSweep.push({&getAcceptedLedgerCache(), "accepted ledger cache"});
         toSweep.push({&cachedSLEs_, "cached sles"});
+#ifdef RIPPLED_REPORTING
+        if (dynamic_cast<RelationalDBInterfacePostgres*>(
+                &*mRelationalDBInterface))
+        {
+            toSweep.push({mRelationalDBInterface.get(), "relational db"});
+        }
+#endif
         sweepQueue_.replace(std::move(toSweep));
         JLOG(m_journal.debug()) << "enqueued caches to sweep";
-
-#ifdef RIPPLED_REPORTING
-        if (auto pg = dynamic_cast<RelationalDBInterfacePostgres*>(
-                &*mRelationalDBInterface))
-            pg->sweep();
-#endif
     }
 
     LedgerIndex

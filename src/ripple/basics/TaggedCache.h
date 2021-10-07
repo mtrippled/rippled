@@ -207,9 +207,9 @@ public:
         // is destroyed but still within the main cache lock.
         std::vector<std::stack<std::shared_ptr<mapped_type>>> allStuffToSweep(m_cache.partitions());
 
-        clock_type::time_point const now(m_clock.now());
         clock_type::time_point when_expire;
-
+        clock_type::time_point const now(m_clock.now());
+        auto const start = std::chrono::steady_clock::now();
         {
             std::lock_guard lock(m_mutex);
 
@@ -322,10 +322,10 @@ public:
 
             m_cache_count -= allRemovals;
         }
+        JLOG(m_journal.debug()) << m_name << " TaggedCache sweep lock duration: "
+            << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count() << "ms";
         // At this point allStuffToSweep will go out of scope outside the lock
         // and decrement the reference count on each strong pointer.
-        JLOG(m_journal.debug()) << m_name << " TaggedCache sweep finished, "
-            "lock released (return and garbage destruction remaining)";
     }
 
     bool
