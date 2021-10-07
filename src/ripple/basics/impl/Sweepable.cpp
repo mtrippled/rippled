@@ -39,12 +39,13 @@ SweepQueue::sweepOne()
     std::cerr << "sweep q size " << q_.size() << '\n';
     if (q_.empty())
         return;
-    std::cerr << "sweep q job " << q_.front().second << '\n';
+    auto toSweep = q_.front();
+    std::cerr << "sweep q job " << toSweep.second << '\n';
     if (jq.addJob(
         jtSWEEP,
         "sweepOne",
-        [this](Job&) {
-            q_.front().first->sweep();
+        [this, toSweep](Job&) {
+            toSweep.first->sweep();
         }))
     {
         q_.pop();
