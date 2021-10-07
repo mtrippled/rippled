@@ -34,9 +34,10 @@ void
 SweepQueue::sweepOne()
 {
     static JobQueue& jq = app_.getJobQueue();
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock<std::mutex> lock(mutex_);
     if (q_.empty())
         return;
+    std::cerr << "sweep q size " << q_.size() << '\n';
     if (jq.addJob(
         jtSWEEP,
         "sweepOne",
@@ -47,7 +48,10 @@ SweepQueue::sweepOne()
         q_.pop();
     }
     if (q_.empty())
+    {
+        lock.unlock();
         app_.setSweepTimer();
+    }
 }
 
 
