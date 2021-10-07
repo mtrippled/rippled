@@ -692,6 +692,11 @@ Consensus<Adaptor>::startRoundInternal(
         // consider closing the ledger immediately
         timerEntry(now_);
     }
+    else
+    {
+        JLOG(j_.debug()) << "sweepOne";
+        adaptor_.getSweepQueue().sweepOne();
+    }
 }
 
 template <class Adaptor>
@@ -1135,14 +1140,6 @@ Consensus<Adaptor>::phaseOpen()
             j_))
     {
         closeLedger();
-        JLOG(j_.debug()) << "not sweepOne";
-    }
-    else
-    {
-        JLOG(j_.debug()) << "sweepOne";
-        adaptor_.getSweepQueue().sweepOne();
-        JLOG(j_.debug()) << "sweepOne2";
-
     }
 }
 
