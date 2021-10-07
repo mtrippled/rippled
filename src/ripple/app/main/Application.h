@@ -285,6 +285,9 @@ public:
 
     virtual SweepQueue&
     getSweepQueue() = 0;
+
+    virtual void
+    setSweepTimer() = 0;
 };
 
 std::unique_ptr<Application>

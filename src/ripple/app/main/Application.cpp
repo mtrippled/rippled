@@ -435,7 +435,7 @@ public:
         , txQ_(
               std::make_unique<TxQ>(setup_TxQ(*config_), logs_->journal("TxQ")))
 
-        , sweepQueue_(*m_jobQueue)
+        , sweepQueue_(*this)
 
         , sweepTimer_(get_io_service())
 
@@ -1049,10 +1049,8 @@ public:
     {
     }
 
-    //--------------------------------------------------------------------------
-
     void
-    setSweepTimer()
+    setSweepTimer() override
     {
         // Only start the timer if waitHandlerCounter_ is not yet joined.
         if (auto optionalCountedHandler = waitHandlerCounter_.wrap(
@@ -1146,9 +1144,6 @@ public:
                 &*mRelationalDBInterface))
             pg->sweep();
 #endif
-
-        // Set timer to do another sweep later.
-        setSweepTimer();
     }
 
     LedgerIndex

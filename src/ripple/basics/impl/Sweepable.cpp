@@ -17,44 +17,37 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_BASICS_SWEEPABLE_H
-#define RIPPLE_BASICS_SWEEPABLE_H
-
-#include <mutex>
-#include <queue>
+#include <ripple/app/main/Application.h>
+#include <ripple/basics/Sweepable.h>
+#include <ripple/core/JobQueue.h>
 
 namespace ripple {
 
-class Sweepable
+void
+SweepQueue::replace(std::queue<Sweepable*>&& q)
 {
-public:
-    virtual void sweep() = 0;
-    virtual ~Sweepable() = default;
-};
+    std::lock_guard<std::mutex> lock(mutex_);
+    q_ = std::move(q);
+}
 
-//------------------------------------------------------------------------------
-
-class Application;
-
-class SweepQueue
+void
+SweepQueue::sweepOne()
 {
-    Application& app_;
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (q_.empty())
+        return;
+    if (app_.getJobQueue().addJob(
+        jtSWEEP,
+        "sweepOne",
+        [this](Job&) {
+            q_.back()->sweep();
+        }))
+    {
+        q_.pop();
+    }
+    if (q_.empty())
+        app_.setSweepTimer();
+}
 
-    std::queue<Sweepable*> q_;
-    std::mutex mutex_;
-
-public:
-    SweepQueue(Application& app)
-        : app_(app)
-    {}
-
-    void
-    replace(std::queue<Sweepable*>&& q);
-
-    void
-    sweepOne();
-};
 
 } // ripple
-
-#endif  // RIPPLE_BASICS_SWEEPABLE_H

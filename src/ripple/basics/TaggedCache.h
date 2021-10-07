@@ -201,6 +201,7 @@ public:
     void
     sweep() override
     {
+        JLOG(m_journal.debug()) << "TaggedCache sweep " << m_name;
         // Keep references to all the stuff we sweep
         // For performance, each worker thread should exit before the swept data
         // is destroyed but still within the main cache lock.
