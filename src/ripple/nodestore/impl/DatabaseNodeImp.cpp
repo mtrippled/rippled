@@ -37,10 +37,10 @@ DatabaseNodeImp::store(
 }
 
 void
-DatabaseNodeImp::sweep()
+DatabaseNodeImp::sweep(beast::Journal& j)
 {
     if (cache_)
-        cache_->sweep();
+        cache_->sweep(j);
 }
 
 std::shared_ptr<NodeObject>

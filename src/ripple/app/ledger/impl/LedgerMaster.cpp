@@ -1826,10 +1826,10 @@ LedgerMaster::tune(int size, std::chrono::seconds age)
 }
 
 void
-LedgerMaster::sweep()
+LedgerMaster::sweep(beast::Journal& j)
 {
-    mLedgerHistory.sweep();
-    fetch_packs_.sweep();
+    mLedgerHistory.sweep(j);
+    fetch_packs_.sweep(j);
 }
 
 float

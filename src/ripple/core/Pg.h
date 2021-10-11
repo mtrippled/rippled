@@ -425,7 +425,7 @@ public:
 
     /** Disconnect idle postgres connections. */
     void
-    idleSweeper();
+    sweep(beast::Journal& j);
 };
 
 //-----------------------------------------------------------------------------

@@ -20,6 +20,7 @@
 #include <ripple/app/ledger/Ledger.h>
 #include <ripple/nodestore/impl/DatabaseRotatingImp.h>
 #include <ripple/protocol/HashPrefix.h>
+#include <boost/core/ignore_unused.hpp>
 
 namespace ripple {
 namespace NodeStore {
@@ -116,8 +117,9 @@ DatabaseRotatingImp::store(
 }
 
 void
-DatabaseRotatingImp::sweep()
+DatabaseRotatingImp::sweep(beast::Journal& j)
 {
+    boost::ignore_unused(j);
     // nothing to do
 }
 

@@ -1600,7 +1600,7 @@ class DatabaseShard_test : public TestBase
 
         // The number of open shards exceeds the open limit by one.
         // A sweep will close enough shards to be within the limit.
-        shardStore->sweep();
+        shardStore->sweep(journal_);
 
         // Read from the closed shard and automatically open it
         auto const ledgerSeq{shardStore->lastLedgerSeq(oldestShardIndex)};

@@ -30,6 +30,7 @@
 #include <ripple/overlay/impl/PeerImp.h>
 #include <test/jtx.h>
 #include <test/jtx/envconfig.h>
+#include <boost/core/ignore_unused.hpp>
 
 #include <chrono>
 #include <thread>
@@ -164,8 +165,9 @@ public:
     {
     }
     virtual void
-    sweep() override
+    sweep(beast::Journal& j) override
     {
+        boost::ignore_unused(j);
     }
 
     virtual void
@@ -872,6 +874,8 @@ struct NetworkOfTwo
 
 struct LedgerReplayer_test : public beast::unit_test::suite
 {
+    SuiteJournal j{"LedgerReplayer_test", *this};
+
     void
     testProofPath()
     {
@@ -1152,7 +1156,7 @@ struct LedgerReplayer_test : public beast::unit_test::suite
             deltaStatuses));
 
         // sweep
-        net.client.replayer.sweep();
+        net.client.replayer.sweep(j);
         BEAST_EXPECT(net.client.countsAsExpected(0, 0, 0));
     }
 
@@ -1182,7 +1186,7 @@ struct LedgerReplayer_test : public beast::unit_test::suite
             deltaStatuses));
 
         // sweep
-        net.client.replayer.sweep();
+        net.client.replayer.sweep(j);
         BEAST_EXPECT(net.client.countsAsExpected(0, 0, 0));
     }
 
@@ -1234,7 +1238,7 @@ struct LedgerReplayer_test : public beast::unit_test::suite
         BEAST_EXPECT(net.client.waitForLedgers(finalHash, totalReplay));
 
         // sweep
-        net.client.replayer.sweep();
+        net.client.replayer.sweep(j);
         BEAST_EXPECT(net.client.countsAsExpected(0, 0, 0));
     }
 
@@ -1430,7 +1434,7 @@ struct LedgerReplayer_test : public beast::unit_test::suite
         BEAST_EXPECT(net.client.countsAsExpected(5, 3, totalReplay * 3 - 1));
 
         // sweep
-        net.client.replayer.sweep();
+        net.client.replayer.sweep(j);
         BEAST_EXPECT(net.client.countsAsExpected(0, 0, 0));
     }
 
@@ -1459,6 +1463,8 @@ struct LedgerReplayer_test : public beast::unit_test::suite
 
 struct LedgerReplayerTimeout_test : public beast::unit_test::suite
 {
+    SuiteJournal j{"LedgerReplayerTimeout_test", *this};
+
     void
     testSkipListTimeout()
     {
@@ -1486,7 +1492,7 @@ struct LedgerReplayerTimeout_test : public beast::unit_test::suite
 
         // sweep
         BEAST_EXPECT(net.client.countsAsExpected(1, 1, 0));
-        net.client.replayer.sweep();
+        net.client.replayer.sweep(j);
         BEAST_EXPECT(net.client.countsAsExpected(0, 0, 0));
     }
 
@@ -1520,7 +1526,7 @@ struct LedgerReplayerTimeout_test : public beast::unit_test::suite
 
         // sweep
         BEAST_EXPECT(net.client.countsAsExpected(1, 1, totalReplay - 1));
-        net.client.replayer.sweep();
+        net.client.replayer.sweep(j);
         BEAST_EXPECT(net.client.countsAsExpected(0, 0, 0));
     }
 
@@ -1534,6 +1540,8 @@ struct LedgerReplayerTimeout_test : public beast::unit_test::suite
 
 struct LedgerReplayerLong_test : public beast::unit_test::suite
 {
+    SuiteJournal j{"LedgerReplayerLong_test", *this};
+
     void
     run() override
     {
@@ -1584,7 +1592,7 @@ struct LedgerReplayerLong_test : public beast::unit_test::suite
             rounds, rounds, rounds * (totalReplay - 1)));
 
         // sweep
-        net.client.replayer.sweep();
+        net.client.replayer.sweep(j);
         BEAST_EXPECT(net.client.countsAsExpected(0, 0, 0));
     }
 };

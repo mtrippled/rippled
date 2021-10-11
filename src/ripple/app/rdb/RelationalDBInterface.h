@@ -242,7 +242,7 @@ public:
     transactionDbHasSpace(Config const& config) = 0;
 
     virtual void
-    sweep() override = 0;
+    sweep(beast::Journal& j) override = 0;
 };
 
 template <class T, class C>

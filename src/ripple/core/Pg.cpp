@@ -36,6 +36,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
@@ -510,9 +511,10 @@ PgPool::stop()
 }
 
 void
-PgPool::idleSweeper()
+PgPool::sweep(beast::Journal& j)
 {
     std::size_t before, after;
+    auto const start = std::chrono::steady_clock::now();
     {
         std::lock_guard<std::mutex> lock(mutex_);
         before = idle_.size();
@@ -529,7 +531,9 @@ PgPool::idleSweeper()
         after = idle_.size();
     }
 
-    JLOG(j_.info()) << "Idle sweeper. connections: " << connections_
+    JLOG(j.info()) << "postgres connection pool idle sweep lock duration: "
+            << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count() << "ms"
+                    <<  ". connections: " << connections_
                     << ". checked out: " << connections_ - after
                     << ". idle before, after sweep: " << before << ", "
                     << after;

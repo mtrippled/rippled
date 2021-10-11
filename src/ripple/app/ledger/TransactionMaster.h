@@ -81,7 +81,7 @@ public:
     canonicalize(std::shared_ptr<Transaction>* pTransaction);
 
     void
-    sweep() override;
+    sweep(beast::Journal& j) override;
 
     TaggedCache<uint256, Transaction>&
     getCache();

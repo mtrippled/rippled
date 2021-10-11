@@ -42,7 +42,7 @@ public:
      * @brief sweep Sweep the database. Method is specific for postgres backend.
      */
     virtual void
-    sweep() override = 0;
+    sweep(beast::Journal& j) override = 0;
 
     /**
      * @brief getCompleteLedgers Returns string which contains list of

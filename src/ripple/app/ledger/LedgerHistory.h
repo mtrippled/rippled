@@ -80,10 +80,10 @@ public:
     /** Remove stale cache entries
      */
     void
-    sweep()
+    sweep(beast::Journal& j)
     {
-        m_ledgers_by_hash.sweep();
-        m_consensus_validated.sweep();
+        m_ledgers_by_hash.sweep(j);
+        m_consensus_validated.sweep(j);
     }
 
     /** Report that we have locally built a particular ledger */

@@ -130,7 +130,7 @@ public:
     storeLedger(std::shared_ptr<Ledger const> const& srcLedger) override;
 
     void
-    sweep() override;
+    sweep(beast::Journal& j) override;
 
     Json::Value
     getDatabaseImportStatus() const override;

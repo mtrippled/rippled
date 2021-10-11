@@ -127,7 +127,7 @@ public:
     }
 
     void
-    sweep() override;
+    sweep(beast::Journal& j) override;
 
 private:
     // Cache for database objects. This cache is not always initialized. Check

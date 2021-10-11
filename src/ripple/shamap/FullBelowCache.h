@@ -94,9 +94,9 @@ public:
             Safe to call from any thread.
     */
     void
-    sweep() override
+    sweep(beast::Journal& j) override
     {
-        m_cache.sweep();
+        m_cache.sweep(j);
     }
 
     /** Refresh the last access time of an item, if it exists.

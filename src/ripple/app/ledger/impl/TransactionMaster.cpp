@@ -153,9 +153,9 @@ TransactionMaster::canonicalize(std::shared_ptr<Transaction>* pTransaction)
 }
 
 void
-TransactionMaster::sweep(void)
+TransactionMaster::sweep(beast::Journal& j)
 {
-    mCache.sweep();
+    mCache.sweep(j);
 }
 
 TaggedCache<uint256, Transaction>&

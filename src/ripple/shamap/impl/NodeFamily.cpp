@@ -46,10 +46,10 @@ NodeFamily::NodeFamily(Application& app, CollectorManager& cm)
 }
 
 void
-NodeFamily::sweep()
+NodeFamily::sweep(beast::Journal& j)
 {
-    fbCache_->sweep();
-    tnCache_->sweep();
+    fbCache_->sweep(j);
+    tnCache_->sweep(j);
 }
 
 void

@@ -1146,7 +1146,7 @@ DatabaseShardImp::storeLedger(std::shared_ptr<Ledger const> const& srcLedger)
 }
 
 void
-DatabaseShardImp::sweep()
+DatabaseShardImp::sweep(beast::Journal& j)
 {
     std::vector<std::weak_ptr<Shard>> shards;
     {

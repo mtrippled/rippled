@@ -105,13 +105,13 @@ ShardFamily::getTreeNodeCacheSize()
 }
 
 void
-ShardFamily::sweep()
+ShardFamily::sweep(beast::Journal& j)
 {
     {
         std::lock_guard lock(fbCacheMutex_);
         for (auto it = fbCache_.cbegin(); it != fbCache_.cend();)
         {
-            it->second->sweep();
+            it->second->sweep(j);
 
             // Remove cache if empty
             if (it->second->size() == 0)
@@ -124,7 +124,7 @@ ShardFamily::sweep()
     std::lock_guard lock(tnCacheMutex_);
     for (auto it = tnCache_.cbegin(); it != tnCache_.cend();)
     {
-        it->second->sweep();
+        it->second->sweep(j);
 
         // Remove cache if empty
         if (it->second->getTrackSize() == 0)

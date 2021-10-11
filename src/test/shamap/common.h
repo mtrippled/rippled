@@ -92,10 +92,10 @@ public:
     }
 
     void
-    sweep() override
+    sweep(beast::Journal& j) override
     {
-        fbCache_->sweep();
-        tnCache_->sweep();
+        fbCache_->sweep(j);
+        tnCache_->sweep(j);
     }
 
     bool

@@ -199,9 +199,8 @@ public:
     }
 
     void
-    sweep() override
+    sweep(beast::Journal& j) override
     {
-        JLOG(m_journal.debug()) << "TaggedCache sweep " << m_name;
         // Keep references to all the stuff we sweep
         // For performance, each worker thread should exit before the swept data
         // is destroyed but still within the main cache lock.
@@ -226,7 +225,7 @@ public:
                 if (when_expire > (now - minimumAge))
                     when_expire = now - minimumAge;
 
-                JLOG(m_journal.trace())
+                JLOG(j.trace())
                     << m_name << " is growing fast " << m_cache.size() << " of "
                     << m_target_size << " aging at "
                     << (now - when_expire).count()
@@ -308,7 +307,7 @@ public:
 
                     if (mapRemovals || cacheRemovals)
                     {
-                        JLOG(m_journal.debug())
+                        JLOG(j.debug())
                             << "TaggedCache partition sweep " << m_name
                             << ": cache = " << partition.size() << "-"
                             << cacheRemovals << ", map-=" << mapRemovals;
@@ -322,7 +321,7 @@ public:
 
             m_cache_count -= allRemovals;
         }
-        JLOG(m_journal.debug()) << m_name << " TaggedCache sweep lock duration: "
+        JLOG(j.debug()) << m_name << " TaggedCache sweep lock duration: "
             << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count() << "ms";
         // At this point allStuffToSweep will go out of scope outside the lock
         // and decrement the reference count on each strong pointer.

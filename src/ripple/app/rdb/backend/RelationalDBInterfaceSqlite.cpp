@@ -192,7 +192,7 @@ public:
     closeTransactionDB() override;
 
     void
-    sweep() override
+    sweep(beast::Journal& j) override
     {}
 
 private:

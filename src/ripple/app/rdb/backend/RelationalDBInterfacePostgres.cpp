@@ -73,7 +73,7 @@ public:
     }
 
     void
-    sweep() override;
+    sweep(beast::Journal& j) override;
 
     std::optional<LedgerIndex>
     getMinLedgerSeq() override;
@@ -141,10 +141,10 @@ private:
 };
 
 void
-RelationalDBInterfacePostgresImp::sweep()
+RelationalDBInterfacePostgresImp::sweep(beast::Journal& j)
 {
 #ifdef RIPPLED_REPORTING
-    pgPool_->idleSweeper();
+    pgPool_->sweep(j);
 #endif
 }
 

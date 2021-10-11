@@ -222,7 +222,7 @@ public:
     void
     tune(int size, std::chrono::seconds age);
     void
-    sweep();
+    sweep(beast::Journal& j);
     float
     getCacheHitRate();
 

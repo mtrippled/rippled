@@ -41,7 +41,7 @@ extract(SHAMapHash const& key)
 std::size_t
 extract(LedgerIndex const key)
 {
-    return static_cast<std::size_t const>(key);
+    return static_cast<std::size_t>(key);
 }
 
 std::size_t

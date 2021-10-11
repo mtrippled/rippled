@@ -346,13 +346,14 @@ public:
     }
 
     void
-    sweep() override
+    sweep(beast::Journal& j) override
     {
         clock_type::time_point const now(m_clock.now());
 
         // Make a list of things to sweep, while holding the lock
         std::stack<MapType::mapped_type> stuffToSweep;
         std::size_t total;
+        auto const start = std::chrono::steady_clock::now();
         {
             ScopedLockType sl(mLock);
             MapType::iterator it(mLedgers.begin());
@@ -383,7 +384,9 @@ public:
             beast::expire(mRecentFailures, kReacquireInterval);
         }
 
-        JLOG(j_.debug()) << "Swept " << stuffToSweep.size() << " out of "
+        JLOG(j.debug()) << "InboundLedgers sweep lock duration: "
+                << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count() << "ms"
+                << ". Swept " << stuffToSweep.size() << " out of "
                          << total << " inbound ledgers.";
     }
 

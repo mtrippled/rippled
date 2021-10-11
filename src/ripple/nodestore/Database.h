@@ -172,7 +172,7 @@ public:
 
     /** Remove expired entries from the positive and negative caches. */
     virtual void
-    sweep() override = 0;
+    sweep(beast::Journal& j) override = 0;
 
     /** Gather statistics pertaining to read and write activities.
      *

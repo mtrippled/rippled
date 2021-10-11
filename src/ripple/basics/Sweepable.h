@@ -20,6 +20,7 @@
 #ifndef RIPPLE_BASICS_SWEEPABLE_H
 #define RIPPLE_BASICS_SWEEPABLE_H
 
+#include <ripple/basics/Log.h>
 #include <mutex>
 #include <queue>
 #include <utility>
@@ -29,7 +30,7 @@ namespace ripple {
 class Sweepable
 {
 public:
-    virtual void sweep() = 0;
+    virtual void sweep(beast::Journal& j) = 0;
     virtual ~Sweepable() = default;
 };
 
@@ -40,14 +41,13 @@ class Application;
 class SweepQueue
 {
     Application& app_;
+    beast::Journal j_;
 
     std::queue<std::pair<Sweepable*, char const*>> q_;
     std::mutex mutex_;
 
 public:
-    SweepQueue(Application& app)
-        : app_(app)
-    {}
+    SweepQueue(Application& app);
 
     void
     replace(std::queue<std::pair<Sweepable*, char const*>>&& q);

@@ -77,7 +77,7 @@ public:
     storeLedger(std::shared_ptr<Ledger const> const& srcLedger) override;
 
     void
-    sweep() override;
+    sweep(beast::Journal& j) override;
 
 private:
     std::shared_ptr<Backend> writableBackend_;

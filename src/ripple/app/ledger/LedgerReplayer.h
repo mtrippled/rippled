@@ -121,7 +121,7 @@ public:
 
     /** Remove completed tasks */
     void
-    sweep() override;
+    sweep(beast::Journal& j) override;
 
     void
     stop();

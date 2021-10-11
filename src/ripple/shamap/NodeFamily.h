@@ -77,7 +77,7 @@ public:
     }
 
     void
-    sweep() override;
+    sweep(beast::Journal& j) override;
 
     void
     reset() override;

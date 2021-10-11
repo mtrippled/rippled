@@ -931,7 +931,7 @@ struct Peer : public beast::unit_test::suite
     start()
     {
         // TODO: Expire validations less frequently?
-        validations.sweep();
+        validations.sweep(j);
         scheduler.in(parms().ledgerGRANULARITY, [&]() { timerEntry(); });
         startRound();
     }

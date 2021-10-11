@@ -51,10 +51,10 @@ public:
             BEAST_EXPECT(c.size() == 1);
             BEAST_EXPECT(c.touch_if_exists("one"));
             ++clock;
-            c.sweep();
+            c.sweep(j);
             BEAST_EXPECT(c.size() == 1);
             ++clock;
-            c.sweep();
+            c.sweep(j);
             BEAST_EXPECT(c.size() == 0);
             BEAST_EXPECT(!c.touch_if_exists("one"));
         }
@@ -68,11 +68,11 @@ public:
             BEAST_EXPECT(c.insert("two"));
             BEAST_EXPECT(c.size() == 2);
             ++clock;
-            c.sweep();
+            c.sweep(j);
             BEAST_EXPECT(c.size() == 2);
             BEAST_EXPECT(c.touch_if_exists("two"));
             ++clock;
-            c.sweep();
+            c.sweep(j);
             BEAST_EXPECT(c.size() == 1);
         }
 
@@ -87,7 +87,7 @@ public:
             BEAST_EXPECT(c.insert("three"));
             ++clock;
             BEAST_EXPECT(c.size() == 3);
-            c.sweep();
+            c.sweep(j);
             BEAST_EXPECT(c.size() < 3);
         }
     }

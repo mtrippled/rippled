@@ -70,7 +70,7 @@ public:
             }
 
             ++clock;
-            c.sweep();
+            c.sweep(journal);
             BEAST_EXPECT(c.getCacheSize() == 0);
             BEAST_EXPECT(c.getTrackSize() == 0);
         }
@@ -86,14 +86,14 @@ public:
                 auto p = c.fetch(2);
                 BEAST_EXPECT(p != nullptr);
                 ++clock;
-                c.sweep();
+                c.sweep(journal);
                 BEAST_EXPECT(c.getCacheSize() == 0);
                 BEAST_EXPECT(c.getTrackSize() == 1);
             }
 
             // Make sure its gone now that our reference is gone
             ++clock;
-            c.sweep();
+            c.sweep(journal);
             BEAST_EXPECT(c.getCacheSize() == 0);
             BEAST_EXPECT(c.getTrackSize() == 0);
         }
@@ -109,7 +109,7 @@ public:
                 BEAST_EXPECT(p1.get() == p2.get());
             }
             ++clock;
-            c.sweep();
+            c.sweep(journal);
             BEAST_EXPECT(c.getCacheSize() == 0);
             BEAST_EXPECT(c.getTrackSize() == 0);
         }
@@ -131,7 +131,7 @@ public:
                 BEAST_EXPECT(c.getTrackSize() == 1);
                 // Advance the clock a lot
                 ++clock;
-                c.sweep();
+                c.sweep(journal);
                 BEAST_EXPECT(c.getCacheSize() == 0);
                 BEAST_EXPECT(c.getTrackSize() == 1);
                 // Canonicalize a new object with the same key
@@ -144,7 +144,7 @@ public:
             }
 
             ++clock;
-            c.sweep();
+            c.sweep(journal);
             BEAST_EXPECT(c.getCacheSize() == 0);
             BEAST_EXPECT(c.getTrackSize() == 0);
         }
