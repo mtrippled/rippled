@@ -815,22 +815,22 @@ void
 Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
 {
     // Nothing to do if we are currently working on a ledger
-    if (phase_ == ConsensusPhase::accepted)
-        return;
-
-    now_ = now;
-
-    // Check we are on the proper ledger (this may change phase_)
-    checkLedger();
-
-    if (phase_ == ConsensusPhase::open)
+    if (phase_ != ConsensusPhase::accepted)
     {
-        phaseOpen();
+        now_ = now;
+
+        // Check we are on the proper ledger (this may change phase_)
+        checkLedger();
+
+        if (phase_ == ConsensusPhase::open)
+        {
+            phaseOpen();
+        } else if (phase_ == ConsensusPhase::establish)
+        {
+            phaseEstablish();
+        }
     }
-    else if (phase_ == ConsensusPhase::establish)
-    {
-        phaseEstablish();
-    }
+    adaptor_.getSweepQueue().sweepOne();
 }
 
 template <class Adaptor>
@@ -1332,8 +1332,6 @@ Consensus<Adaptor>::closeLedger()
             createDisputes(it->second);
         }
     }
-
-    adaptor_.getSweepQueue().sweepOne();
 }
 
 /** How many of the participants must agree to reach a given threshold?
