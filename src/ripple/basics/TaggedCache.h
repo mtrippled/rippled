@@ -313,7 +313,7 @@ public:
                             << cacheRemovals << ", map-=" << mapRemovals;
                     }
 
-                    allRemovals -= cacheRemovals;
+                    allRemovals += cacheRemovals;
                 }, p));
             }
             for (std::thread &worker: workers)
