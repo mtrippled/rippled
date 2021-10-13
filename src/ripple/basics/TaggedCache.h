@@ -208,6 +208,7 @@ public:
         clock_type::time_point const now(m_clock.now());
         clock_type::time_point when_expire;
 
+        auto const start = std::chrono::steady_clock::now();
         {
             std::lock_guard lock(m_mutex);
 
@@ -322,8 +323,8 @@ public:
         }
         // At this point allStuffToSweep will go out of scope outside the lock
         // and decrement the reference count on each strong pointer.
-        JLOG(m_journal.debug()) << m_name << " TaggedCache sweep finished, "
-            "lock released (return and garbage destruction remaining)";
+        JLOG(m_journal.debug()) << m_name << " TaggedCache sweep lock duration "
+            << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count() << "ms";
     }
 
     bool
