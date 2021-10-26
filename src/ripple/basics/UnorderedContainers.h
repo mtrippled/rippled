@@ -58,14 +58,6 @@ template <
     class Hash = beast::uhash<>,
     class Pred = std::equal_to<Key>,
     class Allocator = std::allocator<std::pair<Key const, Value>>>
-using partitioned_hash_map = partitioned_unordered_map<Key, Value, Hash, Pred, Allocator>;
-
-template <
-    class Key,
-    class Value,
-    class Hash = beast::uhash<>,
-    class Pred = std::equal_to<Key>,
-    class Allocator = std::allocator<std::pair<Key const, Value>>>
 using hash_multimap =
     std::unordered_multimap<Key, Value, Hash, Pred, Allocator>;
 
