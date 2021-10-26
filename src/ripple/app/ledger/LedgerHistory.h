@@ -26,6 +26,7 @@
 #include <ripple/beast/insight/Event.h>
 #include <ripple/protocol/RippleLedgerHash.h>
 
+#include <mutex>
 #include <optional>
 
 namespace ripple {
@@ -83,7 +84,10 @@ public:
     sweep()
     {
         m_ledgers_by_hash.sweep();
-        m_consensus_validated.sweep();
+        {
+            std::lock_guard lock(consensusValidatedMutex_);
+            m_consensus_validated.sweep();
+        }
     }
 
     /** Report that we have locally built a particular ledger */
@@ -136,6 +140,7 @@ private:
     using LedgersByHash = TaggedCache<LedgerHash, Ledger const>;
 
     LedgersByHash m_ledgers_by_hash;
+    std::recursive_mutex ledgersByHashMutex_;
 
     // Maps ledger indexes to the corresponding hashes
     // For debug and logging purposes
@@ -154,6 +159,7 @@ private:
     };
     using ConsensusValidated = TaggedCache<LedgerIndex, cv_entry>;
     ConsensusValidated m_consensus_validated;
+    std::recursive_mutex consensusValidatedMutex_;
 
     // Maps ledger indexes to the corresponding hash.
     std::map<LedgerIndex, LedgerHash> mLedgersByIndex;  // validated ledgers

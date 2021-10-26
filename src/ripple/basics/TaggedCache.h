@@ -509,12 +509,6 @@ public:
         return true;
     }
 
-    mutex_type&
-    peekMutex()
-    {
-        return m_mutex;
-    }
-
     std::vector<key_type>
     getKeys() const
     {
