@@ -229,7 +229,7 @@ public:
         std::vector<std::thread> workers;
         workers.reserve(m_cache.numPartitions());
         std::atomic<int> allRemovals = 0;
-        std::atomic<std::uint64_t> lockDurationNs;
+        std::atomic<std::uint64_t> lockDurationNs = 0;
 
         auto const start = std::chrono::steady_clock::now();
         for (std::size_t p = 0; p < m_cache.numPartitions(); ++p)
@@ -320,7 +320,7 @@ public:
         JLOG(m_journal.debug()) << m_name << " TaggedCache sweep duration: "
                                 << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count() << "ms. "
                                 << m_cache.numPartitions() << " total partitions locked. Total cumulative duration locked: "
-                                << std::setprecision(0) << lockDurationNs / 100000 << "ms";
+                                << std::setprecision(0) << lockDurationNs / 100000.0 << "ms";
 
         m_cache_count -= allRemovals;
         // At this point allStuffToSweep will go out of scope outside the lock
