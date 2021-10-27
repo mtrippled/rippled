@@ -320,7 +320,7 @@ public:
         JLOG(m_journal.debug()) << m_name << " TaggedCache sweep duration: "
                                 << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count() << "ms. "
                                 << m_cache.numPartitions() << " total partitions locked. Total cumulative duration locked: "
-                                << static_cast<std::uint64_t>(lockDurationNs / 100000.0 + 0.5) << "ms";
+                                << static_cast<std::uint64_t>(lockDurationNs / 1000000.0 + 0.5) << "ms";
 
         m_cache_count -= allRemovals;
         // At this point allStuffToSweep will go out of scope outside the lock
