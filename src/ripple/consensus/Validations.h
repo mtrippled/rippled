@@ -768,7 +768,7 @@ public:
             beast::expire(byLedger_, parms_.validationSET_EXPIRES);
             beast::expire(bySequence_, parms_.validationSET_EXPIRES);
         }
-        JLOG(j.debug()) << "Validations sets sweep lock duration "
+        JLOG(j.debug()) << "Validations sets lock sweep duration "
                                 << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count() << "ms";
     }
 

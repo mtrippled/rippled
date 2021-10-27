@@ -384,7 +384,7 @@ public:
             beast::expire(mRecentFailures, kReacquireInterval);
         }
 
-        JLOG(j_.debug()) << "InboundLedgers sweep lock duration "
+        JLOG(j_.debug()) << "InboundLedgers lock sweep duration "
                 << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count() << "ms"
                 << ". Swept " << stuffToSweep.size() << " out of "
                 << total << " inbound ledgers.";

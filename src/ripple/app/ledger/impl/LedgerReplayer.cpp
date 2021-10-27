@@ -257,7 +257,7 @@ LedgerReplayer::sweep()
         removeCannotLocked(skipLists_);
         removeCannotLocked(deltas_);
     }
-    JLOG(j_.debug()) << " LedgerReplayer sweep lock duration "
+    JLOG(j_.debug()) << " LedgerReplayer lock sweep duration "
                             << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count() << "ms";
 }
 
