@@ -406,7 +406,7 @@ private:
     std::recursive_mutex mLock;
 
     bool stopping_ = false;
-    using MapType = partitioned_hash_map<uint256, std::shared_ptr<InboundLedger>>;
+    using MapType = hash_map<uint256, std::shared_ptr<InboundLedger>>;
     MapType mLedgers;
 
     beast::aged_map<uint256, std::uint32_t> mRecentFailures;
