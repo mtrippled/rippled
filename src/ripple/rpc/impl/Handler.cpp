@@ -63,7 +63,7 @@ Handler const handlerArray[]{
     {"account_info", byRef(&doAccountInfo), Role::USER, NO_CONDITION},
     {"account_currencies",
      byRef(&doAccountCurrencies),
-     Role::USER,
+     Role::ADMIN,
      NO_CONDITION},
     {"account_lines", byRef(&doAccountLines), Role::USER, NO_CONDITION},
     {"account_channels", byRef(&doAccountChannels), Role::USER, NO_CONDITION},
