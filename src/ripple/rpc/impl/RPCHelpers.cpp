@@ -144,19 +144,19 @@ getAccountObjects(
                 typeMatchesFilter(typeFilter.value(), sleNode->getType()))
             {
                 jvObjects.append(sleNode->getJson(JsonOptions::none));
+            }
 
-                if (++i == limit)
+            if (++i == limit)
+            {
+                if (++iter != entries.end())
                 {
-                    if (++iter != entries.end())
-                    {
-                        jvResult[jss::limit] = limit;
-                        jvResult[jss::marker] =
-                            to_string(dirIndex) + ',' + to_string(*iter);
-                        return true;
-                    }
-
-                    break;
+                    jvResult[jss::limit] = limit;
+                    jvResult[jss::marker] =
+                        to_string(dirIndex) + ',' + to_string(*iter);
+                    return true;
                 }
+
+                break;
             }
         }
 
