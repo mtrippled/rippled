@@ -21,6 +21,7 @@
 #include <ripple/app/ledger/OpenLedger.h>
 #include <ripple/app/misc/Transaction.h>
 #include <ripple/app/rdb/RelationalDBInterface.h>
+#include <ripple/app/paths/RippleState.h>
 #include <ripple/ledger/View.h>
 #include <ripple/net/RPCErr.h>
 #include <ripple/protocol/AccountID.h>
@@ -87,6 +88,55 @@ accountFromString(AccountID& result, std::string const& strIdent, bool bStrict)
         return rpcError(code);
     else
         return Json::objectValue;
+}
+
+std::uint64_t
+getStartHint(std::shared_ptr<SLE const> const& sle, AccountID const& accountID)
+{
+    if (sle->getType() == ltRIPPLE_STATE)
+    {
+        if (sle->getFieldAmount(sfLowLimit).getIssuer() == accountID)
+            return sle->getFieldU64(sfLowNode);
+        else if (sle->getFieldAmount(sfHighLimit).getIssuer() == accountID)
+            return sle->getFieldU64(sfHighNode);
+    }
+        
+    return sle->getFieldU64(sfOwnerNode);
+}
+
+bool
+isOwnedByAccount(
+    ReadView const& ledger,
+    std::shared_ptr<SLE const> const& sle,
+    AccountID const& accountID)
+{
+    if (sle->getType() == ltRIPPLE_STATE)
+    {
+        return (sle->getFieldAmount(sfLowLimit).getIssuer() == accountID)
+            || (sle->getFieldAmount(sfHighLimit).getIssuer() == accountID);
+    }
+    else if (sle->isFieldPresent(sfAccount))
+    {
+        return sle->getAccountID(sfAccount) == accountID;
+    }
+    else if (sle->getType() == ltSIGNER_LIST)
+    {
+        auto hint = sle->getFieldU64(sfOwnerNode);
+        auto const rootIndex = keylet::ownerDir(accountID);
+        auto const pageIndex = keylet::page(rootIndex, hint);
+
+        auto directory = ledger.read({ltDIR_NODE, pageIndex.key});
+
+        if (!directory)
+            return false;
+
+        auto const& hashes = directory->getFieldV256(sfIndexes);
+        auto iter = std::find(hashes.begin(), hashes.end(), sle->key());
+
+        return iter != hashes.end();
+    }
+
+    return false;
 }
 
 bool
