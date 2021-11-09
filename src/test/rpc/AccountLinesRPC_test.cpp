@@ -320,7 +320,7 @@ public:
                 "account_lines",
                 R"({"account": ")" + alice.human() +
                     R"(", )"
-                    R"("limit": 1, )"
+                    R"("limit": 10, )"
                     R"("peer": ")" +
                     gw2.human() + R"("})");
             auto const& line = lines[jss::result][jss::lines][0u];
@@ -390,8 +390,10 @@ public:
         env.close();
 
         auto const USD = gw1["USD"];
+	auto const AUD = gw1["AUD"];
         auto const EUR = gw2["EUR"];
         env(trust(alice, USD(200)));
+	env(trust(alice, AUD(200)));
         env(trust(becky, EUR(200)));
         env(trust(cheri, EUR(200)));
         env.close();
@@ -414,8 +416,8 @@ public:
             "account_lines",
             R"({"account": ")" + alice.human() +
                 R"(", )"
-                R"("limit": 1})");
-        BEAST_EXPECT(
+                R"("limit": 2})");
+	BEAST_EXPECT(
             linesBeg[jss::result][jss::lines][0u][jss::currency] == "USD");
         BEAST_EXPECT(linesBeg[jss::result].isMember(jss::marker));
 
@@ -432,7 +434,7 @@ public:
                 R"(", )"
                 R"("marker": ")" +
                 linesBeg[jss::result][jss::marker].asString() + R"("})");
-        BEAST_EXPECT(
+	BEAST_EXPECT(
             linesEnd[jss::result][jss::error_message] ==
             RPC::make_error(rpcINVALID_PARAMS)[jss::error_message]);
     }
@@ -966,7 +968,7 @@ public:
                 R"({"account": ")" +
                     alice.human() +
                     R"(", )"
-                    R"("limit": 1, )"
+                    R"("limit": 10, )"
                     R"("peer": ")" +
                     gw2.human() + R"("}})");
             auto const& line = lines[jss::result][jss::lines][0u];
@@ -1068,8 +1070,10 @@ public:
         env.close();
 
         auto const USD = gw1["USD"];
-        auto const EUR = gw2["EUR"];
+        auto const AUD = gw1["AUD"];
+	auto const EUR = gw2["EUR"];
         env(trust(alice, USD(200)));
+	env(trust(alice, AUD(200)));
         env(trust(becky, EUR(200)));
         env(trust(cheri, EUR(200)));
         env.close();
@@ -1098,7 +1102,7 @@ public:
             R"({"account": ")" +
                 alice.human() +
                 R"(", )"
-                R"("limit": 1}})");
+                R"("limit": 2}})");
         BEAST_EXPECT(
             linesBeg[jss::result][jss::lines][0u][jss::currency] == "USD");
         BEAST_EXPECT(linesBeg[jss::result].isMember(jss::marker));

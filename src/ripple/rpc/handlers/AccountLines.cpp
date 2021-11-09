@@ -123,84 +123,99 @@ doAccountLines(RPC::JsonContext& context)
     unsigned int limit;
     if (auto err = readLimitField(limit, RPC::Tuning::accountLines, context))
         return *err;
+    
+    if (limit == 0)
+        return rpcError(rpcINVALID_PARAMS);
 
     Json::Value& jsonLines(result[jss::lines] = Json::arrayValue);
     VisitData visitData = {{}, accountID, hasPeer, raPeerAccount};
-    unsigned int reserve(limit);
-    uint256 startAfter;
-    std::uint64_t startHint;
+    uint256 startAfter = beast::zero;
+    std::uint64_t startHint = 0;
 
     if (params.isMember(jss::marker))
     {
-        // We have a start point. Use limit - 1 from the result and use the
-        // very last one for the resume.
-        Json::Value const& marker(params[jss::marker]);
-
-        if (!marker.isString())
+        if (!params[jss::marker].isString())
             return RPC::expected_field_error(jss::marker, "string");
-
-        if (!startAfter.parseHex(marker.asString()))
+        
+        // Marker is composed of a comma separated index and start hint. The 
+        // former will be read as hex, and the latter using boost lexical cast.
+        std::stringstream ss(params[jss::marker].asString());
+        std::string s;
+        if (!std::getline(ss, s, ','))
             return rpcError(rpcINVALID_PARAMS);
 
-        auto const sleLine = ledger->read({ltRIPPLE_STATE, startAfter});
-
-        if (!sleLine)
+        if (!startAfter.parseHex(s))
             return rpcError(rpcINVALID_PARAMS);
 
-        if (sleLine->getFieldAmount(sfLowLimit).getIssuer() == accountID)
-            startHint = sleLine->getFieldU64(sfLowNode);
-        else if (sleLine->getFieldAmount(sfHighLimit).getIssuer() == accountID)
-            startHint = sleLine->getFieldU64(sfHighNode);
-        else
+        if (!std::getline(ss, s, ','))
             return rpcError(rpcINVALID_PARAMS);
 
-        // Caller provided the first line (startAfter), add it as first result
-        auto const line = RippleState::makeItem(accountID, sleLine);
-        if (line == nullptr)
+        try
+        {
+            startHint = boost::lexical_cast<std::uint64_t>(s);
+        }
+        catch (boost::bad_lexical_cast&)
+        {
+            return rpcError(rpcINVALID_PARAMS);
+        }
+
+        // We then must check if the object pointed to by the marker is actually
+        // owned by the account in the request.
+        auto const sle = ledger->read({ltANY, startAfter});
+
+        if (!sle)
             return rpcError(rpcINVALID_PARAMS);
 
-        addLine(jsonLines, *line);
-        visitData.items.reserve(reserve);
+        auto isOwned = RPC::isOwnedByAccount(*ledger, sle, accountID);
+
+        if (!isOwned)
+            return rpcError(rpcINVALID_PARAMS);
     }
-    else
-    {
-        startHint = 0;
-        // We have no start point, limit should be one higher than requested.
-        visitData.items.reserve(++reserve);
-    }
 
+    auto ct = 0;
+    std::optional<uint256> marker = {};
+    std::uint64_t nextHint = 0;
     {
         if (!forEachItemAfter(
                 *ledger,
                 accountID,
                 startAfter,
                 startHint,
-                reserve,
-                [&visitData](std::shared_ptr<SLE const> const& sleCur) {
+                limit + 1,
+                [&visitData, &ct, &marker, &limit, &nextHint](std::shared_ptr<SLE const> const& sleCur) {
+                    if (!sleCur)
+                    {
+                        assert(false);
+                        return false;
+                    }
+
+                    if (++ct == limit)
+                    {
+                        marker = sleCur->key();
+                        nextHint = RPC::getStartHint(sleCur, visitData.accountID);
+                    }
+        
                     auto const line =
                         RippleState::makeItem(visitData.accountID, sleCur);
-                    if (line != nullptr &&
+                    if (ct <= limit && line != nullptr &&
                         (!visitData.hasPeer ||
                          visitData.raPeerAccount == line->getAccountIDPeer()))
                     {
                         visitData.items.emplace_back(line);
-                        return true;
                     }
 
-                    return false;
+                    return true;
                 }))
         {
             return rpcError(rpcINVALID_PARAMS);
         }
     }
 
-    if (visitData.items.size() == reserve)
+    if (ct == limit + 1 && marker)
     {
         result[jss::limit] = limit;
-
-        RippleState::pointer line(visitData.items.back());
-        result[jss::marker] = to_string(line->key());
-        visitData.items.pop_back();
+        result[jss::marker] = 
+            to_string(*marker) + "," + std::to_string(nextHint);
     }
 
     result[jss::account] = context.app.accountIDCache().toBase58(accountID);
