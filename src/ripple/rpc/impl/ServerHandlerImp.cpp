@@ -369,6 +369,34 @@ ServerHandlerImp::onStopped(Server&)
 
 //------------------------------------------------------------------------------
 
+template <class T>
+void
+logDuration(
+    Json::Value const& request,
+    T const& duration,
+    beast::Journal& journal)
+{
+    std::stringstream logMsg;
+    logMsg << "RPC request processing duration = "
+           << std::chrono::duration_cast<std::chrono::microseconds>(duration)
+                  .count()
+           << " microseconds. request = " << request;
+    if (std::chrono::duration_cast<std::chrono::seconds>(duration).count() >=
+        10)
+    {
+        JLOG(journal.error()) << logMsg.str();
+    }
+    else if (
+        std::chrono::duration_cast<std::chrono::seconds>(duration).count() >= 1)
+    {
+        JLOG(journal.warn()) << logMsg.str();
+    }
+    else
+    {
+        JLOG(journal.debug()) << logMsg.str();
+    }
+}
+
 Json::Value
 ServerHandlerImp::processSession(
     std::shared_ptr<WSSession> const& session,
@@ -448,7 +476,10 @@ ServerHandlerImp::processSession(
                 jv,
                 {is->user(), is->forwarded_for()}};
 
+            auto start = std::chrono::system_clock::now();
             RPC::doCommand(context, jr[jss::result]);
+            auto end = std::chrono::system_clock::now();
+            logDuration(jv, end - start, m_journal);
         }
     }
     catch (std::exception const& ex)
@@ -837,7 +868,11 @@ ServerHandlerImp::processRequest(
             params,
             {user, forwardedFor}};
         Json::Value result;
+        auto start = std::chrono::system_clock::now();
         RPC::doCommand(context, result);
+        auto end = std::chrono::system_clock::now();
+        logDuration(params, end - start, m_journal);
+
         usage.charge(loadType);
         if (usage.warn())
             result[jss::warning] = jss::load;
