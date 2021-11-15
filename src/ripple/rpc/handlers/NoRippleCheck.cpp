@@ -182,11 +182,9 @@ doNoRippleCheck(RPC::JsonContext& context)
                     tx["LimitAmount"] = limitAmount.getJson(JsonOptions::none);
                     tx["Flags"] = bNoRipple ? tfClearNoRipple : tfSetNoRipple;
                     fillTransaction(context, tx, accountID, seq, *ledger);
-
-                    return true;
                 }
             }
-            return false;
+            return true;
         });
 
     return result;
