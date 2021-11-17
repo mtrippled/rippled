@@ -412,7 +412,7 @@ ServerHandlerImp::processSession(
     Json::Value const& jv)
 {
     auto is = std::static_pointer_cast<WSInfoSub>(session->appDefined);
-    if (is->getConsumer().disconnect())
+    if (is->getConsumer().disconnect(m_journal))
     {
         session->close(
             {boost::beast::websocket::policy_error, "threshold exceeded"});
@@ -718,7 +718,7 @@ ServerHandlerImp::processRequest(
         {
             usage = m_resourceManager.newInboundEndpoint(
                 remoteIPAddress, role == Role::PROXY, forwardedFor);
-            if (usage.disconnect())
+            if (usage.disconnect(m_journal))
             {
                 if (!batch)
                 {
