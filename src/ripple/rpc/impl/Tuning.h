@@ -34,7 +34,7 @@ struct LimitRange
 };
 
 /** Limits for the account_lines command. */
-static LimitRange constexpr accountLines = {10, 200, 400};
+static LimitRange constexpr accountLines = {10, 50, 100};
 
 /** Limits for the account_channels command. */
 static LimitRange constexpr accountChannels = {10, 200, 400};
