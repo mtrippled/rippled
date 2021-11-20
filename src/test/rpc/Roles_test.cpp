@@ -63,6 +63,9 @@ class Roles_test : public beast::unit_test::suite
                 !wsRes.isMember("unlimited") || !wsRes["unlimited"].asBool());
 
             std::unordered_map<std::string, std::string> headers;
+
+#if 0 // !!!! DEBUG !!!!
+            // IPv4 tests.
             headers["X-Forwarded-For"] = "12.34.56.78";
             auto rpcRes = env.rpc(headers, "ping")["result"];
             BEAST_EXPECT(rpcRes["role"] == "proxied");
@@ -103,6 +106,16 @@ class Roles_test : public beast::unit_test::suite
             wsRes = makeWSClient(env.app().config(), true, 2, headers)
                         ->invoke("ping")["result"];
             BEAST_EXPECT(wsRes["unlimited"].asBool());
+#endif // 0 !!!! END DEBUG !!!!
+
+            // IPv6 tests.
+            headers["X-Forwarded-For"] = "2001:db8:3333:4444:5555:6666:7777:8888";
+            auto rpcRes = env.rpc(headers, "ping")["result"];
+            std::cout << "Ping result: " << rpcRes.toStyledString() << std::endl;
+            BEAST_EXPECT(rpcRes["role"] == "proxied");
+            BEAST_EXPECT(rpcRes["ip"] == "2001:db8:3333:4444:5555:6666:7777:8888");
+
+            // IPv6 (dual) tests.
         }
     }
 
