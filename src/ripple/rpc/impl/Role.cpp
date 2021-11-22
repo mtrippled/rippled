@@ -23,7 +23,6 @@
 #include <boost/beast/http/rfc7230.hpp>
 #include <boost/utility/string_view.hpp>
 #include <algorithm>
-#include <iostream> // !!!! DEBUG !!!!
 
 namespace ripple {
 
@@ -155,8 +154,9 @@ forwardedFor(http_request_type const& request)
             return pos;
         }());
 
-        return *boost::beast::http::token_list(boost::string_view(found, pos))
-                    .begin();
+        return boost::string_view(found, pos);
+//        return *boost::beast::http::token_list(boost::string_view(found, pos))
+//                    .begin();
     }
 
     it = request.find("X-Forwarded-For");
@@ -164,8 +164,10 @@ forwardedFor(http_request_type const& request)
     {
         // This call to boost::beast::http::token_list() truncates an
         // IPv6 address at the first colon.
-        std::cout << "X-Forwarded-For in string: " << it->value() << std::endl;
-        return *boost::beast::http::token_list(it->value()).begin();
+        std::size_t const found = it->value().find(',');
+        return found == boost::string_view::npos ? it->value() :
+            it->value().substr(0, found);
+//        return *boost::beast::http::token_list(it->value()).begin();
     }
 
     return {};
