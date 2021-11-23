@@ -296,6 +296,11 @@ PerfLogImp::report()
     }
     report[jss::hostid] = hostname_;
     report[jss::counters] = counters_.countersJson();
+    if (!app_.getShardStore())
+    {
+        report[jss::nodestore] = Json::objectValue;
+        app_.getNodeStore().getCountsJson(report[jss::nodestore]);
+    }
     report[jss::current_activities] = counters_.currentJson();
 
     logFile_ << Json::Compact{std::move(report)} << std::endl;
@@ -303,9 +308,10 @@ PerfLogImp::report()
 
 PerfLogImp::PerfLogImp(
     Setup const& setup,
+    Application& app,
     beast::Journal journal,
     std::function<void()>&& signalStop)
-    : setup_(setup), j_(journal), signalStop_(std::move(signalStop))
+    : setup_(setup), app_(app), j_(journal), signalStop_(std::move(signalStop))
 {
     openLog();
 }
@@ -491,10 +497,12 @@ setup_PerfLog(Section const& section, boost::filesystem::path const& configDir)
 std::unique_ptr<PerfLog>
 make_PerfLog(
     PerfLog::Setup const& setup,
+    Application& app,
     beast::Journal journal,
     std::function<void()>&& signalStop)
 {
-    return std::make_unique<PerfLogImp>(setup, journal, std::move(signalStop));
+    return std::make_unique<PerfLogImp>(
+        setup, app, journal, std::move(signalStop));
 }
 
 }  // namespace perf
