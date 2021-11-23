@@ -176,8 +176,7 @@ Database::fetchNodeObject(
     }
     ++fetchTotalCount_;
 
-    fetchReport.elapsed =
-        duration_cast<milliseconds>(steady_clock::now() - begin);
+    fetchReport.elapsed = duration_cast<milliseconds>(dur);
     scheduler_.onFetch(fetchReport);
     return nodeObject;
 }
