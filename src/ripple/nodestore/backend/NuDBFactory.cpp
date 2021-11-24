@@ -32,6 +32,8 @@
 #include <memory>
 #include <nudb/nudb.hpp>
 
+#include <atomic> // debug
+
 namespace ripple {
 namespace NodeStore {
 
@@ -51,6 +53,15 @@ public:
     nudb::store db_;
     std::atomic<bool> deletePath_;
     Scheduler& scheduler_;
+
+    std::atomic<std::uint64_t> searches_ = 0;
+    std::atomic<std::uint64_t> found_;
+    std::atomic<std::uint64_t> foundBytes_ = 0;
+    std::atomic<std::uint64_t> lastSearchesLogged_ = 0;
+    std::atomic<std::uint64_t> writes_ = 0;
+    std::atomic<std::uint64_t> dupWrites_ = 0;
+    std::atomic<std::uint64_t> writeBytes_ = 0;
+    std::atomic<std::uint64_t> lastWritesLogged_ = 0;
 
     NuDBBackend(
         size_t keyBytes,
@@ -190,9 +201,11 @@ public:
         nudb::error_code ec;
         db_.fetch(
             key,
-            [key, pno, &status](void const* data, std::size_t size) {
+            [this, key, pno, &status](void const* data, std::size_t size) {
                 nudb::detail::buffer bf;
                 auto const result = nodeobject_decompress(data, size, bf);
+                found_.store(found_.load() + 1);
+                foundBytes_.store(foundBytes_.load() + size);
                 DecodedBlob decoded(key, result.first, result.second);
                 if (!decoded.wasOk())
                 {
@@ -203,6 +216,14 @@ public:
                 status = ok;
             },
             ec);
+        searches_.store(searches_.load() + 1);
+        if (searches_.load() - lastSearchesLogged_.load() >= 1000)
+        {
+            lastSearchesLogged_.store(searches_.load());
+            JLOG(j_.debug()) << "ioreport searches,found,bytes: " << searches_.load() << ','
+                             << found_.load() << ',' << foundBytes_.load();
+        }
+
         if (ec == nudb::error::key_not_found)
             return notFound;
         if (ec)
@@ -235,9 +256,28 @@ public:
         e.prepare(no);
         nudb::error_code ec;
         nudb::detail::buffer bf;
-        auto const result = nodeobject_compress(e.getData(), e.getSize(), bf);
+        std::size_t const writeSize = e.getSize();
+        auto const result = nodeobject_compress(e.getData(), writeSize, bf);
         db_.insert(e.getKey(), result.first, result.second, ec);
+
+        bool doThrow = false;
         if (ec && ec != nudb::error::key_exists)
+        {
+            dupWrites_.store(dupWrites_.load() + 1);
+            doThrow = true;
+        }
+        else
+        {
+            writeBytes_.store(writeBytes_.load() + writeSize);
+        }
+        writes_.store(writes_.load() + 1);
+        if (writes_.load() - lastWritesLogged_.load() >= 1000)
+        {
+            lastWritesLogged_.store(writes_.load());
+            JLOG(j_.debug()) << "ioreport writes,dupWrites,bytes: " << writes_.load() << ','
+                             << dupWrites_.load() << ',' << writeBytes_.load();
+        }
+        if (doThrow)
             Throw<nudb::system_error>(ec);
     }
 
