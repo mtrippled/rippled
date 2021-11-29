@@ -286,6 +286,7 @@ JSS(index);                 // in: LedgerEntry, DownloadShard
                             // out: STLedgerEntry,
                             //      LedgerEntry, TxHistory, LedgerData
 JSS(info);                  // out: ServerInfo, ConsensusInfo, FetchInfo
+JSS(initial_sync_duration_us);
 JSS(internal_command);      // in: Internal
 JSS(invalid_API_version);   // out: Many, when a request has an invalid
                             //      version
