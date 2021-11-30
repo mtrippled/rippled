@@ -141,7 +141,8 @@ DatabaseNodeImp::fetchBatch(std::vector<uint256> const& hashes)
         {
             // Ensure all threads get the same object
             if (cache_)
-                cache_->canonicalize_replace_client(hash, nObj);
+                cache_->canonicalize_replace_cache(hash, nObj);
+//                cache_->canonicalize_replace_client(hash, nObj);
         }
         else
         {
