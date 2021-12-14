@@ -227,7 +227,7 @@ Shard::storeNodeObject(std::shared_ptr<NodeObject> const& nodeObject)
 
     try
     {
-        backend_->store(nodeObject);
+        backend_->store(nodeObject, 5);
     }
     catch (std::exception const& e)
     {
@@ -335,7 +335,7 @@ Shard::storeLedger(
 
         try
         {
-            backend_->storeBatch(batch);
+            backend_->storeBatch(batch, 9);
         }
         catch (std::exception const& e)
         {
@@ -764,7 +764,7 @@ Shard::finalize(bool writeSQLite, std::optional<uint256> const& referenceHash)
     try
     {
         // Store final key's value, may already be stored
-        backend_->store(nodeObject);
+        backend_->store(nodeObject, 6);
 
         // Do not allow all other threads work with the shard
         busy_ = true;

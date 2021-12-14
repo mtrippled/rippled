@@ -131,14 +131,14 @@ public:
         @param object The object to store.
     */
     virtual void
-    store(std::shared_ptr<NodeObject> const& object) = 0;
+    store(std::shared_ptr<NodeObject> const& object, std::size_t writer) = 0;
 
     /** Store a group of objects.
         @note This function will not be called concurrently with
               itself or @ref store.
     */
     virtual void
-    storeBatch(Batch const& batch) = 0;
+    storeBatch(Batch const& batch, std::size_t writer) = 0;
 
     virtual void
     sync() = 0;

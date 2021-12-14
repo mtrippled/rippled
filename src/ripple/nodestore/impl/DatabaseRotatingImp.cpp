@@ -111,7 +111,7 @@ DatabaseRotatingImp::store(
         return writableBackend_;
     }();
 
-    backend->store(nObj);
+    backend->store(nObj, 2);
     storeStats(1, nObj->getData().size());
 }
 
@@ -179,7 +179,7 @@ DatabaseRotatingImp::fetchNodeObject(
             }
 
             // Update writable backend with data from the archive backend
-            writable->store(nodeObject);
+            writable->store(nodeObject, 3);
         }
     }
 

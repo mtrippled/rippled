@@ -320,13 +320,13 @@ public:
     }
 
     void
-    store(std::shared_ptr<NodeObject> const& object) override
+    store(std::shared_ptr<NodeObject> const& object, std::size_t) override
     {
         m_batch.store(object);
     }
 
     void
-    storeBatch(Batch const& batch) override
+    storeBatch(Batch const& batch, std::size_t) override
     {
         assert(m_db);
         rocksdb::WriteBatch wb;
@@ -412,7 +412,7 @@ public:
     void
     writeBatch(Batch const& batch) override
     {
-        storeBatch(batch);
+        storeBatch(batch, 0);
     }
 
     /** Returns the number of file descriptors the backend expects to need */

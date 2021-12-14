@@ -32,7 +32,7 @@ DatabaseNodeImp::store(
     std::uint32_t)
 {
     auto nObj = NodeObject::createObject(type, std::move(data), hash);
-    backend_->store(nObj);
+    backend_->store(nObj, 1);
     storeStats(1, nObj->getData().size());
 }
 
