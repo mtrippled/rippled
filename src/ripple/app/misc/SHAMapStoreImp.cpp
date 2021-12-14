@@ -192,7 +192,6 @@ SHAMapStoreImp::makeNodeStore(std::int32_t readThreads)
             std::move(writableBackend),
             std::move(archiveBackend),
             app_.config().section(ConfigSection::nodeDatabase()),
-            app_.getLedgerMaster(),
             app_.logs().journal(nodeStoreName_));
         fdRequired_ += dbr->fdRequired();
         dbRotating_ = dbr.get();
