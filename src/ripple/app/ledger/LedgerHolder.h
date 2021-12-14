@@ -66,7 +66,7 @@ public:
     }
 
 private:
-    std::mutex m_lock;
+    std::recursive_mutex m_lock;
     std::shared_ptr<Ledger const> m_heldLedger;
 };
 
