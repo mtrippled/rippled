@@ -123,7 +123,7 @@ Database::importInternal(Backend& dstBackend, Database& srcDB)
     auto storeBatch = [&, fname = __func__]() {
         try
         {
-            dstBackend.storeBatch(batch);
+            dstBackend.storeBatch(batch, 7);
         }
         catch (std::exception const& e)
         {
@@ -209,7 +209,7 @@ Database::storeLedger(
 
         try
         {
-            dstBackend->storeBatch(batch);
+            dstBackend->storeBatch(batch, 8);
         }
         catch (std::exception const& e)
         {

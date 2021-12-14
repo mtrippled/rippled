@@ -146,7 +146,7 @@ public:
     {
         for (int i = 0; i < batch.size(); ++i)
         {
-            backend.store(batch[i]);
+            backend.store(batch[i], 0);
         }
     }
 

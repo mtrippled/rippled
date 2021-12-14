@@ -192,7 +192,7 @@ DeterministicShard::store(std::shared_ptr<NodeObject> const& nodeObject)
 {
     try
     {
-        backend_->store(nodeObject);
+        backend_->store(nodeObject, 4);
 
         // Flush to the backend if at threshold
         if (++curMemObjs_ >= maxMemObjs_)

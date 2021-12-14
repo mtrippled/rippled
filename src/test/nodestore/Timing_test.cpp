@@ -294,7 +294,7 @@ public:
             {
                 try
                 {
-                    backend_.store(seq_.obj(i));
+                    backend_.store(seq_.obj(i), 0);
                 }
                 catch (std::exception const& e)
                 {
@@ -635,7 +635,7 @@ public:
                             case 1: {
                                 // insert new
                                 auto const j = i + params_.items;
-                                backend_.store(seq1_.obj(j));
+                                backend_.store(seq1_.obj(j), 0);
                                 break;
                             }
                         }

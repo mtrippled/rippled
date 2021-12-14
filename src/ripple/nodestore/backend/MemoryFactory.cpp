@@ -165,7 +165,7 @@ public:
     }
 
     void
-    store(std::shared_ptr<NodeObject> const& object) override
+    store(std::shared_ptr<NodeObject> const& object, std::size_t) override
     {
         assert(db_);
         std::lock_guard _(db_->mutex);
@@ -173,10 +173,10 @@ public:
     }
 
     void
-    storeBatch(Batch const& batch) override
+    storeBatch(Batch const& batch, std::size_t) override
     {
         for (auto const& e : batch)
-            store(e);
+            store(e, 0);
     }
 
     void

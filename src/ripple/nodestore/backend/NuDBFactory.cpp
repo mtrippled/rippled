@@ -32,7 +32,10 @@
 #include <memory>
 #include <nudb/nudb.hpp>
 
-#include <atomic> // debug
+// debug
+#include <array>
+#include <atomic>
+#include <sstream>
 
 namespace ripple {
 namespace NodeStore {
@@ -62,6 +65,18 @@ public:
     std::atomic<std::uint64_t> dupWrites_ = 0;
     std::atomic<std::uint64_t> writeBytes_ = 0;
     std::atomic<std::uint64_t> lastWritesLogged_ = 0;
+
+    struct stats
+    {
+        std::atomic<std::uint64_t> searches = 0;
+        std::atomic<std::uint64_t> found;
+        std::atomic<std::uint64_t> foundBytes = 0;
+        std::atomic<std::uint64_t> writes = 0;
+        std::atomic<std::uint64_t> dupWrites = 0;
+        std::atomic<std::uint64_t> writeBytes = 0;
+    };
+
+    std::array<stats, 10> stats_;
 
     NuDBBackend(
         size_t keyBytes,
@@ -250,7 +265,7 @@ public:
     }
 
     void
-    do_insert(std::shared_ptr<NodeObject> const& no)
+    do_insert(std::shared_ptr<NodeObject> const& no, std::size_t writer)
     {
         EncodedBlob e;
         e.prepare(no);
@@ -270,37 +285,51 @@ public:
         {
             writeBytes_.store(writeBytes_.load() + writeSize);
         }
+
+        auto& s = stats_[writer];
+        s.writes.store(s.writes.load() + 1);
         writes_.store(writes_.load() + 1);
         if (writes_.load() - lastWritesLogged_.load() >= 1000)
         {
             lastWritesLogged_.store(writes_.load());
-            JLOG(j_.debug()) << "ioreport writes,dupWrites,bytes: " << writes_.load() << ','
-                             << dupWrites_.load() << ',' << writeBytes_.load();
+            std::stringstream ss;
+            bool first = true;
+            for (std::size_t i = 0; i < stats_.size(); ++i)
+            {
+                if (first)
+                    first = false;
+                else
+                    ss << '|';
+                auto& s2 = stats_[i];
+                ss << i << ',' << s2.writes << ',' << s2.dupWrites << ',' << s2.writeBytes;
+
+            }
+            JLOG(j_.debug()) << "ioreport writes writer,writes,dupWrites,bytes: " << ss.str();
         }
         if (doThrow)
             Throw<nudb::system_error>(ec);
     }
 
     void
-    store(std::shared_ptr<NodeObject> const& no) override
+    store(std::shared_ptr<NodeObject> const& no, std::size_t writer) override
     {
         BatchWriteReport report;
         report.writeCount = 1;
         auto const start = std::chrono::steady_clock::now();
-        do_insert(no);
+        do_insert(no, writer);
         report.elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - start);
         scheduler_.onBatchWrite(report);
     }
 
     void
-    storeBatch(Batch const& batch) override
+    storeBatch(Batch const& batch, std::size_t writer) override
     {
         BatchWriteReport report;
         report.writeCount = batch.size();
         auto const start = std::chrono::steady_clock::now();
         for (auto const& e : batch)
-            do_insert(e);
+            do_insert(e, writer);
         report.elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - start);
         scheduler_.onBatchWrite(report);

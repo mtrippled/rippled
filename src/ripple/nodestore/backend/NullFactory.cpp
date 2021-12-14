@@ -67,12 +67,12 @@ public:
     }
 
     void
-    store(std::shared_ptr<NodeObject> const& object) override
+    store(std::shared_ptr<NodeObject> const& object, std::size_t) override
     {
     }
 
     void
-    storeBatch(Batch const& batch) override
+    storeBatch(Batch const& batch, std::size_t) override
     {
     }
 
