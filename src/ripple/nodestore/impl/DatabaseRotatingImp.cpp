@@ -30,10 +30,12 @@ DatabaseRotatingImp::DatabaseRotatingImp(
     std::shared_ptr<Backend> writableBackend,
     std::shared_ptr<Backend> archiveBackend,
     Section const& config,
+    LedgerMaster& ledgerMaster,
     beast::Journal j)
     : DatabaseRotating(scheduler, readThreads, config, j)
     , writableBackend_(std::move(writableBackend))
     , archiveBackend_(std::move(archiveBackend))
+    , ledgerMaster_(ledgerMaster)
 {
     if (writableBackend_)
         fdRequired_ += writableBackend_->fdRequired();
@@ -179,7 +181,8 @@ DatabaseRotatingImp::fetchNodeObject(
             }
 
             // Update writable backend with data from the archive backend
-            writable->store(nodeObject, 3);
+            if (ledgerMaster_.haveValidated())
+                writable->store(nodeObject, 3);
         }
     }
 

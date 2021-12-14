@@ -275,18 +275,18 @@ public:
         auto const result = nodeobject_compress(e.getData(), writeSize, bf);
         db_.insert(e.getKey(), result.first, result.second, ec);
 
+        auto& s = stats_[writer];
         bool doThrow = false;
         if (ec && ec != nudb::error::key_exists)
         {
-            dupWrites_.store(dupWrites_.load() + 1);
+            s.dupWrites.store(s.dupWrites.load() + 1);
             doThrow = true;
         }
         else
         {
-            writeBytes_.store(writeBytes_.load() + writeSize);
+            s.writeBytes.store(s.writeBytes.load() + writeSize);
         }
 
-        auto& s = stats_[writer];
         s.writes.store(s.writes.load() + 1);
         writes_.store(writes_.load() + 1);
         if (writes_.load() - lastWritesLogged_.load() >= 1000)

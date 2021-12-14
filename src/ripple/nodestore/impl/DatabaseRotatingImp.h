@@ -20,6 +20,7 @@
 #ifndef RIPPLE_NODESTORE_DATABASEROTATINGIMP_H_INCLUDED
 #define RIPPLE_NODESTORE_DATABASEROTATINGIMP_H_INCLUDED
 
+#include <ripple/app/ledger/LedgerMaster.h>
 #include <ripple/nodestore/DatabaseRotating.h>
 
 namespace ripple {
@@ -39,6 +40,7 @@ public:
         std::shared_ptr<Backend> writableBackend,
         std::shared_ptr<Backend> archiveBackend,
         Section const& config,
+        LedgerMaster& ledgerMaster,
         beast::Journal j);
 
     ~DatabaseRotatingImp()
@@ -83,6 +85,7 @@ private:
     std::shared_ptr<Backend> writableBackend_;
     std::shared_ptr<Backend> archiveBackend_;
     mutable std::mutex mutex_;
+    LedgerMaster& ledgerMaster_;
 
     std::shared_ptr<NodeObject>
     fetchNodeObject(
