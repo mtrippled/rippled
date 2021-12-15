@@ -47,7 +47,8 @@ std::shared_ptr<NodeObject>
 DatabaseNodeImp::fetchNodeObject(
     uint256 const& hash,
     std::uint32_t,
-    FetchReport& fetchReport)
+    FetchReport& fetchReport,
+    bool duplicate)
 {
     std::shared_ptr<NodeObject> nodeObject{
         cache_ ? cache_->fetch(hash) : nullptr};
