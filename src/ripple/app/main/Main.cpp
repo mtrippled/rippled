@@ -619,40 +619,44 @@ run(int argc, char** argv)
     if (vm.count("nodetoshard"))
         config->nodeToShard = true;
 
-    if (vm.count("ledger"))
     {
-        config->START_LEDGER = vm["ledger"].as<std::string>();
-        if (vm.count("replay"))
-            config->START_UP = Config::REPLAY;
-        else
+        Section& nodeDbSection{config->section(ConfigSection::nodeDatabase())};
+        bool fastLoad = false;
+        get_if_exists(nodeDbSection, "fast_load", fastLoad);
+
+        if (vm.count("ledger"))
+        {
+            config->START_LEDGER = vm["ledger"].as<std::string>();
+            if (vm.count("replay"))
+                config->START_UP = Config::REPLAY;
+            else
+                config->START_UP = Config::LOAD;
+        } else if (vm.count("ledgerfile"))
+        {
+            config->START_LEDGER = vm["ledgerfile"].as<std::string>();
+            config->START_UP = Config::LOAD_FILE;
+        } else if (vm.count("load") || fastLoad)
+        {
             config->START_UP = Config::LOAD;
-    }
-    else if (vm.count("ledgerfile"))
-    {
-        config->START_LEDGER = vm["ledgerfile"].as<std::string>();
-        config->START_UP = Config::LOAD_FILE;
-    }
-    else if (vm.count("load"))
-    {
-        config->START_UP = Config::LOAD;
+        }
+
+        if (vm.count("net") && !fastLoad)
+        {
+            if ((config->START_UP == Config::LOAD) ||
+                (config->START_UP == Config::REPLAY))
+            {
+                std::cerr << "Net and load/replay options are incompatible"
+                          << std::endl;
+                return -1;
+            }
+
+            config->START_UP = Config::NETWORK;
+        }
     }
 
     if (vm.count("valid"))
     {
         config->START_VALID = true;
-    }
-
-    if (vm.count("net"))
-    {
-        if ((config->START_UP == Config::LOAD) ||
-            (config->START_UP == Config::REPLAY))
-        {
-            std::cerr << "Net and load/replay options are incompatible"
-                      << std::endl;
-            return -1;
-        }
-
-        config->START_UP = Config::NETWORK;
     }
 
     // Override the RPC destination IP address. This must
