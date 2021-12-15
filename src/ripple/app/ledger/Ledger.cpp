@@ -762,7 +762,7 @@ Ledger::updateNegativeUNL()
 
 //------------------------------------------------------------------------------
 bool
-Ledger::walkLedger(beast::Journal j) const
+Ledger::walkLedger(beast::Journal j, bool parallel) const
 {
     std::vector<SHAMapMissingNode> missingNodes1;
     std::vector<SHAMapMissingNode> missingNodes2;
@@ -775,7 +775,10 @@ Ledger::walkLedger(beast::Journal j) const
     }
     else
     {
-        stateMap_->walkMap(missingNodes1, 32);
+        if (parallel)
+            stateMap_->walkMapParallel(missingNodes1, 32);
+        else
+            stateMap_->walkMap(missingNodes1, 32);
     }
 
     if (!missingNodes1.empty())

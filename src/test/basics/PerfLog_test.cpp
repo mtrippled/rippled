@@ -49,11 +49,20 @@ class PerfLog_test : public beast::unit_test::suite
     // call if it wants to shutdown the system.  This class provides both.
     struct PerfLogParent : public RootStoppable
     {
+<<<<<<< HEAD
+=======
+        Application& app_;
+        beast::Journal j_;
+>>>>>>> bac496153... Only duplicate records from archive to writable during online_delete.
         bool stopSignaled{false};
         beast::Journal j_;
 
+<<<<<<< HEAD
         explicit PerfLogParent(beast::Journal const& j)
             : RootStoppable("testRootStoppable"), j_(j)
+=======
+        explicit Fixture(Application& app, beast::Journal j) : app_(app), j_(j)
+>>>>>>> bac496153... Only duplicate records from archive to writable during online_delete.
         {
         }
 
@@ -134,11 +143,18 @@ class PerfLog_test : public beast::unit_test::suite
         static perf::PerfLog::Setup
         getSetup(WithFile withFile)
         {
+<<<<<<< HEAD
             return perf::PerfLog::Setup{
                 withFile == WithFile::no
                     ? ""
                     : getPerfLogPath() / getPerfLogFileName(),
                 getLogInterval()};
+=======
+            perf::PerfLog::Setup const setup{
+                withFile == WithFile::no ? "" : logFile(), logInterval()};
+            return perf::make_PerfLog(
+                setup, app_, j_, [this]() { return signalStop(); });
+>>>>>>> bac496153... Only duplicate records from archive to writable during online_delete.
         }
 
         static void
@@ -269,8 +285,13 @@ public:
         auto const fullPath = perfLogPath / PerfLogParent::getPerfLogFileName();
         {
             // Verify a PerfLog creates its file when constructed.
+<<<<<<< HEAD
             PerfLogParent parent{j_};
             BEAST_EXPECT(!exists(perfLogPath));
+=======
+            Fixture fixture{env_.app(), j_};
+            BEAST_EXPECT(!exists(fixture.logFile()));
+>>>>>>> bac496153... Only duplicate records from archive to writable during online_delete.
 
             auto perfLog{getPerfLog(parent, WithFile::yes)};
 
@@ -281,8 +302,13 @@ public:
             // Create a file where PerfLog wants to put its directory.
             // Make sure that PerfLog tries to shutdown the server since it
             // can't open its file.
+<<<<<<< HEAD
             PerfLogParent parent{j_};
             if (!BEAST_EXPECT(!exists(perfLogPath)))
+=======
+            Fixture fixture{env_.app(), j_};
+            if (!BEAST_EXPECT(!exists(fixture.logDir())))
+>>>>>>> bac496153... Only duplicate records from archive to writable during online_delete.
                 return;
 
             {
@@ -315,8 +341,13 @@ public:
             // Put a write protected file where PerfLog wants to write its
             // file.  Make sure that PerfLog tries to shutdown the server
             // since it can't open its file.
+<<<<<<< HEAD
             PerfLogParent parent{j_};
             if (!BEAST_EXPECT(!exists(perfLogPath)))
+=======
+            Fixture fixture{env_.app(), j_};
+            if (!BEAST_EXPECT(!exists(fixture.logDir())))
+>>>>>>> bac496153... Only duplicate records from archive to writable during online_delete.
                 return;
 
             // Construct and write protect a file to prevent PerfLog
@@ -374,9 +405,15 @@ public:
     {
         // Exercise the rpc interfaces of PerfLog.
         // Start up the PerfLog that we'll use for testing.
+<<<<<<< HEAD
         PerfLogParent parent{j_};
         auto perfLog{getPerfLog(parent, withFile)};
         parent.doStart();
+=======
+        Fixture fixture{env_.app(), j_};
+        auto perfLog{fixture.perfLog(withFile)};
+        perfLog->start();
+>>>>>>> bac496153... Only duplicate records from archive to writable during online_delete.
 
         // Get the all the labels we can use for RPC interfaces without
         // causing an assert.
@@ -580,9 +617,15 @@ public:
 
         // Exercise the jobs interfaces of PerfLog.
         // Start up the PerfLog that we'll use for testing.
+<<<<<<< HEAD
         PerfLogParent parent{j_};
         auto perfLog{getPerfLog(parent, withFile)};
         parent.doStart();
+=======
+        Fixture fixture{env_.app(), j_};
+        auto perfLog{fixture.perfLog(withFile)};
+        perfLog->start();
+>>>>>>> bac496153... Only duplicate records from archive to writable during online_delete.
 
         // Get the all the JobTypes we can use to call the jobs interfaces
         // without causing an assert.
@@ -928,9 +971,15 @@ public:
         // the PerLog behaves as well as possible if an invalid ID is passed.
 
         // Start up the PerfLog that we'll use for testing.
+<<<<<<< HEAD
         PerfLogParent parent{j_};
         auto perfLog{getPerfLog(parent, withFile)};
         parent.doStart();
+=======
+        Fixture fixture{env_.app(), j_};
+        auto perfLog{fixture.perfLog(withFile)};
+        perfLog->start();
+>>>>>>> bac496153... Only duplicate records from archive to writable during online_delete.
 
         // Randomly select a job type and its name.
         JobType jobType;
@@ -1069,11 +1118,16 @@ public:
         // the interface and see that it doesn't crash.
         using namespace boost::filesystem;
 
+<<<<<<< HEAD
         auto const perfLogPath{PerfLogParent::getPerfLogPath()};
         auto const fullPath = perfLogPath / PerfLogParent::getPerfLogFileName();
 
         PerfLogParent parent{j_};
         BEAST_EXPECT(!exists(perfLogPath));
+=======
+        Fixture fixture{env_.app(), j_};
+        BEAST_EXPECT(!exists(fixture.logDir()));
+>>>>>>> bac496153... Only duplicate records from archive to writable during online_delete.
 
         auto perfLog{getPerfLog(parent, withFile)};
 

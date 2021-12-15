@@ -1451,6 +1451,7 @@ ApplicationImp::setup()
     Pathfinder::initPathTable();
 
     auto const startUp = config_->START_UP;
+    JLOG(m_journal.debug()) << "startUp: " << startUp;
     if (!config_->reporting())
     {
         if (startUp == Config::FRESH)
@@ -2135,7 +2136,7 @@ ApplicationImp::loadOldLedger(
             return false;
         }
 
-        if (!loadLedger->walkLedger(journal("Ledger")))
+        if (!loadLedger->walkLedger(journal("Ledger"), true))
         {
             JLOG(m_journal.fatal()) << "Ledger is missing nodes.";
             assert(false);

@@ -338,7 +338,7 @@ public:
     updateSkipList();
 
     bool
-    walkLedger(beast::Journal j) const;
+    walkLedger(beast::Journal j, bool parallel = false) const;
 
     bool
     assertSensible(beast::Journal ledgerJ) const;

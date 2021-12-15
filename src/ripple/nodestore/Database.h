@@ -145,7 +145,8 @@ public:
     fetchNodeObject(
         uint256 const& hash,
         std::uint32_t ledgerSeq = 0,
-        FetchType fetchType = FetchType::synchronous);
+        FetchType fetchType = FetchType::synchronous,
+        bool duplicate = false);
 
     /** Fetch an object without waiting.
         If I/O is required to determine whether or not the object is present,
@@ -302,7 +303,8 @@ private:
     fetchNodeObject(
         uint256 const& hash,
         std::uint32_t ledgerSeq,
-        FetchReport& fetchReport) = 0;
+        FetchReport& fetchReport,
+        bool duplicate) = 0;
 
     /** Visit every object in the database
         This is usually called during import.

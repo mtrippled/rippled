@@ -34,6 +34,7 @@ class Journal;
 }
 
 namespace ripple {
+class Application;
 namespace perf {
 
 /**

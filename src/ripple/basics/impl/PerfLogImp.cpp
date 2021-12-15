@@ -25,6 +25,7 @@
 #include <ripple/json/json_writer.h>
 #include <ripple/json/to_string.h>
 #include <boost/optional.hpp>
+#include <ripple/nodestore/DatabaseShard.h>
 #include <atomic>
 #include <cstdint>
 #include <cstdlib>
@@ -296,6 +297,7 @@ PerfLogImp::report()
     }
     report[jss::hostid] = hostname_;
     report[jss::counters] = counters_.countersJson();
+    report[jss::nodestore] = Json::objectValue;
     report[jss::current_activities] = counters_.currentJson();
 
     logFile_ << Json::Compact{std::move(report)} << std::endl;

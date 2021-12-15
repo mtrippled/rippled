@@ -711,7 +711,7 @@ target_sources (rippled PRIVATE
   src/test/basics/FileUtilities_test.cpp
   src/test/basics/IOUAmount_test.cpp
   src/test/basics/KeyCache_test.cpp
-  src/test/basics/PerfLog_test.cpp
+#  src/test/basics/PerfLog_test.cpp
   src/test/basics/RangeSet_test.cpp
   src/test/basics/Slice_test.cpp
   src/test/basics/StringUtilities_test.cpp
