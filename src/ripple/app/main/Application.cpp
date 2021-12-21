@@ -2008,7 +2008,7 @@ ApplicationImp::loadOldLedger(
             return false;
         }
 
-        if (!loadLedger->walkLedger(journal("Ledger")))
+        if (!loadLedger->walkLedger(journal("Ledger"), true))
         {
             JLOG(m_journal.fatal()) << "Ledger is missing nodes.";
             assert(false);
