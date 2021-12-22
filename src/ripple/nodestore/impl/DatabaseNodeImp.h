@@ -44,6 +44,7 @@ public:
         : Database(scheduler, readThreads, config, j)
         , backend_(std::move(backend))
     {
+        JLOG(j_.debug()) << "DatabaseNodeImp constructor";
         std::optional<int> cacheSize, cacheAge;
         if (config.exists("cache_size"))
         {
