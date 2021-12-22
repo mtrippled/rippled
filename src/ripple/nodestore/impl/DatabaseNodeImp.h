@@ -77,6 +77,16 @@ public:
                 j);
         }
         assert(backend_);
+        if (cache_)
+        {
+            JLOG(j_.debug()) << "DatabaseNode cache size,age: " <<
+                             *cacheSize << ','
+                             << *cacheAge;
+        }
+        else
+        {
+            JLOG(j_.debug()) << "DatabaseNode cache does not exist";
+        }
     }
 
     ~DatabaseNodeImp()
