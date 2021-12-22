@@ -168,6 +168,7 @@ SHAMapStoreImp::SHAMapStoreImp(
 std::unique_ptr<NodeStore::Database>
 SHAMapStoreImp::makeNodeStore(std::int32_t readThreads)
 {
+    JLOG(journal_.debug()) << "makeNodeStore";
     std::unique_ptr<NodeStore::Database> db;
     if (deleteInterval_)
     {
