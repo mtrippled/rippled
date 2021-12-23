@@ -91,6 +91,7 @@ SHAMapStoreImp::SHAMapStoreImp(
     , working_(true)
     , canDelete_(std::numeric_limits<LedgerIndex>::max())
 {
+    JLOG(journal_.debug()) << "SHAMapStoreImp ctor";
     Config& config{app.config()};
 
     Section& section{config.section(ConfigSection::nodeDatabase())};
