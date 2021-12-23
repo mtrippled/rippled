@@ -24,6 +24,8 @@
 #include <ripple/basics/chrono.h>
 #include <ripple/nodestore/Database.h>
 
+#include <iostream>
+
 namespace ripple {
 namespace NodeStore {
 
@@ -83,10 +85,13 @@ public:
             JLOG(j_.debug()) << "DatabaseNode cache size,age: " <<
                              *cacheSize << ','
                              << *cacheAge;
+            std::cerr << "DatabaseNode cache size,age: " << *cacheSize <<
+                ',' << *cacheAge << '\n';
         }
         else
         {
             JLOG(j_.debug()) << "DatabaseNode cache does not exist";
+            std::cerr << "DatabaseNode cache does not exist";
         }
     }
 
