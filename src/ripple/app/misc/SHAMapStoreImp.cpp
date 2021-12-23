@@ -31,6 +31,8 @@
 
 #include <boost/algorithm/string/predicate.hpp>
 
+#include <iostream>
+
 namespace ripple {
 void
 SHAMapStoreImp::SavedStateDB::init(
@@ -92,6 +94,7 @@ SHAMapStoreImp::SHAMapStoreImp(
     , canDelete_(std::numeric_limits<LedgerIndex>::max())
 {
     JLOG(journal_.debug()) << "SHAMapStoreImp ctor";
+    std::cerr << "SHAMapStoreImp ctor\n";
     Config& config{app.config()};
 
     Section& section{config.section(ConfigSection::nodeDatabase())};
