@@ -25,12 +25,15 @@
 #include <ripple/rpc/impl/LegacyPathFind.h>
 #include <ripple/rpc/impl/RPCHelpers.h>
 
+#include <ripple/json/to_string.h>
+
 namespace ripple {
 
 // This interface is deprecated.
 Json::Value
 doRipplePathFind(RPC::JsonContext& context)
 {
+    JLOG(context.j.debug()) << "ripple_path_find: " << to_string(context.params);
     if (context.app.config().PATH_SEARCH_MAX == 0)
         return rpcError(rpcNOT_SUPPORTED);
 

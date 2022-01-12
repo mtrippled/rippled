@@ -27,11 +27,14 @@
 #include <ripple/rpc/Role.h>
 #include <ripple/rpc/impl/TransactionSign.h>
 
+#include <ripple/json/to_string.h>
+
 namespace ripple {
 
 Json::Value
 doServerInfo(RPC::JsonContext& context)
 {
+    JLOG(context.j.debug()) << "server_info: " << to_string(context.params);
     Json::Value ret(Json::objectValue);
 
     ret[jss::info] = context.netOps.getServerInfo(

@@ -27,11 +27,14 @@
 #include <ripple/resource/Fees.h>
 #include <ripple/rpc/Context.h>
 
+#include <ripple/json/to_string.h>
+
 namespace ripple {
 
 Json::Value
 doPathFind(RPC::JsonContext& context)
 {
+    JLOG(context.j.debug()) << "path_find: " << to_string(context.params);
     if (context.app.config().PATH_SEARCH_MAX == 0)
         return rpcError(rpcNOT_SUPPORTED);
 
