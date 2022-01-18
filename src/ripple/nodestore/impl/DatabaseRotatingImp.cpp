@@ -102,8 +102,12 @@ DatabaseRotatingImp::store(
     NodeObjectType type,
     Blob&& data,
     uint256 const& hash,
-    std::uint32_t)
+    std::uint32_t const seq)
 {
+    if (seq)
+    {
+        JLOG(j_.debug()) << "storing seq 0";
+    }
     auto nObj = NodeObject::createObject(type, std::move(data), hash);
 
     auto const backend = [&] {
