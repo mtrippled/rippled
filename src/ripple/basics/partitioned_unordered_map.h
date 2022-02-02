@@ -89,6 +89,7 @@ public:
         void
         inc()
         {
+            ait_->this_does_not_exist_so_why_does_it_compile_and_yes_this_function_is_referenced_by_other_things;
             ++mit_;
             while (mit_ == ait_->end())
             {
