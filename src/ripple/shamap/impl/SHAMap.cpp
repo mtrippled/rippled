@@ -1157,7 +1157,7 @@ SHAMap::dump(bool hash) const
 std::shared_ptr<SHAMapTreeNode>
 SHAMap::cacheLookup(SHAMapHash const& hash) const
 {
-    auto ret = f_.getTreeNodeCache(ledgerSeq_)->fetch(hash.as_uint256());
+    auto ret = f_.getTreeNodeCache(ledgerSeq_)->get(hash.as_uint256());
     assert(!ret || !ret->cowid());
     return ret;
 }
@@ -1171,8 +1171,9 @@ SHAMap::canonicalize(
     assert(node->cowid() == 0);
     assert(node->getHash() == hash);
 
-    f_.getTreeNodeCache(ledgerSeq_)
-        ->canonicalize_replace_client(hash.as_uint256(), node);
+    f_.getTreeNodeCache(ledgerSeq_)->set(hash.as_uint256(), node);
+//    f_.getTreeNodeCache(ledgerSeq_)
+//        ->canonicalize_replace_client(hash.as_uint256(), node);
 }
 
 void
