@@ -192,6 +192,9 @@ public:
             bool(soci::session& session, std::uint32_t shardIndex)> const&
             callback) override;
 
+    std::size_t cacheSize() const override {return 0;}
+    std::size_t negCacheSize() const override {return 0;}
+
 private:
     enum class PathDesignation : uint8_t {
         none,       // No path specified

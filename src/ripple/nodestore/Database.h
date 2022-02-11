@@ -20,6 +20,7 @@
 #ifndef RIPPLE_NODESTORE_DATABASE_H_INCLUDED
 #define RIPPLE_NODESTORE_DATABASE_H_INCLUDED
 
+#include <ripple/basics/Lru.h>
 #include <ripple/basics/TaggedCache.h>
 #include <ripple/nodestore/Backend.h>
 #include <ripple/nodestore/NodeObject.h>
@@ -297,6 +298,10 @@ public:
     [[nodiscard]] std::uint32_t
     maxLedgers(std::uint32_t shardIndex) const noexcept;
 
+    virtual std::size_t cacheSize() const = 0;
+
+    virtual std::size_t negCacheSize() const = 0;
+
 protected:
     beast::Journal const j_;
     Scheduler& scheduler_;
@@ -338,7 +343,9 @@ protected:
 
     // Called by the public storeLedger function
     bool
-    storeLedger(Ledger const& srcLedger, std::shared_ptr<Backend> dstBackend);
+    storeLedger(Ledger const& srcLedger, std::shared_ptr<Backend> dstBackend,
+        std::shared_ptr<Lru<uint256, NodeObject>> const& cache,
+        std::shared_ptr<Lru<uint256, char>> const& negCache);
 
     void
     updateFetchMetrics(uint64_t fetches, uint64_t hits, uint64_t duration)

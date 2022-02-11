@@ -33,14 +33,18 @@ DatabaseNodeImp::store(
 {
     storeStats(1, data.size());
 
-    backend_->store(NodeObject::createObject(type, std::move(data), hash));
+    auto nObj = NodeObject::createObject(type, std::move(data), hash);
+    backend_->store(nObj);
+    if (cache_)
+        cache_->set(hash, nObj);
+    negCache_->del(hash);
 }
 
 void
 DatabaseNodeImp::sweep()
 {
-    if (cache_)
-        cache_->sweep();
+//    if (cache_)
+//        cache_->sweep();
 }
 
 std::shared_ptr<NodeObject>
@@ -50,8 +54,13 @@ DatabaseNodeImp::fetchNodeObject(
     FetchReport& fetchReport,
     bool duplicate)
 {
-    std::shared_ptr<NodeObject> nodeObject =
-        cache_ ? cache_->fetch(hash) : nullptr;
+    if (negCache_->get(hash))
+        return {};
+    std::shared_ptr<NodeObject> nodeObject;
+    if (cache_)
+        nodeObject = cache_->get(hash);
+//    std::shared_ptr<NodeObject> nodeObject =
+//        cache_ ? cache_->fetch(hash) : nullptr;
 
     if (!nodeObject)
     {
@@ -76,7 +85,10 @@ DatabaseNodeImp::fetchNodeObject(
         {
             case ok:
                 if (nodeObject && cache_)
-                    cache_->canonicalize_replace_client(hash, nodeObject);
+                {
+                    cache_->set(hash, nodeObject);
+//                    cache_->canonicalize_replace_client(hash, nodeObject);
+                }
                 break;
             case notFound:
                 break;
@@ -98,7 +110,15 @@ DatabaseNodeImp::fetchNodeObject(
     }
 
     if (nodeObject)
+    {
+        negCache_->del(hash);
         fetchReport.wasFound = true;
+    }
+    else
+    {
+        auto val = std::make_shared<char>('a');
+        negCache_->set(hash, val);
+    }
 
     return nodeObject;
 }
@@ -117,7 +137,8 @@ DatabaseNodeImp::fetchBatch(std::vector<uint256> const& hashes)
     {
         auto const& hash = hashes[i];
         // See if the object already exists in the cache
-        auto nObj = cache_ ? cache_->fetch(hash) : nullptr;
+        auto nObj = cache_ ? cache_->get(hash) : nullptr;
+//        auto nObj = cache_ ? cache_->fetch(hash) : nullptr;
         ++fetches;
         if (!nObj)
         {
@@ -149,7 +170,8 @@ DatabaseNodeImp::fetchBatch(std::vector<uint256> const& hashes)
         {
             // Ensure all threads get the same object
             if (cache_)
-                cache_->canonicalize_replace_client(hash, nObj);
+                cache_->set(hash, nObj);
+//                cache_->canonicalize_replace_client(hash, nObj);
         }
         else
         {

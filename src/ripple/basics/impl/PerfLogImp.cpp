@@ -25,6 +25,7 @@
 #include <ripple/json/json_writer.h>
 #include <ripple/json/to_string.h>
 #include <ripple/nodestore/DatabaseShard.h>
+#include <ripple/shamap/Family.h>
 #include <atomic>
 #include <cstdint>
 #include <cstdlib>
@@ -304,6 +305,16 @@ PerfLogImp::report()
         app_.getNodeStore().getCountsJson(report[jss::nodestore]);
     report[jss::current_activities] = counters_.currentJson();
     app_.getOPs().stateAccounting(report);
+
+    report["tncache_hits"] = std::to_string(app_.getNodeFamily().getTreeNodeCache(0)->hits());
+    report["tncache_misses"] = std::to_string(app_.getNodeFamily().getTreeNodeCache(0)->misses());
+    report["tncache_accesses"] = std::to_string(app_.getNodeFamily().getTreeNodeCache(0)->accesses());
+    report["tncache_duration_ns"] = std::to_string(app_.getNodeFamily().getTreeNodeCache(0)->durationNs());
+    report["tncache_size"] = std::to_string(app_.getNodeFamily().getTreeNodeCache(0)->size());
+    report["nodecache_size"] = std::to_string(app_.getNodeFamily().db().cacheSize());
+    report["neg_nodecache_size"] = std::to_string(app_.getNodeFamily().db().negCacheSize());
+    report["tncache_evicted"] = std::to_string(app_.getNodeFamily().getTreeNodeCache(0)->getEvicted());
+    report["tncache_q_size"] = std::to_string(app_.getNodeFamily().getTreeNodeCache(0)->qSize());
 
     logFile_ << Json::Compact{std::move(report)} << std::endl;
 }

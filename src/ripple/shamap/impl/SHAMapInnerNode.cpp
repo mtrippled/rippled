@@ -38,6 +38,8 @@
 #include <mutex>
 #include <utility>
 
+#include <sstream>
+
 namespace ripple {
 
 std::mutex SHAMapInnerNode::childLock;

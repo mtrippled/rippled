@@ -35,13 +35,15 @@ NodeFamily::NodeFamily(Application& app, CollectorManager& cm)
           cm.collector(),
           fullBelowTargetSize,
           fullBelowExpiration))
-    , tnCache_(std::make_shared<TreeNodeCache>(
-          "Node family tree node cache",
-          app.config().getValueFor(SizedItem::treeCacheSize),
-          std::chrono::seconds(
-              app.config().getValueFor(SizedItem::treeCacheAge)),
-          stopwatch(),
-          j_))
+      , tnCache_(std::make_shared<TreeNodeCache>(
+          app.config().getValueFor(SizedItem::treeCacheSize), 256))
+//    , tnCache_(std::make_shared<TreeNodeCache>(
+//          "Node family tree node cache",
+//          app.config().getValueFor(SizedItem::treeCacheSize),
+//          std::chrono::seconds(
+//              app.config().getValueFor(SizedItem::treeCacheAge)),
+//          stopwatch(),
+//          j_))
 {
 }
 
@@ -49,20 +51,20 @@ void
 NodeFamily::sweep()
 {
     fbCache_->sweep();
-    tnCache_->sweep();
+//    tnCache_->sweep();
 }
 
-void
-NodeFamily::reset()
-{
-    {
-        std::lock_guard lock(maxSeqMutex_);
-        maxSeq_ = 0;
-    }
+//void
+//NodeFamily::reset()
+//{
+//    {
+//        std::lock_guard lock(maxSeqMutex_);
+//        maxSeq_ = 0;
+//    }
 
-    fbCache_->reset();
-    tnCache_->reset();
-}
+//    fbCache_->reset();
+//    tnCache_->reset();
+//}
 
 void
 NodeFamily::missingNode(std::uint32_t seq)

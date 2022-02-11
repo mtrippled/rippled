@@ -20,6 +20,7 @@
 #ifndef RIPPLE_NODESTORE_DATABASENODEIMP_H_INCLUDED
 #define RIPPLE_NODESTORE_DATABASENODEIMP_H_INCLUDED
 
+#include <ripple/basics/Lru.h>
 #include <ripple/basics/TaggedCache.h>
 #include <ripple/basics/chrono.h>
 #include <ripple/nodestore/Database.h>
@@ -55,6 +56,10 @@ public:
                     "Specified negative value for cache_size");
             }
         }
+        else
+        {
+            cacheSize = 1000000;
+        }
 
         if (config.exists("cache_age"))
         {
@@ -68,13 +73,23 @@ public:
 
         if (cacheSize != 0 || cacheAge != 0)
         {
-            cache_ = std::make_shared<TaggedCache<uint256, NodeObject>>(
-                "DatabaseNodeImp",
-                cacheSize.value_or(0),
-                std::chrono::minutes(cacheAge.value_or(0)),
-                stopwatch(),
-                j);
+            cache_ = std::make_shared<Lru<uint256, NodeObject>>(
+                cacheSize.value());
+//            cache_ = std::make_shared<TaggedCache<uint256, NodeObject>>(
+//                "DatabaseNodeImp",
+//                cacheSize.value_or(0),
+//                std::chrono::minutes(cacheAge.value_or(0)),
+//                stopwatch(),
+//                j);
+//            Lru<uint256, NodeObject> lru(cacheSize.value());
         }
+
+        if (config.exists("negative_cache_size"))
+            cacheSize = get<std::size_t>(config, "negative_cache_size");
+        else
+            cacheSize = 1000000;
+        negCache_ = std::make_shared<Lru<uint256, char>>(
+            cacheSize.value());
 
         assert(backend_);
     }
@@ -123,16 +138,28 @@ public:
     bool
     storeLedger(std::shared_ptr<Ledger const> const& srcLedger) override
     {
-        return Database::storeLedger(*srcLedger, backend_);
+        return Database::storeLedger(*srcLedger, backend_, cache_, negCache_);
     }
 
     void
     sweep() override;
 
+    std::size_t cacheSize() const override
+    {
+        return cache_->size();
+    }
+
+    std::size_t negCacheSize() const override
+    {
+        return negCache_->size();
+    }
+
 private:
     // Cache for database objects. This cache is not always initialized. Check
     // for null before using.
-    std::shared_ptr<TaggedCache<uint256, NodeObject>> cache_;
+    std::shared_ptr<Lru<uint256, NodeObject>> cache_;
+    std::shared_ptr<Lru<uint256, char>> negCache_;
+//    std::shared_ptr<TaggedCache<uint256, NodeObject>> cache_;
     // Persistent key/value storage
     std::shared_ptr<Backend> backend_;
 

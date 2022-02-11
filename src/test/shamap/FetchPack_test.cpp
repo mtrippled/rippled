@@ -120,7 +120,7 @@ public:
         using namespace beast::severities;
         test::SuiteJournal journal("FetchPack_test", *this);
 
-        TestNodeFamily f(journal);
+        TestNodeFamily f(journal, 65536);
         std::shared_ptr<Table> t1(std::make_shared<Table>(SHAMapType::FREE, f));
 
         pass();

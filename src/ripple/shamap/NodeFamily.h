@@ -79,8 +79,8 @@ public:
     void
     sweep() override;
 
-    void
-    reset() override;
+//    void
+//    reset() override;
 
     void
     missingNode(std::uint32_t seq) override;

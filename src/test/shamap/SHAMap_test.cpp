@@ -136,7 +136,7 @@ public:
         else
             testcase("add/traverse unbacked");
 
-        tests::TestNodeFamily f(journal);
+        tests::TestNodeFamily f(journal, 65536);
 
         // h3 and h4 differ only in the leaf, same terminal node (level 19)
         constexpr uint256 h1(
@@ -304,7 +304,7 @@ public:
                 uint256("292891fe4ef6cee585fdc6fda1e09eb4d386363158ec3321b8123e"
                         "5a772c6ca8")};
 
-            tests::TestNodeFamily tf{journal};
+            tests::TestNodeFamily tf{journal, 65536};
             SHAMap map{SHAMapType::FREE, tf};
             if (!backed)
                 map.setUnbacked();
@@ -333,7 +333,7 @@ class SHAMapPathProof_test : public beast::unit_test::suite
     {
         test::SuiteJournal journal("SHAMapPathProof_test", *this);
 
-        tests::TestNodeFamily tf{journal};
+        tests::TestNodeFamily tf{journal, 65536};
         SHAMap map{SHAMapType::FREE, tf};
         map.setUnbacked();
 

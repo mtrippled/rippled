@@ -39,6 +39,22 @@ DatabaseRotatingImp::DatabaseRotatingImp(
         fdRequired_ += writableBackend_->fdRequired();
     if (archiveBackend_)
         fdRequired_ += archiveBackend_->fdRequired();
+
+    std::size_t cacheSize;
+    if (config.exists("cache_size"))
+        cacheSize = get<std::size_t>(config, "cache_size");
+    else
+        cacheSize = 1000000;
+    cache_ = std::make_shared<Lru<uint256, NodeObject>>(
+        cacheSize);
+
+    if (config.exists("negative_cache_size"))
+        cacheSize = get<std::size_t>(config, "negative_cache_size");
+    else
+        cacheSize = 1000000;
+    negCache_ = std::make_shared<Lru<uint256, char>>(
+        cacheSize);
+
 }
 
 void
@@ -87,7 +103,7 @@ DatabaseRotatingImp::storeLedger(std::shared_ptr<Ledger const> const& srcLedger)
         return writableBackend_;
     }();
 
-    return Database::storeLedger(*srcLedger, backend);
+    return Database::storeLedger(*srcLedger, backend, cache_, negCache_);
 }
 
 void
@@ -112,6 +128,8 @@ DatabaseRotatingImp::store(
     }();
 
     backend->store(nObj);
+    cache_->set(hash, nObj);
+    negCache_->del(hash);
     storeStats(1, nObj->getData().size());
 }
 
@@ -128,6 +146,12 @@ DatabaseRotatingImp::fetchNodeObject(
     FetchReport& fetchReport,
     bool duplicate)
 {
+    if (negCache_->get(hash))
+        return {};
+    auto cacheFound = cache_->get(hash);
+    if (cacheFound)
+        return cacheFound;
+
     auto fetch = [&](std::shared_ptr<Backend> const& backend) {
         Status status;
         std::shared_ptr<NodeObject> nodeObject;
@@ -186,7 +210,16 @@ DatabaseRotatingImp::fetchNodeObject(
     }
 
     if (nodeObject)
+    {
         fetchReport.wasFound = true;
+        cache_->set(hash, nodeObject);
+        negCache_->del(hash);
+    }
+    else
+    {
+        auto val = std::make_shared<char>('a');
+        negCache_->set(hash, val);
+    }
 
     return nodeObject;
 }

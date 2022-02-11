@@ -90,7 +90,7 @@ public:
         using namespace beast::severities;
         test::SuiteJournal journal("SHAMapSync_test", *this);
 
-        TestNodeFamily f(journal), f2(journal);
+        TestNodeFamily f(journal, 65536), f2(journal, 65536);
         SHAMap source(SHAMapType::FREE, f);
         SHAMap destination(SHAMapType::FREE, f2);
 
