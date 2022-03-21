@@ -216,7 +216,7 @@ class NFTokenDir_test : public beast::unit_test::suite
 
         // These seeds cause a lopsided split where the new NFT is added
         // to the upper page.
-        static constexpr std::initializer_list<std::string_view const>
+        static std::initializer_list<std::string_view const> const
             splitAndAddToHi{
                 "sp6JS7f14BuwFY8Mw5p3b8jjQBBTK",  //  0. 0x1d2932ea
                 "sp6JS7f14BuwFY8Mw6F7X3EiGKazu",  //  1. 0x1d2932ea
@@ -263,7 +263,7 @@ class NFTokenDir_test : public beast::unit_test::suite
 
         // These seeds cause a lopsided split where the new NFT is added
         // to the lower page.
-        static constexpr std::initializer_list<std::string_view const>
+        static std::initializer_list<std::string_view const> const
             splitAndAddToLo{
                 "sp6JS7f14BuwFY8Mw5p3b8jjQBBTK",  //  0. 0x1d2932ea
                 "sp6JS7f14BuwFY8Mw6F7X3EiGKazu",  //  1. 0x1d2932ea
@@ -343,7 +343,7 @@ class NFTokenDir_test : public beast::unit_test::suite
         // NOTE: We've not yet identified 33 AccountIDs that meet the
         // requirements.  At the moment 12 is the best we can do.  We'll fill
         // in the full count when they are available.
-        static constexpr std::initializer_list<std::string_view const> seeds{
+        static std::initializer_list<std::string_view const> const seeds{
             "sp6JS7f14BuwFY8Mw5G5vCrbxB3TZ",
             "sp6JS7f14BuwFY8Mw5H6qyXhorcip",
             "sp6JS7f14BuwFY8Mw5suWxsBQRqLx",
