@@ -228,7 +228,7 @@ NFTokenAcceptOffer::acceptOffer(std::shared_ptr<SLE> const& offer)
         // Calculate the issuer's cut from this sale, if any:
         if (auto const fee = nft::getTransferFee(tokenID); fee != 0)
         {
-            auto const cut = multiply(amount, transferFeeAsRate(fee));
+            auto const cut = multiply(amount, nft::transferFeeAsRate(fee));
 
             if (auto const issuer = nft::getIssuer(tokenID);
                 cut != beast::zero && seller != issuer && buyer != issuer)
@@ -324,7 +324,7 @@ NFTokenAcceptOffer::doApply()
         if (auto const fee = nft::getTransferFee(tokenID);
             amount != beast::zero && fee != 0)
         {
-            auto cut = multiply(amount, transferFeeAsRate(fee));
+            auto cut = multiply(amount, nft::transferFeeAsRate(fee));
 
             if (auto const issuer = nft::getIssuer(tokenID);
                 seller != issuer && buyer != issuer)
