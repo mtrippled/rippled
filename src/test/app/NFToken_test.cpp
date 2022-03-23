@@ -539,7 +539,7 @@ class NFToken_test : public beast::unit_test::suite
         env(token::mint(alice, 0u),
             token::xferFee(maxTransferFee + 1),
             txflags(tfTransferable),
-            ter(temBAD_TRANSFER_FEE));
+            ter(temBAD_NFTOKEN_TRANSFER_FEE));
 
         // Account can't also be issuer.
         env(token::mint(alice, 0u), token::issuer(alice), ter(temMALFORMED));
@@ -815,7 +815,7 @@ class NFToken_test : public beast::unit_test::suite
         // Can't transfer the NFT if the transferable flag is not set.
         env(token::createOffer(buyer, nftNoXferID, gwAUD(1000)),
             token::owner(alice),
-            ter(tefTOKEN_IS_NOT_TRANSFERABLE));
+            ter(tefNFTOKEN_IS_NOT_TRANSFERABLE));
         env.close();
         BEAST_EXPECT(ownerCount(env, buyer) == 1);
 
@@ -1162,13 +1162,13 @@ class NFToken_test : public beast::unit_test::suite
 
             // gw attempts to broker offers that are not for the same token.
             env(token::brokerOffers(gw, buyerOfferIndex, xrpOnlyOfferIndex),
-                ter(tecBUY_SELL_MISMATCH));
+                ter(tecNFTOKEN_BUY_SELL_MISMATCH));
             env.close();
             BEAST_EXPECT(ownerCount(env, buyer) == 2);
 
             // gw attempts to broker offers that are not for the same currency.
             env(token::brokerOffers(gw, buyerOfferIndex, plainOfferIndex),
-                ter(tecBUY_SELL_MISMATCH));
+                ter(tecNFTOKEN_BUY_SELL_MISMATCH));
             env.close();
             BEAST_EXPECT(ownerCount(env, buyer) == 2);
 
@@ -1197,7 +1197,7 @@ class NFToken_test : public beast::unit_test::suite
             // used by the offers
             env(token::brokerOffers(gw, buyerOfferIndex, audOfferIndex),
                 token::brokerFee(XRP(40)),
-                ter(tecBUY_SELL_MISMATCH));
+                ter(tecNFTOKEN_BUY_SELL_MISMATCH));
             env.close();
             BEAST_EXPECT(ownerCount(env, buyer) == 2);
 
@@ -1234,13 +1234,13 @@ class NFToken_test : public beast::unit_test::suite
 
             // Don't accept a buy offer if the sell flag is set.
             env(token::acceptBuyOffer(buyer, plainOfferIndex),
-                ter(tecOFFER_TYPE_MISMATCH));
+                ter(tecNFTOKEN_OFFER_TYPE_MISMATCH));
             env.close();
             BEAST_EXPECT(ownerCount(env, alice) == 7);
 
             // An account can't accept its own offer.
             env(token::acceptBuyOffer(buyer, buyerOfferIndex),
-                ter(tecCANT_ACCEPT_OWN_OFFER));
+                ter(tecCANT_ACCEPT_OWN_NFTOKEN_OFFER));
             env.close();
             BEAST_EXPECT(ownerCount(env, buyer) == 2);
 
@@ -1291,13 +1291,13 @@ class NFToken_test : public beast::unit_test::suite
 
             // Don't accept a sell offer without the sell flag set.
             env(token::acceptSellOffer(alice, buyerOfferIndex),
-                ter(tecOFFER_TYPE_MISMATCH));
+                ter(tecNFTOKEN_OFFER_TYPE_MISMATCH));
             env.close();
             BEAST_EXPECT(ownerCount(env, alice) == 7);
 
             // An account can't accept its own offer.
             env(token::acceptSellOffer(alice, plainOfferIndex),
-                ter(tecCANT_ACCEPT_OWN_OFFER));
+                ter(tecCANT_ACCEPT_OWN_NFTOKEN_OFFER));
             env.close();
             BEAST_EXPECT(ownerCount(env, buyer) == 2);
 
@@ -1748,7 +1748,7 @@ class NFToken_test : public beast::unit_test::suite
             BEAST_EXPECT(ownerCount(env, becky) == 0);
             env(token::createOffer(becky, nftAliceNoTransferID, XRP(20)),
                 token::owner(alice),
-                ter(tefTOKEN_IS_NOT_TRANSFERABLE));
+                ter(tefNFTOKEN_IS_NOT_TRANSFERABLE));
 
             // alice offers to sell the nft and becky accepts the offer.
             uint256 const aliceSellOfferIndex =
@@ -1764,7 +1764,7 @@ class NFToken_test : public beast::unit_test::suite
             // becky tries to offer the nft for sale.
             env(token::createOffer(becky, nftAliceNoTransferID, XRP(21)),
                 txflags(tfSellToken),
-                ter(tefTOKEN_IS_NOT_TRANSFERABLE));
+                ter(tefNFTOKEN_IS_NOT_TRANSFERABLE));
             env.close();
             BEAST_EXPECT(ownerCount(env, alice) == 0);
             BEAST_EXPECT(ownerCount(env, becky) == 1);
@@ -1774,7 +1774,7 @@ class NFToken_test : public beast::unit_test::suite
             env(token::createOffer(becky, nftAliceNoTransferID, XRP(21)),
                 txflags(tfSellToken),
                 token::destination(alice),
-                ter(tefTOKEN_IS_NOT_TRANSFERABLE));
+                ter(tefNFTOKEN_IS_NOT_TRANSFERABLE));
             env.close();
             BEAST_EXPECT(ownerCount(env, alice) == 0);
             BEAST_EXPECT(ownerCount(env, becky) == 1);
@@ -1813,7 +1813,7 @@ class NFToken_test : public beast::unit_test::suite
             BEAST_EXPECT(ownerCount(env, becky) == 0);
             env(token::createOffer(becky, nftMinterNoTransferID, XRP(20)),
                 token::owner(minter),
-                ter(tefTOKEN_IS_NOT_TRANSFERABLE));
+                ter(tefNFTOKEN_IS_NOT_TRANSFERABLE));
             env.close();
             BEAST_EXPECT(ownerCount(env, becky) == 0);
 
@@ -1825,7 +1825,7 @@ class NFToken_test : public beast::unit_test::suite
             BEAST_EXPECT(ownerCount(env, minter) == 1);
             env(token::createOffer(minter, nftMinterNoTransferID, XRP(21)),
                 txflags(tfSellToken),
-                ter(tefTOKEN_IS_NOT_TRANSFERABLE));
+                ter(tefNFTOKEN_IS_NOT_TRANSFERABLE));
             env.close();
             BEAST_EXPECT(ownerCount(env, minter) == 1);
 
@@ -1863,7 +1863,7 @@ class NFToken_test : public beast::unit_test::suite
             // becky attempts to sell the nft.
             env(token::createOffer(becky, nftMinterNoTransferID, XRP(23)),
                 txflags(tfSellToken),
-                ter(tefTOKEN_IS_NOT_TRANSFERABLE));
+                ter(tefNFTOKEN_IS_NOT_TRANSFERABLE));
             env.close();
 
             // Since minter is not, at the moment, alice's official minter
@@ -1871,7 +1871,7 @@ class NFToken_test : public beast::unit_test::suite
             BEAST_EXPECT(ownerCount(env, minter) == 0);
             env(token::createOffer(minter, nftMinterNoTransferID, XRP(24)),
                 token::owner(becky),
-                ter(tefTOKEN_IS_NOT_TRANSFERABLE));
+                ter(tefNFTOKEN_IS_NOT_TRANSFERABLE));
             env.close();
             BEAST_EXPECT(ownerCount(env, minter) == 0);
 
@@ -2208,7 +2208,7 @@ class NFToken_test : public beast::unit_test::suite
             env(token::mint(alice),
                 txflags(tfTransferable),
                 token::xferFee(maxTransferFee + 1),
-                ter(temBAD_TRANSFER_FEE));
+                ter(temBAD_NFTOKEN_TRANSFER_FEE));
             env.close();
 
             // Make an nft with a transfer fee of 50%.
@@ -2789,7 +2789,7 @@ class NFToken_test : public beast::unit_test::suite
             // Cannot broker offers when the sell destination is not the buyer.
             env(token::brokerOffers(
                     buyer, offerIssuerToMinter, offerMinterToBuyer),
-                ter(tecBUY_SELL_MISMATCH));
+                ter(tecNFTOKEN_BUY_SELL_MISMATCH));
             env.close();
             BEAST_EXPECT(ownerCount(env, issuer) == 1);
             BEAST_EXPECT(ownerCount(env, minter) == 2);

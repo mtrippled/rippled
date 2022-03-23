@@ -119,8 +119,7 @@ enum TEMcodes : TERUnderlyingType {
     temUNKNOWN,    // An internal intermediate result; should never be returned.
 
     temSEQ_AND_TICKET,
-    temBAD_TRANSFER_FEE,
-    temTOKEN_IS_NONFLAMMABLE,
+    temBAD_NFTOKEN_TRANSFER_FEE,
 };
 
 //------------------------------------------------------------------------------
@@ -163,8 +162,7 @@ enum TEFcodes : TERUnderlyingType {
     tefINVARIANT_FAILED,
     tefTOO_BIG,
     tefNO_TICKET,
-    tefTOKEN_IS_NOT_TRANSFERABLE,
-    tefNOT_POSSIBLE,
+    tefNFTOKEN_IS_NOT_TRANSFERABLE,
 };
 
 //------------------------------------------------------------------------------
@@ -227,7 +225,7 @@ enum TECcodes : TERUnderlyingType {
     // Note: Exact numbers must stay stable.  These codes are stored by
     // value in metadata for historic transactions.
 
-    // 100 .. 999 C
+    // 100 .. 255 C
     //   Claim fee only (ripple transaction with no good paths, pay to
     //   non-existent account, no path)
     //
@@ -284,15 +282,13 @@ enum TECcodes : TERUnderlyingType {
     tecTOO_SOON = 152,
     tecHOOK_ERROR [[maybe_unused]] = 153,
     tecMAX_SEQUENCE_REACHED = 154,
-    tecNO_SUITABLE_PAGE = 155,
-    tecBUY_SELL_MISMATCH = 156,
-    tecOFFER_TYPE_MISMATCH = 157,
-    tecCANT_ACCEPT_OWN_OFFER = 158,
+    tecNO_SUITABLE_NFTOKEN_PAGE = 155,
+    tecNFTOKEN_BUY_SELL_MISMATCH = 156,
+    tecNFTOKEN_OFFER_TYPE_MISMATCH = 157,
+    tecCANT_ACCEPT_OWN_NFTOKEN_OFFER = 158,
     tecINSUFFICIENT_FUNDS = 159,
     tecOBJECT_NOT_FOUND = 160,
     tecINSUFFICIENT_PAYMENT = 161,
-    tecINCORRECT_ASSET = 162,
-    tecTOO_MANY = 163,
 };
 
 //------------------------------------------------------------------------------

@@ -211,7 +211,7 @@ insertToken(ApplyView& view, AccountID owner, STObject&& nft)
         });
 
     if (!page)
-        return tecNO_SUITABLE_PAGE;
+        return tecNO_SUITABLE_NFTOKEN_PAGE;
 
     {
         auto arr = page->getFieldArray(sfNonFungibleTokens);

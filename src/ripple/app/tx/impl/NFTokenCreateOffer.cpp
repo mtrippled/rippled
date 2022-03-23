@@ -128,7 +128,7 @@ NFTokenCreateOffer::preclaim(PreclaimContext const& ctx)
         assert(root);
 
         if (auto minter = (*root)[~sfMinter]; minter != ctx.tx[sfAccount])
-            return tefTOKEN_IS_NOT_TRANSFERABLE;
+            return tefNFTOKEN_IS_NOT_TRANSFERABLE;
     }
 
     if (isFrozen(

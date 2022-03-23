@@ -94,11 +94,11 @@ NFTokenAcceptOffer::preclaim(PreclaimContext const& ctx)
 
         // The two offers being brokered must be for the same token:
         if ((*bo)[sfTokenID] != (*so)[sfTokenID])
-            return tecBUY_SELL_MISMATCH;
+            return tecNFTOKEN_BUY_SELL_MISMATCH;
 
         // The two offers being brokered must be for the same asset:
         if ((*bo)[sfAmount].issue() != (*so)[sfAmount].issue())
-            return tecBUY_SELL_MISMATCH;
+            return tecNFTOKEN_BUY_SELL_MISMATCH;
 
         // Ensure that the buyer is willing to pay at least as much as the
         // seller is requesting:
@@ -110,7 +110,7 @@ NFTokenAcceptOffer::preclaim(PreclaimContext const& ctx)
         if (auto const dest = so->at(~sfDestination))
         {
             if (*dest != bo->at(sfOwner))
-                return tecBUY_SELL_MISMATCH;
+                return tecNFTOKEN_BUY_SELL_MISMATCH;
         }
 
         // The broker can specify an amount that represents their cut; if they
@@ -120,7 +120,7 @@ NFTokenAcceptOffer::preclaim(PreclaimContext const& ctx)
         if (auto const brokerFee = ctx.tx[~sfBrokerFee])
         {
             if (brokerFee->issue() != (*bo)[sfAmount].issue())
-                return tecBUY_SELL_MISMATCH;
+                return tecNFTOKEN_BUY_SELL_MISMATCH;
 
             if (brokerFee >= (*bo)[sfAmount])
                 return tecINSUFFICIENT_PAYMENT;
@@ -135,11 +135,11 @@ NFTokenAcceptOffer::preclaim(PreclaimContext const& ctx)
         auto const bo = ctx.view.read(keylet::nftoffer(*buy));
 
         if (((*bo)[sfFlags] & lsfSellToken) == lsfSellToken)
-            return tecOFFER_TYPE_MISMATCH;
+            return tecNFTOKEN_OFFER_TYPE_MISMATCH;
 
         // An account can't accept an offer it placed:
         if ((*bo)[sfOwner] == ctx.tx[sfAccount])
-            return tecCANT_ACCEPT_OWN_OFFER;
+            return tecCANT_ACCEPT_OWN_NFTOKEN_OFFER;
 
         // If not in bridged mode, the account must own the token:
         if (!sell &&
@@ -164,11 +164,11 @@ NFTokenAcceptOffer::preclaim(PreclaimContext const& ctx)
         auto const so = ctx.view.read(keylet::nftoffer(*sell));
 
         if (((*so)[sfFlags] & lsfSellToken) != lsfSellToken)
-            return tecOFFER_TYPE_MISMATCH;
+            return tecNFTOKEN_OFFER_TYPE_MISMATCH;
 
         // An account can't accept an offer it placed:
         if ((*so)[sfOwner] == ctx.tx[sfAccount])
-            return tecCANT_ACCEPT_OWN_OFFER;
+            return tecCANT_ACCEPT_OWN_NFTOKEN_OFFER;
 
         // The seller must own the token.
         if (!nft::findToken(ctx.view, (*so)[sfOwner], (*so)[sfTokenID]))

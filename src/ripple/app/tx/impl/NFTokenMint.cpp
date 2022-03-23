@@ -46,7 +46,7 @@ NFTokenMint::preflight(PreflightContext const& ctx)
     if (auto const f = ctx.tx[~sfTransferFee])
     {
         if (f > maxTransferFee)
-            return temBAD_TRANSFER_FEE;
+            return temBAD_NFTOKEN_TRANSFER_FEE;
 
         // If a non-zero TransferFee is set then the tfTransferable flag
         // must also be set.
