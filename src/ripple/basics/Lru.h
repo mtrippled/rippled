@@ -20,6 +20,7 @@
 #ifndef RIPPLE_BASICS_LRU_H
 #define RIPPLE_BASICS_LRU_H
 
+#include <ripple/basics/hardened_hash.h>
 #include <ripple/basics/partitioned_unordered_map.h>
 #include <ripple/beast/hash/hash_append.h>
 #include <ripple/beast/hash/uhash.h>
@@ -41,15 +42,14 @@ namespace ripple {
 template <
     typename Key,
     typename Value,
-    typename Hash = beast::uhash<>,
-    typename Pred = std::equal_to<Key>,
-    typename Alloc = std::allocator<std::pair<const Key, Value>>>
+    typename Hash = hardened_hash<beast::xxhasher>,
+    typename Pred = std::equal_to<Key>>
 class Lru
 {
 public:
     using q_type = std::list<std::pair<Key, Value>>;
     using map_type = std::unordered_map<Key, typename q_type::iterator,
-        Hash, Pred, Alloc>;
+        Hash, Pred>;
 
 private:
     struct Partition
@@ -66,7 +66,8 @@ private:
 
         Partition(Partition const& orig)
         {
-            q = orig.q;
+            for (auto const& e : orig.q)
+                q.push_back(e);
             map = orig.map;
             capacity = orig.capacity;
             evicted = orig.evicted;
@@ -96,7 +97,7 @@ public:
                       ? *partitions
                       : std::thread::hardware_concurrency();
         assert(partitions_);
-        cache_.reserve(partitions_);
+//        cache_.reserve(partitions_);
         std::size_t const psize = std::max(1UL, capacity / partitions_);
         Partition part(psize);
         for (std::size_t p = 0; p < partitions_; ++p)
@@ -146,7 +147,7 @@ public:
     std::optional<Value>
     get(Key const& key)
     {
-        Partition& p = cache_[partitioner(key)];
+        Partition& p = cache_[partitioner(key, partitions_)];
         std::lock_guard l(p.mtx);
         auto found = p.map.find(key);
         if (found == p.map.end())
@@ -161,7 +162,7 @@ public:
     void
     del(Key const& key)
     {
-        Partition& p = cache_[partitioner(key)];
+        Partition& p = cache_[partitioner(key, partitions_)];
         std::lock_guard l(p.mtx);
         auto const& found = p.map.find(key);
         if (found == p.map.end())

@@ -39,8 +39,8 @@ DatabaseNodeImp::store(
 void
 DatabaseNodeImp::sweep()
 {
-    if (cache_)
-        cache_->sweep();
+//    if (cache_)
+//        cache_->sweep();
 }
 
 std::shared_ptr<NodeObject>
@@ -50,8 +50,15 @@ DatabaseNodeImp::fetchNodeObject(
     FetchReport& fetchReport,
     bool duplicate)
 {
-    std::shared_ptr<NodeObject> nodeObject =
-        cache_ ? cache_->fetch(hash) : nullptr;
+    std::shared_ptr<NodeObject> nodeObject;
+    if (cache_)
+    {
+        auto n = cache_->get(hash);
+        if (n)
+            nodeObject = *n;
+    }
+//    std::shared_ptr<NodeObject> nodeObject =
+//        cache_ ? cache_->fetch(hash) : nullptr;
 
     if (!nodeObject)
     {
@@ -76,7 +83,8 @@ DatabaseNodeImp::fetchNodeObject(
         {
             case ok:
                 if (nodeObject && cache_)
-                    cache_->canonicalize_replace_client(hash, nodeObject);
+                    cache_->setReplaceCaller(hash, nodeObject);
+//                    cache_->canonicalize_replace_client(hash, nodeObject);
                 break;
             case notFound:
                 break;
@@ -117,7 +125,14 @@ DatabaseNodeImp::fetchBatch(std::vector<uint256> const& hashes)
     {
         auto const& hash = hashes[i];
         // See if the object already exists in the cache
-        auto nObj = cache_ ? cache_->fetch(hash) : nullptr;
+        std::shared_ptr<NodeObject> nObj;
+        if (cache_)
+        {
+            auto val = cache_->get(hash);
+            if (val)
+                nObj = *val;
+        }
+//        auto nObj = cache_ ? cache_->fetch(hash) : nullptr;
         ++fetches;
         if (!nObj)
         {
@@ -149,7 +164,8 @@ DatabaseNodeImp::fetchBatch(std::vector<uint256> const& hashes)
         {
             // Ensure all threads get the same object
             if (cache_)
-                cache_->canonicalize_replace_client(hash, nObj);
+                cache_->setReplaceCaller(hash, nObj);
+//                cache_->canonicalize_replace_client(hash, nObj);
         }
         else
         {
