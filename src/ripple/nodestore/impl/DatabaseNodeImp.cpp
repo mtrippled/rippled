@@ -37,6 +37,7 @@ DatabaseNodeImp::store(
     backend_->store(nObj);
     if (cache_)
         cache_->setReplaceEntry(hash, nObj);
+    negCache_->del(hash);
 }
 
 void
@@ -53,6 +54,8 @@ DatabaseNodeImp::fetchNodeObject(
     FetchReport& fetchReport,
     bool duplicate)
 {
+    if (negCache_->get(hash))
+        return {};
     std::shared_ptr<NodeObject> nodeObject;
     if (cache_)
     {
@@ -86,8 +89,10 @@ DatabaseNodeImp::fetchNodeObject(
         {
             case ok:
                 if (nodeObject && cache_)
+                {
                     cache_->setReplaceCaller(hash, nodeObject);
 //                    cache_->canonicalize_replace_client(hash, nodeObject);
+                }
                 break;
             case notFound:
                 break;
@@ -109,7 +114,14 @@ DatabaseNodeImp::fetchNodeObject(
     }
 
     if (nodeObject)
+    {
+        negCache_->del(hash);
         fetchReport.wasFound = true;
+    }
+    else
+    {
+        negCache_->setReplaceEntry(hash, 'a');
+    }
 
     return nodeObject;
 }

@@ -85,6 +85,7 @@ private:
     std::shared_ptr<Backend> archiveBackend_;
     mutable std::mutex mutex_;
     std::shared_ptr<Lru<uint256, std::shared_ptr<NodeObject>>> cache_;
+    std::shared_ptr<Lru<uint256, char>> negCache_;
 
     std::shared_ptr<NodeObject>
     fetchNodeObject(

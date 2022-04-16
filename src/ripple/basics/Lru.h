@@ -33,6 +33,7 @@
 #include <mutex>
 #include <optional>
 #include <thread>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -42,12 +43,13 @@ namespace ripple {
 template <
     typename Key,
     typename Value,
-    typename Hash = hardened_hash<beast::xxhasher>,
+        typename Hash = hardened_hash<beast::xxhasher>,
     typename Pred = std::equal_to<Key>>
 class Lru
 {
 public:
-    using q_type = std::list<std::pair<Key, Value>>;
+    using Entry = std::pair<Key, Value>;
+    using q_type = std::list<Entry>;
     using map_type = std::unordered_map<Key, typename q_type::iterator,
         Hash, Pred>;
 
@@ -97,7 +99,7 @@ public:
                       ? *partitions
                       : std::thread::hardware_concurrency();
         assert(partitions_);
-//        cache_.reserve(partitions_);
+        cache_.reserve(partitions_);
         std::size_t const psize = std::max(1UL, capacity / partitions_);
         Partition part(psize);
         for (std::size_t p = 0; p < partitions_; ++p)
