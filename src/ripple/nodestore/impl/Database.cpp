@@ -184,7 +184,8 @@ Database::fetchNodeObject(
 bool
 Database::storeLedger(
     Ledger const& srcLedger,
-    std::shared_ptr<Backend> dstBackend)
+    std::shared_ptr<Backend> dstBackend,
+    std::shared_ptr<Lru<uint256, std::shared_ptr<NodeObject>>> const& cache)
 {
     auto fail = [&](std::string const& msg) {
         JLOG(j_.error()) << "Source ledger sequence " << srcLedger.info().seq
@@ -211,6 +212,8 @@ Database::storeLedger(
         try
         {
             dstBackend->storeBatch(batch);
+            for (auto& e : batch)
+                cache->setReplaceEntry(e->getHash(), e);
         }
         catch (std::exception const& e)
         {

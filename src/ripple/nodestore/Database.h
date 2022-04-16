@@ -20,6 +20,7 @@
 #ifndef RIPPLE_NODESTORE_DATABASE_H_INCLUDED
 #define RIPPLE_NODESTORE_DATABASE_H_INCLUDED
 
+#include <ripple/basics/Lru.h>
 #include <ripple/basics/TaggedCache.h>
 #include <ripple/nodestore/Backend.h>
 #include <ripple/nodestore/NodeObject.h>
@@ -338,7 +339,8 @@ protected:
 
     // Called by the public storeLedger function
     bool
-    storeLedger(Ledger const& srcLedger, std::shared_ptr<Backend> dstBackend);
+    storeLedger(Ledger const& srcLedger, std::shared_ptr<Backend> dstBackend,
+        std::shared_ptr<Lru<uint256, std::shared_ptr<NodeObject>>> const& cache);
 
     void
     updateFetchMetrics(uint64_t fetches, uint64_t hits, uint64_t duration)

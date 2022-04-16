@@ -33,7 +33,10 @@ DatabaseNodeImp::store(
 {
     storeStats(1, data.size());
 
-    backend_->store(NodeObject::createObject(type, std::move(data), hash));
+    auto const nObj = NodeObject::createObject(type, std::move(data), hash);
+    backend_->store(nObj);
+    if (cache_)
+        cache_->setReplaceEntry(hash, nObj);
 }
 
 void

@@ -177,7 +177,6 @@ public:
         for (auto& p : cache_)
         {
             std::lock_guard l(p.mtx);
-            std::cout << p.evicted << std::endl;
             t += p.evicted;
         }
         return t;

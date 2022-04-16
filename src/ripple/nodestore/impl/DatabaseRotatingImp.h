@@ -20,6 +20,7 @@
 #ifndef RIPPLE_NODESTORE_DATABASEROTATINGIMP_H_INCLUDED
 #define RIPPLE_NODESTORE_DATABASEROTATINGIMP_H_INCLUDED
 
+#include <ripple/basics/Lru.h>
 #include <ripple/nodestore/DatabaseRotating.h>
 
 namespace ripple {
@@ -83,6 +84,7 @@ private:
     std::shared_ptr<Backend> writableBackend_;
     std::shared_ptr<Backend> archiveBackend_;
     mutable std::mutex mutex_;
+    std::shared_ptr<Lru<uint256, std::shared_ptr<NodeObject>>> cache_;
 
     std::shared_ptr<NodeObject>
     fetchNodeObject(

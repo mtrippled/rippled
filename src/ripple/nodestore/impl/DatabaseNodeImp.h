@@ -56,6 +56,10 @@ public:
                     "Specified negative value for cache_size");
             }
         }
+        else
+        {
+            cacheSize = 1000000;
+        }
 
         if (config.exists("cache_age"))
         {
@@ -127,7 +131,7 @@ public:
     bool
     storeLedger(std::shared_ptr<Ledger const> const& srcLedger) override
     {
-        return Database::storeLedger(*srcLedger, backend_);
+        return Database::storeLedger(*srcLedger, backend_, cache_);
     }
 
     void
