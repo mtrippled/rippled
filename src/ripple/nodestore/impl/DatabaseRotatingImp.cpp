@@ -218,6 +218,7 @@ DatabaseRotatingImp::fetchNodeObject(
     else
     {
         negCache_->setReplaceEntry(hash, 'a');
+        JLOG(j_.debug()) << "nodestore not found " << hash;
     }
 
     return nodeObject;
