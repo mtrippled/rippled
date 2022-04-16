@@ -81,12 +81,13 @@ ShardFamily::getTreeNodeCache(std::uint32_t ledgerSeq)
         return it->second;
 
     // Create a cache for the corresponding shard
-    auto tnCache{std::make_shared<TreeNodeCache>(
-        "Shard family tree node cache shard " + std::to_string(shardIndex),
-        tnTargetSize_,
-        tnTargetAge_,
-        stopwatch(),
-        j_)};
+    auto tnCache{std::make_shared<TreeNodeCache>(tnTargetSize_)};
+//    auto tnCache{std::make_shared<TreeNodeCache>(
+//        "Shard family tree node cache shard " + std::to_string(shardIndex),
+//        tnTargetSize_,
+//        tnTargetAge_,
+//        stopwatch(),
+//        j_)};
     return tnCache_.emplace(shardIndex, std::move(tnCache)).first->second;
 }
 
@@ -96,11 +97,11 @@ ShardFamily::getTreeNodeCacheSize()
     int cacheSz{0};
     int trackSz{0};
     std::lock_guard lock(tnCacheMutex_);
-    for (auto const& e : tnCache_)
-    {
-        cacheSz += e.second->getCacheSize();
-        trackSz += e.second->getTrackSize();
-    }
+//    for (auto const& e : tnCache_)
+//    {
+//        cacheSz += e.second->getCacheSize();
+//        trackSz += e.second->getTrackSize();
+//    }
     return {cacheSz, trackSz};
 }
 
@@ -124,32 +125,32 @@ ShardFamily::sweep()
     std::lock_guard lock(tnCacheMutex_);
     for (auto it = tnCache_.cbegin(); it != tnCache_.cend();)
     {
-        it->second->sweep();
+//        it->second->sweep();
 
         // Remove cache if empty
-        if (it->second->getTrackSize() == 0)
-            it = tnCache_.erase(it);
-        else
-            ++it;
+//        if (it->second->getTrackSize() == 0)
+//            it = tnCache_.erase(it);
+//        else
+//            ++it;
     }
 }
 
-void
-ShardFamily::reset()
-{
-    {
-        std::lock_guard lock(maxSeqMutex_);
-        maxSeq_ = 0;
-    }
-
-    {
-        std::lock_guard lock(fbCacheMutex_);
-        fbCache_.clear();
-    }
-
-    std::lock_guard lock(tnCacheMutex_);
-    tnCache_.clear();
-}
+//void
+//ShardFamily::reset()
+//{
+//    {
+//        std::lock_guard lock(maxSeqMutex_);
+//        maxSeq_ = 0;
+//    }
+//
+//    {
+//        std::lock_guard lock(fbCacheMutex_);
+//        fbCache_.clear();
+//    }
+//
+//    std::lock_guard lock(tnCacheMutex_);
+//    tnCache_.clear();
+//}
 
 void
 ShardFamily::missingNode(std::uint32_t seq)

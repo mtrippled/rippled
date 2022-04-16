@@ -81,8 +81,8 @@ public:
     virtual void
     missingNode(uint256 const& refHash, std::uint32_t refNum) = 0;
 
-    virtual void
-    reset() = 0;
+//    virtual void
+//    reset() = 0;
 };
 
 }  // namespace ripple
