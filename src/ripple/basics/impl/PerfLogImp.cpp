@@ -25,6 +25,7 @@
 #include <ripple/json/json_writer.h>
 #include <ripple/json/to_string.h>
 #include <ripple/nodestore/DatabaseShard.h>
+#include <ripple/shamap/Family.h>
 #include <atomic>
 #include <cstdint>
 #include <cstdlib>
@@ -304,6 +305,9 @@ PerfLogImp::report()
         app_.getNodeStore().getCountsJson(report[jss::nodestore]);
     report[jss::current_activities] = counters_.currentJson();
     app_.getOPs().stateAccounting(report);
+
+    report["tncache_hits"] = std::to_string(app_.getNodeFamily().getTreeNodeCache(0)->hits());
+    report["tncache_misses"] = std::to_string(app_.getNodeFamily().getTreeNodeCache(0)->misses());
 
     logFile_ << Json::Compact{std::move(report)} << std::endl;
 }

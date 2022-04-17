@@ -159,6 +159,18 @@ public:
         return m_hits * (100.0f / std::max(1.0f, total));
     }
 
+    std::size_t
+    hits() const
+    {
+        return m_hits;
+    }
+
+    std::size_t
+    misses() const
+    {
+        return m_misses;
+    }
+
     void
     clear()
     {
