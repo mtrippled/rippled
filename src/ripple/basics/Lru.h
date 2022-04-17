@@ -27,6 +27,7 @@
 #include <ripple/beast/hash/xxhasher.h>
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <functional>
 #include <list>
 #include <memory>
@@ -110,6 +111,8 @@ public:
     void
     setReplaceEntry(Key const& key, Value const& value)
     {
+        ++accesses_;
+        auto const startTime = std::chrono::steady_clock::now();
         {
             Partition &p = cache_[partitioner(key, partitions_)];
             std::lock_guard l(p.mtx);
@@ -121,6 +124,8 @@ public:
             p.q.push_front({key, value});
             p.map[key] = p.q.begin();
         }
+        durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - startTime).count();
     }
 
     // Inserts or replaces the caller value with the existing
@@ -128,8 +133,10 @@ public:
     void
     setReplaceCaller(Key const& key, Value& value)
     {
+        ++accesses_;
+        auto const startTime = std::chrono::steady_clock::now();
+        Partition &p = cache_[partitioner(key, partitions_)];
         {
-            Partition &p = cache_[partitioner(key, partitions_)];
             std::lock_guard l(p.mtx);
             auto found = p.map.find(key);
             if (found == p.map.end())
@@ -144,17 +151,23 @@ public:
             p.q.push_front({key, value});
             p.map[key] = p.q.begin();
         }
+        durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - startTime).count();
     }
 
     std::optional<Value>
     get(Key const& key)
     {
+        ++accesses_;
+        auto const startTime = std::chrono::steady_clock::now();
         Partition& p = cache_[partitioner(key, partitions_)];
         std::lock_guard l(p.mtx);
         auto found = p.map.find(key);
         if (found == p.map.end())
         {
             ++misses_;
+            durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now() - startTime).count();
             return std::nullopt;
         }
         p.q.push_front({key, found->second->second});
@@ -162,12 +175,16 @@ public:
         auto const& front = p.q.begin();
         p.map[key] = front;
         ++hits_;
+        durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - startTime).count();
         return front->second;
     }
 
     void
     del(Key const& key)
     {
+        ++accesses_;
+        auto const startTime = std::chrono::steady_clock::now();
         Partition& p = cache_[partitioner(key, partitions_)];
         std::lock_guard l(p.mtx);
         auto const& found = p.map.find(key);
@@ -175,6 +192,8 @@ public:
             return;
         p.q.erase(found->second);
         p.map.erase(found);
+        durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - startTime).count();
     }
 
     std::size_t getEvicted()
@@ -200,12 +219,26 @@ public:
         return misses_;
     }
 
+    std::size_t
+    accesses() const
+    {
+        return accesses_;
+    }
+
+    std::size_t
+    durationNs() const
+    {
+        return durationNs_;
+    }
+
 private:
     std::size_t partitions_;
     mutable std::vector<Partition> cache_;
 
     std::atomic<std::size_t> hits_{0};
     std::atomic<std::size_t> misses_{0};
+    std::atomic<std::size_t> accesses_{0};
+    std::atomic<std::size_t> durationNs_{0};
 };
 
 } // ripple
