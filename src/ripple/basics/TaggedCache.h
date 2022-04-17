@@ -26,6 +26,7 @@
 #include <ripple/beast/clock/abstract_clock.h>
 #include <ripple/beast/insight/Insight.h>
 #include <atomic>
+#include <chrono>
 #include <functional>
 #include <mutex>
 #include <thread>
@@ -196,15 +197,21 @@ public:
     bool
     touch_if_exists(KeyComparable const& key)
     {
+        ++accesses_;
+        auto const startTime = std::chrono::steady_clock::now();
         std::lock_guard lock(m_mutex);
         auto const iter(m_cache.find(key));
         if (iter == m_cache.end())
         {
             ++m_stats.misses;
+            durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now() - startTime).count();
             return false;
         }
         iter->second.touch(m_clock.now());
         ++m_stats.hits;
+        durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - startTime).count();
         return true;
     }
 
@@ -277,6 +284,8 @@ public:
     bool
     del(const key_type& key, bool valid)
     {
+        ++accesses_;
+        auto const startTime = std::chrono::steady_clock::now();
         // Remove from cache, if !valid, remove from map too. Returns true if
         // removed from cache
         std::lock_guard lock(m_mutex);
@@ -284,7 +293,11 @@ public:
         auto cit = m_cache.find(key);
 
         if (cit == m_cache.end())
+        {
+            durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now() - startTime).count();
             return false;
+        }
 
         Entry& entry = cit->second;
 
@@ -300,6 +313,8 @@ public:
         if (!valid || entry.isExpired())
             m_cache.erase(cit);
 
+        durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - startTime).count();
         return ret;
     }
 
@@ -326,6 +341,8 @@ private:
             std::shared_ptr<T> const,
             std::shared_ptr<T>>& data)
     {
+        ++accesses_;
+        auto const startTime = std::chrono::steady_clock::now();
         // Return canonical value, store if needed, refresh in cache
         // Return values: true=we had the data already
         std::lock_guard lock(m_mutex);
@@ -339,6 +356,8 @@ private:
                 std::forward_as_tuple(key),
                 std::forward_as_tuple(m_clock.now(), data));
             ++m_cache_count;
+            durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now() - startTime).count();
             return false;
         }
 
@@ -357,6 +376,8 @@ private:
                 data = entry.ptr;
             }
 
+            durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now() - startTime).count();
             return true;
         }
 
@@ -376,6 +397,8 @@ private:
             }
 
             ++m_cache_count;
+            durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now() - startTime).count();
             return true;
         }
 
@@ -383,6 +406,8 @@ private:
         entry.weak_ptr = data;
         ++m_cache_count;
 
+        durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - startTime).count();
         return false;
     }
 
@@ -404,10 +429,14 @@ public:
     std::shared_ptr<T>
     fetch(const key_type& key)
     {
+        ++accesses_;
+        auto const startTime = std::chrono::steady_clock::now();
         std::lock_guard<mutex_type> l(m_mutex);
         auto ret = initialFetch(key, l);
         if (!ret)
             ++m_misses;
+        durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - startTime).count();
         return ret;
     }
 
@@ -428,6 +457,8 @@ public:
     auto
     insert(key_type const& key) -> std::enable_if_t<IsKeyCache, ReturnType>
     {
+        ++accesses_;
+        auto const startTime = std::chrono::steady_clock::now();
         std::lock_guard lock(m_mutex);
         clock_type::time_point const now(m_clock.now());
         auto [it, inserted] = m_cache.emplace(
@@ -436,6 +467,8 @@ public:
             std::forward_as_tuple(now));
         if (!inserted)
             it->second.last_access = now;
+        durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - startTime).count();
         return inserted;
     }
 
@@ -447,13 +480,21 @@ public:
     bool
     retrieve(const key_type& key, T& data)
     {
+        ++accesses_;
+        auto const startTime = std::chrono::steady_clock::now();
         // retrieve the value of the stored data
         auto entry = fetch(key);
 
         if (!entry)
+        {
+            durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now() - startTime).count();
             return false;
+        }
 
         data = *entry;
+        durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - startTime).count();
         return true;
     }
 
@@ -499,15 +540,25 @@ public:
     std::shared_ptr<T>
     fetch(key_type const& digest, Handler const& h)
     {
+        ++accesses_;
+        auto const startTime = std::chrono::steady_clock::now();
         {
             std::lock_guard l(m_mutex);
             if (auto ret = initialFetch(digest, l))
+            {
+                durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now() - startTime).count();
                 return ret;
+            }
         }
 
         auto sle = h();
         if (!sle)
+        {
+            durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now() - startTime).count();
             return {};
+        }
 
         std::lock_guard l(m_mutex);
         ++m_misses;
@@ -515,9 +566,23 @@ public:
             m_cache.emplace(digest, Entry(m_clock.now(), std::move(sle)));
         if (!inserted)
             it->second.touch(m_clock.now());
+        durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - startTime).count();
         return it->second.ptr;
     }
     // End CachedSLEs functions.
+
+    std::size_t
+    accesses() const
+    {
+        return accesses_;
+    }
+
+    std::size_t
+    durationNs() const
+    {
+        return durationNs_;
+    }
 
 private:
     std::shared_ptr<T>
@@ -797,7 +862,8 @@ private:
     cache_type m_cache;  // Hold strong reference to recent objects
     std::uint64_t m_hits;
     std::uint64_t m_misses;
-};
+    std::atomic<std::size_t> accesses_{0};
+    std::atomic<std::size_t> durationNs_{0};};
 
 }  // namespace ripple
 
