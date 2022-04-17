@@ -153,11 +153,15 @@ public:
         std::lock_guard l(p.mtx);
         auto found = p.map.find(key);
         if (found == p.map.end())
+        {
+            ++misses_;
             return std::nullopt;
+        }
         p.q.push_front({key, found->second->second});
         p.q.erase(found->second);
         auto const& front = p.q.begin();
         p.map[key] = front;
+        ++hits_;
         return front->second;
     }
 
@@ -184,9 +188,24 @@ public:
         return t;
     }
 
+    std::size_t
+    hits() const
+    {
+        return hits_;
+    }
+
+    std::size_t
+    misses() const
+    {
+        return misses_;
+    }
+
 private:
     std::size_t partitions_;
     mutable std::vector<Partition> cache_;
+
+    std::atomic<std::size_t> hits_{0};
+    std::atomic<std::size_t> misses_{0};
 };
 
 } // ripple
