@@ -65,7 +65,9 @@ private:
 
         Partition(std::size_t const cap)
             : capacity(cap)
-        {}
+        {
+            map.reserve(cap);
+        }
 
         Partition(Partition const& orig)
         {
@@ -101,7 +103,7 @@ public:
                       : std::thread::hardware_concurrency();
         assert(partitions_);
         cache_.reserve(partitions_);
-        std::size_t const psize = std::max(1UL, capacity / partitions_);
+        std::size_t const psize = capacity / partitions_ + 1;
         Partition part(psize);
         for (std::size_t p = 0; p < partitions_; ++p)
             cache_.push_back(Partition(psize));
