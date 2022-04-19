@@ -44,21 +44,22 @@ namespace ripple {
 template <
     typename Key,
     typename Value,
-        typename Hash = hardened_hash<beast::xxhasher>,
+    typename Hash = hardened_hash<beast::xxhasher>,
     typename Pred = std::equal_to<Key>>
 class Lru
 {
 public:
     using Entry = std::pair<Key, Value>;
     using q_type = std::list<Entry>;
-    using map_type = std::unordered_map<Key, typename q_type::iterator,
-        Hash, Pred>;
+    using map_type = std::unordered_map<Key, Value, Hash, Pred>;
+//    using map_type = std::unordered_map<Key, typename q_type::iterator,
+//        Hash, Pred>;
 
 private:
     struct Partition
     {
         std::size_t capacity;
-        q_type q;
+//        q_type q;
         map_type map;
         std::mutex mtx;
         std::size_t evicted {0};
@@ -71,8 +72,8 @@ private:
 
         Partition(Partition const& orig)
         {
-            for (auto const& e : orig.q)
-                q.push_back(e);
+//            for (auto const& e : orig.q)
+//                q.push_back(e);
             map = orig.map;
             capacity = orig.capacity;
             evicted = orig.evicted;
@@ -81,12 +82,13 @@ private:
         void
         evict()
         {
+            return;
             while (map.size() > capacity)
             {
-                assert(q.size());
-                auto last = q.back();
-                map.erase(last.first);
-                q.pop_back();
+//                assert(q.size());
+//                auto last = q.back();
+//                map.erase(last.first);
+//                q.pop_back();
                 ++evicted;
             }
         }
@@ -118,13 +120,14 @@ public:
         {
             Partition &p = cache_[partitioner(key, partitions_)];
             std::lock_guard l(p.mtx);
-            auto found = p.map.find(key);
-            if (found == p.map.end())
-                p.evict();
-            else
-                p.q.erase(found->second);
-            p.q.push_front({key, value});
-            p.map[key] = p.q.begin();
+            p.map[key] = value;
+//            auto found = p.map.find(key);
+//            if (found == p.map.end())
+//                p.evict();
+//            else
+//                p.q.erase(found->second);
+//            p.q.push_front({key, value});
+//            p.map[key] = p.q.begin();
         }
         durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now() - startTime).count();
@@ -143,15 +146,17 @@ public:
             auto found = p.map.find(key);
             if (found == p.map.end())
             {
-                p.evict();
+                p.map[key] = value;
+//                p.evict();
             }
             else
             {
-                value = found->second->second;
-                p.q.erase(found->second);
+                value = found->second;
+//                value = found->second->second;
+//                p.q.erase(found->second);
             }
-            p.q.push_front({key, value});
-            p.map[key] = p.q.begin();
+//            p.q.push_front({key, value});
+//            p.map[key] = p.q.begin();
         }
         durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now() - startTime).count();
@@ -172,14 +177,14 @@ public:
                 std::chrono::steady_clock::now() - startTime).count();
             return std::nullopt;
         }
-        p.q.push_front({key, found->second->second});
-        p.q.erase(found->second);
-        auto const& front = p.q.begin();
-        p.map[key] = front;
+//        p.q.push_front({key, found->second->second});
+//        p.q.erase(found->second);
+//        auto const& front = p.q.begin();
+//        p.map[key] = front;
         ++hits_;
         durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now() - startTime).count();
-        return front->second;
+        return found->second;
     }
 
     void
@@ -189,11 +194,12 @@ public:
         auto const startTime = std::chrono::steady_clock::now();
         Partition& p = cache_[partitioner(key, partitions_)];
         std::lock_guard l(p.mtx);
-        auto const& found = p.map.find(key);
-        if (found == p.map.end())
-            return;
-        p.q.erase(found->second);
-        p.map.erase(found);
+        p.map.erase(key);
+//        auto const& found = p.map.find(key);
+//        if (found == p.map.end())
+//            return;
+//        p.q.erase(found->second);
+//        p.map.erase(found);
         durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now() - startTime).count();
     }
