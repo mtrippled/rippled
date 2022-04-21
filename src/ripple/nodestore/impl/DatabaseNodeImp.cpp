@@ -33,10 +33,10 @@ DatabaseNodeImp::store(
 {
     storeStats(1, data.size());
 
-    auto const nObj = NodeObject::createObject(type, std::move(data), hash);
+    auto nObj = NodeObject::createObject(type, std::move(data), hash);
     backend_->store(nObj);
     if (cache_)
-        cache_->setReplaceEntry(hash, nObj);
+        cache_->set(hash, nObj);
     negCache_->del(hash);
 }
 
@@ -58,11 +58,7 @@ DatabaseNodeImp::fetchNodeObject(
         return {};
     std::shared_ptr<NodeObject> nodeObject;
     if (cache_)
-    {
-        auto n = cache_->get(hash);
-        if (n)
-            nodeObject = *n;
-    }
+        nodeObject = cache_->get(hash);
 //    std::shared_ptr<NodeObject> nodeObject =
 //        cache_ ? cache_->fetch(hash) : nullptr;
 
@@ -90,7 +86,7 @@ DatabaseNodeImp::fetchNodeObject(
             case ok:
                 if (nodeObject && cache_)
                 {
-                    cache_->setReplaceCaller(hash, nodeObject);
+                    cache_->set(hash, nodeObject);
 //                    cache_->canonicalize_replace_client(hash, nodeObject);
                 }
                 break;
@@ -120,7 +116,8 @@ DatabaseNodeImp::fetchNodeObject(
     }
     else
     {
-        negCache_->setReplaceEntry(hash, 'a');
+        auto val = std::make_shared<char>('a');
+        negCache_->set(hash, val);
     }
 
     return nodeObject;
@@ -140,13 +137,7 @@ DatabaseNodeImp::fetchBatch(std::vector<uint256> const& hashes)
     {
         auto const& hash = hashes[i];
         // See if the object already exists in the cache
-        std::shared_ptr<NodeObject> nObj;
-        if (cache_)
-        {
-            auto val = cache_->get(hash);
-            if (val)
-                nObj = *val;
-        }
+        auto nObj = cache_ ? cache_->get(hash) : nullptr;
 //        auto nObj = cache_ ? cache_->fetch(hash) : nullptr;
         ++fetches;
         if (!nObj)
@@ -179,7 +170,7 @@ DatabaseNodeImp::fetchBatch(std::vector<uint256> const& hashes)
         {
             // Ensure all threads get the same object
             if (cache_)
-                cache_->setReplaceCaller(hash, nObj);
+                cache_->set(hash, nObj);
 //                cache_->canonicalize_replace_client(hash, nObj);
         }
         else

@@ -73,7 +73,7 @@ public:
 
         if (cacheSize != 0 || cacheAge != 0)
         {
-            cache_ = std::make_shared<Lru<uint256, std::shared_ptr<NodeObject>>>(
+            cache_ = std::make_shared<Lru<uint256, NodeObject>>(
                 cacheSize.value());
 //            cache_ = std::make_shared<TaggedCache<uint256, NodeObject>>(
 //                "DatabaseNodeImp",
@@ -147,7 +147,7 @@ public:
 private:
     // Cache for database objects. This cache is not always initialized. Check
     // for null before using.
-    std::shared_ptr<Lru<uint256, std::shared_ptr<NodeObject>>> cache_;
+    std::shared_ptr<Lru<uint256, NodeObject>> cache_;
     std::shared_ptr<Lru<uint256, char>> negCache_;
 //    std::shared_ptr<TaggedCache<uint256, NodeObject>> cache_;
     // Persistent key/value storage

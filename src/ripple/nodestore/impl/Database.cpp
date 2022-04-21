@@ -185,7 +185,7 @@ bool
 Database::storeLedger(
     Ledger const& srcLedger,
     std::shared_ptr<Backend> dstBackend,
-    std::shared_ptr<Lru<uint256, std::shared_ptr<NodeObject>>> const& cache,
+    std::shared_ptr<Lru<uint256, NodeObject>> const& cache,
     std::shared_ptr<Lru<uint256, char>> const& negCache)
 {
     auto fail = [&](std::string const& msg) {
@@ -216,7 +216,7 @@ Database::storeLedger(
             for (auto& e : batch)
             {
                 auto const& hash = e->getHash();
-                cache->setReplaceEntry(hash, e);
+                cache->set(hash, e);
                 negCache->del(hash);
             }
         }

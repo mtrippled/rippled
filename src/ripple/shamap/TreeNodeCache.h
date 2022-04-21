@@ -25,7 +25,7 @@
 
 namespace ripple {
 
-using TreeNodeCache = Lru<uint256, std::shared_ptr<SHAMapTreeNode>>;
+using TreeNodeCache = Lru<uint256, SHAMapTreeNode>;
 //using TreeNodeCache = TaggedCache<uint256, SHAMapTreeNode>;
 
 }  // namespace ripple
