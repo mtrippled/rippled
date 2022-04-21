@@ -25,6 +25,7 @@
 #include <ripple/json/json_writer.h>
 #include <ripple/json/to_string.h>
 #include <ripple/nodestore/DatabaseShard.h>
+#include <ripple/rpc/handlers/GetCounts.h>
 #include <atomic>
 #include <cstdint>
 #include <cstdlib>
@@ -304,6 +305,7 @@ PerfLogImp::report()
         app_.getNodeStore().getCountsJson(report[jss::nodestore]);
     report[jss::current_activities] = counters_.currentJson();
     app_.getOPs().stateAccounting(report);
+    report["get_counts"] = getCountsJson(app_, 0);
 
     logFile_ << Json::Compact{std::move(report)} << std::endl;
 }
