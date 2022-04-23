@@ -83,6 +83,20 @@ private:
             evicted = orig.evicted;
         }
 
+        typename q_type::iterator
+        enqueue(Key const& key, std::shared_ptr<Value> const& value)
+        {
+            if (q.size() == capacity)
+            {
+                auto found = map.find(q.back().first);
+                if (found != map.end() && --found->second.second == 0)
+                    map.erase(found);
+                ++evicted;
+            }
+            q.push_front({key, value});
+            return q.begin();
+        }
+
         void
         evict()
         {
@@ -135,17 +149,13 @@ public:
             auto found = p.map.find(key);
             if (found == p.map.end())
             {
-                p.evict();
-                p.q.push_front({key, value});
-                p.map[key] = {p.q.begin(), 1};
+                p.map[key] = {p.enqueue(key, value), 1};
             }
             else
             {
                 ++found->second.second;
-                p.evict();
                 value = found->second.first->second;
-                p.q.push_front({key, value});
-                found->second.first = p.q.begin();
+                found->second.first = p.enqueue(key, value);
             }
 
 //            p.map[key] = value;
@@ -218,8 +228,7 @@ public:
             return {};
         }
         ++found->second.second;
-        p.evict();
-        p.q.push_front({key, found->second.first->second});
+        p.enqueue(key, found->second.first->second);
 //        p.q.push_front({key, found->second->second});
 //        p.q.erase(found->second);
 //        auto const& front = p.q.begin();
