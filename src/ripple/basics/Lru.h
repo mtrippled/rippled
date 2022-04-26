@@ -97,6 +97,8 @@ private:
                 ++evicted;
             }
             q.push_front({key, value});
+            std::cerr << "lru enqueued key " << q.begin()->first << '\n';
+            std::cerr << "lru enqueued value " << q.begin()->second.get() << '\n';
             return q.begin();
         }
 
@@ -165,9 +167,9 @@ public:
             }
 
             auto foo = p.map.find(key);
-            std::cerr << "set refcount: " << foo->first << ',' << foo->second.second << '\n';
+            std::cerr << "lru set refcount: " << foo->first << ',' << foo->second.second << '\n';
             auto v = foo->second.first->second;
-            std::cerr << "v: " << v.get() << '\n';
+            std::cerr << "lru v: " << v.get() << '\n';
 
 //            p.map[key] = value;
 //            auto found = p.map.find(key);
