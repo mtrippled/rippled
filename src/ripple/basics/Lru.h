@@ -98,7 +98,7 @@ private:
                     map.erase(found);
                 ++evicted;
             }
-            q.push_front({key, value});
+            q.push_back({key, value});
             std::cerr << "lru enqueued q size " << q.size() << '\n';
             std::cerr << "lru enqueued key " << q.begin()->first << '\n';
             std::cerr << "lru enqueued value " << q.begin()->second.get() << '\n';
