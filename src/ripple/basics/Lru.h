@@ -143,12 +143,12 @@ public:
     void
     set(Key const& key, std::shared_ptr<Value>& value)
     {
-        std::cerr << "lru set: " << key << '\n';
         ++accesses_;
         auto const startTime = std::chrono::steady_clock::now();
         {
             Partition &p = cache_[partitioner(key, partitions_)];
             std::lock_guard l(p.mtx);
+            std::cerr << "lru set: " << key << '\n';
 
             auto found = p.map.find(key);
             if (found == p.map.end())
@@ -221,11 +221,11 @@ public:
     std::shared_ptr<Value>
     get(Key const& key)
     {
-        std::cerr << "lru get " << key << ' ';
         ++accesses_;
         auto const startTime = std::chrono::steady_clock::now();
         Partition& p = cache_[partitioner(key, partitions_)];
         std::lock_guard l(p.mtx);
+        std::cerr << "lru get " << key << ' ';
         auto found = p.map.find(key);
         if (found == p.map.end())
         {
@@ -252,11 +252,11 @@ public:
     void
     del(Key const& key)
     {
-        std::cerr << "lru del " << key << '\n';
         ++accesses_;
         auto const startTime = std::chrono::steady_clock::now();
         Partition& p = cache_[partitioner(key, partitions_)];
         std::lock_guard l(p.mtx);
+        std::cerr << "lru del " << key << '\n';
         p.map.erase(key);
 //        auto const& found = p.map.find(key);
 //        if (found == p.map.end())
