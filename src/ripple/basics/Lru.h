@@ -80,9 +80,9 @@ private:
             : capacity(cap)
             , q(q_type(cap))
         {
-            std::cerr << "lru q cap " << cap << '\n';
-            std::cerr << "lru q capacity" << q.capacity() << '\n';
             map.reserve(cap);
+            std::cerr << "lru q cap " << cap << '\n';
+            std::cerr << "lru q capacity " << q.capacity() << '\n';
         }
 
         Partition(Partition const& orig)
@@ -98,6 +98,8 @@ private:
         enqueue(Key const& key, std::shared_ptr<Value> const& value)
         {
             std::cerr << "lru enqueue " << key << '\n';
+            std::cerr << "lru enqueue q size " << q.size() << '\n';
+            std::cerr << "lru enqueue capacity " << q.capacity() << '\n';
             if (q.size() == capacity)
             {
                 auto found = map.find(q.back().first);
