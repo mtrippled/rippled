@@ -88,6 +88,7 @@ private:
         typename q_type::iterator
         enqueue(Key const& key, std::shared_ptr<Value> const& value)
         {
+            std::cerr << "lru enqueue " << key << '\n';
             if (q.size() == capacity)
             {
                 auto found = map.find(q.back().first);
