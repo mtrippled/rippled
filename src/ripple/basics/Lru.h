@@ -87,8 +87,9 @@ private:
 
         Partition(Partition const& orig)
         {
-            for (auto const& e : orig.q)
-                q.push_back(e);
+            q = orig.q;
+//            for (auto const& e : orig.q)
+//                q.push_back(e);
             map = orig.map;
             capacity = orig.capacity;
             evicted = orig.evicted;
@@ -181,7 +182,7 @@ public:
         std::size_t const psize = capacity / partitions_ + 1;
         Partition part(psize);
         for (std::size_t p = 0; p < partitions_; ++p)
-            cache_.push_back(Partition(psize));
+            cache_.push_back(std::move(Partition(psize)));
     }
 
     // Inserts if not existing, replaces the passed value if existing.
