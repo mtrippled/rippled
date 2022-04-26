@@ -157,7 +157,9 @@ public:
         cb3.push_front({foo, leafsp});
         std::cerr << "lru cb3 size: " << cb3.size() << '\n';
         boost::circular_buffer<std::pair<uint256, std::shared_ptr<NodeObject>>> cb4;
-
+        std::shared_ptr<NodeObject> no;
+        cb4.push_front({foo, no});
+        std::cerr << "lru cb4 size: " << cb4.size() << '\n';
 
 //        std::vector<SHAMapTreeNode>;
 
