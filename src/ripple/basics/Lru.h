@@ -41,6 +41,7 @@
 #include <vector>
 
 #include <iostream>
+#include <ripple/basics/base_uint.h>
 
 namespace ripple {
 
@@ -134,6 +135,10 @@ public:
         boost::circular_buffer<int> cb(capacity);
         cb.push_front(5);
         std::cerr << "lru cb size: " << cb.size() << '\n';
+        boost::circular_buffer<uint256> cb2(capacity);
+        uint256 foo;
+        cb2.push_front(foo);
+        std::cerr << "lru cb2 size: " << cb2.size() << '\n';
 
         // Set partitions to the number of hardware threads if the parameter
         // is either empty or set to 0.
