@@ -98,7 +98,7 @@ private:
                     map.erase(found);
                 ++evicted;
             }
-            q.push_back({key, value});
+            q.push_front({key, value});
             std::cerr << "lru enqueued q size " << q.size() << '\n';
             std::cerr << "lru enqueued key " << q.begin()->first << '\n';
             std::cerr << "lru enqueued value " << q.begin()->second.get() << '\n';
@@ -131,6 +131,10 @@ public:
     Lru(std::size_t const capacity,
         std::optional<std::size_t> partitions = std::nullopt)
     {
+        boost::circular_buffer<int> cb(capacity);
+        cb.push_front(5);
+        std::cerr << "lru cb size: " << cb.size() << '\n';
+
         // Set partitions to the number of hardware threads if the parameter
         // is either empty or set to 0.
         partitions_ = partitions && *partitions
