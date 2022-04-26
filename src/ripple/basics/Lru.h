@@ -232,7 +232,7 @@ public:
             ++misses_;
             durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::steady_clock::now() - startTime).count();
-            std::cerr << "empty\n'";
+            std::cerr << "empty\n";
             return {};
         }
         for (auto& e : p.map)
