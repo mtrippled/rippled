@@ -40,6 +40,8 @@
 #include <utility>
 #include <vector>
 
+#include <iostream>
+
 namespace ripple {
 
 template <
@@ -140,6 +142,7 @@ public:
     void
     set(Key const& key, std::shared_ptr<Value>& value)
     {
+        std::cerr << "lru set: " << key << '\n';
         ++accesses_;
         auto const startTime = std::chrono::steady_clock::now();
         {
@@ -215,6 +218,7 @@ public:
     std::shared_ptr<Value>
     get(Key const& key)
     {
+        std::cerr << "lru get " << key << ' ';
         ++accesses_;
         auto const startTime = std::chrono::steady_clock::now();
         Partition& p = cache_[partitioner(key, partitions_)];
@@ -225,6 +229,7 @@ public:
             ++misses_;
             durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::steady_clock::now() - startTime).count();
+            std::cerr << "empty\n'";
             return {};
         }
         ++found->second.second;
@@ -236,12 +241,14 @@ public:
         ++hits_;
         durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now() - startTime).count();
+        std::cerr << "found\n";
         return found->second.first->second;
     }
 
     void
     del(Key const& key)
     {
+        std::cerr << "lru del " << key << '\n';
         ++accesses_;
         auto const startTime = std::chrono::steady_clock::now();
         Partition& p = cache_[partitioner(key, partitions_)];
