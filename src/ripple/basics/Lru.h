@@ -47,6 +47,7 @@
 #include <ripple/shamap/SHAMapItem.h>
 #include <ripple/basics/Slice.h>
 #include <ripple/shamap/SHAMapTxLeafNode.h>
+#include <ripple/nodestore/NodeObject.h>
 
 namespace ripple {
 
@@ -155,6 +156,8 @@ public:
 //        auto leafsp = std::make_shared<SHAMapTxLeafNode>(std::move(leaf));
         cb3.push_front({foo, leafsp});
         std::cerr << "lru cb3 size: " << cb3.size() << '\n';
+        boost::circular_buffer<std::pair<uint256, std::shared_ptr<NodeObject>>> cb4;
+
 
 //        std::vector<SHAMapTreeNode>;
 
