@@ -153,12 +153,14 @@ public:
             auto found = p.map.find(key);
             if (found == p.map.end())
             {
+                std::cerr << "lru eq1 " << key << '\n';
                 p.map[key] = {p.enqueue(key, value), 1};
             }
             else
             {
                 ++found->second.second;
                 value = found->second.first->second;
+                std::cerr << "lru eq2 " << key << '\n';
                 found->second.first = p.enqueue(key, value);
             }
 
@@ -237,6 +239,7 @@ public:
             std::cerr << "lru key: " << e.first << '\n';
         ++found->second.second;
         auto v = found->second.first->second;
+        std::cerr << "lru eq3 " << key << '\n';
         p.enqueue(key, v);
 //        p.enqueue(key, found->second.first->second);
         ++hits_;
