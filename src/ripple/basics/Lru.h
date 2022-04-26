@@ -232,6 +232,8 @@ public:
             std::cerr << "empty\n'";
             return {};
         }
+        for (auto& e : p.map)
+            std::cerr << "lru key: " << e.first << '\n';
         ++found->second.second;
         auto v = found->second.first->second;
         p.enqueue(key, v);
