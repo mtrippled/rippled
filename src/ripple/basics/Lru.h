@@ -42,6 +42,11 @@
 
 #include <iostream>
 #include <ripple/basics/base_uint.h>
+#include <ripple/shamap/SHAMapTreeNode.h>
+#include <ripple/shamap/SHAMapLeafNode.h>
+#include <ripple/shamap/SHAMapItem.h>
+#include <ripple/basics/Slice.h>
+#include <ripple/shamap/SHAMapTxLeafNode.h>
 
 namespace ripple {
 
@@ -139,6 +144,19 @@ public:
         uint256 foo;
         cb2.push_front(foo);
         std::cerr << "lru cb2 size: " << cb2.size() << '\n';
+        boost::circular_buffer<
+            std::pair<uint256, std::shared_ptr<SHAMapTreeNode>>> cb3(capacity);
+
+        uint256 big;
+        Slice slice(big.data(), 32);
+        std::shared_ptr<SHAMapItem> sp = std::make_shared<SHAMapItem>(big, slice);
+        SHAMapTxLeafNode leaf(sp, 0);
+        std::shared_ptr<SHAMapTxLeafNode> leafsp;
+//        auto leafsp = std::make_shared<SHAMapTxLeafNode>(std::move(leaf));
+        cb3.push_front({foo, leafsp});
+        std::cerr << "lru cb3 size: " << cb3.size() << '\n';
+
+//        std::vector<SHAMapTreeNode>;
 
         // Set partitions to the number of hardware threads if the parameter
         // is either empty or set to 0.
