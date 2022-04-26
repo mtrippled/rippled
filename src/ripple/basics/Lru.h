@@ -233,11 +233,9 @@ public:
             return {};
         }
         ++found->second.second;
-        p.enqueue(key, found->second.first->second);
-//        p.q.push_front({key, found->second->second});
-//        p.q.erase(found->second);
-//        auto const& front = p.q.begin();
-//        p.map[key] = front;
+        auto v = found->second.first->second;
+        p.enqueue(key, v);
+//        p.enqueue(key, found->second.first->second);
         ++hits_;
         durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now() - startTime).count();
