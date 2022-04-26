@@ -160,6 +160,9 @@ public:
         std::shared_ptr<NodeObject> no;
         cb4.push_front({foo, no});
         std::cerr << "lru cb4 size: " << cb4.size() << '\n';
+        boost::circular_buffer<std::pair<uint256, std::shared_ptr<char>>> cb5(capacity);
+        cb5.push_front({foo, std::make_shared<char>('a')});
+        std::cerr << "lru cb5 size: " <<cb5.size() << '\n';
 
 //        std::vector<SHAMapTreeNode>;
 
