@@ -73,6 +73,8 @@ private:
             : capacity(cap)
             , q(q_type(cap))
         {
+            std::cerr << "lru q cap " << cap << '\n';
+            std::cerr << "lru q capacity" << q.capacity() << '\n';
             map.reserve(cap);
         }
 
@@ -97,6 +99,7 @@ private:
                 ++evicted;
             }
             q.push_front({key, value});
+            std::cerr << "lru enqueued q size " << q.size() << '\n';
             std::cerr << "lru enqueued key " << q.begin()->first << '\n';
             std::cerr << "lru enqueued value " << q.begin()->second.get() << '\n';
             return q.begin();
