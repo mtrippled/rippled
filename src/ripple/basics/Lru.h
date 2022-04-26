@@ -148,12 +148,12 @@ public:
         {
             Partition &p = cache_[partitioner(key, partitions_)];
             std::lock_guard l(p.mtx);
-            std::cerr << "lru set: " << key << '\n';
+            std::cerr << "lru wtf set: " << key << '\n';
 
             auto found = p.map.find(key);
             if (found == p.map.end())
             {
-                std::cerr << "lru eq1 " << key << '\n';
+                std::cerr << "lru wtf eq1 " << key << '\n';
                 p.map[key] = {p.enqueue(key, value), 1};
             }
             else
