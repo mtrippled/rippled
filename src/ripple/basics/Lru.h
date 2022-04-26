@@ -164,6 +164,11 @@ public:
                 found->second.first = p.enqueue(key, value);
             }
 
+            auto foo = p.map.find(key);
+            std::cerr << "set refcount: " << foo->first << ',' << foo->second.second << '\n';
+            auto v = foo->second.first->second;
+            std::cerr << "v: " << v.get() << '\n';
+
 //            p.map[key] = value;
 //            auto found = p.map.find(key);
 //            if (found == p.map.end())
@@ -236,7 +241,7 @@ public:
             return {};
         }
         for (auto& e : p.map)
-            std::cerr << "lru key: " << e.first << '\n';
+            std::cerr << "lru key,refcount: " << e.first << ',' << found->second.second << '\n';
         ++found->second.second;
         auto v = found->second.first->second;
         std::cerr << "lru eq3 " << key << '\n';
