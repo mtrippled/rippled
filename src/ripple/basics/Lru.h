@@ -81,8 +81,6 @@ private:
             , q(q_type(cap))
         {
             map.reserve(cap);
-            std::cerr << "lru q cap " << cap << '\n';
-            std::cerr << "lru q capacity " << q.capacity() << '\n';
         }
 
         Partition(Partition const& orig)
@@ -98,9 +96,6 @@ private:
         typename q_type::iterator
         enqueue(Key const& key, std::shared_ptr<Value> const& value)
         {
-            std::cerr << "lru enqueue " << key << '\n';
-            std::cerr << "lru enqueue q size " << q.size() << '\n';
-            std::cerr << "lru enqueue capacity " << q.capacity() << '\n';
             if (q.size() == capacity)
             {
                 auto found = map.find(q.back().first);
@@ -109,10 +104,6 @@ private:
                 ++evicted;
             }
             q.push_front({key, value});
-            std::cerr << "lru enqueued q size " << q.size() << '\n';
-            std::cerr << "lru enqueued capacity " << q.capacity() << '\n';
-            std::cerr << "lru enqueued key " << q.begin()->first << '\n';
-            std::cerr << "lru enqueued value " << q.begin()->second.get() << '\n';
             return q.begin();
         }
 
@@ -142,34 +133,6 @@ public:
     Lru(std::size_t const capacity,
         std::optional<std::size_t> partitions = std::nullopt)
     {
-        boost::circular_buffer<int> cb(capacity);
-        cb.push_front(5);
-        std::cerr << "lru cb size: " << cb.size() << '\n';
-        boost::circular_buffer<uint256> cb2(capacity);
-        uint256 foo;
-        cb2.push_front(foo);
-        std::cerr << "lru cb2 size: " << cb2.size() << '\n';
-        boost::circular_buffer<
-            std::pair<uint256, std::shared_ptr<SHAMapTreeNode>>> cb3(capacity);
-
-        uint256 big;
-        Slice slice(big.data(), 32);
-        std::shared_ptr<SHAMapItem> sp = std::make_shared<SHAMapItem>(big, slice);
-        SHAMapTxLeafNode leaf(sp, 0);
-        std::shared_ptr<SHAMapTxLeafNode> leafsp;
-//        auto leafsp = std::make_shared<SHAMapTxLeafNode>(std::move(leaf));
-        cb3.push_front({foo, leafsp});
-        std::cerr << "lru cb3 size: " << cb3.size() << '\n';
-        boost::circular_buffer<std::pair<uint256, std::shared_ptr<NodeObject>>> cb4(capacity);
-        std::shared_ptr<NodeObject> no;
-        cb4.push_front({foo, no});
-        std::cerr << "lru cb4 size: " << cb4.size() << '\n';
-        boost::circular_buffer<std::pair<uint256, std::shared_ptr<char>>> cb5(capacity);
-        cb5.push_front({foo, std::make_shared<char>('a')});
-        std::cerr << "lru cb5 size: " <<cb5.size() << '\n';
-
-//        std::vector<SHAMapTreeNode>;
-
         // Set partitions to the number of hardware threads if the parameter
         // is either empty or set to 0.
         partitions_ = partitions && *partitions
@@ -178,7 +141,6 @@ public:
         assert(partitions_);
         cache_.reserve(partitions_);
         std::size_t const psize = capacity / partitions_ + 1;
-        Partition part(psize);
         for (std::size_t p = 0; p < partitions_; ++p)
             cache_.push_back(std::move(Partition(psize)));
     }
@@ -192,26 +154,18 @@ public:
         {
             Partition &p = cache_[partitioner(key, partitions_)];
             std::lock_guard l(p.mtx);
-            std::cerr << "lru wtf set: " << key << '\n';
 
             auto found = p.map.find(key);
             if (found == p.map.end())
             {
-                std::cerr << "lru wtf eq1 " << key << '\n';
                 p.map[key] = {p.enqueue(key, value), 1};
             }
             else
             {
                 ++found->second.second;
                 value = found->second.first->second;
-                std::cerr << "lru eq2 " << key << '\n';
                 found->second.first = p.enqueue(key, value);
             }
-
-            auto foo = p.map.find(key);
-            std::cerr << "lru set refcount: " << foo->first << ',' << foo->second.second << '\n';
-            auto v = foo->second.first->second;
-            std::cerr << "lru v: " << v.get() << '\n';
 
 //            p.map[key] = value;
 //            auto found = p.map.find(key);
@@ -274,27 +228,21 @@ public:
         auto const startTime = std::chrono::steady_clock::now();
         Partition& p = cache_[partitioner(key, partitions_)];
         std::lock_guard l(p.mtx);
-        std::cerr << "lru get " << key << ' ';
         auto found = p.map.find(key);
         if (found == p.map.end())
         {
             ++misses_;
             durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::steady_clock::now() - startTime).count();
-            std::cerr << "empty\n";
             return {};
         }
-        for (auto& e : p.map)
-            std::cerr << "lru key,refcount: " << e.first << ',' << found->second.second << '\n';
         ++found->second.second;
-        auto v = found->second.first->second;
-        std::cerr << "lru eq3 " << key << '\n';
-        p.enqueue(key, v);
-//        p.enqueue(key, found->second.first->second);
+//        auto v = found->second.first->second;
+//        p.enqueue(key, v);
+        p.enqueue(key, found->second.first->second);
         ++hits_;
         durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now() - startTime).count();
-        std::cerr << "found\n";
         return found->second.first->second;
     }
 
@@ -305,7 +253,6 @@ public:
         auto const startTime = std::chrono::steady_clock::now();
         Partition& p = cache_[partitioner(key, partitions_)];
         std::lock_guard l(p.mtx);
-        std::cerr << "lru del " << key << '\n';
         p.map.erase(key);
 //        auto const& found = p.map.find(key);
 //        if (found == p.map.end())
