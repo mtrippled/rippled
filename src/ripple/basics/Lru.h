@@ -108,9 +108,7 @@ private:
                     map.erase(found);
                 ++evicted;
             }
-//            q.push_front({key, value});
-            std::shared_ptr<Value> v;
-            q.push_front({key, v});
+            q.push_front({key, value});
             std::cerr << "lru enqueued q size " << q.size() << '\n';
             std::cerr << "lru enqueued capacity " << q.capacity() << '\n';
             std::cerr << "lru enqueued key " << q.begin()->first << '\n';
