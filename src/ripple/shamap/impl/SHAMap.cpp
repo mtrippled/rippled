@@ -1099,6 +1099,7 @@ SHAMap::cacheLookup(SHAMapHash const& hash) const
 {
     auto ret = f_.getTreeNodeCache(ledgerSeq_)->get(hash.as_uint256());
     assert(!ret || !ret->cowid());
+    JLOG(journal_.debug()) << "LRU got: " << hash;
     return ret;
 }
 
