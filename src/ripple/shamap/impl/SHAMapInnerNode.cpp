@@ -376,7 +376,10 @@ SHAMapInnerNode::canonicalizeChild(
     auto const childIndex = *getChildIndex(branch);
     auto [_, hashes, children] = hashesAndChildren_.getHashesAndChildren();
     if (node->getHash() != hashes[childIndex])
-        std::cerr << "crash because of " << node->getHash() << '\n';
+    {
+        std::cerr << "crash because of " << node->getHash() << " != "
+                  << to_string(hashes[childIndex]) << '\n';
+    }
     assert(node->getHash() == hashes[childIndex]);
 
     std::lock_guard lock(childLock);
