@@ -377,8 +377,12 @@ SHAMapInnerNode::canonicalizeChild(
     auto [_, hashes, children] = hashesAndChildren_.getHashesAndChildren();
     if (node->getHash() != hashes[childIndex])
     {
-        std::cerr << "crash because of " << node->getHash() << " != "
+        std::cerr << "LRU crash because of " << node->getHash() << " != "
                   << to_string(hashes[childIndex]) << '\n';
+    }
+    else
+    {
+        std::cerr << "LRU not crashing " << node->getHash() << '\n';
     }
     assert(node->getHash() == hashes[childIndex]);
 
