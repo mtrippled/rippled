@@ -117,7 +117,7 @@ sizedItems
 
     //                                tiny    small   medium    large      huge
     {SizedItem::sweepInterval,   {{     10,      30,      60,      90,      120 }}},
-    {SizedItem::treeCacheSize,   {{ 128000,  256000,  512000,  768000,  2048000 }}},
+    {SizedItem::treeCacheSize,   {{ 128000,  256000,  512000,  768000,  1024000 }}},
     {SizedItem::treeCacheAge,    {{     30,      60,      90,     120,      900 }}},
     {SizedItem::ledgerSize,      {{     32,     128,     256,     384,      768 }}},
     {SizedItem::ledgerAge,       {{     30,      90,     180,     240,      900 }}},
