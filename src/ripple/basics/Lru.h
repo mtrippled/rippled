@@ -244,7 +244,8 @@ public:
         ++found->second.second;
 //        auto v = found->second.first->second;
 //        p.enqueue(key, v);
-        p.enqueue(key, found->second.first->second);
+        auto v = p.enqueue(key, found->second.first->second);
+        p.map[key] = {v, found->second.second};
         ++hits_;
         durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now() - startTime).count();
