@@ -100,19 +100,8 @@ private:
             if (q.size() == capacity)
             {
                 auto found = map.find(q.back().first);
-                if (found != map.end())
-                {
-                    std::stringstream ss;
-                    ss << "LRU evicting " << found->first << ',' << found->second.second << '\n';
-                    std::cerr << ss.str();
-                }
                 if (found != map.end() && --found->second.second == 0)
-                {
-                    std::stringstream ss;
-                    ss << "LRU erasing " << found->first << '\n';
-                    std::cerr << ss.str();
                     map.erase(found);
-                }
                 ++evicted;
             }
             q.push_front({key, value});
@@ -148,24 +137,19 @@ public:
             Partition &p = cache_[partNum];
             std::lock_guard l(p.mtx);
 
-            std::stringstream ss;
-            ss << "LRU " << this << " set " << partNum << ',';
             auto found = p.map.find(key);
             if (found == p.map.end())
             {
                 auto v = p.enqueue(key, value);
                 p.map[key] = {v, 1};
 //                p.map[key] = {p.enqueue(key, value), 1};
-                ss << "initial " << v->first << ',' << 1 << '\n';
             }
             else
             {
                 ++found->second.second;
                 value = found->second.first->second;
                 found->second.first = p.enqueue(key, value);
-                ss << "following " << found->first << ',' << found->second.second << '\n';
             }
-            std::cerr << ss.str();
 
 //            p.map[key] = value;
 //            auto found = p.map.find(key);
@@ -227,8 +211,6 @@ public:
         ++accesses_;
         auto const startTime = std::chrono::steady_clock::now();
         std::size_t const partNum = partitioner(key, partitions_);
-        std::stringstream ss;
-        ss << "LRU get " << this << ' ' << partNum << ',' << key << ' ';
         Partition& p = cache_[partNum];
         std::lock_guard l(p.mtx);
         auto found = p.map.find(key);
@@ -237,8 +219,6 @@ public:
             ++misses_;
             durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::steady_clock::now() - startTime).count();
-            ss << "not found\n";
-            std::cerr << ss.str();
             return {};
         }
         ++found->second.second;
@@ -249,8 +229,6 @@ public:
         ++hits_;
         durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now() - startTime).count();
-        ss << "found\n";
-        std::cerr << ss.str();
         return found->second.first->second;
     }
 
@@ -263,9 +241,6 @@ public:
         Partition& p = cache_[partNum];
         std::lock_guard l(p.mtx);
         p.map.erase(key);
-        std::stringstream ss;
-        ss << "LRU del " << this << ',' << partNum << ',' << key << '\n';
-        std::cerr << ss.str();
 //        auto const& found = p.map.find(key);
 //        if (found == p.map.end())
 //            return;
