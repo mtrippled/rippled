@@ -273,6 +273,9 @@ public:
         Partition& p = cache_[partitioner(key, partitions_)];
         std::lock_guard l(p.mtx);
         p.map.erase(key);
+        std::stringstream ss;
+        ss << "LRU del " << key << '\n';
+        std::cerr << ss.str();
 //        auto const& found = p.map.find(key);
 //        if (found == p.map.end())
 //            return;
