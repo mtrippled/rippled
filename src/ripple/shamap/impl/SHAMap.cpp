@@ -1100,10 +1100,17 @@ SHAMap::cacheLookup(SHAMapHash const& hash) const
     auto ret = f_.getTreeNodeCache(ledgerSeq_)->get(hash.as_uint256());
     assert(!ret || !ret->cowid());
     std::stringstream ss;
-    ss << "LRU got";
-    ss << ":" << hash;
-    if (ret && hash != ret->getHash())
-        ss << " bad " << hash << " != " << ret->getHash();
+    ss << "LRU cacheLookup: " << hash << ' ';
+    if (ret)
+    {
+        ss << "found";
+        if (hash != ret->getHash())
+            ss << " bad != " << ret->getHash();
+    }
+    else
+    {
+        ss << "not found";
+    }
     JLOG(journal_.debug()) << ss.str();
     return ret;
 }
