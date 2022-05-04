@@ -99,8 +99,13 @@ private:
             if (q.size() == capacity)
             {
                 auto found = map.find(q.back().first);
+                if (found != map.end())
+                    std::cerr << "LRU evicting " << found->first << '\n';
                 if (found != map.end() && --found->second.second == 0)
+                {
+                    std::cerr << "LRU erasing " << found->first << '\n';
                     map.erase(found);
+                }
                 ++evicted;
             }
             q.push_front({key, value});
