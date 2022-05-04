@@ -175,14 +175,14 @@ public:
                 auto v = p.enqueue(key, value);
                 p.map[key] = {v, 1};
 //                p.map[key] = {p.enqueue(key, value), 1};
-                ss << v->first << ',' << 1 << '\n';
+                ss << "initial " << v->first << ',' << 1 << '\n';
             }
             else
             {
                 ++found->second.second;
                 value = found->second.first->second;
                 found->second.first = p.enqueue(key, value);
-                ss << "LRU set " << found->first << ',' << found->second.second << '\n';
+                ss << "following " << found->first << ',' << found->second.second << '\n';
             }
             std::cerr << ss.str();
 
