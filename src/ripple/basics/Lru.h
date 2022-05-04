@@ -103,7 +103,7 @@ private:
                 if (found != map.end())
                 {
                     std::stringstream ss;
-                    ss << "LRU evicting " << found->first << '\n';
+                    ss << "LRU evicting " << found->first << ',' << found->second.second << '\n';
                     std::cerr << ss.str();
                 }
                 if (found != map.end() && --found->second.second == 0)
@@ -178,6 +178,9 @@ public:
                 value = found->second.first->second;
                 found->second.first = p.enqueue(key, value);
             }
+            std::stringstream ss;
+            ss << "LRU set " << found->first << ',' << found->second.second << '\n';
+            std::cerr << ss.str();
 
 //            p.map[key] = value;
 //            auto found = p.map.find(key);
