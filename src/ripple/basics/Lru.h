@@ -167,10 +167,15 @@ public:
             Partition &p = cache_[partitioner(key, partitions_)];
             std::lock_guard l(p.mtx);
 
+            std::stringstream ss;
+            ss << "LRU set ";
             auto found = p.map.find(key);
             if (found == p.map.end())
             {
-                p.map[key] = {p.enqueue(key, value), 1};
+                auto v = p.enqueue(key, value);
+                p.map[key] = {v, 1};
+//                p.map[key] = {p.enqueue(key, value), 1};
+                ss << v->first << ',' << 1 << '\n';
             }
             else
             {
@@ -178,7 +183,6 @@ public:
                 value = found->second.first->second;
                 found->second.first = p.enqueue(key, value);
             }
-            std::stringstream ss;
             ss << "LRU set " << found->first << ',' << found->second.second << '\n';
             std::cerr << ss.str();
 
