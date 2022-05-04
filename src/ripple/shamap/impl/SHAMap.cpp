@@ -1099,9 +1099,12 @@ SHAMap::cacheLookup(SHAMapHash const& hash) const
 {
     auto ret = f_.getTreeNodeCache(ledgerSeq_)->get(hash.as_uint256());
     assert(!ret || !ret->cowid());
-    JLOG(journal_.debug()) << "LRU got: " << hash;
+    std::stringstream ss;
+    ss << "LRU got";
+    ss << ":" << hash;
     if (ret && hash != ret->getHash())
-        journal_.debug() << "LRU got bad " << hash << " != " << ret->getHash();
+        ss << " bad " << hash << " != " << ret->getHash();
+    JLOG(journal_.debug()) << ss.str();
     return ret;
 }
 

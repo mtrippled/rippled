@@ -41,6 +41,7 @@
 #include <vector>
 
 #include <iostream>
+#include <sstream>
 #include <ripple/basics/base_uint.h>
 #include <ripple/shamap/SHAMapTreeNode.h>
 #include <ripple/shamap/SHAMapLeafNode.h>
@@ -100,10 +101,16 @@ private:
             {
                 auto found = map.find(q.back().first);
                 if (found != map.end())
-                    std::cerr << "LRU evicting " << found->first << '\n';
+                {
+                    std::stringstream ss;
+                    ss << "LRU evicting " << found->first << '\n';
+                    std::cerr << ss.str();
+                }
                 if (found != map.end() && --found->second.second == 0)
                 {
-                    std::cerr << "LRU erasing " << found->first << '\n';
+                    std::stringstream ss;
+                    ss << "LRU erasing " << found->first << '\n';
+                    std::cerr << ss.str();
                     map.erase(found);
                 }
                 ++evicted;

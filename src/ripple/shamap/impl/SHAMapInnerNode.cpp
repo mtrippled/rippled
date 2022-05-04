@@ -38,6 +38,8 @@
 #include <mutex>
 #include <utility>
 
+#include <sstream>
+
 namespace ripple {
 
 std::mutex SHAMapInnerNode::childLock;
@@ -375,14 +377,17 @@ SHAMapInnerNode::canonicalizeChild(
     assert(!isEmptyBranch(branch));
     auto const childIndex = *getChildIndex(branch);
     auto [_, hashes, children] = hashesAndChildren_.getHashesAndChildren();
+    std::stringstream ss;
     if (node->getHash() != hashes[childIndex])
     {
-        std::cerr << "LRU crash because of " << node->getHash() << " != "
+        ss << "LRU crash because of " << node->getHash() << " != "
                   << to_string(hashes[childIndex]) << '\n';
+        std::cerr << ss.str();
     }
     else
     {
-        std::cerr << "LRU not crashing " << node->getHash() << '\n';
+        ss << "LRU not crashing " << node->getHash() << '\n';
+        std::cerr << ss.str();
     }
     assert(node->getHash() == hashes[childIndex]);
 
