@@ -243,6 +243,8 @@ public:
     std::shared_ptr<Value>
     get(Key const& key)
     {
+        std::stringstream ss;
+        ss << "LRU get " << key << ' ';
         ++accesses_;
         auto const startTime = std::chrono::steady_clock::now();
         Partition& p = cache_[partitioner(key, partitions_)];
@@ -253,6 +255,8 @@ public:
             ++misses_;
             durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::steady_clock::now() - startTime).count();
+            ss << "not found\n";
+            std::cerr << ss.str();
             return {};
         }
         ++found->second.second;
@@ -262,6 +266,8 @@ public:
         ++hits_;
         durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now() - startTime).count();
+        ss << "found\n";
+        std::cerr << ss.str();
         return found->second.first->second;
     }
 
