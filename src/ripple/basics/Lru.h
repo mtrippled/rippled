@@ -182,8 +182,8 @@ public:
                 ++found->second.second;
                 value = found->second.first->second;
                 found->second.first = p.enqueue(key, value);
+                ss << "LRU set " << found->first << ',' << found->second.second << '\n';
             }
-            ss << "LRU set " << found->first << ',' << found->second.second << '\n';
             std::cerr << ss.str();
 
 //            p.map[key] = value;
