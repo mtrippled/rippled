@@ -119,26 +119,6 @@ private:
             return q.begin();
         }
 
-        void
-        evict()
-        {
-            if (q.size() != capacity)
-                return;
-            auto found = map.find(q.back().first);
-            if (found == map.end()) // could have been deleted
-                return;
-            if (--found->second.second == 0) // delete if no more accesses
-                map.erase(found);
-
-//            while (map.size() > capacity)
-//            {
-//                assert(q.size());
-//                auto last = q.back();
-//                map.erase(last.first);
-//                q.pop_back();
-//                ++evicted;
-//            }
-        }
     };
 
 public:
@@ -169,7 +149,7 @@ public:
             std::lock_guard l(p.mtx);
 
             std::stringstream ss;
-            ss << "LRU set " << partNum << ',';
+            ss << "LRU " << this << " set " << partNum << ',';
             auto found = p.map.find(key);
             if (found == p.map.end())
             {
@@ -248,7 +228,7 @@ public:
         auto const startTime = std::chrono::steady_clock::now();
         std::size_t const partNum = partitioner(key, partitions_);
         std::stringstream ss;
-        ss << "LRU get " << partNum << ',' << key << ' ';
+        ss << "LRU get " << this << ' ' << partNum << ',' << key << ' ';
         Partition& p = cache_[partNum];
         std::lock_guard l(p.mtx);
         auto found = p.map.find(key);
