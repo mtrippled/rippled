@@ -164,11 +164,12 @@ public:
         ++accesses_;
         auto const startTime = std::chrono::steady_clock::now();
         {
-            Partition &p = cache_[partitioner(key, partitions_)];
+            std::size_t const partNum = partitioner(key, partitions_);
+            Partition &p = cache_[partNum];
             std::lock_guard l(p.mtx);
 
             std::stringstream ss;
-            ss << "LRU set ";
+            ss << "LRU set " << partNum << ',';
             auto found = p.map.find(key);
             if (found == p.map.end())
             {
@@ -243,11 +244,12 @@ public:
     std::shared_ptr<Value>
     get(Key const& key)
     {
-        std::stringstream ss;
-        ss << "LRU get " << key << ' ';
         ++accesses_;
         auto const startTime = std::chrono::steady_clock::now();
-        Partition& p = cache_[partitioner(key, partitions_)];
+        std::size_t const partNum = partitioner(key, partitions_);
+        std::stringstream ss;
+        ss << "LRU get " << partNum << ',' << key << ' ';
+        Partition& p = cache_[partNum];
         std::lock_guard l(p.mtx);
         auto found = p.map.find(key);
         if (found == p.map.end())
@@ -276,11 +278,12 @@ public:
     {
         ++accesses_;
         auto const startTime = std::chrono::steady_clock::now();
-        Partition& p = cache_[partitioner(key, partitions_)];
+        std::size_t const partNum = partitioner(key, partitions_);
+        Partition& p = cache_[partNum];
         std::lock_guard l(p.mtx);
         p.map.erase(key);
         std::stringstream ss;
-        ss << "LRU del " << key << '\n';
+        ss << "LRU del " << partNum << ',' << key << '\n';
         std::cerr << ss.str();
 //        auto const& found = p.map.find(key);
 //        if (found == p.map.end())
