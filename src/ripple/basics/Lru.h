@@ -90,8 +90,8 @@ private:
     struct Partition
     {
         std::size_t capacity;
-        q_type q;
         map_type map;
+        q_type q;
         std::mutex mtx;
         std::size_t evicted {0};
 
@@ -118,9 +118,8 @@ private:
             {
                 auto& oldIt = q.back();
                 auto& entry = oldIt->second;
-                --entry.ref;
-//                if (--entry.ref == 0)
-//                    map.erase(oldIt);
+                if (--entry.ref == 0)
+                    map.erase(oldIt);
                 ++evicted;
             }
             q.push_front(newIt);
