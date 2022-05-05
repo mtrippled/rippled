@@ -97,7 +97,7 @@ private:
 
         Partition(std::size_t const cap)
             : capacity(cap)
-            , q(q_type(cap * 4))
+            , q(q_type(cap))
         {
             map.reserve(cap);
         }
@@ -113,13 +113,14 @@ private:
         void
         enqueue(typename map_type::iterator newIt)
         {
-            static std::size_t const qCap = capacity * 4;
+            static std::size_t const qCap = capacity;
             if (q.size() == qCap)
             {
                 auto& oldIt = q.back();
                 auto& entry = oldIt->second;
-                if (--entry.ref == 0)
-                    map.erase(oldIt);
+                --entry.ref;
+//                if (--entry.ref == 0)
+//                    map.erase(oldIt);
                 ++evicted;
             }
             q.push_front(newIt);
