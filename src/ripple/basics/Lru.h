@@ -184,7 +184,6 @@ public:
             return {};
         }
         ++found->second.ref;
-        // CHECK BUFFER
         p.enqueue(found);
         ++hits_;
         durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
