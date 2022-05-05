@@ -90,8 +90,8 @@ private:
     struct Partition
     {
         std::size_t capacity;
-        map_type map;
         q_type q;
+        map_type map;
         std::mutex mtx;
         std::size_t evicted {0};
 
@@ -113,6 +113,7 @@ private:
         void
         enqueue(typename map_type::iterator newIt)
         {
+            return;
             static std::size_t const qCap = capacity;
             if (q.size() == qCap)
             {
