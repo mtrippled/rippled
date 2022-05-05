@@ -155,11 +155,11 @@ public:
             Partition &p = cache_[partitioner(key, partitions_)];
             std::lock_guard l(p.mtx);
 
-            auto found = p.map.find(key);
-            if (found == p.map.end())
-                p.map[key] = value;
-            else
-                value = found->second;
+            auto [it, inserted] = p.map.emplace(std::piecewise_construct,
+                                                std::forward_as_tuple(key),
+                                                std::forward_as_tuple(value));
+            if (!inserted)
+                value = it->second;
 
             /* orig
             auto [it, inserted] = p.map.emplace(std::piecewise_construct,
@@ -221,7 +221,9 @@ public:
         Partition& p = cache_[partitioner(key, partitions_)];
         {
             std::lock_guard l(p.mtx);
-            p.map.erase(key);
+            auto found = p.map.find(key);
+            if (found != p.map.end())
+                found->second.reset();
 
             /* orig
             auto found = p.map.find(key);
