@@ -154,24 +154,15 @@ public:
             Partition &p = cache_[partitioner(key, partitions_)];
             std::lock_guard l(p.mtx);
 
-            auto found = p.map.find(key);
-            if (found == p.map.end())
+            auto [it, inserted] = p.map.emplace(std::piecewise_construct,
+                                         std::forward_as_tuple(key),
+                                         std::forward_as_tuple(Entry(value)));
+            if (!inserted)
             {
-                auto [it, _] = p.map.emplace(std::piecewise_construct,
-                              std::forward_as_tuple(key),
-                              std::forward_as_tuple(Entry(value)));
-                // CHECK BUFFER
-                p.enqueue(it);
-                p.q.push_front(it);
+                ++it->second.ref;
+                value = it->second.value();
             }
-            else
-            {
-                ++found->second.ref;
-                // CHECK BUFFER
-                value = found->second.value();
-                p.enqueue(found);
-                p.q.push_front(found);
-            }
+            p.enqueue(it);
         }
         durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now() - startTime).count();
@@ -195,7 +186,6 @@ public:
         ++found->second.ref;
         // CHECK BUFFER
         p.enqueue(found);
-        p.q.push_back(found);
         ++hits_;
         durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now() - startTime).count();
