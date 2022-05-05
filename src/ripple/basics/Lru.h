@@ -61,6 +61,7 @@ template <
 class Lru
 {
 public:
+    /*
     struct Entry
     {
         std::shared_ptr<Value> val;
@@ -82,9 +83,11 @@ public:
             return val;
         }
     };
+     */
 
-//    using map_type = std::unordered_map<Key, Entry, Hash, Pred>;
-    using map_type = std::unordered_map<Key, std::shared_ptr<Value>, Hash, Pred>;
+    using Entry = std::pair<std::shared_ptr<Value>, std::size_t>;
+    using map_type = std::unordered_map<Key, Entry, Hash, Pred>;
+//    using map_type = std::unordered_map<Key, std::shared_ptr<Value>, Hash, Pred>;
     using q_type = boost::circular_buffer<typename map_type::iterator>;
 
 private:
@@ -111,6 +114,7 @@ private:
             evicted = other.evicted;
         }
 
+        /*
         void
         enqueue(typename map_type::iterator newIt)
         {
@@ -126,6 +130,7 @@ private:
             }
             q.push_front(newIt);
         }
+         */
 
     };
 
@@ -157,9 +162,12 @@ public:
 
             auto [it, inserted] = p.map.emplace(std::piecewise_construct,
                                                 std::forward_as_tuple(key),
-                                                std::forward_as_tuple(value));
+                                                std::forward_as_tuple(std::make_pair(value, 1)));
             if (!inserted)
-                value = it->second;
+            {
+                ++it->second.second;
+                value = it->second.first;
+            }
 
             /* orig
             auto [it, inserted] = p.map.emplace(std::piecewise_construct,
@@ -186,13 +194,14 @@ public:
         std::lock_guard l(p.mtx);
 
         auto found = p.map.find(key);
-        if (found == p.map.end())
+        if (found == p.map.end() || !found->second.first )
         {
             ++misses_;
             durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
                                std::chrono::steady_clock::now() - startTime).count();
             return {};
         }
+        ++found->second.second;
 
         /* orig
         auto found = p.map.find(key);
@@ -209,7 +218,7 @@ public:
         ++hits_;
         durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now() - startTime).count();
-        return found->second;
+        return found->second.first;
 //        return found->second.value(); orig
     }
 
@@ -223,7 +232,7 @@ public:
             std::lock_guard l(p.mtx);
             auto found = p.map.find(key);
             if (found != p.map.end())
-                found->second.reset();
+                found->second.first.reset();
 
             /* orig
             auto found = p.map.find(key);
