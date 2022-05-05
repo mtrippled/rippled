@@ -35,6 +35,7 @@
 #include <mutex>
 #include <optional>
 #include <thread>
+#include <tuple>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
@@ -69,12 +70,6 @@ public:
             : val(v)
         {}
 
-        Entry(Entry const& other)
-        {
-            val = other.val;
-            ref = other.ref;
-        }
-
         void
         del()
         {
@@ -88,15 +83,8 @@ public:
         }
     };
 
-    using map_type = std::unordered_map<Key, Value>;
-//    using map_type = std::unordered_map<Key, Entry>;
-//    using q_type = boost::circular_buffer<Entry>;
+    using map_type = std::unordered_map<Key, Entry, Hash, Pred>;
     using q_type = boost::circular_buffer<typename map_type::iterator>;
-//    using Entry_old = std::pair<Key, std::shared_ptr<Value>>;
-//    using q_type = boost::circular_buffer<Entry_old>;
-//    using map_type = std::unordered_map<Key,
-//          std::pair<typename q_type::iterator, std::size_t>,
-//                                        Hash, Pred>;
 
 private:
     struct Partition
@@ -108,10 +96,32 @@ private:
         std::size_t evicted {0};
 
         Partition(std::size_t const cap)
-//            : capacity(cap)
-//            , q(q_type(cap))
+            : capacity(cap)
+            , q(q_type(cap))
         {
-//            map.reserve(cap);
+            map.reserve(cap);
+        }
+
+        Partition(Partition const& other)
+        {
+            capacity = other.capacity;
+            q = other.q;
+            map = other.map;
+            evicted = other.evicted;
+        }
+
+        void
+        enqueue(typename map_type::iterator newIt)
+        {
+            if (q.size() == capacity)
+            {
+                auto& oldIt = q.back();
+                auto& entry = oldIt->second;
+                if (--entry.ref == 0)
+                    map.erase(oldIt);
+                ++evicted;
+            }
+            q.push_front(newIt);
         }
 
     };
@@ -126,10 +136,10 @@ public:
                       ? *partitions
                       : std::thread::hardware_concurrency();
         assert(partitions_);
-//        cache_.reserve(partitions_);
-//        std::size_t const psize = capacity / partitions_ + 1;
-//        for (std::size_t p = 0; p < partitions_; ++p)
-//            cache_.push_back(std::move(Partition(psize)));
+        cache_.reserve(partitions_);
+        std::size_t const psize = capacity / partitions_ + 1;
+        for (std::size_t p = 0; p < partitions_; ++p)
+            cache_.push_back(std::move(Partition(psize)));
     }
 
     // Inserts if not existing, replaces the passed value if existing.
@@ -139,27 +149,26 @@ public:
         ++accesses_;
         auto const startTime = std::chrono::steady_clock::now();
         {
-            std::size_t const partNum = partitioner(key, partitions_);
-            Partition &p = cache_[partNum];
+            Partition &p = cache_[partitioner(key, partitions_)];
             std::lock_guard l(p.mtx);
 
-//            auto found = p.map.find(key);
-//            if (found == p.map.end())
+            auto found = p.map.find(key);
+            if (found == p.map.end())
             {
-//                p.map[key] = Entry(value);
+                auto [it, _] = p.map.emplace(std::piecewise_construct,
+                              std::forward_as_tuple(key),
+                              std::forward_as_tuple(Entry(value)));
                 // CHECK BUFFER
-//                p.q.push_front(p.map.find(value));
-//                auto v = p.enqueue(key, value);
-//                p.map[key] = {v, 1};
+                p.enqueue(it);
+                p.q.push_front(it);
             }
-//            else
+            else
             {
-//                ++found->second.ref;
-//                ++found->second.second;
+                ++found->second.ref;
                 // CHECK BUFFER
-//                value = found->second.value();
-//                value = found->second.first->second;
-//                found->second.first = p.enqueue(key, value);
+                value = found->second.value();
+                p.enqueue(found);
+                p.q.push_front(found);
             }
         }
         durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -171,29 +180,24 @@ public:
     {
         ++accesses_;
         auto const startTime = std::chrono::steady_clock::now();
-        std::size_t const partNum = partitioner(key, partitions_);
-        Partition& p = cache_[partNum];
+        Partition& p = cache_[partitioner(key, partitions_)];
         std::lock_guard l(p.mtx);
-//        auto found = p.map.find(key);
-//        if (found == p.map.end())
+        auto found = p.map.find(key);
+        if (found == p.map.end())
         {
             ++misses_;
             durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::steady_clock::now() - startTime).count();
             return {};
         }
-//        ++found->second.ref;
-//        ++found->second.second;
+        ++found->second.ref;
         // CHECK BUFFER
-//        p.q.push_back(found);
-//        auto v = p.enqueue(key, found->second.first->second);
-//        p.map[key] = {v, found->second.second};
+        p.enqueue(found);
+        p.q.push_back(found);
         ++hits_;
         durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now() - startTime).count();
-//        return found->second.value();
-//        return found->second.first->second;
-        return {};
+        return found->second.value();
     }
 
     void
@@ -201,13 +205,13 @@ public:
     {
         ++accesses_;
         auto const startTime = std::chrono::steady_clock::now();
-        std::size_t const partNum = partitioner(key, partitions_);
-        Partition& p = cache_[partNum];
-        std::lock_guard l(p.mtx);
-//        auto found = p.map.find(key);
-//        if (found != p.map.end())
-//            found->second.del();
-//        p.map.erase(key);
+        Partition& p = cache_[partitioner(key, partitions_)];
+        {
+            std::lock_guard l(p.mtx);
+            auto found = p.map.find(key);
+            if (found != p.map.end())
+                found->second.del();
+        }
         durationNs_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now() - startTime).count();
     }
