@@ -114,7 +114,6 @@ private:
             evicted = other.evicted;
         }
 
-        /*
         void
         enqueue(typename map_type::iterator newIt)
         {
@@ -124,13 +123,12 @@ private:
             {
                 auto& oldIt = q.back();
                 auto& entry = oldIt->second;
-                if (--entry.ref == 0)
+                if (--entry.second == 0)
                     map.erase(oldIt);
                 ++evicted;
             }
             q.push_front(newIt);
         }
-         */
 
     };
 
@@ -168,6 +166,7 @@ public:
                 ++it->second.second;
                 value = it->second.first;
             }
+            p.enqueue(it);
 
             /* orig
             auto [it, inserted] = p.map.emplace(std::piecewise_construct,
@@ -202,6 +201,7 @@ public:
             return {};
         }
         ++found->second.second;
+        p.enqueue(found);
 
         /* orig
         auto found = p.map.find(key);
