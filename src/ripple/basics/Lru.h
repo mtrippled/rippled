@@ -117,7 +117,6 @@ private:
         void
         enqueue(typename map_type::iterator newIt)
         {
-            return;
             static std::size_t const qCap = capacity;
             if (q.size() == qCap)
             {
