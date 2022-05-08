@@ -313,6 +313,7 @@ PerfLogImp::report()
     report["tncache_size"] = std::to_string(app_.getNodeFamily().getTreeNodeCache(0)->size());
     report["nodecache_size"] = std::to_string(app_.getNodeFamily().db().cacheSize());
     report["neg_nodecache_size"] = std::to_string(app_.getNodeFamily().db().negCacheSize());
+    report["tncache_evicted"] = std::to_string(app_.getNodeFamily().getTreeNodeCache(0)->getEvicted());
 
     logFile_ << Json::Compact{std::move(report)} << std::endl;
 }
