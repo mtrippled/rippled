@@ -144,6 +144,16 @@ public:
     void
     sweep() override;
 
+    std::size_t cacheSize() const override
+    {
+        return cache_->size();
+    }
+
+    std::size_t negCacheSize() const override
+    {
+        return negCache_->size();
+    }
+
 private:
     // Cache for database objects. This cache is not always initialized. Check
     // for null before using.

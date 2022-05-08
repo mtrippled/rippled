@@ -80,6 +80,16 @@ public:
     void
     sweep() override;
 
+    std::size_t cacheSize() const override
+    {
+        return cache_->size();
+    }
+
+    std::size_t negCacheSize() const override
+    {
+        return negCache_->size();
+    }
+
 private:
     std::shared_ptr<Backend> writableBackend_;
     std::shared_ptr<Backend> archiveBackend_;

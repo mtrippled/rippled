@@ -279,6 +279,18 @@ public:
         return durationNs_;
     }
 
+    std::size_t
+    size()
+    {
+        std::size_t ret = 0;
+        for (Partition& partition : cache_)
+        {
+            std::lock_guard lock(partition.mtx);
+            ret += partition.map.size();
+        }
+        return ret;
+    }
+
 private:
     std::size_t partitions_;
     mutable std::vector<Partition> cache_;

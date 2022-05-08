@@ -298,6 +298,10 @@ public:
     [[nodiscard]] std::uint32_t
     maxLedgers(std::uint32_t shardIndex) const noexcept;
 
+    virtual std::size_t cacheSize() const = 0;
+
+    virtual std::size_t negCacheSize() const = 0;
+
 protected:
     beast::Journal const j_;
     Scheduler& scheduler_;

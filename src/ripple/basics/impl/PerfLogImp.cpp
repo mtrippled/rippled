@@ -310,6 +310,9 @@ PerfLogImp::report()
     report["tncache_misses"] = std::to_string(app_.getNodeFamily().getTreeNodeCache(0)->misses());
     report["tncache_accesses"] = std::to_string(app_.getNodeFamily().getTreeNodeCache(0)->accesses());
     report["tncache_duration_ns"] = std::to_string(app_.getNodeFamily().getTreeNodeCache(0)->durationNs());
+    report["tncache_size"] = std::to_string(app_.getNodeFamily().getTreeNodeCache(0)->size());
+    report["nodecache_size"] = std::to_string(app_.getNodeFamily().db().cacheSize());
+    report["neg_nodecache_size"] = std::to_string(app_.getNodeFamily().db().negCacheSize());
 
     logFile_ << Json::Compact{std::move(report)} << std::endl;
 }
