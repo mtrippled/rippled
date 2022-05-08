@@ -291,6 +291,18 @@ public:
         return ret;
     }
 
+    std::size_t
+    qSize()
+    {
+        std::size_t ret = 0;
+        for (Partition& partition : cache_)
+        {
+            std::lock_guard lock(partition.mtx);
+            ret += partition.q.size();
+        }
+        return ret;
+    }
+
 private:
     std::size_t partitions_;
     mutable std::vector<Partition> cache_;
