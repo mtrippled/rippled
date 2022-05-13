@@ -34,10 +34,8 @@ DatabaseNodeImp::store(
     storeStats(1, data.size());
 
     auto nObj = NodeObject::createObject(type, std::move(data), hash);
+    setCache(hash, nObj);
     backend_->store(nObj);
-    if (cache_)
-        cache_->set(hash, nObj);
-    negCache_->del(hash);
 }
 
 void
@@ -54,73 +52,56 @@ DatabaseNodeImp::fetchNodeObject(
     FetchReport& fetchReport,
     bool duplicate)
 {
-    if (negCache_->get(hash))
+    auto nodeObject = getCache(hash);
+    if (!nodeObject.second)
         return {};
-    std::shared_ptr<NodeObject> nodeObject;
-    if (cache_)
-        nodeObject = cache_->get(hash);
-//    std::shared_ptr<NodeObject> nodeObject =
-//        cache_ ? cache_->fetch(hash) : nullptr;
-
-    if (!nodeObject)
+    if (nodeObject.first)
     {
-        JLOG(j_.trace()) << "fetchNodeObject " << hash << ": record not "
-                         << (cache_ ? "cached" : "found");
-
-        Status status;
-
-        try
-        {
-            status = backend_->fetch(hash.data(), &nodeObject);
-        }
-        catch (std::exception const& e)
-        {
-            JLOG(j_.fatal())
-                << "fetchNodeObject " << hash
-                << ": Exception fetching from backend: " << e.what();
-            Rethrow();
-        }
-
-        switch (status)
-        {
-            case ok:
-                if (nodeObject && cache_)
-                {
-                    cache_->set(hash, nodeObject);
-//                    cache_->canonicalize_replace_client(hash, nodeObject);
-                }
-                break;
-            case notFound:
-                break;
-            case dataCorrupt:
-                JLOG(j_.fatal()) << "fetchNodeObject " << hash
-                                 << ": nodestore data is corrupted";
-                break;
-            default:
-                JLOG(j_.warn())
-                    << "fetchNodeObject " << hash
-                    << ": backend returns unknown result " << status;
-                break;
-        }
-    }
-    else
-    {
+        fetchReport.wasFound = true;
         JLOG(j_.trace()) << "fetchNodeObject " << hash
                          << ": record found in cache";
+        return nodeObject.first;
     }
 
-    if (nodeObject)
+    JLOG(j_.trace()) << "fetchNodeObject " << hash << ": record not "
+                     << "cached";
+
+    Status status;
+    try
     {
-        negCache_->del(hash);
-        fetchReport.wasFound = true;
+        status = backend_->fetch(hash.data(), &nodeObject.first);
     }
-    else
+    catch (std::exception const& e)
     {
-        auto val = std::make_shared<char>('a');
-        negCache_->set(hash, val);
+        JLOG(j_.fatal())
+            << "fetchNodeObject " << hash
+            << ": Exception fetching from backend: " << e.what();
+        Rethrow();
     }
 
-    return nodeObject;
+    switch (status)
+    {
+        case ok:
+            if (nodeObject.first)
+            {
+                setCache(hash, nodeObject.first);
+                fetchReport.wasFound = true;
+            }
+            break;
+        case notFound:
+            break;
+        case dataCorrupt:
+            JLOG(j_.fatal()) << "fetchNodeObject " << hash
+                             << ": nodestore data is corrupted";
+            break;
+        default:
+            JLOG(j_.warn())
+                << "fetchNodeObject " << hash
+                << ": backend returns unknown result " << status;
+            break;
+    }
+
+    return nodeObject.first;
 }
 
 std::vector<std::shared_ptr<NodeObject>>
@@ -137,10 +118,11 @@ DatabaseNodeImp::fetchBatch(std::vector<uint256> const& hashes)
     {
         auto const& hash = hashes[i];
         // See if the object already exists in the cache
-        auto nObj = cache_ ? cache_->get(hash) : nullptr;
-//        auto nObj = cache_ ? cache_->fetch(hash) : nullptr;
+        auto nObj = getCache(hash);
         ++fetches;
-        if (!nObj)
+        if (nObj.second)
+            continue;
+        if (!nObj.first)
         {
             // Try the database
             indexMap[&hash] = i;
@@ -148,7 +130,7 @@ DatabaseNodeImp::fetchBatch(std::vector<uint256> const& hashes)
         }
         else
         {
-            results[i] = nObj;
+            results[i] = nObj.first;
             // It was in the cache.
             ++hits;
         }
@@ -169,9 +151,7 @@ DatabaseNodeImp::fetchBatch(std::vector<uint256> const& hashes)
         if (nObj)
         {
             // Ensure all threads get the same object
-            if (cache_)
-                cache_->set(hash, nObj);
-//                cache_->canonicalize_replace_client(hash, nObj);
+            setCache(hash, nObj);
         }
         else
         {

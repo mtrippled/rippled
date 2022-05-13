@@ -28,7 +28,10 @@
 #include <ripple/protocol/SystemParameters.h>
 
 #include <condition_variable>
+#include <memory>
+#include <mutex>
 #include <thread>
+#include <utility>
 
 namespace ripple {
 
@@ -310,6 +313,10 @@ protected:
     std::atomic<std::uint32_t> fetchHitCount_{0};
     std::atomic<std::uint32_t> fetchSz_{0};
 
+    std::shared_ptr<Lru<uint256, NodeObject>> cache_;
+    std::shared_ptr<Lru<uint256, char>> negCache_;
+    mutable std::mutex cacheMutex_;
+
     // The default is DEFAULT_LEDGERS_PER_SHARD (16384) to match the XRP ledger
     // network. Can be set through the configuration file using the
     // 'ledgers_per_shard' field under the 'node_db' and 'shard_db' stanzas.
@@ -343,9 +350,7 @@ protected:
 
     // Called by the public storeLedger function
     bool
-    storeLedger(Ledger const& srcLedger, std::shared_ptr<Backend> dstBackend,
-        std::shared_ptr<Lru<uint256, NodeObject>> const& cache,
-        std::shared_ptr<Lru<uint256, char>> const& negCache);
+    storeLedger(Ledger const& srcLedger, std::shared_ptr<Backend> dstBackend);
 
     void
     updateFetchMetrics(uint64_t fetches, uint64_t hits, uint64_t duration)
@@ -353,6 +358,30 @@ protected:
         fetchTotalCount_ += fetches;
         fetchHitCount_ += hits;
         fetchDurationUs_ += duration;
+    }
+
+    // return nodeobject, if any, and whether in negCache already
+    std::pair<std::shared_ptr<NodeObject>, bool>
+    getCache(uint256 const& hash)
+    {
+        std::lock_guard lock(cacheMutex_);
+        if (negCache_->get(hash))
+            return {{}, true};
+        auto ret = cache_->get(hash);
+        if (!ret)
+        {
+            static auto val = std::make_shared<char>('a');
+            negCache_->set(hash, val);
+        }
+        return {ret, false};
+    }
+
+    void
+    setCache(uint256 const& hash, std::shared_ptr<NodeObject>& nObj)
+    {
+        std::lock_guard lock(cacheMutex_);
+        cache_->set(hash, nObj);
+        negCache_->del(hash);
     }
 
 private:
@@ -364,6 +393,7 @@ private:
 
     mutable std::mutex readLock_;
     std::condition_variable readCondVar_;
+
 
     // reads to do
     std::map<

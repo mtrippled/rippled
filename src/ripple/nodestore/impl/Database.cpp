@@ -50,6 +50,21 @@ Database::Database(
     if (earliestLedgerSeq_ < 1)
         Throw<std::runtime_error>("Invalid earliest_seq");
 
+    std::size_t cacheSize;
+    if (config.exists("cache_size"))
+        cacheSize = get<std::size_t>(config, "cache_size");
+    else
+        cacheSize = 1000000;
+    cache_ = std::make_shared<Lru<uint256, NodeObject>>(
+        cacheSize);
+
+    if (config.exists("negative_cache_size"))
+        cacheSize = get<std::size_t>(config, "negative_cache_size");
+    else
+        cacheSize = 1000000;
+    negCache_ = std::make_shared<Lru<uint256, char>>(
+        cacheSize);
+
     while (readThreads-- > 0)
         readThreads_.emplace_back(&Database::threadEntry, this);
 }
@@ -109,6 +124,12 @@ Database::asyncFetch(
     std::uint32_t ledgerSeq,
     std::function<void(std::shared_ptr<NodeObject> const&)>&& cb)
 {
+    auto cached = getCache(hash);
+    if (cached.first)
+    {
+        cb(cached.first);
+        return;
+    }
     // Post a read
     std::lock_guard lock(readLock_);
     read_[hash].emplace_back(ledgerSeq, std::move(cb));
@@ -184,9 +205,7 @@ Database::fetchNodeObject(
 bool
 Database::storeLedger(
     Ledger const& srcLedger,
-    std::shared_ptr<Backend> dstBackend,
-    std::shared_ptr<Lru<uint256, NodeObject>> const& cache,
-    std::shared_ptr<Lru<uint256, char>> const& negCache)
+    std::shared_ptr<Backend> dstBackend)
 {
     auto fail = [&](std::string const& msg) {
         JLOG(j_.error()) << "Source ledger sequence " << srcLedger.info().seq
@@ -212,13 +231,12 @@ Database::storeLedger(
 
         try
         {
-            dstBackend->storeBatch(batch);
             for (auto& e : batch)
             {
                 auto const& hash = e->getHash();
-                cache->set(hash, e);
-                negCache->del(hash);
+                setCache(hash, e);
             }
+            dstBackend->storeBatch(batch);
         }
         catch (std::exception const& e)
         {
