@@ -111,6 +111,11 @@ DatabaseRotatingImp::store(
         return writableBackend_;
     }();
 
+    // Cache first and replace a negative cache entry if there is one already.
+    cache_->canonicalize(
+        hash, nObj, [](std::shared_ptr<NodeObject> const& n) {
+            return n->getType() == hotDUMMY;
+        });
     backend->store(nObj);
     storeStats(1, nObj->getData().size());
 }
@@ -118,7 +123,7 @@ DatabaseRotatingImp::store(
 void
 DatabaseRotatingImp::sweep()
 {
-    // nothing to do
+    cache_->sweep();
 }
 
 std::shared_ptr<NodeObject>
@@ -144,6 +149,18 @@ DatabaseRotatingImp::fetchNodeObject(
         switch (status)
         {
             case ok:
+                if (nodeObject)
+                {
+                    cache_->canonicalize_replace_client(hash, nodeObject);
+                }
+                else
+                {
+                    auto notFound =
+                        NodeObject::createObject(hotDUMMY, {}, hash);
+                    cache_->canonicalize_replace_client(hash, notFound);
+                    if (notFound->getType() != hotDUMMY)
+                        nodeObject = notFound;
+                }
             case notFound:
                 break;
             case dataCorrupt:
@@ -158,31 +175,41 @@ DatabaseRotatingImp::fetchNodeObject(
     };
 
     // See if the node object exists in the cache
-    std::shared_ptr<NodeObject> nodeObject;
+    std::shared_ptr<NodeObject> nodeObject = cache_->fetch(hash);
 
-    auto [writable, archive] = [&] {
-        std::lock_guard lock(mutex_);
-        return std::make_pair(writableBackend_, archiveBackend_);
-    }();
-
-    // Try to fetch from the writable backend
-    nodeObject = fetch(writable);
     if (!nodeObject)
     {
-        // Otherwise try to fetch from the archive backend
-        nodeObject = fetch(archive);
-        if (nodeObject)
-        {
-            {
-                // Refresh the writable backend pointer
-                std::lock_guard lock(mutex_);
-                writable = writableBackend_;
-            }
+        auto [writable, archive] = [&] {
+            std::lock_guard lock(mutex_);
+            return std::make_pair(writableBackend_, archiveBackend_);
+        }();
 
-            // Update writable backend with data from the archive backend
-            if (duplicate)
-                writable->store(nodeObject);
+        // Try to fetch from the writable backend
+        nodeObject = fetch(writable);
+        if (!nodeObject)
+        {
+            // Otherwise try to fetch from the archive backend
+            nodeObject = fetch(archive);
+            if (nodeObject)
+            {
+                {
+                    // Refresh the writable backend pointer
+                    std::lock_guard lock(mutex_);
+                    writable = writableBackend_;
+                }
+
+                // Update writable backend with data from the archive backend
+                if (duplicate)
+                    writable->store(nodeObject);
+            }
         }
+    }
+    else
+    {
+        JLOG(j_.trace()) << "fetchNodeObject " << hash
+                         << ": record found in cache";
+        if (nodeObject->getType() == hotDUMMY)
+            nodeObject.reset();
     }
 
     if (nodeObject)

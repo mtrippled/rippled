@@ -48,6 +48,36 @@ Database::Database(
 {
     assert(readThreads != 0);
 
+    int cacheSize = 1000000;
+    int cacheAge = 900;
+
+    if (config.exists("cache_size"))
+    {
+        cacheSize = get<int>(config, "cache_size");
+        if (cacheSize <= 0)
+        {
+            Throw<std::runtime_error>(
+                "Specified negative or 0 value for cache_size");
+        }
+    }
+
+    if (config.exists("cache_age"))
+    {
+        cacheAge = get<int>(config, "cache_age");
+        if (cacheAge <= 0)
+        {
+            Throw<std::runtime_error>(
+                "Specified negative or 0 value for cache_age");
+        }
+    }
+
+    cache_ = std::make_shared<TaggedCache<uint256, NodeObject>>(
+        "DatabaseNodeImp",
+        cacheSize,
+        std::chrono::minutes(cacheAge),
+        stopwatch(),
+        j_);
+
     if (ledgersPerShard_ == 0 || ledgersPerShard_ % 256 != 0)
         Throw<std::runtime_error>("Invalid ledgers_per_shard");
 

@@ -34,15 +34,12 @@ DatabaseNodeImp::store(
     storeStats(1, data.size());
 
     auto obj = NodeObject::createObject(type, std::move(data), hash);
+    // Cache first and replace a negative cache entry if there is one already.
+    cache_->canonicalize(
+        hash, obj, [](std::shared_ptr<NodeObject> const& n) {
+            return n->getType() == hotDUMMY;
+        });
     backend_->store(obj);
-    if (cache_)
-    {
-        // After the store, replace a negative cache entry if there is one
-        cache_->canonicalize(
-            hash, obj, [](std::shared_ptr<NodeObject> const& n) {
-                return n->getType() == hotDUMMY;
-            });
-    }
 }
 
 void
@@ -51,14 +48,11 @@ DatabaseNodeImp::asyncFetch(
     std::uint32_t ledgerSeq,
     std::function<void(std::shared_ptr<NodeObject> const&)>&& callback)
 {
-    if (cache_)
+    std::shared_ptr<NodeObject> obj = cache_->fetch(hash);
+    if (obj)
     {
-        std::shared_ptr<NodeObject> obj = cache_->fetch(hash);
-        if (obj)
-        {
-            callback(obj->getType() == hotDUMMY ? nullptr : obj);
-            return;
-        }
+        callback(obj->getType() == hotDUMMY ? nullptr : obj);
+        return;
     }
     Database::asyncFetch(hash, ledgerSeq, std::move(callback));
 }
@@ -66,8 +60,7 @@ DatabaseNodeImp::asyncFetch(
 void
 DatabaseNodeImp::sweep()
 {
-    if (cache_)
-        cache_->sweep();
+    cache_->sweep();
 }
 
 std::shared_ptr<NodeObject>
@@ -78,12 +71,12 @@ DatabaseNodeImp::fetchNodeObject(
     bool duplicate)
 {
     std::shared_ptr<NodeObject> nodeObject =
-        cache_ ? cache_->fetch(hash) : nullptr;
+        cache_->fetch(hash);
 
     if (!nodeObject)
     {
         JLOG(j_.trace()) << "fetchNodeObject " << hash << ": record not "
-                         << (cache_ ? "cached" : "found");
+                         << "cached";
 
         Status status;
 
@@ -102,18 +95,17 @@ DatabaseNodeImp::fetchNodeObject(
         switch (status)
         {
             case ok:
-                if (cache_)
+                if (nodeObject)
                 {
-                    if (nodeObject)
-                        cache_->canonicalize_replace_client(hash, nodeObject);
-                    else
-                    {
-                        auto notFound =
-                            NodeObject::createObject(hotDUMMY, {}, hash);
-                        cache_->canonicalize_replace_client(hash, notFound);
-                        if (notFound->getType() != hotDUMMY)
-                            nodeObject = notFound;
-                    }
+                    cache_->canonicalize_replace_client(hash, nodeObject);
+                }
+                else
+                {
+                    auto notFound =
+                        NodeObject::createObject(hotDUMMY, {}, hash);
+                    cache_->canonicalize_replace_client(hash, notFound);
+                    if (notFound->getType() != hotDUMMY)
+                        nodeObject = notFound;
                 }
                 break;
             case notFound:
@@ -157,7 +149,7 @@ DatabaseNodeImp::fetchBatch(std::vector<uint256> const& hashes)
     {
         auto const& hash = hashes[i];
         // See if the object already exists in the cache
-        auto nObj = cache_ ? cache_->fetch(hash) : nullptr;
+        auto nObj = cache_->fetch(hash);
         ++fetches;
         if (!nObj)
         {
@@ -187,21 +179,17 @@ DatabaseNodeImp::fetchBatch(std::vector<uint256> const& hashes)
         if (nObj)
         {
             // Ensure all threads get the same object
-            if (cache_)
-                cache_->canonicalize_replace_client(hash, nObj);
+            cache_->canonicalize_replace_client(hash, nObj);
         }
         else
         {
             JLOG(j_.error())
                 << "fetchBatch - "
                 << "record not found in db or cache. hash = " << strHex(hash);
-            if (cache_)
-            {
-                auto notFound = NodeObject::createObject(hotDUMMY, {}, hash);
-                cache_->canonicalize_replace_client(hash, notFound);
-                if (notFound->getType() != hotDUMMY)
-                    nObj = std::move(notFound);
-            }
+            auto notFound = NodeObject::createObject(hotDUMMY, {}, hash);
+            cache_->canonicalize_replace_client(hash, notFound);
+            if (notFound->getType() != hotDUMMY)
+                nObj = std::move(notFound);
         }
         results[index] = std::move(nObj);
     }

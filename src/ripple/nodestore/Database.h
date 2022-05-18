@@ -301,6 +301,8 @@ protected:
     beast::Journal const j_;
     Scheduler& scheduler_;
     int fdRequired_{0};
+    // Cache for node database objects.
+    std::shared_ptr<TaggedCache<uint256, NodeObject>> cache_;
 
     std::atomic<std::uint32_t> fetchHitCount_{0};
     std::atomic<std::uint32_t> fetchSz_{0};
