@@ -179,7 +179,11 @@ DatabaseNodeImp::fetchBatch(std::vector<uint256> const& hashes)
         if (nObj)
         {
             // Ensure all threads get the same object
-            cache_->canonicalize_replace_client(hash, nObj);
+            // Cache first and replace a negative cache entry if there is one already.
+            cache_->canonicalize(hash, nObj,
+                [](std::shared_ptr<NodeObject> const& n) {
+                return n->getType() == hotDUMMY;
+            });
         }
         else
         {

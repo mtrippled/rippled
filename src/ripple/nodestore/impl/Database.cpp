@@ -219,6 +219,17 @@ Database::importInternal(Backend& dstBackend, Database& srcDB)
     Batch batch;
     batch.reserve(batchWritePreallocationSize);
     auto storeBatch = [&, fname = __func__]() {
+        std::uint64_t sz{0};
+        for (auto& nodeObject : batch)
+        {
+            sz += nodeObject->getData().size();
+            // Cache first and replace a negative cache entry if there is one already.
+            cache_->canonicalize(
+                nodeObject->getHash(), nodeObject,
+                [](std::shared_ptr<NodeObject> const& n) {
+                    return n->getType() == hotDUMMY;
+                });
+        }
         try
         {
             dstBackend.storeBatch(batch);
@@ -230,9 +241,6 @@ Database::importInternal(Backend& dstBackend, Database& srcDB)
             return;
         }
 
-        std::uint64_t sz{0};
-        for (auto const& nodeObject : batch)
-            sz += nodeObject->getData().size();
         storeStats(batch.size(), sz);
         batch.clear();
     };
@@ -303,8 +311,16 @@ Database::storeLedger(
     batch.reserve(batchWritePreallocationSize);
     auto storeBatch = [&, fname = __func__]() {
         std::uint64_t sz{0};
-        for (auto const& nodeObject : batch)
+        for (auto& nodeObject : batch)
+        {
             sz += nodeObject->getData().size();
+            // Cache first and replace a negative cache entry if there is one already.
+            cache_->canonicalize(
+                nodeObject->getHash(), nodeObject,
+                [](std::shared_ptr<NodeObject> const& n) {
+                    return n->getType() == hotDUMMY;
+                });
+        }
 
         try
         {
