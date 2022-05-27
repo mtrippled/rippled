@@ -90,6 +90,8 @@
 #include <utility>
 #include <variant>
 
+#include <malloc.h>
+
 namespace ripple {
 
 // VFALCO TODO Move the function definitions into the class declaration
@@ -1069,6 +1071,12 @@ public:
         if (auto pg = dynamic_cast<PostgresDatabase*>(&*mRelationalDatabase))
             pg->sweep();
 #endif
+
+        JLOG(m_journal.debug()) << "start malloc_trim()";
+        int trimmed = malloc_trim(0);
+        JLOG(m_journal.debug()) << "finished malloc_trim() "
+            << (trimmed ? "success" : "nothing trimmed");
+
 
         // Set timer to do another sweep later.
         setSweepTimer();
