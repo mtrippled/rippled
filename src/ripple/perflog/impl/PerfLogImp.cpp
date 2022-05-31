@@ -305,6 +305,7 @@ PerfLogImp::report()
         app_.getNodeStore().getCountsJson(report[jss::nodestore]);
     report[jss::current_activities] = counters_.currentJson();
     app_.getOPs().stateAccounting(report);
+    report["brk"] = std::to_string((reinterpret_cast<uintptr_t>(sbrk(0))));
 
     logFile_ << Json::Compact{std::move(report)} << std::endl;
 }

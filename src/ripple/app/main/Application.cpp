@@ -1071,12 +1071,10 @@ public:
         if (auto pg = dynamic_cast<PostgresDatabase*>(&*mRelationalDatabase))
             pg->sweep();
 #endif
-
-        JLOG(m_journal.debug()) << "start malloc_trim()";
-        int trimmed = malloc_trim(0);
-        JLOG(m_journal.debug()) << "finished malloc_trim() "
-            << (trimmed ? "success" : "nothing trimmed");
-
+//        JLOG(m_journal.debug()) << "start malloc_trim()";
+//      int trimmed = malloc_trim(0);
+//      JLOG(m_journal.debug()) << "finished malloc_trim() "
+//          << (trimmed ? "success" : "nothing trimmed");
 
         // Set timer to do another sweep later.
         setSweepTimer();
