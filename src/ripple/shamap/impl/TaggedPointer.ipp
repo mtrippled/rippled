@@ -591,9 +591,4 @@ TaggedPointer::getChildren() const
     return result;
 };
 
-inline TaggedPointer::~TaggedPointer()
-{
-    destroyHashesAndChildren();
-}
-
 }  // namespace ripple
