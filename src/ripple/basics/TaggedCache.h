@@ -691,7 +691,7 @@ private:
                         ++cacheRemovals;
                         if (cit->second.ptr.unique())
                         {
-                            stuffToSweep.insert(partition.extract(cit));
+                            stuffToSweep.insert(std::move(partition.extract(cit)));
 //                            stuffToSweep.push_back(cit->second.ptr);
                             ++mapRemovals;
 //                            cit = partition.erase(cit);
