@@ -694,7 +694,7 @@ private:
                             stuffToSweep.insert(partition.extract(cit));
 //                            stuffToSweep.push_back(cit->second.ptr);
                             ++mapRemovals;
-                            cit = partition.erase(cit);
+//                            cit = partition.erase(cit);
                         }
                         else
                         {
