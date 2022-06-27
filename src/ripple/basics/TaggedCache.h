@@ -739,7 +739,7 @@ private:
 
             // Keep references to all the stuff we sweep
             // so that we can destroy them outside the lock.
-            stuffToSweep.reserve(partition.size());
+//            stuffToSweep.reserve(partition.size());
             {
                 auto cit = partition.begin();
                 while (cit != partition.end())
