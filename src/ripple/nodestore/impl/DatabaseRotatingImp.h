@@ -82,12 +82,16 @@ public:
 
     std::size_t cacheSize() const override
     {
-        return cache_->size();
+        if (cache_)
+            return cache_->size();
+        return 0;
     }
 
     std::size_t negCacheSize() const override
     {
-        return negCache_->size();
+        if (negCache_)
+            return negCache_->size();
+        return 0;
     }
 
 private:

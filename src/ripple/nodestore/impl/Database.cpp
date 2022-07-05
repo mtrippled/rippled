@@ -285,7 +285,7 @@ Database::storeLedger(
             {
                 auto const& hash = e->getHash();
                 cache->set(hash, e);
-                negCache->del(hash);
+//                negCache->del(hash);
             }
         }
         catch (std::exception const& e)

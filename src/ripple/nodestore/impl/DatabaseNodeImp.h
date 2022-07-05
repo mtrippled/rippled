@@ -45,6 +45,7 @@ public:
         : Database(scheduler, readThreads, config, j)
         , backend_(std::move(backend))
     {
+        /*
         std::optional<int> cacheSize, cacheAge;
 
         if (config.exists("cache_size"))
@@ -91,6 +92,7 @@ public:
         negCache_ = std::make_shared<Lru<uint256, char>>(
             cacheSize.value());
 
+         */
         assert(backend_);
     }
 
