@@ -197,6 +197,7 @@ private:
 
         for (auto const& key : cache.getKeys())
         {
+            ++dbRotating_->fetch_12;
             dbRotating_->fetchNodeObject(
                 key, 0, NodeStore::FetchType::synchronous, true);
             if (!(++check % checkHealthInterval_) && stopping())

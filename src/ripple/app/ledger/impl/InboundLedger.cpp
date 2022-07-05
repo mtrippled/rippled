@@ -325,6 +325,7 @@ InboundLedger::tryDB(NodeStore::Database& srcDB)
         };
 
         // Try to fetch the ledger header from the DB
+        ++srcDB.fetch_1;
         if (auto nodeObject = srcDB.fetchNodeObject(hash_, mSeq))
         {
             JLOG(journal_.trace()) << "Ledger header found in local store";

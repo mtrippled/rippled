@@ -163,6 +163,7 @@ std::shared_ptr<SHAMapTreeNode>
 SHAMap::fetchNodeFromDB(SHAMapHash const& hash) const
 {
     assert(backed_);
+    ++f_.db().fetch_11;
     auto obj = f_.db().fetchNodeObject(hash.as_uint256(), ledgerSeq_);
     return finishFetch(hash, obj);
 }

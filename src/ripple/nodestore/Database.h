@@ -353,6 +353,29 @@ protected:
         fetchDurationUs_ += duration;
     }
 
+public:
+    std::atomic<std::uint64_t> fetch_0{0};
+    std::atomic<std::uint64_t> fetch_1{0};
+    std::atomic<std::uint64_t> fetch_2{0};
+    std::atomic<std::uint64_t> fetch_3{0};
+    std::atomic<std::uint64_t> fetch_4{0};
+    std::atomic<std::uint64_t> fetch_5{0};
+    std::atomic<std::uint64_t> fetch_6{0};
+    std::atomic<std::uint64_t> fetch_7{0};
+    std::atomic<std::uint64_t> fetch_8{0};
+    std::atomic<std::uint64_t> fetch_9{0};
+    std::atomic<std::uint64_t> fetch_10{0};
+    std::atomic<std::uint64_t> fetch_11{0};
+    std::atomic<std::uint64_t> fetch_12{0};
+    std::atomic<std::uint64_t> fetch_13{0};
+    std::atomic<std::uint64_t> fetch_14{0};
+    std::atomic<std::uint64_t> fetch_15{0};
+    std::atomic<std::uint64_t> fetch_16{0};
+    std::atomic<std::uint64_t> fetch_17{0};
+    std::atomic<std::uint64_t> fetch_18{0};
+    std::atomic<std::uint64_t> fetch_19{0};
+    std::atomic<std::uint64_t> fetch_20{0};
+
 private:
     std::atomic<std::uint64_t> storeCount_{0};
     std::atomic<std::uint64_t> storeSz_{0};

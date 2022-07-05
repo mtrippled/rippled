@@ -933,6 +933,7 @@ DatabaseShardImp::doImportDatabase()
 
             for (std::uint32_t n = firstSeq; n <= lastSeq; ++n)
             {
+                ++source.fetch_6;
                 if (!source.fetchNodeObject(ledgerHashes.at(n).ledgerHash, n))
                 {
                     JLOG(j_.warn()) << "SQLite ledger sequence " << n

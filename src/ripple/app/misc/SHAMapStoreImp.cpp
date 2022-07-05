@@ -261,6 +261,7 @@ bool
 SHAMapStoreImp::copyNode(std::uint64_t& nodeCount, SHAMapTreeNode const& node)
 {
     // Copy a single record from node to dbRotating_
+    ++dbRotating_->fetch_4;
     dbRotating_->fetchNodeObject(
         node.getHash().as_uint256(),
         0,

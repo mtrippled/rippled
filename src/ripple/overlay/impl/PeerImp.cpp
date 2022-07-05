@@ -2708,13 +2708,17 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMGetObjectByHash> const& m)
                 // VFALCO TODO Move this someplace more sensible so we dont
                 //             need to inject the NodeStore interfaces.
                 std::uint32_t seq{obj.has_ledgerseq() ? obj.ledgerseq() : 0};
+                ++app_.getNodeStore().fetch_8;
                 auto nodeObject{app_.getNodeStore().fetchNodeObject(hash, seq)};
                 if (!nodeObject)
                 {
                     if (auto shardStore = app_.getShardStore())
                     {
                         if (seq >= shardStore->earliestLedgerSeq())
+                        {
+                            ++shardStore->fetch_9;
                             nodeObject = shardStore->fetchNodeObject(hash, seq);
+                        }
                     }
                 }
                 if (nodeObject)

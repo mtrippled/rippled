@@ -361,6 +361,7 @@ Shard::storeLedger(
     auto visit = [&](SHAMapTreeNode const& node) {
         if (!stop_)
         {
+            ++srcDB.fetch_7;
             if (auto nodeObject = srcDB.fetchNodeObject(
                     node.getHash().as_uint256(), srcLedger->info().seq))
             {

@@ -99,6 +99,7 @@ Database::Database(
                         auto const& data = it->second;
                         auto const seqn = data[0].first;
 
+                        ++fetch_13;
                         auto obj =
                             fetchNodeObject(hash, seqn, FetchType::async);
 
@@ -109,11 +110,22 @@ Database::Database(
                         // together and serviced by a single read.
                         for (auto const& req : data)
                         {
-                            req.second(
-                                (seqn == req.first) || isSameDB(req.first, seqn)
-                                    ? obj
-                                    : fetchNodeObject(
-                                          hash, req.first, FetchType::async));
+                            if ((seqn == req.first) || isSameDB(req.first, seqn))
+                            {
+                                req.second(obj);
+                            }
+                            else
+                            {
+                                ++fetch_14;
+                                auto no = fetchNodeObject(
+                                    hash, req.first, FetchType::async);
+                                req.second(no);
+                            }
+//                            req.second(
+//                                (seqn == req.first) || isSameDB(req.first, seqn)
+//                                    ? obj
+//                                    : fetchNodeObject(
+//                                          hash, req.first, FetchType::async));
                         }
                     }
 
@@ -307,6 +319,7 @@ Database::storeLedger(
     auto visit = [&](SHAMapTreeNode& node) {
         if (!isStopping())
         {
+            ++srcDB.fetch_5;
             if (auto nodeObject = srcDB.fetchNodeObject(
                     node.getHash().as_uint256(), srcLedger.info().seq))
             {
@@ -368,6 +381,20 @@ Database::getCountsJson(Json::Value& obj)
     obj[jss::node_written_bytes] = std::to_string(storeSz_);
     obj[jss::node_read_bytes] = std::to_string(fetchSz_);
     obj[jss::node_reads_duration_us] = std::to_string(fetchDurationUs_);
+    obj["fetch_1"] = std::to_string(fetch_1);
+    obj["fetch_2"] = std::to_string(fetch_2);
+    obj["fetch_3"] = std::to_string(fetch_3);
+    obj["fetch_4"] = std::to_string(fetch_4);
+    obj["fetch_5"] = std::to_string(fetch_5);
+    obj["fetch_6"] = std::to_string(fetch_6);
+    obj["fetch_7"] = std::to_string(fetch_7);
+    obj["fetch_8"] = std::to_string(fetch_8);
+    obj["fetch_9"] = std::to_string(fetch_9);
+    obj["fetch_10"] = std::to_string(fetch_10);
+    obj["fetch_11"] = std::to_string(fetch_11);
+    obj["fetch_12"] = std::to_string(fetch_12);
+    obj["fetch_13"] = std::to_string(fetch_13);
+    obj["fetch_14"] = std::to_string(fetch_14);
 
     if (auto c = getCounters())
     {
