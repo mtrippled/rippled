@@ -714,6 +714,7 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
             auto nodes =
                 mLedger->stateMap().getMissingNodes(missingNodesFind, &filter);
             JLOG(journal_.debug()) << "misses trigger stateMap " <<
+                mLedger->info().seq << ',' << mLedger->info().hash << ' ' <<
                 app_.getNodeFamily().getTreeNodeCache(0)->misses() - beginMisses;
             sl.lock();
 
