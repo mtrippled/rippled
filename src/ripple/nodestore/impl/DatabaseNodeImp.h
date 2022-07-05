@@ -44,6 +44,7 @@ public:
         : Database(scheduler, readThreads, config, j)
         , backend_(std::move(backend))
     {
+        /*
         std::optional<int> cacheSize, cacheAge;
 
         if (config.exists("cache_size"))
@@ -75,6 +76,7 @@ public:
                 stopwatch(),
                 j);
         }
+         */
 
         assert(backend_);
     }
