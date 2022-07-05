@@ -507,6 +507,13 @@ public:
     }
     // End CachedSLEs functions.
 
+        std::uint64_t
+        misses() const
+        {
+            std::lock_guard l(m_mutex);
+            return m_misses;
+        }
+
 private:
     std::shared_ptr<T>
     initialFetch(key_type const& key, std::lock_guard<mutex_type> const& l)

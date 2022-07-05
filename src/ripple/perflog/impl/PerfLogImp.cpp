@@ -305,6 +305,8 @@ PerfLogImp::report()
         app_.getNodeStore().getCountsJson(report[jss::nodestore]);
     report[jss::current_activities] = counters_.currentJson();
     app_.getOPs().stateAccounting(report);
+    report["tree_node_cache_misses"] = std::to_string(
+        app_.getNodeFamily().getTreeNodeCache(0)->misses());
 
     logFile_ << Json::Compact{std::move(report)} << std::endl;
 }
