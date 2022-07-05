@@ -1006,7 +1006,14 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
         root_->unshare();
 
         if (doWrite)
+        {
+            if (t == NodeObjectType::hotACCOUNT_NODE)
+            {
+                f_.getTreeNodeCache(0)->canonicalize_replace_cache(
+                    root_->getHash().as_uint256(), root_);
+            }
             root_ = writeNode(t, std::move(root_));
+        }
 
         return 1;
     }
@@ -1072,7 +1079,14 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
                         child->unshare();
 
                         if (doWrite)
+                        {
+                            if (t == NodeObjectType::hotACCOUNT_NODE)
+                            {
+                                f_.getTreeNodeCache(0)->canonicalize_replace_cache(
+                                    child->getHash().as_uint256(), child);
+                            }
                             child = writeNode(t, std::move(child));
+                        }
 
                         node->shareChild(branch, child);
                     }
@@ -1087,8 +1101,15 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
         node->unshare();
 
         if (doWrite)
+        {
+            if (t == NodeObjectType::hotACCOUNT_NODE)
+            {
+                f_.getTreeNodeCache(0)->canonicalize_replace_cache(
+                    node->getHash().as_uint256(), node);
+            }
             node = std::static_pointer_cast<SHAMapInnerNode>(
                 writeNode(t, std::move(node)));
+        }
 
         ++flushed;
 
