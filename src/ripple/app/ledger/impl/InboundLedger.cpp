@@ -258,14 +258,22 @@ neededHashes(
 std::vector<uint256>
 InboundLedger::neededTxHashes(int max, SHAMapSyncFilter* filter) const
 {
-    return neededHashes(mLedger->info().txHash, mLedger->txMap(), max, filter);
+    std::size_t const beginMisses = app_.getNodeFamily().getTreeNodeCache(0)->misses();
+    auto ret = neededHashes(mLedger->info().txHash, mLedger->txMap(), max, filter);
+    JLOG(journal_.debug()) << "misses neededTxHashes: " <<
+        (app_.getNodeFamily().getTreeNodeCache(0)->misses() - beginMisses);
+    return ret;
 }
 
 std::vector<uint256>
 InboundLedger::neededStateHashes(int max, SHAMapSyncFilter* filter) const
 {
-    return neededHashes(
+    std::size_t const beginMisses = app_.getNodeFamily().getTreeNodeCache(0)->misses();
+    auto ret = neededHashes(
         mLedger->info().accountHash, mLedger->stateMap(), max, filter);
+    JLOG(journal_.debug()) << "misses neededStateHashes: " <<
+        (app_.getNodeFamily().getTreeNodeCache(0)->misses() - beginMisses);
+    return ret;
 }
 
 LedgerInfo
@@ -702,8 +710,11 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
 
             // Release the lock while we process the large state map
             sl.unlock();
+            std::size_t const beginMisses = app_.getNodeFamily().getTreeNodeCache(0)->misses();
             auto nodes =
                 mLedger->stateMap().getMissingNodes(missingNodesFind, &filter);
+            JLOG(journal_.debug()) << "misses trigger stateMap " <<
+                app_.getNodeFamily().getTreeNodeCache(0)->misses() - beginMisses;
             sl.lock();
 
             // Make sure nothing happened while we released the lock
@@ -772,8 +783,11 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
             TransactionStateSF filter(
                 mLedger->txMap().family().db(), app_.getLedgerMaster());
 
+            std::size_t const beginMisses = app_.getNodeFamily().getTreeNodeCache(0)->misses();
             auto nodes =
                 mLedger->txMap().getMissingNodes(missingNodesFind, &filter);
+            JLOG(journal_.debug()) << "misses trigger txMap " <<
+                app_.getNodeFamily().getTreeNodeCache(0)->misses() - beginMisses;
 
             if (nodes.empty())
             {

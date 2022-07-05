@@ -146,7 +146,10 @@ TransactionAcquire::trigger(std::shared_ptr<Peer> const& peer)
     else
     {
         ConsensusTransSetSF sf(app_, app_.getTempNodeCache());
+        std::size_t const beginMisses = app_.getNodeFamily().getTreeNodeCache(0)->misses();
         auto nodes = mMap->getMissingNodes(256, &sf);
+        JLOG(journal_.debug()) << "misses trigger TransactionAcquire " <<
+            app_.getNodeFamily().getTreeNodeCache(0)->misses() - beginMisses;
 
         if (nodes.empty())
         {

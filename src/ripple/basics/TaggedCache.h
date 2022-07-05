@@ -507,12 +507,12 @@ public:
     }
     // End CachedSLEs functions.
 
-        std::uint64_t
-        misses() const
-        {
-            std::lock_guard l(m_mutex);
-            return m_misses;
-        }
+    std::uint64_t
+    misses() const
+    {
+        std::lock_guard l(m_mutex);
+        return m_misses;
+    }
 
 private:
     std::shared_ptr<T>
