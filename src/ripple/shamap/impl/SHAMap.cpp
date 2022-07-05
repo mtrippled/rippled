@@ -264,6 +264,8 @@ SHAMap::fetchNodeNT(SHAMapHash const& hash) const
 
     if (!node && backed_)
         node = fetchNodeFromDB(hash);
+    if (node)
+        canonicalize(hash, node);
 
     return node;
 }
