@@ -48,12 +48,13 @@ public:
               "App family full below cache",
               clock_,
               j))
-        , tnCache_(std::make_shared<TreeNodeCache>(
-              "App family tree node cache",
-              65536,
-              std::chrono::minutes{1},
-              clock_,
-              j))
+          , tnCache_(std::make_shared<TreeNodeCache>(65536))
+//        , tnCache_(std::make_shared<TreeNodeCache>(
+//              "App family tree node cache",
+//              65536,
+//              std::chrono::minutes{1},
+//              clock_,
+//              j))
         , j_(j)
     {
         Section testSection;
@@ -95,7 +96,7 @@ public:
     sweep() override
     {
         fbCache_->sweep();
-        tnCache_->sweep();
+//        tnCache_->sweep();
     }
 
     bool
@@ -120,7 +121,7 @@ public:
     reset() override
     {
         fbCache_->reset();
-        tnCache_->reset();
+//        tnCache_->reset();
     }
 
     beast::manual_clock<std::chrono::steady_clock>
