@@ -144,6 +144,48 @@ public:
         std::size_t const psize = capacity / partitions_ + 1;
         for (std::size_t p = 0; p < partitions_; ++p)
             cache_.push_back(std::move(Partition(psize)));
+
+        std::thread t([&](){
+            while (true)
+            {
+                for (Partition& partition : cache_)
+                {
+                    std::size_t const beginSize = partition.q.size();
+                    if (beginSize >= partition.capacity * 0.9)
+                    {
+                        std::size_t const toPurge = beginSize -
+                            partition.capacity * 0.89;
+                        std::vector<std::shared_ptr<Value>> garbage;
+                        garbage.reserve(toPurge);
+
+                        {
+                            std::unique_lock lock(partition.mtx);
+                            for (std::size_t i = 0; i < toPurge; ++i)
+                            {
+                                if (i % 1000 == 0)
+                                {
+                                    lock.unlock();
+                                    lock.lock();
+                                }
+                                if (!partition.q.size())
+                                    break;
+                                auto& oldIt = partition.q.back();
+                                auto& entry = oldIt->second;
+                                if (--entry.second == 0)
+                                {
+                                    garbage.emplace_back(
+                                        std::move(partition.map.extract(oldIt).mapped().first));
+                                }
+                                ++partition.evicted;
+                            }
+                        }
+                    }
+                }
+
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+            }
+        });
+        t.detach();
     }
 
     // Inserts, replaces the stored value if existing.
