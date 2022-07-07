@@ -48,7 +48,7 @@ public:
               "App family full below cache",
               clock_,
               j))
-          , tnCache_(std::make_shared<TreeNodeCache>(65536))
+          , tnCache_(std::make_shared<TreeNodeCache>(65536, j))
 //        , tnCache_(std::make_shared<TreeNodeCache>(
 //              "App family tree node cache",
 //              65536,

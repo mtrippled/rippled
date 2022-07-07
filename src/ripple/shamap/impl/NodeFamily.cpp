@@ -37,7 +37,7 @@ NodeFamily::NodeFamily(Application& app, CollectorManager& cm)
           fullBelowExpiration))
       , tnCache_(std::make_shared<TreeNodeCache>(
           static_cast<std::underlying_type<SizedItem>::type>(SizedItem::treeCacheSize),
-          256))
+          j_, 256))
 //    , tnCache_(std::make_shared<TreeNodeCache>(
 //          "Node family tree node cache",
 //          app.config().getValueFor(SizedItem::treeCacheSize),

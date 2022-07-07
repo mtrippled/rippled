@@ -20,6 +20,7 @@
 #ifndef RIPPLE_BASICS_LRU_H
 #define RIPPLE_BASICS_LRU_H
 
+#include <ripple/basics/Log.h>
 #include <ripple/basics/hardened_hash.h>
 #include <ripple/basics/partitioned_unordered_map.h>
 #include <ripple/beast/hash/hash_append.h>
@@ -132,7 +133,9 @@ private:
 
 public:
     Lru(std::size_t const capacity,
+        beast::Journal j,
         std::optional<std::size_t> partitions = std::nullopt)
+        : j_(j)
     {
         // Set partitions to the number of hardware threads if the parameter
         // is either empty or set to 0.
@@ -148,6 +151,7 @@ public:
         std::thread t([&](){
             while (true)
             {
+                std::size_t purged = 0;
                 for (Partition& partition : cache_)
                 {
                     std::size_t const beginSize = partition.q.size();
@@ -176,10 +180,15 @@ public:
                                     garbage.emplace_back(
                                         std::move(partition.map.extract(oldIt).mapped().first));
                                 }
+                                ++purged;
                                 ++partition.evicted;
                             }
                         }
                     }
+                }
+                if (purged)
+                {
+                    JLOG(j_.debug()) << "lru purged " << purged;
                 }
 
                 std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -381,6 +390,8 @@ public:
 
 private:
     std::size_t partitions_;
+    beast::Journal j_;
+
     mutable std::vector<Partition> cache_;
 
     std::atomic<std::size_t> hits_{0};
