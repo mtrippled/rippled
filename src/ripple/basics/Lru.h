@@ -145,6 +145,7 @@ public:
         assert(partitions_);
         cache_.reserve(partitions_);
         std::size_t const psize = capacity / partitions_ + 1;
+        JLOG(j_.debug()) << "lru partition capacity: " << psize;
         for (std::size_t p = 0; p < partitions_; ++p)
             cache_.push_back(std::move(Partition(psize)));
 
