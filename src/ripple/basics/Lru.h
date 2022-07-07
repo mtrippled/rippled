@@ -90,60 +90,16 @@ public:
     using q_type = boost::circular_buffer<typename map_type::iterator>;
 
 private:
-    struct Recology
-    {
-        using bin_type = std::vector<std::shared_ptr<Value>>;
-        std::vector<bin_type> bins;
-        std::vector<std::mutex> mutexes;
-        std::size_t partitions;
-
-        explicit Recology(std::size_t const p)
-            : partitions(p)
-        {
-            bins.resize(partitions);
-            std::vector<std::mutex> tmp(partitions);
-            mutexes.swap(tmp);
-        }
-
-        void
-        dispose(std::size_t const partition, std::shared_ptr<Value>&& item)
-        {
-            std::lock_guard l(mutexes[partition]);
-            bins[partition].emplace_back(item);
-        }
-
-        void
-        run()
-        {
-            while (true)
-            {
-                for (std::size_t p = 0; p < partitions; ++p)
-                {
-                    bin_type tmp;
-                    tmp.reserve(10000);
-                    {
-                        std::lock_guard l(mutexes[p]);
-                        bins[p].swap(tmp);
-                    }
-                }
-                std::this_thread::sleep_for(std::chrono::seconds{1});
-            }
-        }
-
-    };
-
     struct Partition
     {
-        std::size_t instance;
         std::size_t capacity;
         q_type q;
         map_type map;
         mutable std::mutex mtx;
         std::size_t evicted {0};
 
-        Partition(std::size_t const inst, std::size_t const cap)
-            : instance(inst)
-            , capacity(cap)
+        Partition(std::size_t const cap)
+            : capacity(cap)
             , q(q_type(cap))
         {
             map.reserve(cap);
@@ -151,7 +107,6 @@ private:
 
         Partition(Partition const& other)
         {
-            instance = other.instance;
             capacity = other.capacity;
             q = other.q;
             map = other.map;
@@ -159,7 +114,7 @@ private:
         }
 
         void
-        enqueue(typename map_type::iterator newIt, Recology& recology)
+        enqueue(typename map_type::iterator newIt)
         {
             static std::size_t const qCap = capacity;
             if (q.size() == qCap)
@@ -167,11 +122,7 @@ private:
                 auto& oldIt = q.back();
                 auto& entry = oldIt->second;
                 if (--entry.second == 0)
-                {
-                    recology.dispose(
-                        instance,
-                        std::move(map.extract(oldIt).mapped().first));
-                }
+                    map.erase(oldIt);
                 ++evicted;
             }
             q.push_front(newIt);
@@ -192,12 +143,7 @@ public:
         cache_.reserve(partitions_);
         std::size_t const psize = capacity / partitions_ + 1;
         for (std::size_t p = 0; p < partitions_; ++p)
-            cache_.push_back(std::move(Partition(p, psize)));
-
-        recology_.reset(new Recology(partitions_));
-
-        std::thread rThread(&Recology::run, recology_.get());
-        rThread.detach();
+            cache_.push_back(std::move(Partition(psize)));
     }
 
     // Inserts, replaces the stored value if existing.
@@ -218,7 +164,7 @@ public:
                 ++it->second.second;
                 it->second.first = value;
             }
-            p.enqueue(it, *recology_);
+            p.enqueue(it);
 
             /* orig
             auto [it, inserted] = p.map.emplace(std::piecewise_construct,
@@ -254,7 +200,7 @@ public:
                 ++it->second.second;
                 value = it->second.first;
             }
-            p.enqueue(it, *recology_);
+            p.enqueue(it);
 
             /* orig
             auto [it, inserted] = p.map.emplace(std::piecewise_construct,
@@ -289,7 +235,7 @@ public:
             return {};
         }
         ++found->second.second;
-        p.enqueue(found, *recology_);
+        p.enqueue(found);
 
         /* orig
         auto found = p.map.find(key);
@@ -394,7 +340,6 @@ public:
 private:
     std::size_t partitions_;
     mutable std::vector<Partition> cache_;
-    std::unique_ptr<Recology> recology_;
 
     std::atomic<std::size_t> hits_{0};
     std::atomic<std::size_t> misses_{0};
