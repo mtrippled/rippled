@@ -155,6 +155,8 @@ public:
                 for (Partition& partition : cache_)
                 {
                     std::size_t const beginSize = partition.q.size();
+                    JLOG(j_.debug()) << "lru partition size,threshold: "
+                        << beginSize << ',' << partition.capacity * 0.9;
                     if (beginSize >= partition.capacity * 0.9)
                     {
                         std::size_t const toPurge = beginSize -
@@ -180,6 +182,7 @@ public:
                                     garbage.emplace_back(
                                         std::move(partition.map.extract(oldIt).mapped().first));
                                 }
+                                partition.q.pop_back();
                                 ++purged;
                                 ++partition.evicted;
                             }
