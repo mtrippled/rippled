@@ -96,7 +96,7 @@ class RCLConsensus
         // needs to guard all calls to consensus_. One reason it is recursive
         // is because logic in phaseEstablish() around buildAndValidate()
         // needs to lock and unlock to protect Consensus data members.
-        mutable std::recursive_mutex mutex_;
+        mutable perf::mutex<std::recursive_mutex> mutex_{"ConsensusLock"};
         std::optional<std::chrono::milliseconds> validationDelay_;
         std::optional<std::chrono::milliseconds> timerDelay_;
         std::atomic<bool> validating_{false};
@@ -111,6 +111,8 @@ class RCLConsensus
 
         using Result = ConsensusResult<Adaptor>;
         using clock_type = Stopwatch;
+
+        bool justOpened_{false};
 
         Adaptor(
             Application& app,
@@ -197,7 +199,8 @@ class RCLConsensus
             return parms_;
         }
 
-        std::recursive_mutex&
+//        std::recursive_mutex&
+        perf::mutex<std::recursive_mutex>&
         peekMutex() const
         {
             return mutex_;
@@ -643,7 +646,8 @@ public:
     RCLCxLedger::ID
     prevLedgerID() const
     {
-        std::lock_guard _{adaptor_.peekMutex()};
+//        std::lock_guard _{adaptor_.peekMutex()};
+        perf::lock_guard _{adaptor_.peekMutex(), FILE_LINE};
         return consensus_.prevLedgerID();
     }
 

@@ -21,6 +21,7 @@
 
 #include <ripple/app/ledger/LedgerMaster.h>
 #include <ripple/basics/chrono.h>
+#include <ripple/basics/PerfLog.h>
 #include <ripple/beast/unit_test.h>
 #include <ripple/beast/utility/WrappedSink.h>
 #include <ripple/consensus/Consensus.h>
@@ -41,6 +42,7 @@
 #include <test/csf/events.h>
 #include <test/csf/ledgers.h>
 #include <test/jtx/Env.h>
+#include <test/jtx.h>
 
 namespace ripple {
 namespace test {
@@ -261,9 +263,12 @@ struct Peer
     //! The collectors to report events to
     CollectorRefs& collectors;
 
-    mutable std::recursive_mutex mtx;
+    mutable perf::mutex<std::recursive_mutex> mtx{"TestConsensusLock"};
+    std::unique_ptr<perf::PerfLog> perfLog;
 
     std::optional<std::chrono::milliseconds> delay;
+
+    bool justOpened_{false};
 
     struct Null_test : public beast::unit_test::suite
     {
@@ -304,6 +309,12 @@ struct Peer
         , fullyValidatedLedger{Ledger::MakeGenesis{}}
         , collectors{c}
     {
+        Null_test test;
+        jtx::Env env(test);
+
+        perf::PerfLog::Setup setup;
+        perfLog = perf::make_PerfLog(setup, env.app(), j, [](){});
+
         // All peers start from the default constructed genesis ledger
         ledgers[lastClosedLedger.id()] = lastClosedLedger;
 
@@ -1037,7 +1048,8 @@ struct Peer
         return false;
     }
 
-    std::recursive_mutex&
+//    std::recursive_mutex&
+    perf::mutex<std::recursive_mutex>&
     peekMutex() const
     {
         return mtx;

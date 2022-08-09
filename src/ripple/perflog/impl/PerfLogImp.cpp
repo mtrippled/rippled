@@ -19,6 +19,7 @@
 
 #include <ripple/perflog/impl/PerfLogImp.h>
 
+#include <ripple/app/main/Application.h>
 #include <ripple/basics/BasicConfig.h>
 #include <ripple/beast/core/CurrentThreadName.h>
 #include <ripple/beast/utility/Journal.h>
@@ -26,9 +27,11 @@
 #include <ripple/json/json_writer.h>
 #include <ripple/json/to_string.h>
 #include <ripple/nodestore/DatabaseShard.h>
+#include <ripple/overlay/Overlay.h>
 #include <atomic>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
 #include <iterator>
 #include <mutex>
@@ -36,15 +39,20 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 
 namespace ripple {
 namespace perf {
 
+PerfLog* perfLog = nullptr;
+
 PerfLogImp::Counters::Counters(
     std::vector<char const*> const& labels,
-    JobTypes const& jobTypes)
+    JobTypes const& jobTypes,
+    Application& app)
+    : app_(app)
 {
     {
         // populateRpc
@@ -161,11 +169,18 @@ PerfLogImp::Counters::countersJson() const
         jqobj[jss::total] = totalJqJson;
     }
 
+    Json::Value nodestore(Json::objectValue);
+    if (app_.getShardStore())
+        app_.getShardStore()->getCountsJson(nodestore);
+    else
+        app_.getNodeStore().getCountsJson(nodestore);
+
     Json::Value counters(Json::objectValue);
     // Be kind to reporting tools and let them expect rpc and jq objects
     // even if empty.
     counters[jss::rpc] = rpcobj;
     counters[jss::job_queue] = jqobj;
+    counters[jss::nodestore] = nodestore;
     return counters;
 }
 
@@ -262,10 +277,20 @@ PerfLogImp::run()
     {
         {
             std::unique_lock<std::mutex> lock(mutex_);
-            if (cond_.wait_until(
-                    lock, lastLog_ + setup_.logInterval, [&] { return stop_; }))
+            if (setup_.logInterval.count() > 0)
             {
-                return;
+                if (cond_.wait_until(
+                    lock, lastLog_ + setup_.logInterval, [&]
+                    { return stop_; }))
+                {
+                    return;
+                }
+            }
+            else
+            {
+                cond_.wait(lock);
+                if (stop_)
+                    return;
             }
             if (rotate_)
             {
@@ -277,6 +302,203 @@ PerfLogImp::run()
     }
 }
 
+struct Aggregate
+{
+    std::uint64_t count{0};
+    std::chrono::microseconds duration_us{0};
+    std::chrono::microseconds avg_us{0};
+    double percent{0};
+
+    bool
+    operator<(Aggregate const& other) const
+    {
+        return duration_us < other.duration_us;
+    }
+
+    Json::Value
+    toJson(std::optional<const Aggregate> parent = {}) const
+    {
+        assert(count);
+        Json::Value ret{Json::objectValue};
+        ret[jss::count] = std::to_string(count);
+        ret[jss::duration_us] = std::to_string(duration_us.count());
+        ret[jss::avg_us] =  static_cast<double>(duration_us.count() / count);
+
+        double totalDuration;
+        if (parent)
+            totalDuration = parent->duration_us.count();
+        else
+            totalDuration = duration_us.count();
+        if (totalDuration)
+        {
+            ret[jss::percent] = static_cast<double>(
+                duration_us.count() * 100 / totalDuration);
+        }
+        else // could happen with granular timer samples
+        {
+            ret[jss::percent] = 0.0;
+        }
+
+        return ret;
+    }
+};
+
+Json::Value
+PerfLogImp::reportEvents()
+{
+    std::vector<Timers> events;
+    {
+        std::lock_guard<std::mutex> lock(eventsMutex_);
+        events_.swap(events);
+    }
+    if (events.empty())
+        return {};
+
+    using Intermediate = std::pair<Aggregate,
+                                   std::unordered_map<Timers::Timer::Tag, Aggregate>>;
+    using IntermediateMap = std::unordered_map<Timers::Timer::Tag,
+                                               Intermediate>;
+    IntermediateMap tracerIntermediates;
+    IntermediateMap mutexIntermediates;
+
+    Json::Value detailJson{Json::arrayValue};
+    for (auto const& event : events)
+    {
+        Json::Value traceJson;
+        if (event.render)
+            traceJson = event.timer.toJson();
+
+        auto& tracerIntermediate = tracerIntermediates[event.timer.tag];
+        ++tracerIntermediate.first.count;
+        tracerIntermediate.first.duration_us += event.timer.duration_us;
+
+        traceJson["sub_timers_size"] = std::to_string(event.sub_timers.size());
+        Json::Value subTraceJson(Json::arrayValue);
+        for (auto const& subTimer : event.sub_timers)
+        {
+            if (event.render)
+                subTraceJson.append(subTimer.toJson());
+
+            auto& subAggregate = tracerIntermediate.second[subTimer.tag];
+            ++subAggregate.count;
+            subAggregate.duration_us += subTimer.duration_us;
+
+            if (subTimer.tag.mutex_id)
+            {
+                Timers::Timer::Tag mutexTag = subTimer.tag;
+                // Remove the lock label from the mutex tag.
+                // This is the aggregation of all locks of the mutex.
+                mutexTag.label = "";
+                auto& mutexIntermediate = mutexIntermediates[mutexTag];
+                ++mutexIntermediate.first.count;
+                mutexIntermediate.first.duration_us += subTimer.duration_us;
+                auto& lockAggregate = mutexIntermediate.second[subTimer.tag];
+                ++lockAggregate.count;
+                lockAggregate.duration_us += subTimer.duration_us;
+            }
+        }
+
+        if (subTraceJson.size())
+            traceJson[jss::subtimers] = subTraceJson;
+        if (event.render)
+            detailJson.append(traceJson);
+    }
+
+    using EndMap = std::map<Timers::Timer::Tag,
+                            std::pair<Aggregate, std::multimap<Aggregate, Timers::Timer::Tag>>>;
+    EndMap tracerEnds;
+    EndMap mutexEnds;
+
+    for (auto& tracerIntermediate : tracerIntermediates)
+    {
+        auto it = tracerEnds.find(tracerIntermediate.first);
+        if (it == tracerEnds.end())
+        {
+            bool inserted;
+            std::tie(it, inserted) = tracerEnds.insert(
+                {tracerIntermediate.first,
+                 {tracerIntermediate.second.first, {}}});
+        }
+        for (auto& subTimer : tracerIntermediate.second.second)
+            it->second.second.insert({subTimer.second, subTimer.first});
+    }
+    for (auto& mutexIntermediate : mutexIntermediates)
+    {
+        auto it = mutexEnds.find(mutexIntermediate.first);
+        if (it == mutexEnds.end())
+        {
+            bool inserted;
+            std::tie(it, inserted) = mutexEnds.insert(
+                {mutexIntermediate.first,
+                 {mutexIntermediate.second.first, {}}});
+        }
+        for (auto& lock : mutexIntermediate.second.second)
+            it->second.second.insert({lock.second, lock.first});
+    }
+
+    Json::Value tracesJson{Json::objectValue};
+    for (auto const& tracer : tracerEnds)
+    {
+        tracesJson[tracer.first.tracer()] = Json::objectValue;
+        Json::Value& traceJson = tracesJson[tracer.first.tracer()];
+        Aggregate const& parentStats = tracer.second.first;
+        traceJson[jss::stats] = parentStats.toJson();
+
+        Json::Value subTimersJson{Json::arrayValue};
+        std::multimap<Aggregate,
+                      Timers::Timer::Tag>::const_reverse_iterator rit;
+        for (rit = tracer.second.second.rbegin();
+             rit != tracer.second.second.rend();
+             ++rit)
+        {
+            Json::Value subTimerJson{Json::objectValue};
+            subTimerJson[jss::label] = rit->second.subTracer();
+            subTimerJson[jss::stats] = rit->first.toJson(parentStats);
+            subTimersJson.append(subTimerJson);
+        }
+        if (subTimersJson.size())
+            traceJson[jss::subtimers] = subTimersJson;
+    }
+
+    Json::Value mutexesJson{Json::objectValue};
+    for (auto const& mutex : mutexEnds)
+    {
+        mutexesJson[mutex.first.mutex()] = Json::objectValue;
+        Json::Value& mutexJson = mutexesJson[mutex.first.mutex()];
+        Aggregate const& parentStats = mutex.second.first;
+        mutexJson[jss::stats] = parentStats.toJson();
+
+        Json::Value locksJson{Json::arrayValue};
+        std::multimap<Aggregate,
+                      Timers::Timer::Tag>::const_reverse_iterator rit;
+        for (rit = mutex.second.second.rbegin();
+             rit != mutex.second.second.rend();
+             ++rit)
+        {
+            Json::Value lockJson{Json::objectValue};
+            lockJson[jss::label] = rit->second.subMutex();
+            lockJson[jss::stats] = rit->first.toJson(parentStats);
+            locksJson.append(lockJson);
+        }
+        if (locksJson.size())
+            mutexJson[jss::locks] = locksJson;
+    }
+
+    Json::Value statsJson{Json::objectValue};
+    if (tracesJson.size())
+        statsJson[jss::traces] = tracesJson;
+    if (mutexesJson.size())
+        statsJson[jss::mutex] = mutexesJson;
+
+    Json::Value ret{Json::objectValue};
+    if (statsJson.size())
+        ret[jss::stats] = statsJson;
+    if (detailJson.size())
+        ret[jss::detail] = detailJson;
+
+    return ret;
+}
+
 void
 PerfLogImp::report()
 {
@@ -285,6 +507,7 @@ PerfLogImp::report()
         return;
 
     auto const present = system_clock::now();
+    auto const steadyPresent = steady_clock::now();
     if (present < lastLog_ + setup_.logInterval)
         return;
     lastLog_ = present;
@@ -304,6 +527,22 @@ PerfLogImp::report()
     else
         app_.getNodeStore().getCountsJson(report[jss::nodestore]);
     report[jss::current_activities] = counters_.currentJson();
+
+    report[jss::jq_trans_overflow] =
+        std::to_string(app_.overlay().getJqTransOverflow());
+    report[jss::peer_disconnects] =
+        std::to_string(app_.overlay().getPeerDisconnect());
+    report[jss::peer_disconnects_resources] =
+        std::to_string(app_.overlay().getPeerDisconnectCharges());
+
+    Json::Value tracesJson = reportEvents();
+    if (tracesJson.size())
+        report[jss::traces] = tracesJson;
+
+    report[jss::report_duration_us] = std::to_string(
+        std::chrono::duration_cast<microseconds>(
+            std::chrono::steady_clock::now() - steadyPresent).count());
+
     app_.getOPs().stateAccounting(report);
 
     logFile_ << Json::Compact{std::move(report)} << std::endl;
@@ -316,6 +555,7 @@ PerfLogImp::PerfLogImp(
     std::function<void()>&& signalStop)
     : setup_(setup), app_(app), j_(journal), signalStop_(std::move(signalStop))
 {
+    perfLog = this;
     openLog();
 }
 
@@ -471,6 +711,20 @@ PerfLogImp::stop()
         }
         thread_.join();
     }
+}
+
+void
+PerfLogImp::addEvent(Timers const& timers)
+{
+    std::lock_guard<std::mutex> lock(eventsMutex_);
+    events_.push_back(timers);
+}
+
+void
+PerfLogImp::triggerReport()
+{
+    if (setup_.logInterval.count() == 0)
+        cond_.notify_one();
 }
 
 //-----------------------------------------------------------------------------

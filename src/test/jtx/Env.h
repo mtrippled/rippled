@@ -26,6 +26,7 @@
 #include <ripple/app/paths/Pathfinder.h>
 #include <ripple/basics/Log.h>
 #include <ripple/basics/chrono.h>
+#include <ripple/basics/PerfLog.h>
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/core/Config.h>
 #include <ripple/json/json_value.h>
@@ -56,6 +57,85 @@
 #include <vector>
 
 namespace ripple {
+
+/**
+ * Dummy class for unit tests.
+ */
+
+namespace perf {
+
+class PerfLogTest : public PerfLog
+{
+    void
+    rpcStart(std::string const& method, std::uint64_t requestId) override
+    {
+    }
+
+    void
+    rpcFinish(std::string const& method, std::uint64_t requestId) override
+    {
+    }
+
+    void
+    rpcError(std::string const& method, std::uint64_t dur) override
+    {
+    }
+
+    void
+    jobQueue(JobType const type) override
+    {
+    }
+
+    void
+    jobStart(
+        JobType const type,
+        std::chrono::microseconds dur,
+        std::chrono::time_point<std::chrono::steady_clock> startTime,
+        int instance) override
+    {
+    }
+
+    void
+    jobFinish(JobType const type, std::chrono::microseconds dur, int instance)
+    override
+    {
+    }
+
+    Json::Value
+    countersJson() const override
+    {
+        return Json::Value();
+    }
+
+    Json::Value
+    currentJson() const override
+    {
+        return Json::Value();
+    }
+
+    void
+    resizeJobs(int const resize) override
+    {
+    }
+
+    void
+    rotate() override
+    {
+    }
+
+    void
+    addEvent(Timers const& timers) override
+    {
+    }
+
+    void
+    triggerReport() override
+    {
+    }
+};
+
+}  // namespace perf
+
 namespace test {
 namespace jtx {
 
@@ -111,7 +191,7 @@ public:
     }
 };
 
-//------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 
 /** A transaction testing environment. */
 class Env
@@ -173,6 +253,7 @@ public:
         , bundle_(suite_, std::move(config), std::move(logs), thresh)
         , journal{bundle_.app->journal("Env")}
     {
+        perf::perfLog = new perf::PerfLogTest();
         memoize(Account::master);
         Pathfinder::initPathTable();
         foreachFeature(
@@ -197,6 +278,7 @@ public:
     Env(beast::unit_test::suite& suite_, FeatureBitset features)
         : Env(suite_, envconfig(), features)
     {
+        perf::perfLog = new perf::PerfLogTest();
     }
 
     /**
@@ -221,6 +303,7 @@ public:
               std::move(logs),
               thresh)
     {
+        perf::perfLog = new perf::PerfLogTest();
     }
 
     /**
@@ -234,6 +317,7 @@ public:
      */
     Env(beast::unit_test::suite& suite_) : Env(suite_, envconfig())
     {
+        perf::perfLog = new perf::PerfLogTest();
     }
 
     virtual ~Env() = default;

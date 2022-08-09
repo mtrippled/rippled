@@ -86,7 +86,8 @@ public:
     bool
     isCompatible(ReadView const&, beast::Journal::Stream, char const* reason);
 
-    std::recursive_mutex&
+//    std::recursive_mutex&
+    perf::mutex<std::recursive_mutex>&
     peekMutex();
 
     // The current ledger is the ledger we believe new transactions should go in
@@ -339,14 +340,17 @@ private:
         std::uint32_t missing,
         bool& progress,
         InboundLedger::Reason reason,
-        std::unique_lock<std::recursive_mutex>&);
+        perf::unique_lock<perf::mutex<std::recursive_mutex>>&);
+//        std::unique_lock<std::recursive_mutex>&);
     // Try to publish ledgers, acquire missing ledgers.  Always called with
     // m_mutex locked.  The passed lock is a reminder to callers.
     void
-    doAdvance(std::unique_lock<std::recursive_mutex>&);
+    doAdvance(perf::unique_lock<perf::mutex<std::recursive_mutex>>&);
+//    doAdvance(std::unique_lock<std::recursive_mutex>&);
 
     std::vector<std::shared_ptr<Ledger const>>
-    findNewLedgersToPublish(std::unique_lock<std::recursive_mutex>&);
+    findNewLedgersToPublish(perf::unique_lock<perf::mutex<std::recursive_mutex>>&);
+//    findNewLedgersToPublish(std::unique_lock<std::recursive_mutex>&);
 
     void
     updatePaths();
@@ -354,12 +358,14 @@ private:
     // Returns true if work started.  Always called with m_mutex locked.
     // The passed lock is a reminder to callers.
     bool
-    newPFWork(const char* name, std::unique_lock<std::recursive_mutex>&);
+    newPFWork(const char* name, perf::unique_lock<perf::mutex<std::recursive_mutex>>&);
+//    newPFWork(const char* name, std::unique_lock<std::recursive_mutex>&);
 
     Application& app_;
     beast::Journal m_journal;
 
-    std::recursive_mutex mutable m_mutex;
+    perf::mutex<std::recursive_mutex> mutable m_mutex{"LedgerMasterLock"};
+    //std::recursive_mutex mutable m_mutex;
 
     // The ledger that most recently closed.
     LedgerHolder mClosedLedger;
