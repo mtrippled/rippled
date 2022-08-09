@@ -293,6 +293,27 @@ getAPIVersionNumber(const Json::Value& value, bool betaEnabled);
 std::variant<std::shared_ptr<Ledger const>, Json::Value>
 getLedgerByContext(RPC::JsonContext& context);
 
+
+/**
+ * Possible values for defining synchronous behavior of the transaction
+ * submission API.
+ * sync: Execute transactioan batch ASAP and return response once transaction
+ * has been processed.
+ * async: Return before processing transaction.
+ * wait: Wait until next batch interval to process transaction and then
+ * return.
+ */
+enum class SubmitSync {sync, async, wait};
+
+/**
+ * Return a c-style string for each synchronous submission value.
+ *
+ * @param s Type of synchronous behavior.
+ * @return C-string representation of the behavior.
+ */
+char const*
+toCString(SubmitSync const s);
+
 }  // namespace RPC
 }  // namespace ripple
 

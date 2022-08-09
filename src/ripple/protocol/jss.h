@@ -552,6 +552,7 @@ JSS(started);
 JSS(state);                 // out: Logic.h, ServerState, LedgerData
 JSS(state_accounting);      // out: NetworkOPs
 JSS(state_now);             // in: Subscribe
+JSS(stats);
 JSS(status);                // error
 JSS(stop);                  // in: LedgerCleaner
 JSS(stop_history_tx_only);  // in: Unsubscribe, stop history tx stream
@@ -562,6 +563,7 @@ JSS(sub_index);             // in: LedgerEntry
 JSS(subcommand);            // in: PathFind
 JSS(success);               // rpc
 JSS(supported);             // out: AmendmentTableImpl
+JSS(sync);                  // in: Submit
 JSS(system_time_offset);    // out: NetworkOPs
 JSS(tag);                   // out: Peers
 JSS(taker);                 // in: Subscribe, BookOffers

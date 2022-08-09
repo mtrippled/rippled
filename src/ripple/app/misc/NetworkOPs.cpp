@@ -231,6 +231,7 @@ public:
         , heartbeatTimer_(io_svc)
         , clusterTimer_(io_svc)
         , accountHistoryTxTimer_(io_svc)
+        , batchApplyTimer_(io_svc)
         , mConsensus(
               app,
               make_FeeVote(
@@ -280,6 +281,7 @@ public:
     processTransaction(
         std::shared_ptr<Transaction>& transaction,
         bool bUnlimited,
+        RPC::SubmitSync sync,
         bool bLocal,
         FailHard failType) override;
 
@@ -315,8 +317,8 @@ public:
     /**
      * Apply transactions in batches. Continue until none are queued.
      */
-    void
-    transactionBatch();
+    bool
+    transactionBatch(bool const drain) override;
 
     /**
      * Attempt to apply transactions and post-process based on the results.
@@ -590,6 +592,15 @@ public:
                     << "NetworkOPs: accountHistoryTxTimer cancel error: "
                     << ec.message();
             }
+
+            ec.clear();
+            batchApplyTimer_.cancel(ec);
+            if (ec)
+            {
+                JLOG(m_journal.error())
+                    << "NetworkOPs: batchApplyTimer cancel error: "
+                    << ec.message();
+            }
         }
         // Make sure that any waitHandlers pending in our timers are done.
         using namespace std::chrono_literals;
@@ -708,6 +719,9 @@ private:
     void
     setAccountHistoryJobTimer(SubAccountHistoryInfoWeak subInfo);
 
+    void
+    setBatchApplyTimer() override;
+
     Application& app_;
     beast::Journal m_journal;
 
@@ -726,6 +740,7 @@ private:
     boost::asio::steady_timer heartbeatTimer_;
     boost::asio::steady_timer clusterTimer_;
     boost::asio::steady_timer accountHistoryTxTimer_;
+    boost::asio::steady_timer batchApplyTimer_;
 
     RCLConsensus mConsensus;
 
@@ -960,9 +975,20 @@ NetworkOPsImp::setTimer(
 void
 NetworkOPsImp::setHeartbeatTimer()
 {
+    std::chrono::milliseconds timerDelay;
+    if (mConsensus.timerDelay())
+    {
+        timerDelay = *mConsensus.timerDelay();
+        mConsensus.timerDelay().reset();
+    }
+    else
+    {
+        timerDelay = mConsensus.parms().ledgerGRANULARITY;
+    }
+
     setTimer(
         heartbeatTimer_,
-        mConsensus.parms().ledgerGRANULARITY,
+        timerDelay,
         [this]() {
             m_job_queue.addJob(jtNETOP_TIMER, "NetOPs.heartbeat", [this]() {
                 processHeartbeatTimer();
@@ -998,6 +1024,33 @@ NetworkOPsImp::setAccountHistoryJobTimer(SubAccountHistoryInfoWeak subInfo)
         4s,
         [this, subInfo]() { addAccountHistoryJob(subInfo); },
         [this, subInfo]() { setAccountHistoryJobTimer(subInfo); });
+}
+
+void
+NetworkOPsImp::setBatchApplyTimer()
+{
+    JLOG(m_journal.debug()) << "setting batch apply timer";
+    using namespace std::chrono_literals;
+    setTimer(
+        batchApplyTimer_,
+        100ms,
+        [this]() {
+            std::unique_lock lock(mMutex);
+            if (mTransactions.size() && mDispatchState == DispatchState::none)
+            {
+                if (m_job_queue.addJob(
+                        jtBATCH, "transactionBatch", [this]() { transactionBatch(false); }))
+                {
+                    mDispatchState = DispatchState::scheduled;
+                }
+            }
+            else
+            {
+                lock.unlock();
+                setBatchApplyTimer();
+            }
+        },
+        [this]() { setBatchApplyTimer(); });
 }
 
 void
@@ -1176,7 +1229,8 @@ NetworkOPsImp::submitTransaction(std::shared_ptr<STTx const> const& iTrans)
 
     m_job_queue.addJob(jtTRANSACTION, "submitTxn", [this, tx]() {
         auto t = tx;
-        processTransaction(t, false, false, FailHard::no);
+        processTransaction(t, false, RPC::SubmitSync::async, false,
+            FailHard::no);
     });
 }
 
@@ -1184,6 +1238,7 @@ void
 NetworkOPsImp::processTransaction(
     std::shared_ptr<Transaction>& transaction,
     bool bUnlimited,
+    RPC::SubmitSync sync,
     bool bLocal,
     FailHard failType)
 {
@@ -1213,7 +1268,7 @@ NetworkOPsImp::processTransaction(
     // Not concerned with local checks at this point.
     if (validity == Validity::SigBad)
     {
-        JLOG(m_journal.info()) << "Transaction has bad signature: " << reason;
+        JLOG(m_journal.trace()) << "Transaction has bad signature: " << reason;
         transaction->setStatus(INVALID);
         transaction->setResult(temBAD_SIGNATURE);
         app_.getHashRouter().setFlags(transaction->getID(), SF_BAD);
@@ -1223,10 +1278,57 @@ NetworkOPsImp::processTransaction(
     // canonicalize can change our pointer
     app_.getMasterTransaction().canonicalize(&transaction);
 
-    if (bLocal)
-        doTransactionSync(transaction, bUnlimited, failType);
-    else
-        doTransactionAsync(transaction, bUnlimited, failType);
+    std::unique_lock lock(mMutex);
+    if (!transaction->getApplying())
+    {
+        transaction->setApplying();
+        mTransactions.push_back(
+            TransactionStatus(transaction, bUnlimited, bLocal, failType));
+    }
+    switch (sync)
+    {
+        case RPC::SubmitSync::sync:
+            do
+            {
+                if (mDispatchState == DispatchState::running)
+                {
+                    // A batch processing job is already running, so wait.
+                    mCond.wait(lock);
+                }
+                else
+                {
+                    apply(lock);
+
+                    if (mTransactions.size())
+                    {
+                        // More transactions need to be applied, but by another job.
+                        if (m_job_queue.addJob(jtBATCH, "transactionBatch", [this]() {
+                            transactionBatch(false);
+                        }))
+                        {
+                            mDispatchState = DispatchState::scheduled;
+                        }
+                    }
+                }
+            } while (transaction->getApplying());
+            break;
+
+        case RPC::SubmitSync::async:
+            // Ensure that the tx object doesn't get processed before being
+            // returned to client, so the client can expect the terSUBMITTED
+            // result in all cases.
+            transaction = std::make_shared<Transaction>(*transaction);
+            transaction->setResult(terSUBMITTED);
+            break;
+
+        case RPC::SubmitSync::wait:
+            mCond.wait(lock,
+                [&transaction]{ return !transaction->getApplying(); });
+            break;
+
+        default:
+            assert(false);
+    }
 }
 
 void
@@ -1244,6 +1346,7 @@ NetworkOPsImp::doTransactionAsync(
         TransactionStatus(transaction, bUnlimited, false, failType));
     transaction->setApplying();
 
+    /*
     if (mDispatchState == DispatchState::none)
     {
         if (m_job_queue.addJob(
@@ -1252,6 +1355,7 @@ NetworkOPsImp::doTransactionAsync(
             mDispatchState = DispatchState::scheduled;
         }
     }
+     */
 }
 
 void
@@ -1268,44 +1372,22 @@ NetworkOPsImp::doTransactionSync(
             TransactionStatus(transaction, bUnlimited, true, failType));
         transaction->setApplying();
     }
-
-    do
-    {
-        if (mDispatchState == DispatchState::running)
-        {
-            // A batch processing job is already running, so wait.
-            mCond.wait(lock);
-        }
-        else
-        {
-            apply(lock);
-
-            if (mTransactions.size())
-            {
-                // More transactions need to be applied, but by another job.
-                if (m_job_queue.addJob(jtBATCH, "transactionBatch", [this]() {
-                        transactionBatch();
-                    }))
-                {
-                    mDispatchState = DispatchState::scheduled;
-                }
-            }
-        }
-    } while (transaction->getApplying());
 }
 
-void
-NetworkOPsImp::transactionBatch()
+bool
+NetworkOPsImp::transactionBatch(bool const drain)
 {
-    std::unique_lock<std::mutex> lock(mMutex);
-
-    if (mDispatchState == DispatchState::running)
-        return;
-
-    while (mTransactions.size())
     {
-        apply(lock);
+        std::unique_lock<std::mutex> lock(mMutex);
+        if (mDispatchState == DispatchState::running || mTransactions.empty())
+            return false;
+
+        do
+            apply(lock);
+        while (drain && mTransactions.size());
     }
+    setBatchApplyTimer();
+    return true;
 }
 
 void
@@ -1314,9 +1396,6 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
     std::vector<TransactionStatus> submit_held;
     std::vector<TransactionStatus> transactions;
     mTransactions.swap(transactions);
-    assert(!transactions.empty());
-
-    assert(mDispatchState != DispatchState::running);
     mDispatchState = DispatchState::running;
 
     batchLock.unlock();
@@ -1700,7 +1779,9 @@ NetworkOPsImp::checkLastClosedLedger(
         switchLedgers = false;
     }
     else
+    {
         networkClosed = closedLedger;
+    }
 
     if (!switchLedgers)
         return false;
@@ -1718,6 +1799,7 @@ NetworkOPsImp::checkLastClosedLedger(
     {
         // Don't switch to a ledger not on the validated chain
         // or with an invalid close time or sequence
+        JLOG(m_journal.debug()) << "setting to ourClosed->info().hash 2 " << ourClosed->info().hash;
         networkClosed = ourClosed->info().hash;
         return false;
     }
