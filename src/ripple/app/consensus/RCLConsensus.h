@@ -36,8 +36,11 @@
 #include <ripple/protocol/STValidation.h>
 #include <ripple/shamap/SHAMap.h>
 #include <atomic>
+#include <chrono>
 #include <mutex>
 #include <set>
+#include <string>
+
 namespace ripple {
 
 class InboundTransactions;
@@ -58,7 +61,10 @@ class RCLConsensus
     {
         Application& app_;
         std::unique_ptr<FeeVote> feeVote_;
+    public:
+
         LedgerMaster& ledgerMaster_;
+    private:
         LocalTxs& localTxs_;
         InboundTransactions& inboundTransactions_;
         beast::Journal const j_;
@@ -95,6 +101,10 @@ class RCLConsensus
         using PeerPosition_t = RCLCxPeerPos;
 
         using Result = ConsensusResult<Adaptor>;
+
+        std::shared_ptr<perf::Tracer> tracer_ {
+            std::make_shared<perf::Tracer>(FILE_LINE)};
+        std::string startTimer_;
 
         Adaptor(
             Application& app,
@@ -178,6 +188,9 @@ class RCLConsensus
             return parms_;
         }
 
+        std::size_t
+        getNeededValidations() const;
+
     private:
         //---------------------------------------------------------------------
         // The following members implement the generic Consensus requirements
@@ -233,6 +246,9 @@ class RCLConsensus
          */
         bool
         hasOpenTransactions() const;
+
+        std::size_t
+        txCount() const;
 
         /** Number of proposers that have validated the given ledger
 
@@ -487,7 +503,7 @@ public:
         hash_set<NodeID> const& nowTrusted);
 
     //! @see Consensus::timerEntry
-    void
+    std::size_t
     timerEntry(NetClock::time_point const& now);
 
     //! @see Consensus::gotTxSet

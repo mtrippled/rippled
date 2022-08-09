@@ -151,9 +151,17 @@ TransactionAcquire::trigger(std::shared_ptr<Peer> const& peer)
         if (nodes.empty())
         {
             if (mMap->isValid())
+            {
                 complete_ = true;
+                JLOG(journal_.debug()) << "TransactionAcuire::trigger complete "
+                    << hash_;
+            }
             else
+            {
                 failed_ = true;
+                JLOG(journal_.debug()) << "TransactionAcuire::trigger failed "
+                                       << hash_;
+            }
 
             done();
             return;

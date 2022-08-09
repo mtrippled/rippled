@@ -134,7 +134,7 @@ applyTransaction(
     if (retryAssured)
         flags = flags | tapRETRY;
 
-    JLOG(j.debug()) << "TXN " << txn.getTransactionID()
+    JLOG(j.trace()) << "TXN " << txn.getTransactionID()
                     << (retryAssured ? "/retry" : "/final");
 
     try
@@ -142,7 +142,7 @@ applyTransaction(
         auto const result = apply(app, view, txn, flags, j);
         if (result.second)
         {
-            JLOG(j.debug())
+            JLOG(j.trace())
                 << "Transaction applied: " << transHuman(result.first);
             return ApplyResult::Success;
         }
