@@ -95,6 +95,11 @@ class PerfLogTest : public PerfLog
     rotate() override
     {
     }
+
+    void
+    addEvent(Timers const& timers) override
+    {
+    }
 };
 
 }  // namespace perf
