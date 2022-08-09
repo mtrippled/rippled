@@ -941,7 +941,6 @@ SHAMap::writeNode(NodeObjectType t, std::shared_ptr<SHAMapTreeNode> node) const
 {
     assert(node->cowid() == 0);
     assert(backed_);
-
     canonicalize(node->getHash(), node);
 
     Serializer s;

@@ -37,6 +37,13 @@ shouldCloseLedger(
     beast::Journal j)
 {
     using namespace std::chrono_literals;
+
+    JLOG(j.debug()) << "shouldCloseLedger parameters: " << anyTransactions
+        << ',' << prevProposers << ',' << proposersClosed << ','
+        << proposersValidated << ',' << prevRoundTime.count()
+        << ',' << timeSincePrevClose.count() << ',' << openTime.count()
+        << ',' << idleInterval.count();
+
     if ((prevRoundTime < -1s) || (prevRoundTime > 10min) ||
         (timeSincePrevClose > 10min))
     {
@@ -52,20 +59,23 @@ shouldCloseLedger(
     if ((proposersClosed + proposersValidated) > (prevProposers / 2))
     {
         // If more than half of the network has closed, we close
-        JLOG(j.trace()) << "Others have closed";
+        JLOG(j.debug()) << "shouldCloseLedger Others have closed";
         return true;
     }
 
     if (!anyTransactions)
     {
         // Only close at the end of the idle interval
-        return timeSincePrevClose >= idleInterval;  // normal idle
+        bool ret = timeSincePrevClose >= idleInterval;  // normal idle
+        JLOG(j.debug()) << "shouldCloseLedger closing at end of idle interval: " << ret;
+        return ret;
+
     }
 
     // Preserve minimum ledger open time
     if (openTime < parms.ledgerMIN_CLOSE)
     {
-        JLOG(j.debug()) << "Must wait minimum time before closing";
+        JLOG(j.debug()) << "shouldCloseLedger Must wait minimum time before closing";
         return false;
     }
 
@@ -74,11 +84,12 @@ shouldCloseLedger(
     // the network
     if (openTime < (prevRoundTime / 2))
     {
-        JLOG(j.debug()) << "Ledger has not been open long enough";
+        JLOG(j.debug()) << "shouldCloseLedger Ledger has not been open long enough";
         return false;
     }
 
     // Close the ledger
+    JLOG(j.debug()) << "shouldCloseLedger closing";
     return true;
 }
 
@@ -116,14 +127,14 @@ checkConsensus(
     bool proposing,
     beast::Journal j)
 {
-    JLOG(j.trace()) << "checkConsensus: prop=" << currentProposers << "/"
+    JLOG(j.debug()) << "checkConsensus: prop=" << currentProposers << "/"
                     << prevProposers << " agree=" << currentAgree
                     << " validated=" << currentFinished
                     << " time=" << currentAgreeTime.count() << "/"
                     << previousAgreeTime.count();
 
-    if (currentAgreeTime <= parms.ledgerMIN_CONSENSUS)
-        return ConsensusState::No;
+//    if (currentAgreeTime <= parms.ledgerMIN_CONSENSUS)
+//        return ConsensusState::No;
 
     if (currentProposers < (prevProposers * 3 / 4))
     {
@@ -131,7 +142,7 @@ checkConsensus(
         // rush: we may need more time.
         if (currentAgreeTime < (previousAgreeTime + parms.ledgerMIN_CONSENSUS))
         {
-            JLOG(j.trace()) << "too fast, not enough proposers";
+            JLOG(j.debug()) << "checkConsensus too fast, not enough proposers";
             return ConsensusState::No;
         }
     }
@@ -141,7 +152,7 @@ checkConsensus(
     if (checkConsensusReached(
             currentAgree, currentProposers, proposing, parms.minCONSENSUS_PCT))
     {
-        JLOG(j.debug()) << "normal consensus";
+        JLOG(j.debug()) << "checkConsensus normal consensus";
         return ConsensusState::Yes;
     }
 
@@ -150,12 +161,12 @@ checkConsensus(
     if (checkConsensusReached(
             currentFinished, currentProposers, false, parms.minCONSENSUS_PCT))
     {
-        JLOG(j.warn()) << "We see no consensus, but 80% of nodes have moved on";
+        JLOG(j.warn()) << "checkConsensus We see no consensus, but 80% of nodes have moved on";
         return ConsensusState::MovedOn;
     }
 
     // no consensus yet
-    JLOG(j.trace()) << "no consensus";
+    JLOG(j.debug()) << "checkConsensus no consensus";
     return ConsensusState::No;
 }
 

@@ -37,7 +37,7 @@ enum {
     // in a batch. Actual usage can be twice this since
     // we have a new batch growing as we write the old.
     //
-    batchWriteLimitSize = 65536
+    batchWriteLimitSize = 262144
 };
 
 /** Return codes from Backend operations. */

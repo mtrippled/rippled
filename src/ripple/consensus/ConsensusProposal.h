@@ -25,6 +25,7 @@
 #include <ripple/protocol/HashPrefix.h>
 #include <ripple/protocol/jss.h>
 #include <cstdint>
+#include <iostream>
 #include <optional>
 
 namespace ripple {
@@ -78,14 +79,20 @@ public:
         Position_t const& position,
         NetClock::time_point closeTime,
         NetClock::time_point now,
-        NodeID_t const& nodeID)
+        NodeID_t const& nodeID,
+        std::optional<std::uint32_t> ledgerSeq = std::nullopt)
         : previousLedger_(prevLedger)
         , position_(position)
         , closeTime_(closeTime)
         , time_(now)
         , proposeSeq_(seq)
         , nodeID_(nodeID)
+        , ledgerSeq_(ledgerSeq)
     {
+        if (ledgerSeq.has_value())
+            std::cerr << "ledgerSeq " << *ledgerSeq_ << '\n';
+        else
+            std::cerr << "ledgerSeq null\n";
     }
 
     //! Identifying which peer took this position.
@@ -120,6 +127,12 @@ public:
     proposeSeq() const
     {
         return proposeSeq_;
+    }
+
+    std::optional<std::uint32_t>
+    ledgerSeq() const
+    {
+        return ledgerSeq_;
     }
 
     //! The current position on the consensus close time.
@@ -250,6 +263,8 @@ private:
 
     //! The identifier of the node taking this position
     NodeID_t nodeID_;
+
+    std::optional<std::uint32_t> ledgerSeq_;
 
     //! The signing hash for this proposal
     mutable std::optional<uint256> signingHash_;

@@ -481,6 +481,12 @@ struct Peer
     }
 
     std::size_t
+    txCount() const
+    {
+        return openTxs.size();
+    }
+
+    std::size_t
     proposersValidated(Ledger::ID const& prevLedger)
     {
         return validations.numTrustedForLedger(prevLedger);
@@ -643,6 +649,12 @@ struct Peer
         return consensusParms;
     }
 
+    std::size_t
+    getNeededValidations() const
+    {
+        return 0;
+    }
+
     // Not interested in tracking consensus mode changes for now
     void onModeChange(ConsensusMode, ConsensusMode)
     {
@@ -795,7 +807,8 @@ struct Peer
         dest.push_back(p);
 
         // Rely on consensus to decide whether to relay
-        return consensus.peerProposal(now(), Position{p});
+//        return consensus.peerProposal(now(), Position{p});
+        return true;
     }
 
     bool
@@ -803,8 +816,8 @@ struct Peer
     {
         bool const inserted =
             txSets.insert(std::make_pair(txs.id(), txs)).second;
-        if (inserted)
-            consensus.gotTxSet(now(), txs);
+//        if (inserted)
+//            consensus.gotTxSet(now(), txs);
         // relay only if new
         return inserted;
     }
@@ -887,7 +900,7 @@ struct Peer
     void
     timerEntry()
     {
-        consensus.timerEntry(now());
+//        consensus.timerEntry(now());
         // only reschedule if not completed
         if (completedLedgers < targetLedgers)
             scheduler.in(parms().ledgerGRANULARITY, [this]() { timerEntry(); });
@@ -909,8 +922,8 @@ struct Peer
 
         // Not yet modeling dynamic UNL.
         hash_set<PeerID> nowUntrusted;
-        consensus.startRound(
-            now(), bestLCL, lastClosedLedger, nowUntrusted, runAsValidator);
+//        consensus.startRound(
+//            now(), bestLCL, lastClosedLedger, nowUntrusted, runAsValidator);
     }
 
     // Start the consensus process assuming it is not yet running
