@@ -447,6 +447,7 @@ RCLConsensus::Adaptor::doAccept(
     ConsensusMode const& mode,
     Json::Value&& consensusJson)
 {
+    auto timer = perf::START_TIMER(tracer_);
     prevProposers_ = result.proposers;
     prevRoundTime_ = result.roundTime.read();
 
@@ -506,6 +507,7 @@ RCLConsensus::Adaptor::doAccept(
         }
     }
 
+    auto buildLclTimer = perf::START_TIMER(tracer_);
     auto built = buildLCL(
         prevLedger,
         retriableTxs,
@@ -514,6 +516,7 @@ RCLConsensus::Adaptor::doAccept(
         closeResolution,
         result.roundTime.read(),
         failed);
+    perf::END_TIMER(tracer_, buildLclTimer);
 
     auto const newLCLHash = built.id();
     JLOG(j_.debug()) << "Built ledger #" << built.seq() << ": " << newLCLHash;
@@ -702,6 +705,7 @@ RCLConsensus::Adaptor::doAccept(
 
         app_.timeKeeper().adjustCloseTime(offset);
     }
+    perf::END_TIMER(tracer_, timer);
 }
 
 void
@@ -767,7 +771,8 @@ RCLConsensus::Adaptor::buildLCL(
             app_,
             retriableTxs,
             failedTxs,
-            j_);
+            j_,
+            tracer_);
     }();
 
     // Update fee computations based on accepted txs

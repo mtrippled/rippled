@@ -980,14 +980,15 @@ SHAMap::unshare()
 }
 
 int
-SHAMap::flushDirty(NodeObjectType t)
+SHAMap::flushDirty(NodeObjectType t, std::shared_ptr<perf::Tracer> const& tracer)
 {
     // We only write back if this map is backed.
-    return walkSubTree(backed_, t);
+    return walkSubTree(backed_, t, tracer);
 }
 
 int
-SHAMap::walkSubTree(bool doWrite, NodeObjectType t)
+SHAMap::walkSubTree(bool doWrite, NodeObjectType t,
+                    std::shared_ptr<perf::Tracer> const& tracer)
 {
     assert(!doWrite || backed_);
 

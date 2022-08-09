@@ -338,7 +338,7 @@ public:
 
     /** Flush modified nodes to the nodestore and convert them to shared. */
     int
-    flushDirty(NodeObjectType t);
+    flushDirty(NodeObjectType t, std::shared_ptr<perf::Tracer> const& = {});
 
     void
     walkMap(std::vector<SHAMapMissingNode>& missingNodes, int maxMissing) const;
@@ -495,7 +495,8 @@ private:
         Delta& differences,
         int& maxCount) const;
     int
-    walkSubTree(bool doWrite, NodeObjectType t);
+    walkSubTree(bool doWrite, NodeObjectType t,
+                std::shared_ptr<perf::Tracer>const& tracer = {});
 
     // Structure to track information about call to
     // getMissingNodes while it's in progress

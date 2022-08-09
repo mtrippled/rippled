@@ -666,6 +666,10 @@ Consensus<Adaptor>::startRoundInternal(
     ConsensusMode mode)
 {
     phase_ = ConsensusPhase::open;
+    perf::END_TIMER(adaptor_.tracer_, adaptor_.startTimer_);
+    adaptor_.tracer_.reset(new perf::Tracer(FILE_LINE));
+    adaptor_.startTimer_ = perf::START_TIMER(adaptor_.tracer_);
+    auto timer = perf::START_TIMER(adaptor_.tracer_);
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::open";
     mode_.set(mode, adaptor_);
     now_ = now;
@@ -1291,6 +1295,8 @@ Consensus<Adaptor>::phaseEstablish()
     prevProposers_ = currPeerPositions_.size();
     prevRoundTime_ = result_->roundTime.read();
     phase_ = ConsensusPhase::accepted;
+    perf::END_TIMER(adaptor_.tracer_, adaptor_.startTimer_);
+    adaptor_.startTimer_ = perf::START_TIMER(adaptor_.tracer_);
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::accepted";
     adaptor_.onAccept(
         *result_,
@@ -1309,6 +1315,8 @@ Consensus<Adaptor>::closeLedger()
     assert(!result_);
 
     phase_ = ConsensusPhase::establish;
+    perf::END_TIMER(adaptor_.tracer_, adaptor_.startTimer_);
+    adaptor_.startTimer_ = perf::START_TIMER(adaptor_.tracer_);
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::establish";
     rawCloseTimes_.self = now_;
 
