@@ -658,6 +658,7 @@ target_sources (rippled PRIVATE
        subdir: perflog
   #]===============================]
   src/ripple/perflog/impl/PerfLogImp.cpp
+  src/ripple/perflog/impl/Tracer.cpp
 
   #[===============================[
      main sources:
