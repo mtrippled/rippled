@@ -178,7 +178,7 @@ RCLConsensus::Adaptor::share(RCLCxTx const& tx)
     // If we didn't relay this transaction recently, relay it to all peers
     if (app_.getHashRouter().shouldRelay(tx.id()))
     {
-        JLOG(j_.debug()) << "Relaying disputed tx " << tx.id();
+        JLOG(j_.trace()) << "Relaying disputed tx " << tx.id();
         auto const slice = tx.tx_.slice();
         protocol::TMTransaction msg;
         msg.set_rawtransaction(slice.data(), slice.size());
@@ -190,7 +190,7 @@ RCLConsensus::Adaptor::share(RCLCxTx const& tx)
     }
     else
     {
-        JLOG(j_.debug()) << "Not relaying disputed tx " << tx.id();
+        JLOG(j_.trace()) << "Not relaying disputed tx " << tx.id();
     }
 }
 void
@@ -256,6 +256,12 @@ bool
 RCLConsensus::Adaptor::hasOpenTransactions() const
 {
     return !app_.openLedger().empty();
+}
+
+std::size_t
+RCLConsensus::Adaptor::txCount() const
+{
+    return app_.openLedger().txCount();
 }
 
 std::size_t
@@ -420,6 +426,7 @@ RCLConsensus::Adaptor::onAccept(
     ConsensusMode const& mode,
     Json::Value&& consensusJson)
 {
+    auto timer = perf::START_TIMER(tracer_);
     app_.getJobQueue().addJob(
         jtACCEPT, "acceptLedger", [=, cj = std::move(consensusJson)]() mutable {
             // Note that no lock is held or acquired during this job.
@@ -436,6 +443,7 @@ RCLConsensus::Adaptor::onAccept(
                 std::move(cj));
             this->app_.getOPs().endConsensus();
         });
+    perf::END_TIMER(tracer_, timer);
 }
 
 void
@@ -447,6 +455,7 @@ RCLConsensus::Adaptor::doAccept(
     ConsensusMode const& mode,
     Json::Value&& consensusJson)
 {
+    auto timer = perf::START_TIMER(tracer_);
     prevProposers_ = result.proposers;
     prevRoundTime_ = result.roundTime.read();
 
@@ -497,7 +506,7 @@ RCLConsensus::Adaptor::doAccept(
         {
             retriableTxs.insert(
                 std::make_shared<STTx const>(SerialIter{item.slice()}));
-            JLOG(j_.debug()) << "    Tx: " << item.key();
+            JLOG(j_.trace()) << "    Tx: " << item.key();
         }
         catch (std::exception const&)
         {
@@ -506,6 +515,7 @@ RCLConsensus::Adaptor::doAccept(
         }
     }
 
+    auto buildLclTimer = perf::START_TIMER(tracer_);
     auto built = buildLCL(
         prevLedger,
         retriableTxs,
@@ -514,6 +524,7 @@ RCLConsensus::Adaptor::doAccept(
         closeResolution,
         result.roundTime.read(),
         failed);
+    perf::END_TIMER(tracer_, buildLclTimer);
 
     auto const newLCLHash = built.id();
     JLOG(j_.debug()) << "Built ledger #" << built.seq() << ": " << newLCLHash;
@@ -600,7 +611,7 @@ RCLConsensus::Adaptor::doAccept(
                 // we voted NO
                 try
                 {
-                    JLOG(j_.debug())
+                    JLOG(j_.trace())
                         << "Test applying disputed transaction that did"
                         << " not get in " << dispute.tx().id();
 
@@ -625,9 +636,14 @@ RCLConsensus::Adaptor::doAccept(
         }
 
         // Build new open ledger
-        std::unique_lock lock{app_.getMasterMutex(), std::defer_lock};
-        std::unique_lock sl{ledgerMaster_.peekMutex(), std::defer_lock};
-        std::lock(lock, sl);
+        perf::unique_lock lock(*app_.getMasterMutex(), FILE_LINE);
+        perf::unique_lock sl(ledgerMaster_.peekMutex(), FILE_LINE);
+//        perf::unique_lock lock(*app_.getMasterMutex(), FILE_LINE, std::defer_lock);
+        //std::unique_lock lock{app_.getMasterMutex(), std::defer_lock};
+//        perf::unique_lock sl(ledgerMaster_.peekMutex(), FILE_LINE, std::defer_lock);
+        //std::unique_lock sl{ledgerMaster_.peekMutex(), std::defer_lock};
+//        perf::lock2(lock, sl, FILE_LINE);
+        //std::lock(lock, sl);
 
         auto const lastVal = ledgerMaster_.getValidatedLedger();
         std::optional<Rules> rules;
@@ -702,6 +718,7 @@ RCLConsensus::Adaptor::doAccept(
 
         app_.timeKeeper().adjustCloseTime(offset);
     }
+    perf::END_TIMER(tracer_, timer);
 }
 
 void
@@ -767,7 +784,8 @@ RCLConsensus::Adaptor::buildLCL(
             app_,
             retriableTxs,
             failedTxs,
-            j_);
+            j_,
+            tracer_);
     }();
 
     // Update fee computations based on accepted txs
@@ -886,6 +904,12 @@ RCLConsensus::Adaptor::onModeChange(ConsensusMode before, ConsensusMode after)
     mode_ = after;
 }
 
+std::size_t
+RCLConsensus::Adaptor::getNeededValidations() const
+{
+    return ledgerMaster_.getNeededValidations();
+}
+
 Json::Value
 RCLConsensus::getJson(bool full) const
 {
@@ -898,13 +922,13 @@ RCLConsensus::getJson(bool full) const
     return ret;
 }
 
-void
+std::size_t
 RCLConsensus::timerEntry(NetClock::time_point const& now)
 {
     try
     {
         std::lock_guard _{mutex_};
-        consensus_.timerEntry(now);
+        return consensus_.timerEntry(now);
     }
     catch (SHAMapMissingNode const& mn)
     {

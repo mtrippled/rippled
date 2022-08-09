@@ -148,6 +148,43 @@ class NetworkOPsImp final : public NetworkOPs
         static std::array<Json::StaticString const, 5> const states_;
 
     public:
+        struct TxCounters
+        {
+            std::atomic<std::uint64_t> rpc{0};
+            std::atomic<std::uint64_t> peer{0};
+            std::atomic<std::uint64_t> attempt{0};
+            std::atomic<std::uint64_t> rpc_attempt{0};
+            std::atomic<std::uint64_t> applied{0};
+            std::atomic<std::uint64_t> rpc_applied{0};
+            std::atomic<std::uint64_t> should_relay{0};
+            std::atomic<std::uint64_t> rpc_should_relay{0};
+            std::atomic<std::uint64_t> check_should_relay{0};
+            std::atomic<std::uint64_t> rpc_check_should_relay{0};
+            std::atomic<std::uint64_t> relay_to_none{0};
+            std::atomic<std::uint64_t> rpc_relay_to_none{0};
+
+            Json::Value
+            json() const
+            {
+                Json::Value ret{Json::objectValue};
+                ret["rpc"] = std::to_string(rpc);
+                ret["peer"] = std::to_string(peer);
+                ret["attempt"] = std::to_string(attempt);
+                ret["rpc_attempt"] = std::to_string(rpc_attempt);
+                ret["applied"] = std::to_string(applied);
+                ret["rpc_applied"] = std::to_string(rpc_applied);
+                ret["should_relay"] = std::to_string(should_relay);
+                ret["rpc_should_relay"] = std::to_string(rpc_should_relay);
+                ret["check_should_relay"] = std::to_string(check_should_relay);
+                ret["rpc_check_should_relay"] = std::to_string(rpc_check_should_relay);
+                ret["relay_to_none"] = std::to_string(relay_to_none);
+                ret["rpc_relay_to_none"] = std::to_string(rpc_relay_to_none);
+                return ret;
+            }
+        };
+
+        TxCounters txCounters;
+
         explicit StateAccounting()
         {
             counters_[static_cast<std::size_t>(OperatingMode::DISCONNECTED)]
@@ -231,6 +268,7 @@ public:
         , heartbeatTimer_(io_svc)
         , clusterTimer_(io_svc)
         , accountHistoryTxTimer_(io_svc)
+        , batchApplyTimer_(io_svc)
         , mConsensus(
               app,
               make_FeeVote(
@@ -316,7 +354,7 @@ public:
      * Apply transactions in batches. Continue until none are queued.
      */
     void
-    transactionBatch();
+    transactionBatch(bool const setTimer, char const* msg);
 
     /**
      * Attempt to apply transactions and post-process based on the results.
@@ -590,6 +628,15 @@ public:
                     << "NetworkOPs: accountHistoryTxTimer cancel error: "
                     << ec.message();
             }
+
+            ec.clear();
+            batchApplyTimer_.cancel(ec);
+            if (ec)
+            {
+                JLOG(m_journal.error())
+                    << "NetworkOPs: batchApplyTimer cancel error: "
+                    << ec.message();
+            }
         }
         // Make sure that any waitHandlers pending in our timers are done.
         using namespace std::chrono_literals;
@@ -607,7 +654,7 @@ private:
         std::function<void()> onExpire,
         std::function<void()> onError);
     void
-    setHeartbeatTimer();
+    setHeartbeatTimer(std::size_t const pauseMs = 1000);
     void
     setClusterTimer();
     void
@@ -708,6 +755,9 @@ private:
     void
     setAccountHistoryJobTimer(SubAccountHistoryInfoWeak subInfo);
 
+    void
+    setBatchApplyTimer() override;
+
     Application& app_;
     beast::Journal m_journal;
 
@@ -726,6 +776,7 @@ private:
     boost::asio::steady_timer heartbeatTimer_;
     boost::asio::steady_timer clusterTimer_;
     boost::asio::steady_timer accountHistoryTxTimer_;
+    boost::asio::steady_timer batchApplyTimer_;
 
     RCLConsensus mConsensus;
 
@@ -958,17 +1009,19 @@ NetworkOPsImp::setTimer(
 }
 
 void
-NetworkOPsImp::setHeartbeatTimer()
+NetworkOPsImp::setHeartbeatTimer(std::size_t const pauseMs)
 {
+    JLOG(m_journal.debug()) << "setHeartbeatTimer " << pauseMs << "ms";
     setTimer(
         heartbeatTimer_,
-        mConsensus.parms().ledgerGRANULARITY,
+        std::chrono::milliseconds(pauseMs),
+//        mConsensus.parms().ledgerGRANULARITY,
         [this]() {
             m_job_queue.addJob(jtNETOP_TIMER, "NetOPs.heartbeat", [this]() {
                 processHeartbeatTimer();
             });
         },
-        [this]() { setHeartbeatTimer(); });
+        [this, &pauseMs]() { setHeartbeatTimer(pauseMs); });
 }
 
 void
@@ -1001,10 +1054,38 @@ NetworkOPsImp::setAccountHistoryJobTimer(SubAccountHistoryInfoWeak subInfo)
 }
 
 void
+NetworkOPsImp::setBatchApplyTimer()
+{
+    JLOG(m_journal.debug()) << "setting batch apply timer";
+    using namespace std::chrono_literals;
+    setTimer(
+        batchApplyTimer_,
+        100ms,
+        [this]() {
+            std::unique_lock lock(mMutex);
+            if (mTransactions.size() && mDispatchState == DispatchState::none)
+            {
+                if (m_job_queue.addJob(
+                        jtBATCH, "transactionBatch", [this]() { transactionBatch(true, "setBatchApplyTimer"); }))
+                {
+                    mDispatchState = DispatchState::scheduled;
+                }
+            }
+            else
+            {
+                lock.unlock();
+                setBatchApplyTimer();
+            }
+        },
+        [this]() { setBatchApplyTimer(); });
+}
+
+void
 NetworkOPsImp::processHeartbeatTimer()
 {
     {
-        std::unique_lock lock{app_.getMasterMutex()};
+        perf::unique_lock lock(*app_.getMasterMutex(), FILE_LINE);
+        //std::unique_lock lock{app_.getMasterMutex()};
 
         // VFALCO NOTE This is for diagnosing a crash on exit
         LoadManager& mgr(app_.getLoadManager());
@@ -1046,7 +1127,7 @@ NetworkOPsImp::processHeartbeatTimer()
             setMode(OperatingMode::CONNECTED);
     }
 
-    mConsensus.timerEntry(app_.timeKeeper().closeTime());
+    std::size_t pauseMs = mConsensus.timerEntry(app_.timeKeeper().closeTime());
 
     const ConsensusPhase currPhase = mConsensus.phase();
     if (mLastConsensusPhase != currPhase)
@@ -1055,7 +1136,7 @@ NetworkOPsImp::processHeartbeatTimer()
         mLastConsensusPhase = currPhase;
     }
 
-    setHeartbeatTimer();
+    setHeartbeatTimer(pauseMs);
 }
 
 void
@@ -1222,10 +1303,18 @@ NetworkOPsImp::processTransaction(
     // canonicalize can change our pointer
     app_.getMasterTransaction().canonicalize(&transaction);
 
+    JLOG(m_journal.debug()) << "processTransaction " << transaction->getID()
+        << ',' << bLocal;
     if (bLocal)
+    {
+        accounting_.txCounters.rpc++;
         doTransactionSync(transaction, bUnlimited, failType);
+    }
     else
+    {
+        accounting_.txCounters.peer++;
         doTransactionAsync(transaction, bUnlimited, failType);
+    }
 }
 
 void
@@ -1243,6 +1332,7 @@ NetworkOPsImp::doTransactionAsync(
         TransactionStatus(transaction, bUnlimited, false, failType));
     transaction->setApplying();
 
+    /*
     if (mDispatchState == DispatchState::none)
     {
         if (m_job_queue.addJob(
@@ -1251,6 +1341,7 @@ NetworkOPsImp::doTransactionAsync(
             mDispatchState = DispatchState::scheduled;
         }
     }
+     */
 }
 
 void
@@ -1268,6 +1359,11 @@ NetworkOPsImp::doTransactionSync(
         transaction->setApplying();
     }
 
+//    JLOG(m_journal.debug()) << "APPLY waiting " << transaction->getID();
+//    mCond.wait(lock, [transaction](){ return !transaction->getApplying(); });
+//    JLOG(m_journal.debug()) << "APPLY done " << transaction->getID();
+
+    /*
     do
     {
         if (mDispatchState == DispatchState::running)
@@ -1277,13 +1373,13 @@ NetworkOPsImp::doTransactionSync(
         }
         else
         {
-            apply(lock);
+            apply(lock, "doTransactionSync");
 
             if (mTransactions.size())
             {
                 // More transactions need to be applied, but by another job.
                 if (m_job_queue.addJob(jtBATCH, "transactionBatch", [this]() {
-                        transactionBatch();
+                        transactionBatch(false, "doTransactionSync");
                     }))
                 {
                     mDispatchState = DispatchState::scheduled;
@@ -1291,20 +1387,24 @@ NetworkOPsImp::doTransactionSync(
             }
         }
     } while (transaction->getApplying());
+     */
 }
 
 void
-NetworkOPsImp::transactionBatch()
+NetworkOPsImp::transactionBatch(bool const setTimer, char const* msg)
 {
-    std::unique_lock<std::mutex> lock(mMutex);
-
-    if (mDispatchState == DispatchState::running)
-        return;
-
-    while (mTransactions.size())
+    JLOG(m_journal.debug()) << "transactionBatch " << setTimer << ' ' << msg;
     {
-        apply(lock);
+        std::unique_lock<std::mutex> lock(mMutex);
+        if (mDispatchState == DispatchState::running)
+            return;
+//        while (mTransactions.size())
+        if (mTransactions.size())
+            apply(lock);
     }
+    JLOG(m_journal.debug()) << "transactionBatch2 " << setTimer;
+    if (setTimer)
+        setBatchApplyTimer();
 }
 
 void
@@ -1321,13 +1421,21 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
     batchLock.unlock();
 
     {
-        std::unique_lock masterLock{app_.getMasterMutex(), std::defer_lock};
+        perf::unique_lock masterLock(*app_.getMasterMutex(), FILE_LINE);
+//        perf::unique_lock masterLock(*app_.getMasterMutex(), FILE_LINE,
+//                                     std::defer_lock);
+        //std::unique_lock masterLock{app_.getMasterMutex(), std::defer_lock};
         bool changed = false;
         {
-            std::unique_lock ledgerLock{
-                m_ledgerMaster.peekMutex(), std::defer_lock};
-            std::lock(masterLock, ledgerLock);
+            perf::unique_lock ledgerLock(
+                m_ledgerMaster.peekMutex(), FILE_LINE);
+//            perf::unique_lock ledgerLock(
+//                m_ledgerMaster.peekMutex(), FILE_LINE, std::defer_lock);
+//            perf::lock2(masterLock, ledgerLock, FILE_LINE);
+//            perf::lock(masterLock, ledgerLock, FILE_LINE);
+            //std::lock(masterLock, ledgerLock);
 
+            auto tracer = perf::TRACER_PTR;
             app_.openLedger().modify([&](OpenView& view, beast::Journal j) {
                 for (TransactionStatus& e : transactions)
                 {
@@ -1339,14 +1447,27 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
                     if (e.failType == FailHard::yes)
                         flags |= tapFAIL_HARD;
 
+                    auto timer = perf::START_TIMER(tracer);
                     auto const result = app_.getTxQ().apply(
-                        app_, view, e.transaction->getSTransaction(), flags, j);
+                        app_, view, e.transaction->getSTransaction(), flags, j,
+                        tracer);
+                    perf::END_TIMER(tracer, timer);
+                    ++accounting_.txCounters.attempt;
+                    if (e.local)
+                        ++accounting_.txCounters.rpc_attempt;
                     e.result = result.first;
                     e.applied = result.second;
+                    if (e.applied)
+                    {
+                        ++accounting_.txCounters.applied;
+                        if (e.local)
+                            ++accounting_.txCounters.rpc_applied;
+                    }
                     changed = changed || result.second;
                 }
                 return changed;
-            });
+            },
+                                     tracer);
         }
         if (changed)
             reportFeeChange();
@@ -1460,6 +1581,9 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
                  (e.result == terQUEUED)) &&
                 !enforceFailHard)
             {
+                ++accounting_.txCounters.check_should_relay;
+                if (e.local)
+                    ++accounting_.txCounters.rpc_check_should_relay;
                 auto const toSkip =
                     app_.getHashRouter().shouldRelay(e.transaction->getID());
 
@@ -1475,9 +1599,22 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
                         app_.timeKeeper().now().time_since_epoch().count());
                     tx.set_deferred(e.result == terQUEUED);
                     // FIXME: This should be when we received it
-                    app_.overlay().relay(e.transaction->getID(), tx, *toSkip);
+                    app_.overlay().relay(e.transaction->getID(), tx, *toSkip,
+                                         &accounting_.txCounters.relay_to_none);
                     e.transaction->setBroadcast();
+                    ++accounting_.txCounters.should_relay;
+                    if (e.local)
+                        ++accounting_.txCounters.rpc_should_relay;
                 }
+            }
+            else
+            {
+                JLOG(m_journal.debug()) << "not relaying "
+                    << e.transaction->getID() << ',' << e.applied
+                    << ',' << static_cast<std::underlying_type<OperatingMode>::type>(mMode.load()) << ','
+                    << static_cast<std::underlying_type<FailHard>::type>(e.failType)
+                    << ',' << e.local << ',' << e.result << ','
+                    << enforceFailHard;
             }
 
             if (validatedLedgerIndex)
@@ -1494,7 +1631,10 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
     batchLock.lock();
 
     for (TransactionStatus& e : transactions)
+    {
         e.transaction->clearApplying();
+//        JLOG(m_journal.debug()) << "APPLY clear " << e.transaction->getID();
+    }
 
     if (!submit_held.empty())
     {
@@ -2259,7 +2399,7 @@ NetworkOPsImp::recvValidation(
     std::shared_ptr<STValidation> const& val,
     std::string const& source)
 {
-    JLOG(m_journal.trace())
+    JLOG(m_journal.debug())
         << "recvValidation " << val->getLedgerHash() << " from " << source;
 
     handleNewValidation(app_, val, source);
@@ -4554,6 +4694,8 @@ NetworkOPsImp::StateAccounting::json(Json::Value& obj) const
     obj[jss::server_state_duration_us] = std::to_string(current.count());
     if (initialSync)
         obj[jss::initial_sync_duration_us] = std::to_string(initialSync);
+
+    obj["tx"] = txCounters.json();
 }
 
 //------------------------------------------------------------------------------

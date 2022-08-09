@@ -51,8 +51,10 @@ class OpenLedger
 private:
     beast::Journal const j_;
     CachedSLEs& cache_;
-    std::mutex mutable modify_mutex_;
-    std::mutex mutable current_mutex_;
+    perf::mutex<std::mutex> mutable modify_mutex_{FILE_LINE};
+    //std::mutex mutable modify_mutex_;
+    perf::mutex<std::mutex> mutable current_mutex_{FILE_LINE};
+    //std::mutex mutable current_mutex_;
     std::shared_ptr<OpenView const> current_;
 
 public:
@@ -99,6 +101,9 @@ public:
     bool
     empty() const;
 
+    std::size_t
+    txCount() const;
+
     /** Returns a view to the current open ledger.
 
         Thread safety:
@@ -123,7 +128,7 @@ public:
         @return `true` if the open view was changed
     */
     bool
-    modify(modify_type const& f);
+    modify(modify_type const& f, std::shared_ptr<perf::Tracer> const& tracer = {});
 
     /** Accept a new ledger.
 

@@ -42,26 +42,43 @@ OpenLedger::OpenLedger(
 bool
 OpenLedger::empty() const
 {
-    std::lock_guard lock(modify_mutex_);
+    perf::LOCK_GUARD(modify_mutex_, lock);
+    //std::lock_guard lock(modify_mutex_);
     return current_->txCount() == 0;
 }
+
+std::size_t
+OpenLedger::txCount() const
+{
+    perf::LOCK_GUARD(modify_mutex_, lock);
+    //std::lock_guard lock(modify_mutex_);
+    return current_->txCount();
+}
+
 
 std::shared_ptr<OpenView const>
 OpenLedger::current() const
 {
-    std::lock_guard lock(current_mutex_);
+    perf::LOCK_GUARD(current_mutex_, lock);
+    //std::lock_guard lock(current_mutex_);
     return current_;
 }
 
 bool
-OpenLedger::modify(modify_type const& f)
+OpenLedger::modify(modify_type const& f, std::shared_ptr<perf::Tracer> const& tracer)
 {
-    std::lock_guard lock1(modify_mutex_);
+    perf::LOCK_GUARD(modify_mutex_, lock1);
+    //std::lock_guard lock1(modify_mutex_);
+    auto timer1 = perf::START_TIMER(tracer);
     auto next = std::make_shared<OpenView>(*current_);
+    perf::END_TIMER(tracer, timer1);
+    auto timer2 = perf::START_TIMER(tracer);
     auto const changed = f(*next, j_);
+    perf::END_TIMER(tracer, timer2);
     if (changed)
     {
-        std::lock_guard lock2(current_mutex_);
+        perf::LOCK_GUARD(current_mutex_, lock2);
+        //std::lock_guard lock2(current_mutex_);
         current_ = std::move(next);
     }
     return changed;
@@ -90,7 +107,8 @@ OpenLedger::accept(
     // Block calls to modify, otherwise
     // new tx going into the open ledger
     // would get lost.
-    std::lock_guard lock1(modify_mutex_);
+    perf::LOCK_GUARD(modify_mutex_, lock1);
+    //std::lock_guard lock1(modify_mutex_);
     // Apply tx from the current open view
     if (!current_->txs.empty())
     {
@@ -137,7 +155,8 @@ OpenLedger::accept(
     }
 
     // Switch to the new open view
-    std::lock_guard lock2(current_mutex_);
+    perf::LOCK_GUARD(current_mutex_, lock2);
+    //std::lock_guard lock2(current_mutex_);
     current_ = std::move(next);
 }
 

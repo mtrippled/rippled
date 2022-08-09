@@ -319,8 +319,8 @@ PeerImp::addTxQueue(uint256 const& hash)
 
     if (txQueue_.size() == reduce_relay::MAX_TX_QUEUE_SIZE)
     {
-        JLOG(p_journal_.warn()) << "addTxQueue exceeds the cap";
         sendTxQueue();
+        JLOG(p_journal_.warn()) << "addTxQueue exceeds the cap";
     }
 
     txQueue_.insert(hash);
@@ -1825,6 +1825,14 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMLedgerData> const& m)
     // Verify ledger hash
     if (!stringIsUint256Sized(m->ledgerhash()))
         return badData("Invalid ledger hash");
+
+    if (m->type() == protocol::liTX_NODE ||
+        m->type() == protocol::liTS_CANDIDATE)
+    {
+        JLOG(p_journal_.debug()) << "TMLedgerData  " <<
+            (m->type() == protocol::liTX_NODE ? "liTX_NODE " : "liTS_CANDIDATE ")
+            << m->ledgerhash();
+    }
 
     // Verify ledger sequence
     {
