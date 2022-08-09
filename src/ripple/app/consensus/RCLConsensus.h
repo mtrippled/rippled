@@ -96,6 +96,8 @@ class RCLConsensus
 
         using Result = ConsensusResult<Adaptor>;
 
+        bool justOpened_{false};
+
         Adaptor(
             Application& app,
             std::unique_ptr<FeeVote>&& feeVote,

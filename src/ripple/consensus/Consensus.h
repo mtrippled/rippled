@@ -667,6 +667,7 @@ Consensus<Adaptor>::startRoundInternal(
 {
     phase_ = ConsensusPhase::open;
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::open";
+    adaptor_.justOpened_ = true;
     mode_.set(mode, adaptor_);
     now_ = now;
     prevLedgerID_ = prevLedgerID;
@@ -687,12 +688,6 @@ Consensus<Adaptor>::startRoundInternal(
         previousLedger_.seq() + typename Ledger_t::Seq{1});
 
     playbackProposals();
-    if (currPeerPositions_.size() > (prevProposers_ / 2))
-    {
-        // We may be falling behind, don't wait for the timer
-        // consider closing the ledger immediately
-        timerEntry(now_);
-    }
 }
 
 template <class Adaptor>
