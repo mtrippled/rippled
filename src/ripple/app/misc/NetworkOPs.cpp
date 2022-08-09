@@ -231,6 +231,7 @@ public:
         , heartbeatTimer_(io_svc)
         , clusterTimer_(io_svc)
         , accountHistoryTxTimer_(io_svc)
+        , batchApplyTimer_(io_svc)
         , mConsensus(
               app,
               make_FeeVote(
@@ -280,6 +281,7 @@ public:
     processTransaction(
         std::shared_ptr<Transaction>& transaction,
         bool bUnlimited,
+        RPC::SubmitSync sync,
         bool bLocal,
         FailHard failType) override;
 
@@ -315,8 +317,8 @@ public:
     /**
      * Apply transactions in batches. Continue until none are queued.
      */
-    void
-    transactionBatch();
+    bool
+    transactionBatch(bool const drain) override;
 
     /**
      * Attempt to apply transactions and post-process based on the results.
@@ -590,6 +592,15 @@ public:
                     << "NetworkOPs: accountHistoryTxTimer cancel error: "
                     << ec.message();
             }
+
+            ec.clear();
+            batchApplyTimer_.cancel(ec);
+            if (ec)
+            {
+                JLOG(m_journal.error())
+                    << "NetworkOPs: batchApplyTimer cancel error: "
+                    << ec.message();
+            }
         }
         // Make sure that any waitHandlers pending in our timers are done.
         using namespace std::chrono_literals;
@@ -708,6 +719,9 @@ private:
     void
     setAccountHistoryJobTimer(SubAccountHistoryInfoWeak subInfo);
 
+    void
+    setBatchApplyTimer() override;
+
     Application& app_;
     beast::Journal m_journal;
 
@@ -726,6 +740,7 @@ private:
     boost::asio::steady_timer heartbeatTimer_;
     boost::asio::steady_timer clusterTimer_;
     boost::asio::steady_timer accountHistoryTxTimer_;
+    boost::asio::steady_timer batchApplyTimer_;
 
     RCLConsensus mConsensus;
 
@@ -960,9 +975,21 @@ NetworkOPsImp::setTimer(
 void
 NetworkOPsImp::setHeartbeatTimer()
 {
+    std::chrono::milliseconds timerDelay;
+    if (mConsensus.timerDelay())
+    {
+        timerDelay = *mConsensus.timerDelay();
+        mConsensus.timerDelay().reset();
+    }
+    else
+    {
+        timerDelay = mConsensus.parms().ledgerGRANULARITY;
+    }
+
+    JLOG(m_journal.debug()) << "setHeartbeatTimer " << timerDelay.count() << "ms";
     setTimer(
         heartbeatTimer_,
-        mConsensus.parms().ledgerGRANULARITY,
+        timerDelay,
         [this]() {
             m_job_queue.addJob(jtNETOP_TIMER, "NetOPs.heartbeat", [this]() {
                 processHeartbeatTimer();
@@ -998,6 +1025,33 @@ NetworkOPsImp::setAccountHistoryJobTimer(SubAccountHistoryInfoWeak subInfo)
         4s,
         [this, subInfo]() { addAccountHistoryJob(subInfo); },
         [this, subInfo]() { setAccountHistoryJobTimer(subInfo); });
+}
+
+void
+NetworkOPsImp::setBatchApplyTimer()
+{
+    JLOG(m_journal.debug()) << "setting batch apply timer";
+    using namespace std::chrono_literals;
+    setTimer(
+        batchApplyTimer_,
+        100ms,
+        [this]() {
+            std::unique_lock lock(mMutex);
+            if (mTransactions.size() && mDispatchState == DispatchState::none)
+            {
+                if (m_job_queue.addJob(
+                        jtBATCH, "transactionBatch", [this]() { transactionBatch(false); }))
+                {
+                    mDispatchState = DispatchState::scheduled;
+                }
+            }
+            else
+            {
+                lock.unlock();
+                setBatchApplyTimer();
+            }
+        },
+        [this]() { setBatchApplyTimer(); });
 }
 
 void
@@ -1175,7 +1229,8 @@ NetworkOPsImp::submitTransaction(std::shared_ptr<STTx const> const& iTrans)
 
     m_job_queue.addJob(jtTRANSACTION, "submitTxn", [this, tx]() {
         auto t = tx;
-        processTransaction(t, false, false, FailHard::no);
+        processTransaction(t, false, RPC::SubmitSync::async, false,
+            FailHard::no);
     });
 }
 
@@ -1183,6 +1238,7 @@ void
 NetworkOPsImp::processTransaction(
     std::shared_ptr<Transaction>& transaction,
     bool bUnlimited,
+    RPC::SubmitSync sync,
     bool bLocal,
     FailHard failType)
 {
@@ -1222,10 +1278,66 @@ NetworkOPsImp::processTransaction(
     // canonicalize can change our pointer
     app_.getMasterTransaction().canonicalize(&transaction);
 
-    if (bLocal)
+    JLOG(m_journal.debug()) << "processTransaction " << transaction->getID()
+        << ',' << bLocal;
+    std::unique_lock lock(mMutex);
+    if (!transaction->getApplying())
+    {
+        transaction->setApplying();
+        mTransactions.push_back(
+            TransactionStatus(transaction, bUnlimited, bLocal, failType));
+    }
+    switch (sync)
+    {
+        case RPC::SubmitSync::sync:
+            do
+            {
+                if (mDispatchState == DispatchState::running)
+                {
+                    // A batch processing job is already running, so wait.
+                    mCond.wait(lock);
+                }
+                else
+                {
+                    apply(lock);
+
+                    if (mTransactions.size())
+                    {
+                        // More transactions need to be applied, but by another job.
+                        if (m_job_queue.addJob(jtBATCH, "transactionBatch", [this]() {
+                            transactionBatch(false);
+                        }))
+                        {
+                            mDispatchState = DispatchState::scheduled;
+                        }
+                    }
+                }
+            } while (transaction->getApplying());
+            break;
+
+        case RPC::SubmitSync::async:
+            // Ensure that the tx object doesn't get processed before being
+            // returned to client, so the client can expect the terSUBMITTED
+            // result in all cases.
+            transaction = std::make_shared<Transaction>(*transaction);
+            transaction->setResult(terSUBMITTED);
+            break;
+
+        case RPC::SubmitSync::wait:
+            mCond.wait(lock,
+                [&transaction]{ return !transaction->getApplying(); });
+            break;
+
+        default:
+            assert(false);
+    }
+
+    /*
+    if (sync == RPC::SubmitSync::sync)
         doTransactionSync(transaction, bUnlimited, failType);
     else
         doTransactionAsync(transaction, bUnlimited, failType);
+*/
 }
 
 void
@@ -1243,6 +1355,7 @@ NetworkOPsImp::doTransactionAsync(
         TransactionStatus(transaction, bUnlimited, false, failType));
     transaction->setApplying();
 
+    /*
     if (mDispatchState == DispatchState::none)
     {
         if (m_job_queue.addJob(
@@ -1251,6 +1364,7 @@ NetworkOPsImp::doTransactionAsync(
             mDispatchState = DispatchState::scheduled;
         }
     }
+     */
 }
 
 void
@@ -1268,6 +1382,11 @@ NetworkOPsImp::doTransactionSync(
         transaction->setApplying();
     }
 
+//    JLOG(m_journal.debug()) << "APPLY waiting " << transaction->getID();
+//    mCond.wait(lock, [transaction](){ return !transaction->getApplying(); });
+//    JLOG(m_journal.debug()) << "APPLY done " << transaction->getID();
+
+    /*
     do
     {
         if (mDispatchState == DispatchState::running)
@@ -1277,13 +1396,13 @@ NetworkOPsImp::doTransactionSync(
         }
         else
         {
-            apply(lock);
+            apply(lock, "doTransactionSync");
 
             if (mTransactions.size())
             {
                 // More transactions need to be applied, but by another job.
                 if (m_job_queue.addJob(jtBATCH, "transactionBatch", [this]() {
-                        transactionBatch();
+                        transactionBatch(false, "doTransactionSync");
                     }))
                 {
                     mDispatchState = DispatchState::scheduled;
@@ -1291,20 +1410,23 @@ NetworkOPsImp::doTransactionSync(
             }
         }
     } while (transaction->getApplying());
+     */
 }
 
-void
-NetworkOPsImp::transactionBatch()
+bool
+NetworkOPsImp::transactionBatch(bool const drain)
 {
-    std::unique_lock<std::mutex> lock(mMutex);
-
-    if (mDispatchState == DispatchState::running)
-        return;
-
-    while (mTransactions.size())
     {
-        apply(lock);
+        std::unique_lock<std::mutex> lock(mMutex);
+        if (mDispatchState == DispatchState::running || mTransactions.empty())
+            return false;
+
+        do
+            apply(lock);
+        while (drain && mTransactions.size());
     }
+    setBatchApplyTimer();
+    return true;
 }
 
 void
@@ -1313,9 +1435,6 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
     std::vector<TransactionStatus> submit_held;
     std::vector<TransactionStatus> transactions;
     mTransactions.swap(transactions);
-    assert(!transactions.empty());
-
-    assert(mDispatchState != DispatchState::running);
     mDispatchState = DispatchState::running;
 
     batchLock.unlock();
@@ -1646,7 +1765,18 @@ NetworkOPsImp::checkLastClosedLedger(
     // our last closed ledger? Or do sufficient nodes agree? And do we have no
     // better ledger available?  If so, we are either tracking or full.
 
-    JLOG(m_journal.trace()) << "NetworkOPsImp::checkLastClosedLedger";
+    JLOG(m_journal.debug()) << "NetworkOPsImp::checkLastClosedLedger";
+
+//    if (app_.getLedgerMaster().getValidatedLedgerAge() < std::chrono::seconds(60))
+//    {
+//        if (app_.getLedgerMaster().getValidatedLedger())
+//        {
+//            JLOG(m_journal.debug()) << "checkLastClosedLedger is last validated"
+//                                       " ledger's parent: " << app_.getLedgerMaster().getValidatedLedger()->info().parentHash;
+//            networkClosed = app_.getLedgerMaster().getValidatedLedger()->info().parentHash;
+//            return false;
+//        }
+//    }
 
     auto const ourClosed = m_ledgerMaster.getClosedLedger();
 
@@ -1655,15 +1785,15 @@ NetworkOPsImp::checkLastClosedLedger(
 
     uint256 closedLedger = ourClosed->info().hash;
     uint256 prevClosedLedger = ourClosed->info().parentHash;
-    JLOG(m_journal.trace()) << "OurClosed:  " << closedLedger;
-    JLOG(m_journal.trace()) << "PrevClosed: " << prevClosedLedger;
+    JLOG(m_journal.debug()) << " checkLastClosedLedger OurClosed:  " << closedLedger;
+    JLOG(m_journal.debug()) << "checkLastClosedLedger PrevClosed: " << prevClosedLedger;
 
     //-------------------------------------------------------------------------
     // Determine preferred last closed ledger
 
     auto& validations = app_.getValidations();
     JLOG(m_journal.debug())
-        << "ValidationTrie " << Json::Compact(validations.getJsonTrie());
+        << "checkLastClosedLedger ValidationTrie " << Json::Compact(validations.getJsonTrie());
 
     // Will rely on peer LCL if no trusted validations exist
     hash_map<uint256, std::uint32_t> peerCounts;
@@ -1680,7 +1810,7 @@ NetworkOPsImp::checkLastClosedLedger(
     }
 
     for (auto const& it : peerCounts)
-        JLOG(m_journal.debug()) << "L: " << it.first << " n=" << it.second;
+        JLOG(m_journal.debug()) << "checkLastClosedLedger L: " << it.first << " n=" << it.second;
 
     uint256 preferredLCL = validations.getPreferredLCL(
         RCLValidatedLedger{ourClosed, validations.adaptor().journal()},
@@ -1694,12 +1824,16 @@ NetworkOPsImp::checkLastClosedLedger(
     if (switchLedgers && (closedLedger == prevClosedLedger))
     {
         // don't switch to our own previous ledger
-        JLOG(m_journal.info()) << "We won't switch to our own previous ledger";
+        JLOG(m_journal.info()) << "checkLastClosedLedger We won't switch to our own previous ledger";
+        JLOG(m_journal.debug()) << "checkLastClosedLedger setting to ourClosed->info().hash 1 " << ourClosed->info().hash;
         networkClosed = ourClosed->info().hash;
         switchLedgers = false;
     }
     else
+    {
+        JLOG(m_journal.debug()) << "checkLastClosedLedger setting to closedLedger " << closedLedger;
         networkClosed = closedLedger;
+    }
 
     if (!switchLedgers)
         return false;
@@ -1713,17 +1847,18 @@ NetworkOPsImp::checkLastClosedLedger(
     if (consensus &&
         (!m_ledgerMaster.canBeCurrent(consensus) ||
          !m_ledgerMaster.isCompatible(
-             *consensus, m_journal.debug(), "Not switching")))
+             *consensus, m_journal.debug(), "checkLastClosedLedger Not switching")))
     {
         // Don't switch to a ledger not on the validated chain
         // or with an invalid close time or sequence
+        JLOG(m_journal.debug()) << "checkLastClosedLedger setting to ourClosed->info().hash 2 " << ourClosed->info().hash;
         networkClosed = ourClosed->info().hash;
         return false;
     }
 
-    JLOG(m_journal.warn()) << "We are not running on the consensus ledger";
-    JLOG(m_journal.info()) << "Our LCL: " << getJson({*ourClosed, {}});
-    JLOG(m_journal.info()) << "Net LCL " << closedLedger;
+    JLOG(m_journal.warn()) << "checkLastClosedLedger We are not running on the consensus ledger";
+    JLOG(m_journal.info()) << "checkLastClosedLedger Our LCL: " << getJson({*ourClosed, {}});
+    JLOG(m_journal.info()) << "checkLastClosedLedger Net LCL " << closedLedger;
 
     if ((mMode == OperatingMode::TRACKING) || (mMode == OperatingMode::FULL))
     {
@@ -1894,8 +2029,9 @@ NetworkOPsImp::endConsensus()
     }
 
     uint256 networkClosed;
-    bool ledgerChange =
-        checkLastClosedLedger(app_.overlay().getActivePeers(), networkClosed);
+    bool ledgerChange = false;
+    ledgerChange = checkLastClosedLedger(
+        app_.overlay().getActivePeers(), networkClosed);
 
     if (networkClosed.isZero())
         return;
@@ -2273,7 +2409,7 @@ NetworkOPsImp::recvValidation(
     std::shared_ptr<STValidation> const& val,
     std::string const& source)
 {
-    JLOG(m_journal.trace())
+    JLOG(m_journal.debug())
         << "recvValidation " << val->getLedgerHash() << " from " << source;
 
     handleNewValidation(app_, val, source);

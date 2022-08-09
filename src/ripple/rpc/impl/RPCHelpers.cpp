@@ -1065,5 +1065,26 @@ getLedgerByContext(RPC::JsonContext& context)
     return RPC::make_error(
         rpcNOT_READY, "findCreate failed to return an inbound ledger");
 }
+
+char const*
+toCString(SubmitSync const s)
+{
+    switch (s)
+    {
+        case SubmitSync::sync:
+            return "sync";
+            break;
+        case SubmitSync::async:
+            return "async";
+            break;
+        case SubmitSync::wait:
+            return "wait";
+            break;
+        default:
+            assert(false);
+            return "";
+    }
+}
+
 }  // namespace RPC
 }  // namespace ripple

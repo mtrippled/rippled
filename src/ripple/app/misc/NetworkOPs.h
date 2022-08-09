@@ -27,6 +27,7 @@
 #include <ripple/net/InfoSub.h>
 #include <ripple/protocol/STValidation.h>
 #include <ripple/protocol/messages.h>
+#include <ripple/rpc/impl/RPCHelpers.h>
 #include <boost/asio.hpp>
 #include <deque>
 #include <memory>
@@ -70,6 +71,8 @@ enum class OperatingMode {
     TRACKING = 3,      //!< convinced we agree with the network
     FULL = 4           //!< we have the ledger and can even validate
 };
+
+namespace RPC { enum class SubmitSync; }
 
 /** Provides server functionality for clients.
 
@@ -136,8 +139,12 @@ public:
     processTransaction(
         std::shared_ptr<Transaction>& transaction,
         bool bUnlimited,
+        RPC::SubmitSync sync,
         bool bLocal,
         FailHard failType) = 0;
+
+    virtual bool
+    transactionBatch(bool const drain) = 0;
 
     //--------------------------------------------------------------------------
     //
@@ -187,6 +194,8 @@ public:
     setStandAlone() = 0;
     virtual void
     setStateTimer() = 0;
+    virtual void
+    setBatchApplyTimer() = 0;
 
     virtual void
     setNeedNetworkLedger() = 0;

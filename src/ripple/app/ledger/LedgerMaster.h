@@ -292,6 +292,20 @@ public:
     std::optional<LedgerIndex>
     minSqlSeq();
 
+    bool
+    standalone() const
+    {
+        return standalone_;
+    }
+
+    template <class Rep, class Period>
+    void
+    waitForValidated(std::chrono::duration<Rep, Period> const& dur)
+    {
+        std::unique_lock<std::mutex> lock(validMutex_);
+        validCond_.wait_for(lock, dur);
+    }
+
 private:
     void
     setValidLedger(std::shared_ptr<Ledger const> const& l);
@@ -408,7 +422,9 @@ private:
     // Time that the previous upgrade warning was issued.
     TimeKeeper::time_point upgradeWarningPrevTime_{};
 
-private:
+    std::mutex validMutex_;
+    std::condition_variable validCond_;
+
     struct Stats
     {
         template <class Handler>
@@ -430,7 +446,6 @@ private:
 
     Stats m_stats;
 
-private:
     void
     collect_metrics()
     {
