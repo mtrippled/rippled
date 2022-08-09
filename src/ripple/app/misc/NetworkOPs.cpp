@@ -155,6 +155,30 @@ class NetworkOPsImp final : public NetworkOPs
         static std::array<Json::StaticString const, 5> const states_;
 
     public:
+        struct TxCounters
+        {
+            std::atomic<std::uint64_t> rpc{0};
+            std::atomic<std::uint64_t> peer{0};
+            std::atomic<std::uint64_t> attempt{0};
+            std::atomic<std::uint64_t> rpc_attempt{0};
+            std::atomic<std::uint64_t> applied{0};
+            std::atomic<std::uint64_t> rpc_applied{0};
+
+            Json::Value
+            json() const
+            {
+                Json::Value ret{Json::objectValue};
+                ret["rpc"] = std::to_string(rpc);
+                ret["peer"] = std::to_string(peer);
+                ret["attempt"] = std::to_string(attempt);
+                ret["rpc_attempt"] = std::to_string(rpc_attempt);
+                ret["applied"] = std::to_string(applied);
+                ret["rpc_applied"] = std::to_string(rpc_applied);
+                return ret;
+            }
+        };
+
+        TxCounters txCounters;
         explicit StateAccounting()
         {
             counters_[static_cast<std::size_t>(OperatingMode::DISCONNECTED)]
@@ -1232,6 +1256,11 @@ NetworkOPsImp::processTransaction(
         return;
     }
 
+    if (bLocal)
+        ++accounting_.txCounters.rpc;
+    else
+        ++accounting_.txCounters.peer;
+
     // canonicalize can change our pointer
     app_.getMasterTransaction().canonicalize(&transaction);
 
@@ -1354,8 +1383,17 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
 
                     auto const result = app_.getTxQ().apply(
                         app_, view, e.transaction->getSTransaction(), flags, j);
+                    ++accounting_.txCounters.attempt;
+                    if (e.local)
+                        ++accounting_.txCounters.rpc_attempt;
                     e.result = result.first;
                     e.applied = result.second;
+                    if (e.applied)
+                    {
+                        ++accounting_.txCounters.applied;
+                        if (e.local)
+                            ++accounting_.txCounters.rpc_applied;
+                    }
                     changed = changed || result.second;
                 }
                 return changed;
@@ -4759,6 +4797,8 @@ NetworkOPsImp::StateAccounting::json(Json::Value& obj) const
     obj[jss::server_state_duration_us] = std::to_string(current.count());
     if (initialSync)
         obj[jss::initial_sync_duration_us] = std::to_string(initialSync);
+
+    obj["tx"] = txCounters.json();
 }
 
 //------------------------------------------------------------------------------

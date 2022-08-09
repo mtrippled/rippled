@@ -886,7 +886,7 @@ public:
                                   int queued_us,
                                   int running_us) {
             BEAST_EXPECT(countersJson.isObject());
-            BEAST_EXPECT(countersJson.size() == 2);
+            BEAST_EXPECT(countersJson.size() == 3);
 
             BEAST_EXPECT(countersJson.isMember(jss::rpc));
             BEAST_EXPECT(countersJson[jss::rpc].isObject());

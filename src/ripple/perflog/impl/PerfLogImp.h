@@ -104,6 +104,7 @@ class PerfLogImp : public PerfLog
             microseconds runningDuration{0};
         };
 
+        Application& app_;
         // rpc_ and jq_ do not need mutex protection because all
         // keys and values are created before more threads are started.
         std::unordered_map<std::string, Locked<Rpc>> rpc_;
@@ -113,7 +114,10 @@ class PerfLogImp : public PerfLog
         std::unordered_map<std::uint64_t, MethodStart> methods_;
         mutable std::mutex methodsMutex_;
 
-        Counters(std::set<char const*> const& labels, JobTypes const& jobTypes);
+        Counters(
+            std::set<char const*> const& labels,
+            JobTypes const& jobTypes,
+            Application& app);
         Json::Value
         countersJson() const;
         Json::Value
@@ -124,7 +128,8 @@ class PerfLogImp : public PerfLog
     Application& app_;
     beast::Journal const j_;
     std::function<void()> const signalStop_;
-    Counters counters_{ripple::RPC::getHandlerNames(), JobTypes::instance()};
+    Counters counters_{ripple::RPC::getHandlerNames(), JobTypes::instance(),
+        app_};
     std::ofstream logFile_;
     std::thread thread_;
     std::mutex mutex_;
@@ -133,6 +138,8 @@ class PerfLogImp : public PerfLog
     std::string const hostname_{boost::asio::ip::host_name()};
     bool stop_{false};
     bool rotate_{false};
+    std::vector<Timers> events_;
+    std::mutex eventsMutex_;
 
     void
     openLog();
@@ -140,6 +147,8 @@ class PerfLogImp : public PerfLog
     run();
     void
     report();
+    Json::Value
+    reportEvents();
     void
     rpcEnd(
         std::string const& method,
@@ -195,8 +204,15 @@ public:
 
     void
     resizeJobs(int const resize) override;
+
     void
     rotate() override;
+
+    void
+    addEvent(Timers const& timers) override;
+
+    void
+    triggerReport() override;
 
     void
     start() override;
