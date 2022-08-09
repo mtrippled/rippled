@@ -26,6 +26,7 @@
 #include <ripple/app/consensus/RCLCxTx.h>
 #include <ripple/app/misc/FeeVote.h>
 #include <ripple/app/misc/NegativeUNLVote.h>
+#include <ripple/basics/chrono.h>
 #include <ripple/basics/CountedObject.h>
 #include <ripple/basics/Log.h>
 #include <ripple/beast/utility/Journal.h>
@@ -36,8 +37,12 @@
 #include <ripple/protocol/STValidation.h>
 #include <ripple/shamap/SHAMap.h>
 #include <atomic>
+#include <chrono>
 #include <mutex>
+#include <optional>
 #include <set>
+#include <string>
+
 namespace ripple {
 
 class InboundTransactions;
@@ -56,9 +61,13 @@ class RCLConsensus
     // Implements the Adaptor template interface required by Consensus.
     class Adaptor
     {
+    public:
         Application& app_;
         std::unique_ptr<FeeVote> feeVote_;
+    public:
+
         LedgerMaster& ledgerMaster_;
+    private:
         LocalTxs& localTxs_;
         InboundTransactions& inboundTransactions_;
         beast::Journal const j_;
@@ -78,7 +87,6 @@ class RCLConsensus
 
         // These members are queried via public accesors and are atomic for
         // thread safety.
-        std::atomic<bool> validating_{false};
         std::atomic<std::size_t> prevProposers_{0};
         std::atomic<std::chrono::milliseconds> prevRoundTime_{
             std::chrono::milliseconds{0}};
@@ -87,14 +95,25 @@ class RCLConsensus
         RCLCensorshipDetector<TxID, LedgerIndex> censorshipDetector_;
         NegativeUNLVote nUnlVote_;
 
+        // Since Consensus does not provide intrinsic thread-safety, this mutex
+        // guards all calls to consensus_.
+        mutable std::recursive_mutex mutex_;
+
+        std::unique_ptr<std::chrono::milliseconds> validationDelay_;
+
+        std::unique_ptr<std::chrono::milliseconds> timerDelay_;
+
     public:
+        std::atomic<bool> validating_{false};
         using Ledger_t = RCLCxLedger;
         using NodeID_t = NodeID;
         using NodeKey_t = PublicKey;
         using TxSet_t = RCLTxSet;
+        using CanonicalTxSet_t = CanonicalTXSet;
         using PeerPosition_t = RCLCxPeerPos;
 
         using Result = ConsensusResult<Adaptor>;
+        using clock_type = Stopwatch;
 
         Adaptor(
             Application& app,
@@ -176,6 +195,40 @@ class RCLConsensus
         parms() const
         {
             return parms_;
+        }
+
+        std::recursive_mutex&
+        peekMutex() const
+        {
+            return mutex_;
+        }
+
+        LedgerMaster&
+        getLedgerMaster() const
+        {
+            return ledgerMaster_;
+        }
+
+        void
+        clearValidating()
+        {
+            validating_ = false;
+        }
+
+        bool
+        retryAccept(Ledger_t const& newLedger,
+            std::optional<std::chrono::time_point<std::chrono::steady_clock>>& start) const;
+
+        std::unique_ptr<std::chrono::milliseconds>&
+        validationDelay()
+        {
+            return validationDelay_;
+        }
+
+        std::unique_ptr<std::chrono::milliseconds>&
+        timerDelay()
+        {
+            return timerDelay_;
         }
 
     private:
@@ -324,7 +377,8 @@ class RCLConsensus
             NetClock::duration const& closeResolution,
             ConsensusCloseTimes const& rawCloseTimes,
             ConsensusMode const& mode,
-            Json::Value&& consensusJson);
+            Json::Value&& consensusJson,
+            std::pair<CanonicalTxSet_t, Ledger_t>&& txsBuilt);
 
         /** Process the accepted ledger that was a result of simulation/force
             accept.
@@ -352,18 +406,20 @@ class RCLConsensus
             RCLCxLedger const& ledger,
             bool haveCorrectLCL);
 
-        /** Accept a new ledger based on the given transactions.
-
-            @ref onAccept
-         */
-        void
-        doAccept(
+        std::pair<CanonicalTxSet_t, Ledger_t>
+        buildAndValidate(
             Result const& result,
-            RCLCxLedger const& prevLedger,
-            NetClock::duration closeResolution,
-            ConsensusCloseTimes const& rawCloseTimes,
+            Ledger_t const& prevLedger,
+            NetClock::duration const& closeResolution,
             ConsensusMode const& mode,
             Json::Value&& consensusJson);
+
+        void
+        prepareOpenLedger(
+            std::pair<CanonicalTxSet_t, Ledger_t>&& txsBuilt,
+            Result const& result,
+            ConsensusCloseTimes const& rawCloseTimes,
+            ConsensusMode const& mode);
 
         /** Build the new last closed ledger.
 
@@ -421,7 +477,7 @@ public:
         LedgerMaster& ledgerMaster,
         LocalTxs& localTxs,
         InboundTransactions& inboundTransactions,
-        Consensus<Adaptor>::clock_type const& clock,
+        Consensus<Adaptor>::clock_type& clock,
         ValidatorKeys const& validatorKeys,
         beast::Journal journal);
 
@@ -498,7 +554,7 @@ public:
     RCLCxLedger::ID
     prevLedgerID() const
     {
-        std::lock_guard _{mutex_};
+        std::lock_guard _{adaptor_.peekMutex()};
         return consensus_.prevLedgerID();
     }
 
@@ -520,12 +576,13 @@ public:
         return adaptor_.parms();
     }
 
-private:
-    // Since Consensus does not provide intrinsic thread-safety, this mutex
-    // guards all calls to consensus_. adaptor_ uses atomics internally
-    // to allow concurrent access of its data members that have getters.
-    mutable std::recursive_mutex mutex_;
+    std::unique_ptr<std::chrono::milliseconds>&
+    timerDelay()
+    {
+        return adaptor_.timerDelay();
+    }
 
+private:
     Adaptor adaptor_;
     Consensus<Adaptor> consensus_;
     beast::Journal const j_;
