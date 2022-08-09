@@ -733,6 +733,7 @@ Consensus<Adaptor>::startRoundInternal(
 {
     phase_ = ConsensusPhase::open;
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::open";
+    adaptor_.justOpened_ = true;
     mode_.set(mode, adaptor_);
     now_ = now;
     prevLedgerID_ = prevLedgerID;
@@ -757,7 +758,10 @@ Consensus<Adaptor>::startRoundInternal(
     {
         // We may be falling behind, don't wait for the timer
         // consider closing the ledger immediately
-        timerEntry(now_);
+        //timerEntry(now_);
+        // Go out of the lock so that PerfLog::triggerReport() can be done
+        // after the current lock has ended.
+        adaptor_.timerDelay() = std::make_unique<std::chrono::milliseconds>(0);
     }
 }
 

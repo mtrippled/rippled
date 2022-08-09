@@ -21,6 +21,7 @@
 
 #include <ripple/app/ledger/LedgerMaster.h>
 #include <ripple/basics/chrono.h>
+#include <ripple/basics/PerfLog.h>
 #include <ripple/beast/unit_test.h>
 #include <ripple/beast/utility/WrappedSink.h>
 #include <ripple/consensus/Consensus.h>
@@ -263,8 +264,12 @@ struct Peer
 
     mutable std::recursive_mutex mtx;
 
+    std::unique_ptr<perf::PerfLog> perfLog;
+
     std::unique_ptr<std::chrono::milliseconds> delay{
         std::make_unique<std::chrono::milliseconds>(0)};
+
+    bool justOpened_{false};
 
     struct Null_test : public beast::unit_test::suite
     {
@@ -305,6 +310,12 @@ struct Peer
         , fullyValidatedLedger{Ledger::MakeGenesis{}}
         , collectors{c}
     {
+        Null_test test;
+        jtx::Env env(test);
+
+        perf::PerfLog::Setup setup;
+        perfLog = perf::make_PerfLog(setup, env.app(), j, [](){});
+
         // All peers start from the default constructed genesis ledger
         ledgers[lastClosedLedger.id()] = lastClosedLedger;
 
