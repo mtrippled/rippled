@@ -49,6 +49,7 @@
 #include <memory>
 #include <mutex>
 #include <numeric>
+#include <optional>
 #include <sstream>
 
 using namespace std::chrono_literals;
@@ -319,8 +320,8 @@ PeerImp::addTxQueue(uint256 const& hash)
 
     if (txQueue_.size() == reduce_relay::MAX_TX_QUEUE_SIZE)
     {
-        JLOG(p_journal_.warn()) << "addTxQueue exceeds the cap";
         sendTxQueue();
+        JLOG(p_journal_.warn()) << "addTxQueue exceeds the cap";
     }
 
     txQueue_.insert(hash);
@@ -1821,6 +1822,14 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMLedgerData> const& m)
     if (!stringIsUint256Sized(m->ledgerhash()))
         return badData("Invalid ledger hash");
 
+    if (m->type() == protocol::liTX_NODE ||
+        m->type() == protocol::liTS_CANDIDATE)
+    {
+        JLOG(p_journal_.debug()) << "TMLedgerData  " <<
+            (m->type() == protocol::liTX_NODE ? "liTX_NODE " : "liTS_CANDIDATE ")
+            << m->ledgerhash();
+    }
+
     // Verify ledger sequence
     {
         auto const ledgerSeq{m->ledgerseq()};
@@ -1950,6 +1959,17 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMProposeSet> const& m)
 
     NetClock::time_point const closeTime{NetClock::duration{set.closetime()}};
 
+    std::optional<std::uint32_t> ledgerSeq;
+    if (set.has_previousledger())
+    {
+        ledgerSeq = set.ledgerseq();
+         JLOG(journal_.debug()) << "proposal ledgerSeq " << *ledgerSeq;
+    }
+    else
+    {
+        JLOG(journal_.debug()) << "proposal ledgerSeq none";
+    }
+
     uint256 const suppression = proposalUniqueId(
         proposeHash,
         prevLedger,
@@ -2001,7 +2021,8 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMProposeSet> const& m)
             proposeHash,
             closeTime,
             app_.timeKeeper().closeTime(),
-            calcNodeID(app_.validatorManifests().getMasterKey(publicKey))});
+            calcNodeID(app_.validatorManifests().getMasterKey(publicKey)),
+            ledgerSeq});
 
     std::weak_ptr<PeerImp> weak = shared_from_this();
     app_.getJobQueue().addJob(

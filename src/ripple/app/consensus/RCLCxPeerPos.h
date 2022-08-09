@@ -62,6 +62,12 @@ public:
         uint256 const& suppress,
         Proposal&& proposal);
 
+    bool
+    operator<(RCLCxPeerPos const& rhs) const
+    {
+        return proposal_.proposeSeq() < rhs.proposal().proposeSeq();
+    }
+
     //! Verify the signing hash of the proposal
     bool
     checkSign() const;
@@ -89,6 +95,12 @@ public:
 
     Proposal const&
     proposal() const
+    {
+        return proposal_;
+    }
+
+    Proposal&
+    proposalMutable()
     {
         return proposal_;
     }

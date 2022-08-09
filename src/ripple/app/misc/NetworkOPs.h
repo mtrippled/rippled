@@ -180,13 +180,15 @@ public:
 
     // network state machine
     virtual bool
-    beginConsensus(uint256 const& netLCL) = 0;
+    beginConsensus(uint256 const& netLCL, bool fromEndConsensus) = 0;
     virtual void
     endConsensus() = 0;
     virtual void
     setStandAlone() = 0;
     virtual void
     setStateTimer() = 0;
+    virtual void
+    setBatchApplyTimer() = 0;
 
     virtual void
     setNeedNetworkLedger() = 0;

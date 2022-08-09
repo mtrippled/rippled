@@ -367,6 +367,7 @@ LedgerMaster::setValidLedger(std::shared_ptr<Ledger const> const& l)
     }
 
     mValidLedger.set(l);
+    validCond_.notify_all();
     mValidLedgerSign = signTime.time_since_epoch().count();
     assert(
         mValidLedgerSeq || !app_.getMaxDisallowedLedger() ||
@@ -1041,16 +1042,22 @@ void
 LedgerMaster::checkAccept(std::shared_ptr<Ledger const> const& ledger)
 {
     // Can we accept this ledger as our new last fully-validated ledger
-
     if (!canBeCurrent(ledger))
+    {
+        JLOG(m_journal.debug()) << "checkAccept can't be current";
         return;
+    }
 
     // Can we advance the last fully-validated ledger? If so, can we
     // publish?
     std::lock_guard ml(m_mutex);
 
     if (ledger->info().seq <= mValidLedgerSeq)
+    {
+        JLOG(m_journal.debug()) << "checkAccept " << ledger->info().seq
+            << " not <= " << mValidLedgerSeq;
         return;
+    }
 
     auto const minVal = getNeededValidations();
     auto validations = app_.validators().negativeUNLFilter(
@@ -1059,8 +1066,8 @@ LedgerMaster::checkAccept(std::shared_ptr<Ledger const> const& ledger)
     auto const tvc = validations.size();
     if (tvc < minVal)  // nothing we can do
     {
-        JLOG(m_journal.trace())
-            << "Only " << tvc << " validations for " << ledger->info().hash;
+        JLOG(m_journal.debug())
+            << "checkAccept Only " << tvc << " validations for " << ledger->info().hash;
         return;
     }
 
@@ -1196,14 +1203,17 @@ LedgerMaster::consensusBuilt(
 
     // No need to process validations in standalone mode
     if (standalone_)
+    {
+        JLOG(m_journal.debug()) << "consensusBuilt standalone";
         return;
+    }
 
     mLedgerHistory.builtLedger(ledger, consensusHash, std::move(consensus));
 
     if (ledger->info().seq <= mValidLedgerSeq)
     {
         auto stream = app_.journal("LedgerConsensus").info();
-        JLOG(stream) << "Consensus built old ledger: " << ledger->info().seq
+        JLOG(stream) << "consensusBuilt Consensus built old ledger: " << ledger->info().seq
                      << " <= " << mValidLedgerSeq;
         return;
     }

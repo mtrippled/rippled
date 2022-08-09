@@ -231,6 +231,7 @@ public:
         , heartbeatTimer_(io_svc)
         , clusterTimer_(io_svc)
         , accountHistoryTxTimer_(io_svc)
+        , batchApplyTimer_(io_svc)
         , mConsensus(
               app,
               make_FeeVote(
@@ -316,7 +317,7 @@ public:
      * Apply transactions in batches. Continue until none are queued.
      */
     void
-    transactionBatch();
+    transactionBatch(bool const setTimer, char const* msg);
 
     /**
      * Attempt to apply transactions and post-process based on the results.
@@ -372,7 +373,7 @@ private:
 
 public:
     bool
-    beginConsensus(uint256 const& networkClosed) override;
+    beginConsensus(uint256 const& networkClosed, bool fromEndConsensus) override;
     void
     endConsensus() override;
     void
@@ -590,6 +591,15 @@ public:
                     << "NetworkOPs: accountHistoryTxTimer cancel error: "
                     << ec.message();
             }
+
+            ec.clear();
+            batchApplyTimer_.cancel(ec);
+            if (ec)
+            {
+                JLOG(m_journal.error())
+                    << "NetworkOPs: batchApplyTimer cancel error: "
+                    << ec.message();
+            }
         }
         // Make sure that any waitHandlers pending in our timers are done.
         using namespace std::chrono_literals;
@@ -607,7 +617,7 @@ private:
         std::function<void()> onExpire,
         std::function<void()> onError);
     void
-    setHeartbeatTimer();
+    setHeartbeatTimer(std::size_t const pauseMs = 1000);
     void
     setClusterTimer();
     void
@@ -708,6 +718,9 @@ private:
     void
     setAccountHistoryJobTimer(SubAccountHistoryInfoWeak subInfo);
 
+    void
+    setBatchApplyTimer() override;
+
     Application& app_;
     beast::Journal m_journal;
 
@@ -726,6 +739,7 @@ private:
     boost::asio::steady_timer heartbeatTimer_;
     boost::asio::steady_timer clusterTimer_;
     boost::asio::steady_timer accountHistoryTxTimer_;
+    boost::asio::steady_timer batchApplyTimer_;
 
     RCLConsensus mConsensus;
 
@@ -958,17 +972,19 @@ NetworkOPsImp::setTimer(
 }
 
 void
-NetworkOPsImp::setHeartbeatTimer()
+NetworkOPsImp::setHeartbeatTimer(std::size_t const pauseMs)
 {
+    JLOG(m_journal.debug()) << "setHeartbeatTimer " << pauseMs << "ms";
     setTimer(
         heartbeatTimer_,
-        mConsensus.parms().ledgerGRANULARITY,
+        std::chrono::milliseconds(pauseMs),
+//        mConsensus.parms().ledgerGRANULARITY,
         [this]() {
             m_job_queue.addJob(jtNETOP_TIMER, "NetOPs.heartbeat", [this]() {
                 processHeartbeatTimer();
             });
         },
-        [this]() { setHeartbeatTimer(); });
+        [this, &pauseMs]() { setHeartbeatTimer(pauseMs); });
 }
 
 void
@@ -998,6 +1014,33 @@ NetworkOPsImp::setAccountHistoryJobTimer(SubAccountHistoryInfoWeak subInfo)
         4s,
         [this, subInfo]() { addAccountHistoryJob(subInfo); },
         [this, subInfo]() { setAccountHistoryJobTimer(subInfo); });
+}
+
+void
+NetworkOPsImp::setBatchApplyTimer()
+{
+    JLOG(m_journal.debug()) << "setting batch apply timer";
+    using namespace std::chrono_literals;
+    setTimer(
+        batchApplyTimer_,
+        100ms,
+        [this]() {
+            std::unique_lock lock(mMutex);
+            if (mTransactions.size() && mDispatchState == DispatchState::none)
+            {
+                if (m_job_queue.addJob(
+                        jtBATCH, "transactionBatch", [this]() { transactionBatch(true, "setBatchApplyTimer"); }))
+                {
+                    mDispatchState = DispatchState::scheduled;
+                }
+            }
+            else
+            {
+                lock.unlock();
+                setBatchApplyTimer();
+            }
+        },
+        [this]() { setBatchApplyTimer(); });
 }
 
 void
@@ -1046,7 +1089,7 @@ NetworkOPsImp::processHeartbeatTimer()
             setMode(OperatingMode::CONNECTED);
     }
 
-    mConsensus.timerEntry(app_.timeKeeper().closeTime());
+    std::size_t pauseMs = mConsensus.timerEntry(app_.timeKeeper().closeTime());
 
     const ConsensusPhase currPhase = mConsensus.phase();
     if (mLastConsensusPhase != currPhase)
@@ -1055,7 +1098,7 @@ NetworkOPsImp::processHeartbeatTimer()
         mLastConsensusPhase = currPhase;
     }
 
-    setHeartbeatTimer();
+    setHeartbeatTimer(pauseMs);
 }
 
 void
@@ -1222,6 +1265,8 @@ NetworkOPsImp::processTransaction(
     // canonicalize can change our pointer
     app_.getMasterTransaction().canonicalize(&transaction);
 
+    JLOG(m_journal.debug()) << "processTransaction " << transaction->getID()
+        << ',' << bLocal;
     if (bLocal)
         doTransactionSync(transaction, bUnlimited, failType);
     else
@@ -1243,6 +1288,7 @@ NetworkOPsImp::doTransactionAsync(
         TransactionStatus(transaction, bUnlimited, false, failType));
     transaction->setApplying();
 
+    /*
     if (mDispatchState == DispatchState::none)
     {
         if (m_job_queue.addJob(
@@ -1251,6 +1297,7 @@ NetworkOPsImp::doTransactionAsync(
             mDispatchState = DispatchState::scheduled;
         }
     }
+     */
 }
 
 void
@@ -1268,6 +1315,11 @@ NetworkOPsImp::doTransactionSync(
         transaction->setApplying();
     }
 
+//    JLOG(m_journal.debug()) << "APPLY waiting " << transaction->getID();
+//    mCond.wait(lock, [transaction](){ return !transaction->getApplying(); });
+//    JLOG(m_journal.debug()) << "APPLY done " << transaction->getID();
+
+    /*
     do
     {
         if (mDispatchState == DispatchState::running)
@@ -1277,13 +1329,13 @@ NetworkOPsImp::doTransactionSync(
         }
         else
         {
-            apply(lock);
+            apply(lock, "doTransactionSync");
 
             if (mTransactions.size())
             {
                 // More transactions need to be applied, but by another job.
                 if (m_job_queue.addJob(jtBATCH, "transactionBatch", [this]() {
-                        transactionBatch();
+                        transactionBatch(false, "doTransactionSync");
                     }))
                 {
                     mDispatchState = DispatchState::scheduled;
@@ -1291,20 +1343,24 @@ NetworkOPsImp::doTransactionSync(
             }
         }
     } while (transaction->getApplying());
+     */
 }
 
 void
-NetworkOPsImp::transactionBatch()
+NetworkOPsImp::transactionBatch(bool const setTimer, char const* msg)
 {
-    std::unique_lock<std::mutex> lock(mMutex);
-
-    if (mDispatchState == DispatchState::running)
-        return;
-
-    while (mTransactions.size())
+    JLOG(m_journal.debug()) << "transactionBatch " << setTimer << ' ' << msg;
     {
-        apply(lock);
+        std::unique_lock<std::mutex> lock(mMutex);
+        if (mDispatchState == DispatchState::running)
+            return;
+//        while (mTransactions.size())
+        if (mTransactions.size())
+            apply(lock);
     }
+    JLOG(m_journal.debug()) << "transactionBatch2 " << setTimer;
+    if (setTimer)
+        setBatchApplyTimer();
 }
 
 void
@@ -1479,6 +1535,15 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
                     e.transaction->setBroadcast();
                 }
             }
+            else
+            {
+                JLOG(m_journal.debug()) << "not relaying "
+                    << e.transaction->getID() << ',' << e.applied
+                    << ',' << static_cast<std::underlying_type<OperatingMode>::type>(mMode.load()) << ','
+                    << static_cast<std::underlying_type<FailHard>::type>(e.failType)
+                    << ',' << e.local << ',' << e.result << ','
+                    << enforceFailHard;
+            }
 
             if (validatedLedgerIndex)
             {
@@ -1494,7 +1559,10 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
     batchLock.lock();
 
     for (TransactionStatus& e : transactions)
+    {
         e.transaction->clearApplying();
+//        JLOG(m_journal.debug()) << "APPLY clear " << e.transaction->getID();
+    }
 
     if (!submit_held.empty())
     {
@@ -1646,7 +1714,18 @@ NetworkOPsImp::checkLastClosedLedger(
     // our last closed ledger? Or do sufficient nodes agree? And do we have no
     // better ledger available?  If so, we are either tracking or full.
 
-    JLOG(m_journal.trace()) << "NetworkOPsImp::checkLastClosedLedger";
+    JLOG(m_journal.debug()) << "NetworkOPsImp::checkLastClosedLedger";
+
+//    if (app_.getLedgerMaster().getValidatedLedgerAge() < std::chrono::seconds(60))
+//    {
+//        if (app_.getLedgerMaster().getValidatedLedger())
+//        {
+//            JLOG(m_journal.debug()) << "checkLastClosedLedger is last validated"
+//                                       " ledger's parent: " << app_.getLedgerMaster().getValidatedLedger()->info().parentHash;
+//            networkClosed = app_.getLedgerMaster().getValidatedLedger()->info().parentHash;
+//            return false;
+//        }
+//    }
 
     auto const ourClosed = m_ledgerMaster.getClosedLedger();
 
@@ -1655,15 +1734,15 @@ NetworkOPsImp::checkLastClosedLedger(
 
     uint256 closedLedger = ourClosed->info().hash;
     uint256 prevClosedLedger = ourClosed->info().parentHash;
-    JLOG(m_journal.trace()) << "OurClosed:  " << closedLedger;
-    JLOG(m_journal.trace()) << "PrevClosed: " << prevClosedLedger;
+    JLOG(m_journal.debug()) << " checkLastClosedLedger OurClosed:  " << closedLedger;
+    JLOG(m_journal.debug()) << "checkLastClosedLedger PrevClosed: " << prevClosedLedger;
 
     //-------------------------------------------------------------------------
     // Determine preferred last closed ledger
 
     auto& validations = app_.getValidations();
     JLOG(m_journal.debug())
-        << "ValidationTrie " << Json::Compact(validations.getJsonTrie());
+        << "checkLastClosedLedger ValidationTrie " << Json::Compact(validations.getJsonTrie());
 
     // Will rely on peer LCL if no trusted validations exist
     hash_map<uint256, std::uint32_t> peerCounts;
@@ -1680,7 +1759,7 @@ NetworkOPsImp::checkLastClosedLedger(
     }
 
     for (auto const& it : peerCounts)
-        JLOG(m_journal.debug()) << "L: " << it.first << " n=" << it.second;
+        JLOG(m_journal.debug()) << "checkLastClosedLedger L: " << it.first << " n=" << it.second;
 
     uint256 preferredLCL = validations.getPreferredLCL(
         RCLValidatedLedger{ourClosed, validations.adaptor().journal()},
@@ -1694,12 +1773,16 @@ NetworkOPsImp::checkLastClosedLedger(
     if (switchLedgers && (closedLedger == prevClosedLedger))
     {
         // don't switch to our own previous ledger
-        JLOG(m_journal.info()) << "We won't switch to our own previous ledger";
+        JLOG(m_journal.info()) << "checkLastClosedLedger We won't switch to our own previous ledger";
+        JLOG(m_journal.debug()) << "checkLastClosedLedger setting to ourClosed->info().hash 1 " << ourClosed->info().hash;
         networkClosed = ourClosed->info().hash;
         switchLedgers = false;
     }
     else
+    {
+        JLOG(m_journal.debug()) << "checkLastClosedLedger setting to closedLedger " << closedLedger;
         networkClosed = closedLedger;
+    }
 
     if (!switchLedgers)
         return false;
@@ -1713,17 +1796,18 @@ NetworkOPsImp::checkLastClosedLedger(
     if (consensus &&
         (!m_ledgerMaster.canBeCurrent(consensus) ||
          !m_ledgerMaster.isCompatible(
-             *consensus, m_journal.debug(), "Not switching")))
+             *consensus, m_journal.debug(), "checkLastClosedLedger Not switching")))
     {
         // Don't switch to a ledger not on the validated chain
         // or with an invalid close time or sequence
+        JLOG(m_journal.debug()) << "checkLastClosedLedger setting to ourClosed->info().hash 2 " << ourClosed->info().hash;
         networkClosed = ourClosed->info().hash;
         return false;
     }
 
-    JLOG(m_journal.warn()) << "We are not running on the consensus ledger";
-    JLOG(m_journal.info()) << "Our LCL: " << getJson({*ourClosed, {}});
-    JLOG(m_journal.info()) << "Net LCL " << closedLedger;
+    JLOG(m_journal.warn()) << "checkLastClosedLedger We are not running on the consensus ledger";
+    JLOG(m_journal.info()) << "checkLastClosedLedger Our LCL: " << getJson({*ourClosed, {}});
+    JLOG(m_journal.info()) << "checkLastClosedLedger Net LCL " << closedLedger;
 
     if ((mMode == OperatingMode::TRACKING) || (mMode == OperatingMode::FULL))
     {
@@ -1796,7 +1880,8 @@ NetworkOPsImp::switchLastClosedLedger(
 }
 
 bool
-NetworkOPsImp::beginConsensus(uint256 const& networkClosed)
+NetworkOPsImp::beginConsensus(uint256 const& networkClosed,
+                              bool fromEndConsensus)
 {
     assert(networkClosed.isNonZero());
 
@@ -1841,7 +1926,8 @@ NetworkOPsImp::beginConsensus(uint256 const& networkClosed)
         networkClosed,
         prevLedger,
         changes.removed,
-        changes.added);
+        changes.added,
+        fromEndConsensus);
 
     const ConsensusPhase currPhase = mConsensus.phase();
     if (mLastConsensusPhase != currPhase)
@@ -1894,8 +1980,9 @@ NetworkOPsImp::endConsensus()
     }
 
     uint256 networkClosed;
-    bool ledgerChange =
-        checkLastClosedLedger(app_.overlay().getActivePeers(), networkClosed);
+    bool ledgerChange = false;
+    ledgerChange = checkLastClosedLedger(
+        app_.overlay().getActivePeers(), networkClosed);
 
     if (networkClosed.isZero())
         return;
@@ -1932,7 +2019,7 @@ NetworkOPsImp::endConsensus()
         }
     }
 
-    beginConsensus(networkClosed);
+    beginConsensus(networkClosed, true);
 }
 
 void
@@ -2273,7 +2360,7 @@ NetworkOPsImp::recvValidation(
     std::shared_ptr<STValidation> const& val,
     std::string const& source)
 {
-    JLOG(m_journal.trace())
+    JLOG(m_journal.debug())
         << "recvValidation " << val->getLedgerHash() << " from " << source;
 
     handleNewValidation(app_, val, source);
@@ -3889,7 +3976,7 @@ NetworkOPsImp::acceptLedger(
 
     // FIXME Could we improve on this and remove the need for a specialized
     // API in Consensus?
-    beginConsensus(m_ledgerMaster.getClosedLedger()->info().hash);
+    beginConsensus(m_ledgerMaster.getClosedLedger()->info().hash, false);
     mConsensus.simulate(app_.timeKeeper().closeTime(), consensusDelay);
     return m_ledgerMaster.getCurrentLedger()->info().seq;
 }

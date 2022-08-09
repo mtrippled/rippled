@@ -36,8 +36,12 @@
 #include <ripple/protocol/STValidation.h>
 #include <ripple/shamap/SHAMap.h>
 #include <atomic>
+#include <chrono>
 #include <mutex>
+#include <optional>
 #include <set>
+#include <string>
+
 namespace ripple {
 
 class InboundTransactions;
@@ -56,9 +60,14 @@ class RCLConsensus
     // Implements the Adaptor template interface required by Consensus.
     class Adaptor
     {
+    public:
         Application& app_;
         std::unique_ptr<FeeVote> feeVote_;
+    public:
+
         LedgerMaster& ledgerMaster_;
+        mutable std::recursive_mutex mutex_;
+    private:
         LocalTxs& localTxs_;
         InboundTransactions& inboundTransactions_;
         beast::Journal const j_;
@@ -78,7 +87,6 @@ class RCLConsensus
 
         // These members are queried via public accesors and are atomic for
         // thread safety.
-        std::atomic<bool> validating_{false};
         std::atomic<std::size_t> prevProposers_{0};
         std::atomic<std::chrono::milliseconds> prevRoundTime_{
             std::chrono::milliseconds{0}};
@@ -88,6 +96,7 @@ class RCLConsensus
         NegativeUNLVote nUnlVote_;
 
     public:
+        std::atomic<bool> validating_{false};
         using Ledger_t = RCLCxLedger;
         using NodeID_t = NodeID;
         using NodeKey_t = PublicKey;
@@ -178,6 +187,9 @@ class RCLConsensus
             return parms_;
         }
 
+        std::size_t
+        getNeededValidations() const;
+
     private:
         //---------------------------------------------------------------------
         // The following members implement the generic Consensus requirements
@@ -233,6 +245,9 @@ class RCLConsensus
          */
         bool
         hasOpenTransactions() const;
+
+        std::size_t
+        txCount() const;
 
         /** Number of proposers that have validated the given ledger
 
@@ -324,7 +339,9 @@ class RCLConsensus
             NetClock::duration const& closeResolution,
             ConsensusCloseTimes const& rawCloseTimes,
             ConsensusMode const& mode,
-            Json::Value&& consensusJson);
+            Json::Value&& consensusJson,
+            CanonicalTXSet& retriableTxs,
+            RCLCxLedger& built);
 
         /** Process the accepted ledger that was a result of simulation/force
             accept.
@@ -364,6 +381,26 @@ class RCLConsensus
             ConsensusCloseTimes const& rawCloseTimes,
             ConsensusMode const& mode,
             Json::Value&& consensusJson);
+
+        std::pair<CanonicalTXSet, RCLCxLedger>
+        doAcceptA(
+            Result const& result,
+            RCLCxLedger const& prevLedger,
+            NetClock::duration closeResolution,
+            ConsensusCloseTimes const& rawCloseTimes,
+            ConsensusMode const& mode,
+            Json::Value&& consensusJson);
+
+        void
+        doAcceptB(
+            Result const& result,
+            RCLCxLedger const& prevLedger,
+            NetClock::duration closeResolution,
+            ConsensusCloseTimes const& rawCloseTimes,
+            ConsensusMode const& mode,
+            Json::Value&& consensusJson,
+            CanonicalTXSet& retriableTxs,
+            RCLCxLedger& built);
 
         /** Build the new last closed ledger.
 
@@ -484,10 +521,17 @@ public:
         RCLCxLedger::ID const& prevLgrId,
         RCLCxLedger const& prevLgr,
         hash_set<NodeID> const& nowUntrusted,
-        hash_set<NodeID> const& nowTrusted);
+        hash_set<NodeID> const& nowTrusted,
+        bool fromEndConsensus);
+
+     std::optional<RCLCxPeerPos>
+     fastConsensus()
+     {
+         return consensus_.fastConsensus();
+     }
 
     //! @see Consensus::timerEntry
-    void
+    std::size_t
     timerEntry(NetClock::time_point const& now);
 
     //! @see Consensus::gotTxSet
@@ -520,15 +564,18 @@ public:
         return adaptor_.parms();
     }
 
-private:
     // Since Consensus does not provide intrinsic thread-safety, this mutex
     // guards all calls to consensus_. adaptor_ uses atomics internally
     // to allow concurrent access of its data members that have getters.
-    mutable std::recursive_mutex mutex_;
 
+private:
     Adaptor adaptor_;
     Consensus<Adaptor> consensus_;
     beast::Journal const j_;
+
+public:
+    std::recursive_mutex& mutex_;
+
 };
 }  // namespace ripple
 
