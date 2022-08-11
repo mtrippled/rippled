@@ -420,6 +420,7 @@ RCLConsensus::Adaptor::onAccept(
     ConsensusMode const& mode,
     Json::Value&& consensusJson)
 {
+    auto timer = perf::START_TIMER(tracer_);
     app_.getJobQueue().addJob(
         jtACCEPT, "acceptLedger", [=, cj = std::move(consensusJson)]() mutable {
             // Note that no lock is held or acquired during this job.
@@ -436,6 +437,7 @@ RCLConsensus::Adaptor::onAccept(
                 std::move(cj));
             this->app_.getOPs().endConsensus();
         });
+    perf::END_TIMER(tracer_, timer);
 }
 
 void

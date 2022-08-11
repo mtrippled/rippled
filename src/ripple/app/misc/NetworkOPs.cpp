@@ -1339,8 +1339,10 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
                     if (e.failType == FailHard::yes)
                         flags |= tapFAIL_HARD;
 
+                    auto tracer = perf::TRACER_PTR;
                     auto const result = app_.getTxQ().apply(
-                        app_, view, e.transaction->getSTransaction(), flags, j);
+                        app_, view, e.transaction->getSTransaction(), flags, j,
+                        tracer);
                     e.result = result.first;
                     e.applied = result.second;
                     changed = changed || result.second;
