@@ -121,6 +121,13 @@ namespace ripple {
             {
                 mutex_.unlock();
             }
+
+            // not part of spec
+            T&
+            getMutex()
+            {
+                return mutex_;
+            }
         };
 
         template <class Mutex>
@@ -283,6 +290,13 @@ namespace ripple {
                 if (tracerTag_.label.size())
                     tracer_->endTimer(tracerTag_);
             }
+
+            // not part of spec
+            Mutex&
+            getLock()
+            {
+                return *mutex_;
+            }
         };
 
         //------------------------------------------------------------------------------
@@ -306,6 +320,35 @@ namespace ripple {
                 {
                     std::unique_lock<StdLock> u1(s);
                     if (p.try_lock(label))
+                    {
+                        u1.release();
+                        break;
+                    }
+                }
+                std::this_thread::yield();
+            }
+        }
+
+        template <class PerfLock1, class PerfLock2>
+        void
+        lock2(PerfLock1& l1, PerfLock2& l2,
+             std::string_view const& label)
+        {
+            while (true)
+            {
+                {
+                    l1.lock(label);
+                    std::unique_lock<PerfLock1> u0(l1, std::adopt_lock);
+                    if (l2.try_lock(label))
+                    {
+                        u0.release();
+                        break;
+                    }
+                }
+                std::this_thread::yield();
+                {
+                    std::unique_lock<PerfLock2> u1(l2, std::adopt_lock);
+                    if (l1.try_lock(label))
                     {
                         u1.release();
                         break;

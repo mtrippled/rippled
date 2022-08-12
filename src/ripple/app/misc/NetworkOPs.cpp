@@ -1004,7 +1004,8 @@ void
 NetworkOPsImp::processHeartbeatTimer()
 {
     {
-        std::unique_lock lock{app_.getMasterMutex()};
+        perf::unique_lock lock(*app_.getMasterMutex(), FILE_LINE);
+        //std::unique_lock lock{app_.getMasterMutex()};
 
         // VFALCO NOTE This is for diagnosing a crash on exit
         LoadManager& mgr(app_.getLoadManager());
@@ -1321,12 +1322,17 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
     batchLock.unlock();
 
     {
-        std::unique_lock masterLock{app_.getMasterMutex(), std::defer_lock};
+        perf::unique_lock masterLock(*app_.getMasterMutex(), FILE_LINE,
+                                     std::defer_lock);
+        //std::unique_lock masterLock{app_.getMasterMutex(), std::defer_lock};
         bool changed = false;
         {
-            std::unique_lock ledgerLock{
-                m_ledgerMaster.peekMutex(), std::defer_lock};
-            std::lock(masterLock, ledgerLock);
+//            std::unique_lock ledgerLock{
+            perf::unique_lock ledgerLock(
+                m_ledgerMaster.peekMutex(), FILE_LINE, std::defer_lock);
+            perf::lock2(masterLock, ledgerLock, FILE_LINE);
+//            perf::lock(masterLock, ledgerLock, FILE_LINE);
+            //std::lock(masterLock, ledgerLock);
 
             app_.openLedger().modify([&](OpenView& view, beast::Journal j) {
                 for (TransactionStatus& e : transactions)

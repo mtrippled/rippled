@@ -630,9 +630,11 @@ RCLConsensus::Adaptor::doAccept(
         }
 
         // Build new open ledger
-        std::unique_lock lock{app_.getMasterMutex(), std::defer_lock};
+        perf::unique_lock lock(*app_.getMasterMutex(), FILE_LINE);
+        //std::unique_lock lock{app_.getMasterMutex(), std::defer_lock};
         std::unique_lock sl{ledgerMaster_.peekMutex(), std::defer_lock};
-        std::lock(lock, sl);
+        perf::lock(lock, sl, FILE_LINE);
+        //std::lock(lock, sl);
 
         auto const lastVal = ledgerMaster_.getValidatedLedger();
         std::optional<Rules> rules;
