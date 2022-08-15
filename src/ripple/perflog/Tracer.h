@@ -334,6 +334,9 @@ namespace ripple {
         lock2(PerfLock1& l1, PerfLock2& l2,
              std::string_view const& label)
         {
+            l1.lock(label);
+            l2.lock(label);
+            /*
             while (true)
             {
                 {
@@ -356,6 +359,7 @@ namespace ripple {
                 }
                 std::this_thread::yield();
             }
+             */
         }
 
         //------------------------------------------------------------------------------
