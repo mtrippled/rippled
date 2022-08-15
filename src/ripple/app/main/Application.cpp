@@ -1377,6 +1377,7 @@ ApplicationImp::setup()
         }
     }
 
+    m_networkOPs->setBatchApplyTimer();
     // Begin connecting to network.
     if (!config_->standalone())
     {
