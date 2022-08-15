@@ -56,12 +56,16 @@ OpenLedger::current() const
 }
 
 bool
-OpenLedger::modify(modify_type const& f)
+OpenLedger::modify(modify_type const& f, std::shared_ptr<perf::Tracer> const& tracer)
 {
     perf::LOCK_GUARD(modify_mutex_, lock1);
     //std::lock_guard lock1(modify_mutex_);
+    auto timer1 = perf::START_TIMER(tracer);
     auto next = std::make_shared<OpenView>(*current_);
+    perf::END_TIMER(tracer, timer1);
+    auto timer2 = perf::START_TIMER(tracer);
     auto const changed = f(*next, j_);
+    perf::END_TIMER(tracer, timer2);
     if (changed)
     {
         perf::LOCK_GUARD(current_mutex_, lock2);
