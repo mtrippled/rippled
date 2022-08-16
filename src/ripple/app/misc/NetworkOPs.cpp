@@ -325,7 +325,7 @@ public:
      * @param Lock that protects the transaction batching
      */
     void
-    apply(std::unique_lock<std::mutex>& batchLock);
+    apply(std::unique_lock<std::mutex>& batchLock, char const* msg);
 
     //
     // Owner functions.
@@ -1327,7 +1327,7 @@ NetworkOPsImp::doTransactionSync(
         }
         else
         {
-            apply(lock);
+            apply(lock, "doTransactionSync");
 
             if (mTransactions.size())
             {
@@ -1352,7 +1352,7 @@ NetworkOPsImp::transactionBatch(bool const setTimer)
         if (mDispatchState == DispatchState::running)
             return;
         while (mTransactions.size())
-            apply(lock);
+            apply(lock, "transactionBatch");
     }
     JLOG(m_journal.debug()) << "transactionBatch2 " << setTimer;
     if (setTimer)
@@ -1360,8 +1360,9 @@ NetworkOPsImp::transactionBatch(bool const setTimer)
 }
 
 void
-NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
+NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock, char const* msg)
 {
+    JLOG(m_journal.debug()) << "NetworkOPsImp::apply " << msg;
     std::vector<TransactionStatus> submit_held;
     std::vector<TransactionStatus> transactions;
     mTransactions.swap(transactions);
