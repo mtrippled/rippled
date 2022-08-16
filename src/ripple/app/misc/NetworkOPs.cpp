@@ -317,7 +317,7 @@ public:
      * Apply transactions in batches. Continue until none are queued.
      */
     void
-    transactionBatch(bool const setTimer);
+    transactionBatch(bool const setTimer, char const* msg);
 
     /**
      * Attempt to apply transactions and post-process based on the results.
@@ -1023,17 +1023,18 @@ NetworkOPsImp::setBatchApplyTimer()
         batchApplyTimer_,
         100ms,
         [this]() {
-            std::lock_guard lock(mMutex);
+            std::unique_lock lock(mMutex);
             if (mTransactions.size() && mDispatchState == DispatchState::none)
             {
                 if (m_job_queue.addJob(
-                        jtBATCH, "transactionBatch", [this]() { transactionBatch(true); }))
+                        jtBATCH, "transactionBatch", [this]() { transactionBatch(true, "setBatchApplyTimer"); }))
                 {
                     mDispatchState = DispatchState::scheduled;
                 }
             }
             else
             {
+                lock.unlock();
                 setBatchApplyTimer();
             }
         },
@@ -1333,7 +1334,7 @@ NetworkOPsImp::doTransactionSync(
             {
                 // More transactions need to be applied, but by another job.
                 if (m_job_queue.addJob(jtBATCH, "transactionBatch", [this]() {
-                        transactionBatch(false);
+                        transactionBatch(false, "doTransactionSync");
                     }))
                 {
                     mDispatchState = DispatchState::scheduled;
@@ -1344,9 +1345,9 @@ NetworkOPsImp::doTransactionSync(
 }
 
 void
-NetworkOPsImp::transactionBatch(bool const setTimer)
+NetworkOPsImp::transactionBatch(bool const setTimer, char const* msg)
 {
-    JLOG(m_journal.debug()) << "transactionBatch " << setTimer;
+    JLOG(m_journal.debug()) << "transactionBatch " << setTimer << ' ' << msg;
     {
         std::unique_lock<std::mutex> lock(mMutex);
         if (mDispatchState == DispatchState::running)
@@ -1362,7 +1363,7 @@ NetworkOPsImp::transactionBatch(bool const setTimer)
 void
 NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock, char const* msg)
 {
-    m_journal.debug() << "NetworkOPsImp::apply " << msg;
+    JLOG(m_journal.debug()) << "NetworkOPsImp::apply " << msg;
     std::vector<TransactionStatus> submit_held;
     std::vector<TransactionStatus> transactions;
     mTransactions.swap(transactions);
