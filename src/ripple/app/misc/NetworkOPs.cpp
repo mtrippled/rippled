@@ -1362,7 +1362,7 @@ NetworkOPsImp::transactionBatch(bool const setTimer)
 void
 NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock, char const* msg)
 {
-    JLOG(m_journal.debug()) << "NetworkOPsImp::apply " << msg;
+    m_journal.debug() << "NetworkOPsImp::apply " << msg;
     std::vector<TransactionStatus> submit_held;
     std::vector<TransactionStatus> transactions;
     mTransactions.swap(transactions);
