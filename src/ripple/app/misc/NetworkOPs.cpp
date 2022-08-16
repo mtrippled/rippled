@@ -1034,6 +1034,7 @@ NetworkOPsImp::setBatchApplyTimer()
             }
         },
         [this]() { setBatchApplyTimer(); });
+    setBatchApplyTimer();
 }
 
 void
@@ -1342,15 +1343,11 @@ NetworkOPsImp::doTransactionSync(
 void
 NetworkOPsImp::transactionBatch()
 {
-    {
-        std::unique_lock<std::mutex> lock(mMutex);
-        if (mDispatchState != DispatchState::running)
-        {
-            while (mTransactions.size())
-                apply(lock);
-        }
-    }
-    setBatchApplyTimer();
+    std::unique_lock<std::mutex> lock(mMutex);
+    if (mDispatchState == DispatchState::running)
+        return;
+    while (mTransactions.size())
+        apply(lock);
 }
 
 void
