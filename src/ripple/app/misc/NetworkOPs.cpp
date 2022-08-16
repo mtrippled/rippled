@@ -1342,11 +1342,15 @@ NetworkOPsImp::doTransactionSync(
 void
 NetworkOPsImp::transactionBatch(bool const setTimer)
 {
-    std::unique_lock<std::mutex> lock(mMutex);
-    if (mDispatchState == DispatchState::running)
-        return;
-    while (mTransactions.size())
-        apply(lock);
+    JLOG(m_journal.debug()) << "transactionBatch " << setTimer;
+    {
+        std::unique_lock<std::mutex> lock(mMutex);
+        if (mDispatchState == DispatchState::running)
+            return;
+        while (mTransactions.size())
+            apply(lock);
+    }
+    JLOG(m_journal.debug()) << "transactionBatch2 " << setTimer;
     if (setTimer)
         setBatchApplyTimer();
 }
