@@ -1032,9 +1032,9 @@ NetworkOPsImp::setBatchApplyTimer()
                     mDispatchState = DispatchState::scheduled;
                 }
             }
+            setBatchApplyTimer();
         },
         [this]() { setBatchApplyTimer(); });
-    setBatchApplyTimer();
 }
 
 void
