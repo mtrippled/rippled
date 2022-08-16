@@ -1343,13 +1343,10 @@ void
 NetworkOPsImp::transactionBatch()
 {
     std::unique_lock<std::mutex> lock(mMutex);
-
-    if (mDispatchState == DispatchState::running)
-        return;
-
-    while (mTransactions.size())
+    if (mDispatchState != DispatchState::running)
     {
-        apply(lock);
+        while (mTransactions.size())
+            apply(lock);
     }
     setBatchApplyTimer();
 }
