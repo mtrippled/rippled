@@ -27,8 +27,6 @@
 #include <optional>
 #include <type_traits>
 
-#include <iostream>
-
 namespace ripple {
 
 /**
@@ -199,7 +197,6 @@ public:
         if (!waitForClosures_)
             ret.emplace(*this, std::forward<Closure>(closure));
 
-        std::cerr << "ClosureCounter " << waitForClosures_ << ',' << ret.has_value() << '\n';
         return ret;
     }
 

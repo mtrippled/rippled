@@ -168,10 +168,8 @@ public:
         if (auto optionalCountedJob =
                 jobCounter_.wrap(std::forward<JobHandler>(jobHandler)))
         {
-            JLOG(m_journal.debug()) << "addJob calling ref " << name;
             return addRefCountedJob(type, name, std::move(*optionalCountedJob));
         }
-        JLOG(m_journal.debug()) << "addJob not calling ref " << name;
         return false;
     }
 

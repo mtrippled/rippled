@@ -946,19 +946,13 @@ NetworkOPsImp::setTimer(
     std::function<void()> onExpire,
     std::function<void()> onError)
 {
-    JLOG(m_journal.debug()) << "setTimer";
     // Only start the timer if waitHandlerCounter_ is not yet joined.
     if (auto optionalCountedHandler = waitHandlerCounter_.wrap(
             [this, onExpire, onError](boost::system::error_code const& e) {
                 if ((e.value() == boost::system::errc::success) &&
                     (!m_job_queue.isStopped()))
                 {
-                    JLOG(m_journal.debug()) << "setTimer onExpire";
                     onExpire();
-                }
-                else
-                {
-                    JLOG(m_journal.debug()) << "setTimer not onExpire";
                 }
                 // Recover as best we can if an unexpected error occurs.
                 if (e.value() != boost::system::errc::success &&
@@ -972,13 +966,8 @@ NetworkOPsImp::setTimer(
                 }
             }))
     {
-        JLOG(m_journal.debug()) << "setTimer optionalCountedHandler";
         timer.expires_from_now(expiry_time);
         timer.async_wait(std::move(*optionalCountedHandler));
-    }
-    else
-    {
-        JLOG(m_journal.debug()) << "setTimer not optionalCountedHandler";
     }
 }
 

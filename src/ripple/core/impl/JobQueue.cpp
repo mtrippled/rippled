@@ -80,17 +80,13 @@ JobQueue::addRefCountedJob(
     std::string const& name,
     JobFunction const& func)
 {
-    JLOG(m_journal.debug()) << "addRefCountedJob " << name;
     auto tracer = perf::TRACER;
     assert(type != jtINVALID);
 
     auto iter(m_jobData.find(type));
     assert(iter != m_jobData.end());
     if (iter == m_jobData.end())
-    {
-        JLOG(m_journal.debug()) << "addRefCountedJob false" << name;
         return false;
-    }
 
     JLOG(m_journal.debug())
         << __func__ << " : Adding job : " << name << " : " << type;
