@@ -1352,7 +1352,8 @@ NetworkOPsImp::transactionBatch(bool const setTimer, char const* msg)
         std::unique_lock<std::mutex> lock(mMutex);
         if (mDispatchState == DispatchState::running)
             return;
-        while (mTransactions.size())
+//        while (mTransactions.size())
+        if (mTransactions.size())
             apply(lock, "transactionBatch");
     }
     JLOG(m_journal.debug()) << "transactionBatch2 " << setTimer;
