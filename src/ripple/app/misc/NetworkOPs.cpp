@@ -317,7 +317,7 @@ public:
      * Apply transactions in batches. Continue until none are queued.
      */
     void
-    transactionBatch();
+    transactionBatch(bool const setTimer);
 
     /**
      * Attempt to apply transactions and post-process based on the results.
@@ -1027,12 +1027,11 @@ NetworkOPsImp::setBatchApplyTimer()
             if (mTransactions.size() && mDispatchState == DispatchState::none)
             {
                 if (m_job_queue.addJob(
-                        jtBATCH, "transactionBatch", [this]() { transactionBatch(); }))
+                        jtBATCH, "transactionBatch", [this]() { transactionBatch(true); }))
                 {
                     mDispatchState = DispatchState::scheduled;
                 }
             }
-            setBatchApplyTimer();
         },
         [this]() { setBatchApplyTimer(); });
 }
@@ -1330,7 +1329,7 @@ NetworkOPsImp::doTransactionSync(
             {
                 // More transactions need to be applied, but by another job.
                 if (m_job_queue.addJob(jtBATCH, "transactionBatch", [this]() {
-                        transactionBatch();
+                        transactionBatch(false);
                     }))
                 {
                     mDispatchState = DispatchState::scheduled;
@@ -1341,13 +1340,15 @@ NetworkOPsImp::doTransactionSync(
 }
 
 void
-NetworkOPsImp::transactionBatch()
+NetworkOPsImp::transactionBatch(bool const setTimer)
 {
     std::unique_lock<std::mutex> lock(mMutex);
     if (mDispatchState == DispatchState::running)
         return;
     while (mTransactions.size())
         apply(lock);
+    if (setTimer)
+        setBatchApplyTimer();
 }
 
 void
