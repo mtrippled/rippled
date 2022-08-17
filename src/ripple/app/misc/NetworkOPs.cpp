@@ -1312,7 +1312,9 @@ NetworkOPsImp::doTransactionSync(
         transaction->setApplying();
     }
 
+    JLOG(m_journal.debug()) << "APPLY waiting " << transaction->getID();
     mCond.wait(lock, [transaction](){ return !transaction->getApplying(); });
+    JLOG(m_journal.debug()) << "APPLY done " << transaction->getID();
 
     /*
     do
@@ -1556,7 +1558,10 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock, char const* msg)
     batchLock.lock();
 
     for (TransactionStatus& e : transactions)
+    {
         e.transaction->clearApplying();
+        JLOG(m_journal.debug()) << "APPLY clear " << e.transaction->getID();
+    }
 
     if (!submit_held.empty())
     {
