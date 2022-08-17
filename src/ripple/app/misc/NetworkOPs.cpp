@@ -1312,13 +1312,9 @@ NetworkOPsImp::doTransactionSync(
         transaction->setApplying();
     }
 
-    /*
-    do
-    {
-        mCond.wait(lock);
-    } while (transaction->getApplying());
-     */
+    mCond.wait(lock, [transaction](){ return !transaction->getApplying(); });
 
+    /*
     do
     {
         if (mDispatchState == DispatchState::running)
@@ -1342,6 +1338,7 @@ NetworkOPsImp::doTransactionSync(
             }
         }
     } while (transaction->getApplying());
+     */
 }
 
 void
