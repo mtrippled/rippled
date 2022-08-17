@@ -1264,6 +1264,8 @@ NetworkOPsImp::processTransaction(
     // canonicalize can change our pointer
     app_.getMasterTransaction().canonicalize(&transaction);
 
+    JLOG(m_journal.debug()) << "processTransaction " << transaction->getID()
+        << ',' << bLocal;
     if (bLocal)
         doTransactionSync(transaction, bUnlimited, failType);
     else
