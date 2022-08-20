@@ -1007,7 +1007,7 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t,
         root_->unshare();
 
         if (doWrite)
-            root_ = writeNode(t, std::move(root_));
+            root_ = writeNode(t, std::move(root_), tracer);
 
         return 1;
     }
@@ -1073,7 +1073,7 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t,
                         child->unshare();
 
                         if (doWrite)
-                            child = writeNode(t, std::move(child));
+                            child = writeNode(t, std::move(child), tracer);
 
                         node->shareChild(branch, child);
                     }
@@ -1089,7 +1089,7 @@ SHAMap::walkSubTree(bool doWrite, NodeObjectType t,
 
         if (doWrite)
             node = std::static_pointer_cast<SHAMapInnerNode>(
-                writeNode(t, std::move(node)));
+                writeNode(t, std::move(node), tracer));
 
         ++flushed;
 
