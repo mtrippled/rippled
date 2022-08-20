@@ -952,7 +952,7 @@ SHAMap::writeNode(NodeObjectType t, std::shared_ptr<SHAMapTreeNode> node,
     auto timer2 = perf::START_TIMER(tracer);
     f_.db().store(
         t, std::move(s.modData()), node->getHash().as_uint256(), ledgerSeq_);
-    auto timer2 = perf::START_TIMER(tracer);
+    perf::END_TIMER(tracer, timer2);
     return node;
 }
 
