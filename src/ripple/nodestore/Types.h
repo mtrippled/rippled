@@ -29,15 +29,16 @@ namespace NodeStore {
 
 enum {
     // This is only used to pre-allocate the array for
-    // batch objects and does not affect the amount written.
+    // batch objects for shards and does not affect the amount written.
     //
     batchWritePreallocationSize = 256,
 
     // This sets a limit on the maximum number of writes
     // in a batch. Actual usage can be twice this since
     // we have a new batch growing as we write the old.
+    // Pre-allocate write batches for non-shards to this amount.
     //
-    batchWriteLimitSize = 65536
+    batchWriteLimitSize = 262144
 };
 
 /** Return codes from Backend operations. */
