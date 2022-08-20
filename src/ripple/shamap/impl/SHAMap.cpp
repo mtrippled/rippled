@@ -944,14 +944,15 @@ SHAMap::writeNode(NodeObjectType t, std::shared_ptr<SHAMapTreeNode> node,
     assert(node->cowid() == 0);
     assert(backed_);
     auto timer = perf::START_TIMER(tracer);
-
     canonicalize(node->getHash(), node);
+    perf::END_TIMER(tracer, timer);
 
     Serializer s;
     node->serializeWithPrefix(s);
+    auto timer2 = perf::START_TIMER(tracer);
     f_.db().store(
         t, std::move(s.modData()), node->getHash().as_uint256(), ledgerSeq_);
-    perf::END_TIMER(tracer, timer);
+    auto timer2 = perf::START_TIMER(tracer);
     return node;
 }
 
