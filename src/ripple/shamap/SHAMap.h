@@ -412,7 +412,8 @@ private:
 
     /** write and canonicalize modified node */
     std::shared_ptr<SHAMapTreeNode>
-    writeNode(NodeObjectType t, std::shared_ptr<SHAMapTreeNode> node) const;
+    writeNode(NodeObjectType t, std::shared_ptr<SHAMapTreeNode> node,
+              std::shared_ptr<perf::Tracer> const& tracer = {}) const;
 
     // returns the first item at or below this node
     SHAMapLeafNode*

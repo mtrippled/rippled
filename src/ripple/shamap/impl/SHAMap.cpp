@@ -938,10 +938,12 @@ SHAMap::fetchRoot(SHAMapHash const& hash, SHAMapSyncFilter* filter)
           first call SHAMapTreeNode::unshare().
  */
 std::shared_ptr<SHAMapTreeNode>
-SHAMap::writeNode(NodeObjectType t, std::shared_ptr<SHAMapTreeNode> node) const
+SHAMap::writeNode(NodeObjectType t, std::shared_ptr<SHAMapTreeNode> node,
+                  std::shared_ptr<perf::Tracer> const& tracer) const
 {
     assert(node->cowid() == 0);
     assert(backed_);
+    auto timer = perf::START_TIMER(tracer);
 
     canonicalize(node->getHash(), node);
 
@@ -949,6 +951,7 @@ SHAMap::writeNode(NodeObjectType t, std::shared_ptr<SHAMapTreeNode> node) const
     node->serializeWithPrefix(s);
     f_.db().store(
         t, std::move(s.modData()), node->getHash().as_uint256(), ledgerSeq_);
+    perf::END_TIMER(tracer, timer);
     return node;
 }
 

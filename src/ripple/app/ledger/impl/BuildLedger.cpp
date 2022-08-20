@@ -73,7 +73,7 @@ buildLedgerImpl(
         // nodes to the node store to preserve the new LCL
 
         auto timer2 = perf::START_TIMER(tracer);
-        int const asf = built->stateMap().flushDirty(hotACCOUNT_NODE);
+        int const asf = built->stateMap().flushDirty(hotACCOUNT_NODE, tracer);
         perf::END_TIMER(tracer, timer2);
         auto timer3 = perf::START_TIMER(tracer);
         int const tmf = built->txMap().flushDirty(hotTRANSACTION_NODE);
