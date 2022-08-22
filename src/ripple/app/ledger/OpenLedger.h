@@ -101,6 +101,9 @@ public:
     bool
     empty() const;
 
+    std::size_t
+    txCount() const;
+
     /** Returns a view to the current open ledger.
 
         Thread safety:

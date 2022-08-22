@@ -484,6 +484,12 @@ struct Peer
     }
 
     std::size_t
+    txCount() const
+    {
+        return openTxs.size();
+    }
+
+    std::size_t
     proposersValidated(Ledger::ID const& prevLedger)
     {
         return validations.numTrustedForLedger(prevLedger);

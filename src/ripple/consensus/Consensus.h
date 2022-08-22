@@ -818,6 +818,7 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
 {
+    JLOG(j_.debug()) << "timerEntry txCount " << adaptor_.txCount();
     // Nothing to do if we are currently working on a ledger
     if (phase_ == ConsensusPhase::accepted)
         return;
@@ -1139,7 +1140,12 @@ Consensus<Adaptor>::phaseOpen()
             adaptor_.parms(),
             j_))
     {
+        JLOG(j_.debug()) << "closing with txCount " << adaptor_.txCount();
         closeLedger();
+    }
+    else
+    {
+        JLOG(j_.debug()) << "not closing with txCount " << adaptor_.txCount();
     }
 }
 

@@ -259,6 +259,12 @@ RCLConsensus::Adaptor::hasOpenTransactions() const
 }
 
 std::size_t
+RCLConsensus::Adaptor::txCount() const
+{
+    return app_.openLedger().txCount();
+}
+
+std::size_t
 RCLConsensus::Adaptor::proposersValidated(LedgerHash const& h) const
 {
     return app_.getValidations().numTrustedForLedger(h);

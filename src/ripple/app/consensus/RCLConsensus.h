@@ -240,6 +240,9 @@ class RCLConsensus
         bool
         hasOpenTransactions() const;
 
+        std::size_t
+        txCount() const;
+
         /** Number of proposers that have validated the given ledger
 
             @param h The hash of the ledger of interest

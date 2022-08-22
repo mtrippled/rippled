@@ -47,6 +47,15 @@ OpenLedger::empty() const
     return current_->txCount() == 0;
 }
 
+std::size_t
+OpenLedger::txCount() const
+{
+    perf::LOCK_GUARD(modify_mutex_, lock);
+    //std::lock_guard lock(modify_mutex_);
+    return current_->txCount();
+}
+
+
 std::shared_ptr<OpenView const>
 OpenLedger::current() const
 {
