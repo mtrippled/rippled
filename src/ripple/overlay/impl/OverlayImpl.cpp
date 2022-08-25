@@ -1307,7 +1307,8 @@ OverlayImpl::relay(
     uint256 const& hash,
     protocol::TMTransaction& m,
     std::set<Peer::id_t> const& toSkip,
-    std::atomic<std::uint64_t>* counter)
+    std::atomic<std::uint64_t>* relay_to_none,
+    std::atomic<std::uint64_t>* rpc_relay_to_none)
 {
     auto const sm = std::make_shared<Message>(m, protocol::mtTRANSACTION);
     std::size_t total = 0;
@@ -1344,10 +1345,18 @@ OverlayImpl::relay(
                            << toSkip.size() << " disabled " << disabled;
     // count skipped peers with the enabled feature towards the quota
     std::uint16_t enabledAndRelayed = enabledInSkip;
-    if (counter != nullptr && peers.empty())
+    if (peers.empty())
     {
-        ++*counter;
-        JLOG(journal_.debug()) << "not relaying to any peer " << hash;
+        if (relay_to_none)
+        {
+            ++*relay_to_none;
+            JLOG(journal_.debug()) << "not relaying to any peer " << hash;
+        }
+        if (relay_to_none)
+        {
+            ++*rpc_relay_to_none;
+            JLOG(journal_.debug()) << "not relaying rpc tx to any peer " << hash;
+        }
     }
     for (auto const& p : peers)
     {

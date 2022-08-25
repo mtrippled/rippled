@@ -246,7 +246,8 @@ public:
         uint256 const&,
         protocol::TMTransaction& m,
         std::set<Peer::id_t> const& skip,
-        std::atomic<std::uint64_t>* counter) override;
+        std::atomic<std::uint64_t>* relay_to_none,
+        std::atomic<std::uint64_t>* rpc_relay_to_none) override;
 
     std::shared_ptr<Message>
     getManifestsMessage();

@@ -185,7 +185,8 @@ public:
         uint256 const& hash,
         protocol::TMTransaction& m,
         std::set<Peer::id_t> const& toSkip,
-        std::atomic<std::uint64_t>* counter = nullptr) = 0;
+        std::atomic<std::uint64_t>* relay_to_none = nullptr,
+        std::atomic<std::uint64_t>* rpc_relay_to_none = nullptr) = 0;
 
     /** Visit every active peer.
      *

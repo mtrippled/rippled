@@ -153,10 +153,15 @@ class NetworkOPsImp final : public NetworkOPs
             std::atomic<std::uint64_t> rpc{0};
             std::atomic<std::uint64_t> peer{0};
             std::atomic<std::uint64_t> attempt{0};
+            std::atomic<std::uint64_t> rpc_attempt{0};
             std::atomic<std::uint64_t> applied{0};
+            std::atomic<std::uint64_t> rpc_applied{0};
             std::atomic<std::uint64_t> should_relay{0};
+            std::atomic<std::uint64_t> rpc_should_relay{0};
             std::atomic<std::uint64_t> check_should_relay{0};
+            std::atomic<std::uint64_t> rpc_check_should_relay{0};
             std::atomic<std::uint64_t> relay_to_none{0};
+            std::atomic<std::uint64_t> rpc_relay_to_none{0};
 
             Json::Value
             json() const
@@ -165,10 +170,15 @@ class NetworkOPsImp final : public NetworkOPs
                 ret["rpc"] = std::to_string(rpc);
                 ret["peer"] = std::to_string(peer);
                 ret["attempt"] = std::to_string(attempt);
+                ret["rpc_attempt"] = std::to_string(rpc_attempt);
                 ret["applied"] = std::to_string(applied);
+                ret["rpc_applied"] = std::to_string(rpc_applied);
                 ret["should_relay"] = std::to_string(should_relay);
+                ret["rpc_should_relay"] = std::to_string(rpc_should_relay);
                 ret["check_should_relay"] = std::to_string(check_should_relay);
+                ret["rpc_check_should_relay"] = std::to_string(rpc_check_should_relay);
                 ret["relay_to_none"] = std::to_string(relay_to_none);
+                ret["rpc_relay_to_none"] = std::to_string(rpc_relay_to_none);
                 return ret;
             }
         };
@@ -352,7 +362,7 @@ public:
      * @param Lock that protects the transaction batching
      */
     void
-    apply(std::unique_lock<std::mutex>& batchLock, char const* msg);
+    apply(std::unique_lock<std::mutex>& batchLock);
 
     //
     // Owner functions.
@@ -1388,7 +1398,7 @@ NetworkOPsImp::transactionBatch(bool const setTimer, char const* msg)
             return;
 //        while (mTransactions.size())
         if (mTransactions.size())
-            apply(lock, "transactionBatch");
+            apply(lock);
     }
     JLOG(m_journal.debug()) << "transactionBatch2 " << setTimer;
     if (setTimer)
@@ -1396,9 +1406,8 @@ NetworkOPsImp::transactionBatch(bool const setTimer, char const* msg)
 }
 
 void
-NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock, char const* msg)
+NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
 {
-    JLOG(m_journal.debug()) << "NetworkOPsImp::apply " << msg;
     std::vector<TransactionStatus> submit_held;
     std::vector<TransactionStatus> transactions;
     mTransactions.swap(transactions);
@@ -1441,11 +1450,17 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock, char const* msg)
                         app_, view, e.transaction->getSTransaction(), flags, j,
                         tracer);
                     perf::END_TIMER(tracer, timer);
-                    accounting_.txCounters.attempt++;
+                    ++accounting_.txCounters.attempt;
+                    if (e.local)
+                        ++accounting_.txCounters.rpc_attempt;
                     e.result = result.first;
                     e.applied = result.second;
                     if (e.applied)
-                        accounting_.txCounters.applied++;
+                    {
+                        ++accounting_.txCounters.applied;
+                        if (e.local)
+                            ++accounting_.txCounters.rpc_applied;
+                    }
                     changed = changed || result.second;
                 }
                 return changed;
@@ -1565,6 +1580,8 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock, char const* msg)
                 !enforceFailHard)
             {
                 ++accounting_.txCounters.check_should_relay;
+                if (e.local)
+                    ++accounting_.txCounters.rpc_check_should_relay;
                 auto const toSkip =
                     app_.getHashRouter().shouldRelay(e.transaction->getID());
 
@@ -1584,6 +1601,8 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock, char const* msg)
                                          &accounting_.txCounters.relay_to_none);
                     e.transaction->setBroadcast();
                     ++accounting_.txCounters.should_relay;
+                    if (e.local)
+                        ++accounting_.txCounters.rpc_should_relay;
                 }
             }
             else
