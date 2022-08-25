@@ -1306,7 +1306,8 @@ void
 OverlayImpl::relay(
     uint256 const& hash,
     protocol::TMTransaction& m,
-    std::set<Peer::id_t> const& toSkip)
+    std::set<Peer::id_t> const& toSkip,
+    std::atomic<std::uint64_t>* counter)
 {
     auto const sm = std::make_shared<Message>(m, protocol::mtTRANSACTION);
     std::size_t total = 0;
@@ -1341,9 +1342,13 @@ OverlayImpl::relay(
     JLOG(journal_.trace()) << "relaying tx, total peers " << peers.size()
                            << " selected " << enabledTarget << " skip "
                            << toSkip.size() << " disabled " << disabled;
-
     // count skipped peers with the enabled feature towards the quota
     std::uint16_t enabledAndRelayed = enabledInSkip;
+    if (counter != nullptr && peers.empty())
+    {
+        ++*counter;
+        JLOG(journal_.debug()) << "not relaying to any peer " << hash;
+    }
     for (auto const& p : peers)
     {
         // always relay to a peer with the disabled feature

@@ -319,8 +319,8 @@ PeerImp::addTxQueue(uint256 const& hash)
 
     if (txQueue_.size() == reduce_relay::MAX_TX_QUEUE_SIZE)
     {
-        JLOG(p_journal_.warn()) << "addTxQueue exceeds the cap";
         sendTxQueue();
+        JLOG(p_journal_.warn()) << "addTxQueue exceeds the cap";
     }
 
     txQueue_.insert(hash);

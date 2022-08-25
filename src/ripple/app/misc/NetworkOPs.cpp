@@ -154,6 +154,9 @@ class NetworkOPsImp final : public NetworkOPs
             std::atomic<std::uint64_t> peer{0};
             std::atomic<std::uint64_t> attempt{0};
             std::atomic<std::uint64_t> applied{0};
+            std::atomic<std::uint64_t> should_relay{0};
+            std::atomic<std::uint64_t> check_should_relay{0};
+            std::atomic<std::uint64_t> relay_to_none{0};
 
             Json::Value
             json() const
@@ -163,6 +166,9 @@ class NetworkOPsImp final : public NetworkOPs
                 ret["peer"] = std::to_string(peer);
                 ret["attempt"] = std::to_string(attempt);
                 ret["applied"] = std::to_string(applied);
+                ret["should_relay"] = std::to_string(should_relay);
+                ret["check_should_relay"] = std::to_string(check_should_relay);
+                ret["relay_to_none"] = std::to_string(relay_to_none);
                 return ret;
             }
         };
@@ -1558,6 +1564,7 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock, char const* msg)
                  (e.result == terQUEUED)) &&
                 !enforceFailHard)
             {
+                ++accounting_.txCounters.check_should_relay;
                 auto const toSkip =
                     app_.getHashRouter().shouldRelay(e.transaction->getID());
 
@@ -1573,9 +1580,20 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock, char const* msg)
                         app_.timeKeeper().now().time_since_epoch().count());
                     tx.set_deferred(e.result == terQUEUED);
                     // FIXME: This should be when we received it
-                    app_.overlay().relay(e.transaction->getID(), tx, *toSkip);
+                    app_.overlay().relay(e.transaction->getID(), tx, *toSkip,
+                                         &accounting_.txCounters.relay_to_none);
                     e.transaction->setBroadcast();
+                    ++accounting_.txCounters.should_relay;
                 }
+            }
+            else
+            {
+                JLOG(m_journal.debug()) << "not relaying "
+                    << e.transaction->getID() << ',' << e.applied
+                    << ',' << static_cast<std::underlying_type<OperatingMode>::type>(mMode.load()) << ','
+                    << static_cast<std::underlying_type<FailHard>::type>(e.failType)
+                    << ',' << e.local << ',' << e.result << ','
+                    << enforceFailHard;
             }
 
             if (validatedLedgerIndex)
