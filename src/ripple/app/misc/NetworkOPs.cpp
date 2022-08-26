@@ -2397,7 +2397,7 @@ NetworkOPsImp::recvValidation(
     std::shared_ptr<STValidation> const& val,
     std::string const& source)
 {
-    JLOG(m_journal.trace())
+    JLOG(m_journal.debug())
         << "recvValidation " << val->getLedgerHash() << " from " << source;
 
     handleNewValidation(app_, val, source);
