@@ -818,10 +818,13 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
 {
-    JLOG(j_.debug()) << "timerEntry txCount " << adaptor_.txCount();
     // Nothing to do if we are currently working on a ledger
     if (phase_ == ConsensusPhase::accepted)
+    {
+        JLOG(j_.debug()) << "timerEntry txCount " << adaptor_.txCount()
+            << " accepted";
         return;
+    }
 
     now_ = now;
 
@@ -830,11 +833,20 @@ Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
 
     if (phase_ == ConsensusPhase::open)
     {
+        JLOG(j_.debug()) << "timerEntry txCount " << adaptor_.txCount()
+                         << " open";
         phaseOpen();
     }
     else if (phase_ == ConsensusPhase::establish)
     {
+        JLOG(j_.debug()) << "timerEntry txCount " << adaptor_.txCount()
+                         << " establish";
         phaseEstablish();
+    }
+    else
+    {
+        JLOG(j_.debug()) << "timerEntry txCount " << adaptor_.txCount()
+                         << " accepted";
     }
 }
 
@@ -1278,6 +1290,11 @@ Consensus<Adaptor>::phaseEstablish()
 
     convergePercent_ = result_->roundTime.read() * 100 /
         std::max<milliseconds>(prevRoundTime_, parms.avMIN_CONSENSUS_TIME);
+
+    JLOG(j_.debug()) << "phaseEstablish positions " << result_->proposers
+        << " roundTime: " << result_->roundTime.read().count()
+        << "ms, ledgerMIN_CONSENSUS: " << parms.ledgerMIN_CONSENSUS.count()
+        << "ms";
 
     // Give everyone a chance to take an initial position
     if (result_->roundTime.read() < parms.ledgerMIN_CONSENSUS)
