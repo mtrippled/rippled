@@ -652,6 +652,12 @@ struct Peer
         return consensusParms;
     }
 
+    std::size_t
+    getNeededValidations() const
+    {
+        return 0;
+    }
+
     // Not interested in tracking consensus mode changes for now
     void onModeChange(ConsensusMode, ConsensusMode)
     {
