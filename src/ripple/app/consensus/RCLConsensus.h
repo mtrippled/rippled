@@ -60,10 +60,7 @@ class RCLConsensus
     {
         Application& app_;
         std::unique_ptr<FeeVote> feeVote_;
-    public:
-
         LedgerMaster& ledgerMaster_;
-    private:
         LocalTxs& localTxs_;
         InboundTransactions& inboundTransactions_;
         beast::Journal const j_;
@@ -186,9 +183,6 @@ class RCLConsensus
         {
             return parms_;
         }
-
-        std::size_t
-        getNeededValidations() const;
 
     private:
         //---------------------------------------------------------------------

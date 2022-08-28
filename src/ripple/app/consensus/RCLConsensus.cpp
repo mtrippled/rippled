@@ -904,12 +904,6 @@ RCLConsensus::Adaptor::onModeChange(ConsensusMode before, ConsensusMode after)
     mode_ = after;
 }
 
-std::size_t
-RCLConsensus::Adaptor::getNeededValidations() const
-{
-    return ledgerMaster_.getNeededValidations();
-}
-
 Json::Value
 RCLConsensus::getJson(bool full) const
 {

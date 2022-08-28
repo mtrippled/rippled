@@ -308,11 +308,8 @@ private:
     std::optional<LedgerHash>
     getLedgerHashForHistory(LedgerIndex index, InboundLedger::Reason reason);
 
-public:
     std::size_t
     getNeededValidations();
-
-private:
     void
     fetchForHistory(
         std::uint32_t missing,
