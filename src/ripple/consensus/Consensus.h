@@ -846,7 +846,7 @@ Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
     else
     {
         JLOG(j_.debug()) << "timerEntry txCount " << adaptor_.txCount()
-                         << " accepted";
+                         << " or else accepted";
     }
 }
 
@@ -1296,9 +1296,19 @@ Consensus<Adaptor>::phaseEstablish()
         << "ms, ledgerMIN_CONSENSUS: " << parms.ledgerMIN_CONSENSUS.count()
         << "ms";
 
-    // Give everyone a chance to take an initial position
-    if (result_->roundTime.read() < parms.ledgerMIN_CONSENSUS)
-        return;
+    // Give everyone a chance to take an initial position unless enough
+    // have already submitted theirs--because that means we're already behind.
+    if ((result_->proposers * 100) / adaptor_.getNeededValidations() >=
+            parms.minCONSENSUS_PCT)
+    {
+        JLOG(j_.debug()) << "phaseEstablish not checking to pause because"
+                            "too many proposals";
+    }
+    else
+    {
+        if (result_->roundTime.read() < parms.ledgerMIN_CONSENSUS)
+            return;
+    }
 
     updateOurPositions();
 
@@ -1341,6 +1351,7 @@ Consensus<Adaptor>::closeLedger()
     perf::END_TIMER(adaptor_.tracer_, adaptor_.startTimer_);
     adaptor_.startTimer_ = perf::START_TIMER(adaptor_.tracer_);
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::establish";
+    auto timer = perf::START_TIMER(adaptor_.tracer_);
     rawCloseTimes_.self = now_;
 
     result_.emplace(adaptor_.onClose(previousLedger_, now_, mode_.get()));
@@ -1363,6 +1374,10 @@ Consensus<Adaptor>::closeLedger()
             createDisputes(it->second);
         }
     }
+    perf::END_TIMER(adaptor_.tracer_, timer);
+    auto timer2 = perf::START_TIMER(adaptor_.tracer_);
+    phaseEstablish();
+    perf::END_TIMER(adaptor_.tracer_, timer2);
 }
 
 /** How many of the participants must agree to reach a given threshold?

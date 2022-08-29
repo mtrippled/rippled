@@ -122,8 +122,8 @@ checkConsensus(
                     << " time=" << currentAgreeTime.count() << "/"
                     << previousAgreeTime.count();
 
-    if (currentAgreeTime <= parms.ledgerMIN_CONSENSUS)
-        return ConsensusState::No;
+//    if (currentAgreeTime <= parms.ledgerMIN_CONSENSUS)
+//        return ConsensusState::No;
 
     if (currentProposers < (prevProposers * 3 / 4))
     {
