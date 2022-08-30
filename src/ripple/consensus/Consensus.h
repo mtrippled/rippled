@@ -714,6 +714,8 @@ Consensus<Adaptor>::peerProposal(
         if (props.size() >= 10)
             props.pop_front();
 
+        JLOG(j_.debug()) << "peerProposal peer,prop: " << peerID
+            << ',' << newPeerPos.proposal().position();
         props.push_back(newPeerPos);
     }
     return peerProposalInternal(now, newPeerPos);
@@ -868,6 +870,7 @@ Consensus<Adaptor>::gotTxSet(
     // it from the network, there is nothing to do now
     if (!acquired_.emplace(id, txSet).second)
         return;
+    JLOG(j_.debug()) << "gotTxSet " << id;
 
     if (!result_)
     {
@@ -1314,7 +1317,10 @@ Consensus<Adaptor>::phaseEstablish()
 
     // Nothing to do if too many laggards or we don't have consensus.
     if (shouldPause() || !haveConsensus())
+    {
+        JLOG(j_.debug()) << "phaseEstablish laggards or no consensus";
         return;
+    }
 
     if (!haveCloseTimeConsensus_)
     {
@@ -1369,6 +1375,8 @@ Consensus<Adaptor>::closeLedger()
     {
         auto const& pos = pit.second.proposal().position();
         auto const it = acquired_.find(pos);
+        JLOG(j_.debug()) << "closeLedger positions peer: " << pit.first
+            << ',' << pos;
         if (it != acquired_.end())
         {
             createDisputes(it->second);
