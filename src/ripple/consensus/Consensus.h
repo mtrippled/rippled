@@ -680,7 +680,10 @@ Consensus<Adaptor>::startRoundInternal(
     haveCloseTimeConsensus_ = false;
     openTime_.reset(clock_.now());
     currPeerPositions_.clear();
-    acquired_.clear();
+//    acquired_.clear();
+    // this is a hack but should help prove the point
+    if (acquired_.size() > 1000)
+        acquired_.clear();
     rawCloseTimes_.peers.clear();
     rawCloseTimes_.self = {};
     deadNodes_.clear();
@@ -738,8 +741,21 @@ Consensus<Adaptor>::peerProposalInternal(
     if (newPeerProp.prevLedger() != prevLedgerID_)
     {
         JLOG(j_.debug()) << "Got proposal for " << newPeerProp.prevLedger()
-                         << " but we are on " << prevLedgerID_;
-        return false;
+            << " but we are on " << prevLedgerID_ << " but get tx set anyway";
+        auto const ait = acquired_.find(newPeerProp.position());
+        if (ait == acquired_.end())
+        {
+            // acquireTxSet will return the set if it is available, or
+            // spawn a request for it and return nullopt/nullptr.  It will call
+            // gotTxSet once it arrives
+            if (auto set = adaptor_.acquireTxSet(newPeerProp.position()))
+                gotTxSet(now_, *set);
+            else
+                JLOG(j_.debug())
+                    << "Don't have tx set for peer proposal on different round";
+
+            return true;
+        }
     }
 
     auto const& peerID = newPeerProp.nodeID();
@@ -859,8 +875,8 @@ Consensus<Adaptor>::gotTxSet(
     TxSet_t const& txSet)
 {
     // Nothing to do if we've finished work on a ledger
-    if (phase_ == ConsensusPhase::accepted)
-        return;
+//    if (phase_ == ConsensusPhase::accepted)
+//        return;
 
     now_ = now;
 
