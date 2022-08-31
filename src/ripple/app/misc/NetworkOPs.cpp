@@ -1311,9 +1311,10 @@ void
 NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
 {
     std::vector<TransactionStatus> submit_held;
-    std::vector<TransactionStatus> transactions;
-    mTransactions.swap(transactions);
-    assert(!transactions.empty());
+    std::vector<std::vector<TransactionStatus>> transactionBatches;
+//    std::vector<TransactionStatus> transactions;
+//    mTransactions.swap(transactions);
+//    assert(!transactions.empty());
 
     assert(mDispatchState != DispatchState::running);
     mDispatchState = DispatchState::running;
@@ -1329,21 +1330,38 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
             std::lock(masterLock, ledgerLock);
 
             app_.openLedger().modify([&](OpenView& view, beast::Journal j) {
-                for (TransactionStatus& e : transactions)
+                batchLock.lock();
+                while (mTransactions.size())
                 {
-                    // we check before adding to the batch
-                    ApplyFlags flags = tapNONE;
-                    if (e.admin)
-                        flags |= tapUNLIMITED;
+                    std::vector<TransactionStatus> singleBatch;
+                    mTransactions.swap(singleBatch);
+                    batchLock.unlock();
+                    assert(!singleBatch.empty());
 
-                    if (e.failType == FailHard::yes)
-                        flags |= tapFAIL_HARD;
+                    for (TransactionStatus& e : singleBatch)
+                    {
+                        // we check before adding to the batch
+                        ApplyFlags flags = tapNONE;
+                        if (e.admin)
+                            flags |= tapUNLIMITED;
 
-                    auto const result = app_.getTxQ().apply(
-                        app_, view, e.transaction->getSTransaction(), flags, j);
-                    e.result = result.first;
-                    e.applied = result.second;
-                    changed = changed || result.second;
+                        if (e.failType == FailHard::yes)
+                            flags |= tapFAIL_HARD;
+
+                        auto const result = app_.getTxQ().apply(
+                            app_,
+                            view,
+                            e.transaction->getSTransaction(),
+                            flags,
+                            j);
+                        e.result = result.first;
+                        e.applied = result.second;
+                        changed = changed || result.second;
+                    }
+                    transactionBatches.emplace_back(singleBatch);
+//                    for (auto& e : singleBatch)
+//                        transactions.emplace_back(e);
+                    batchLock.lock();
                 }
                 return changed;
             });
@@ -1356,145 +1374,155 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
             validatedLedgerIndex = l->info().seq;
 
         auto newOL = app_.openLedger().current();
-        for (TransactionStatus& e : transactions)
+        for (auto& transactions : transactionBatches)
         {
-            e.transaction->clearSubmitResult();
-
-            if (e.applied)
+            for (TransactionStatus& e : transactions)
             {
-                pubProposedTransaction(
-                    newOL, e.transaction->getSTransaction(), e.result);
-                e.transaction->setApplied();
-            }
+                e.transaction->clearSubmitResult();
 
-            e.transaction->setResult(e.result);
+                if (e.applied)
+                {
+                    pubProposedTransaction(
+                        newOL, e.transaction->getSTransaction(), e.result);
+                    e.transaction->setApplied();
+                }
 
-            if (isTemMalformed(e.result))
-                app_.getHashRouter().setFlags(e.transaction->getID(), SF_BAD);
+                e.transaction->setResult(e.result);
+
+                if (isTemMalformed(e.result))
+                    app_.getHashRouter().setFlags(
+                        e.transaction->getID(), SF_BAD);
 
 #ifdef DEBUG
-            if (e.result != tesSUCCESS)
-            {
-                std::string token, human;
-
-                if (transResultInfo(e.result, token, human))
+                if (e.result != tesSUCCESS)
                 {
-                    JLOG(m_journal.info())
-                        << "TransactionResult: " << token << ": " << human;
+                    std::string token, human;
+
+                    if (transResultInfo(e.result, token, human))
+                    {
+                        JLOG(m_journal.info())
+                            << "TransactionResult: " << token << ": " << human;
+                    }
                 }
-            }
 #endif
 
-            bool addLocal = e.local;
+                bool addLocal = e.local;
 
-            if (e.result == tesSUCCESS)
-            {
-                JLOG(m_journal.debug())
-                    << "Transaction is now included in open ledger";
-                e.transaction->setStatus(INCLUDED);
-
-                auto const& txCur = e.transaction->getSTransaction();
-                auto const txNext = m_ledgerMaster.popAcctTransaction(txCur);
-                if (txNext)
+                if (e.result == tesSUCCESS)
                 {
-                    std::string reason;
-                    auto const trans = sterilize(*txNext);
-                    auto t = std::make_shared<Transaction>(trans, reason, app_);
-                    submit_held.emplace_back(t, false, false, FailHard::no);
-                    t->setApplying();
-                }
-            }
-            else if (e.result == tefPAST_SEQ)
-            {
-                // duplicate or conflict
-                JLOG(m_journal.info()) << "Transaction is obsolete";
-                e.transaction->setStatus(OBSOLETE);
-            }
-            else if (e.result == terQUEUED)
-            {
-                JLOG(m_journal.debug())
-                    << "Transaction is likely to claim a"
-                    << " fee, but is queued until fee drops";
-
-                e.transaction->setStatus(HELD);
-                // Add to held transactions, because it could get
-                // kicked out of the queue, and this will try to
-                // put it back.
-                m_ledgerMaster.addHeldTransaction(e.transaction);
-                e.transaction->setQueued();
-                e.transaction->setKept();
-            }
-            else if (isTerRetry(e.result))
-            {
-                if (e.failType != FailHard::yes)
-                {
-                    // transaction should be held
                     JLOG(m_journal.debug())
-                        << "Transaction should be held: " << e.result;
+                        << "Transaction is now included in open ledger";
+                    e.transaction->setStatus(INCLUDED);
+
+                    auto const& txCur = e.transaction->getSTransaction();
+                    auto const txNext =
+                        m_ledgerMaster.popAcctTransaction(txCur);
+                    if (txNext)
+                    {
+                        std::string reason;
+                        auto const trans = sterilize(*txNext);
+                        auto t =
+                            std::make_shared<Transaction>(trans, reason, app_);
+                        submit_held.emplace_back(t, false, false, FailHard::no);
+                        t->setApplying();
+                    }
+                }
+                else if (e.result == tefPAST_SEQ)
+                {
+                    // duplicate or conflict
+                    JLOG(m_journal.info()) << "Transaction is obsolete";
+                    e.transaction->setStatus(OBSOLETE);
+                }
+                else if (e.result == terQUEUED)
+                {
+                    JLOG(m_journal.debug())
+                        << "Transaction is likely to claim a"
+                        << " fee, but is queued until fee drops";
+
                     e.transaction->setStatus(HELD);
+                    // Add to held transactions, because it could get
+                    // kicked out of the queue, and this will try to
+                    // put it back.
                     m_ledgerMaster.addHeldTransaction(e.transaction);
+                    e.transaction->setQueued();
                     e.transaction->setKept();
                 }
-            }
-            else
-            {
-                JLOG(m_journal.debug())
-                    << "Status other than success " << e.result;
-                e.transaction->setStatus(INVALID);
-            }
-
-            auto const enforceFailHard =
-                e.failType == FailHard::yes && !isTesSuccess(e.result);
-
-            if (addLocal && !enforceFailHard)
-            {
-                m_localTX->push_back(
-                    m_ledgerMaster.getCurrentLedgerIndex(),
-                    e.transaction->getSTransaction());
-                e.transaction->setKept();
-            }
-
-            if ((e.applied ||
-                 ((mMode != OperatingMode::FULL) &&
-                  (e.failType != FailHard::yes) && e.local) ||
-                 (e.result == terQUEUED)) &&
-                !enforceFailHard)
-            {
-                auto const toSkip =
-                    app_.getHashRouter().shouldRelay(e.transaction->getID());
-
-                if (toSkip)
+                else if (isTerRetry(e.result))
                 {
-                    protocol::TMTransaction tx;
-                    Serializer s;
-
-                    e.transaction->getSTransaction()->add(s);
-                    tx.set_rawtransaction(s.data(), s.size());
-                    tx.set_status(protocol::tsCURRENT);
-                    tx.set_receivetimestamp(
-                        app_.timeKeeper().now().time_since_epoch().count());
-                    tx.set_deferred(e.result == terQUEUED);
-                    // FIXME: This should be when we received it
-                    app_.overlay().relay(e.transaction->getID(), tx, *toSkip);
-                    e.transaction->setBroadcast();
+                    if (e.failType != FailHard::yes)
+                    {
+                        // transaction should be held
+                        JLOG(m_journal.debug())
+                            << "Transaction should be held: " << e.result;
+                        e.transaction->setStatus(HELD);
+                        m_ledgerMaster.addHeldTransaction(e.transaction);
+                        e.transaction->setKept();
+                    }
                 }
-            }
+                else
+                {
+                    JLOG(m_journal.debug())
+                        << "Status other than success " << e.result;
+                    e.transaction->setStatus(INVALID);
+                }
 
-            if (validatedLedgerIndex)
-            {
-                auto [fee, accountSeq, availableSeq] =
-                    app_.getTxQ().getTxRequiredFeeAndSeq(
-                        *newOL, e.transaction->getSTransaction());
-                e.transaction->setCurrentLedgerState(
-                    *validatedLedgerIndex, fee, accountSeq, availableSeq);
+                auto const enforceFailHard =
+                    e.failType == FailHard::yes && !isTesSuccess(e.result);
+
+                if (addLocal && !enforceFailHard)
+                {
+                    m_localTX->push_back(
+                        m_ledgerMaster.getCurrentLedgerIndex(),
+                        e.transaction->getSTransaction());
+                    e.transaction->setKept();
+                }
+
+                if ((e.applied ||
+                     ((mMode != OperatingMode::FULL) &&
+                      (e.failType != FailHard::yes) && e.local) ||
+                     (e.result == terQUEUED)) &&
+                    !enforceFailHard)
+                {
+                    auto const toSkip = app_.getHashRouter().shouldRelay(
+                        e.transaction->getID());
+
+                    if (toSkip)
+                    {
+                        protocol::TMTransaction tx;
+                        Serializer s;
+
+                        e.transaction->getSTransaction()->add(s);
+                        tx.set_rawtransaction(s.data(), s.size());
+                        tx.set_status(protocol::tsCURRENT);
+                        tx.set_receivetimestamp(
+                            app_.timeKeeper().now().time_since_epoch().count());
+                        tx.set_deferred(e.result == terQUEUED);
+                        // FIXME: This should be when we received it
+                        app_.overlay().relay(
+                            e.transaction->getID(), tx, *toSkip);
+                        e.transaction->setBroadcast();
+                    }
+                }
+
+                if (validatedLedgerIndex)
+                {
+                    auto [fee, accountSeq, availableSeq] =
+                        app_.getTxQ().getTxRequiredFeeAndSeq(
+                            *newOL, e.transaction->getSTransaction());
+                    e.transaction->setCurrentLedgerState(
+                        *validatedLedgerIndex, fee, accountSeq, availableSeq);
+                }
             }
         }
     }
 
     batchLock.lock();
 
-    for (TransactionStatus& e : transactions)
-        e.transaction->clearApplying();
+    for (auto& transactions : transactionBatches)
+    {
+        for (TransactionStatus& e : transactions)
+            e.transaction->clearApplying();
+    }
 
     if (!submit_held.empty())
     {
