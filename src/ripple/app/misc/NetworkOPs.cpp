@@ -268,6 +268,7 @@ public:
         , heartbeatTimer_(io_svc)
         , clusterTimer_(io_svc)
         , accountHistoryTxTimer_(io_svc)
+        , batchApplyTimer_(io_svc)
         , mConsensus(
               app,
               make_FeeVote(
@@ -353,7 +354,7 @@ public:
      * Apply transactions in batches. Continue until none are queued.
      */
     void
-    transactionBatch();
+    transactionBatch(bool const setTimer, char const* msg);
 
     /**
      * Attempt to apply transactions and post-process based on the results.
@@ -627,6 +628,15 @@ public:
                     << "NetworkOPs: accountHistoryTxTimer cancel error: "
                     << ec.message();
             }
+
+            ec.clear();
+            batchApplyTimer_.cancel(ec);
+            if (ec)
+            {
+                JLOG(m_journal.error())
+                    << "NetworkOPs: batchApplyTimer cancel error: "
+                    << ec.message();
+            }
         }
         // Make sure that any waitHandlers pending in our timers are done.
         using namespace std::chrono_literals;
@@ -745,6 +755,9 @@ private:
     void
     setAccountHistoryJobTimer(SubAccountHistoryInfoWeak subInfo);
 
+    void
+    setBatchApplyTimer() override;
+
     Application& app_;
     beast::Journal m_journal;
 
@@ -763,6 +776,7 @@ private:
     boost::asio::steady_timer heartbeatTimer_;
     boost::asio::steady_timer clusterTimer_;
     boost::asio::steady_timer accountHistoryTxTimer_;
+    boost::asio::steady_timer batchApplyTimer_;
 
     RCLConsensus mConsensus;
 
@@ -1038,6 +1052,33 @@ NetworkOPsImp::setAccountHistoryJobTimer(SubAccountHistoryInfoWeak subInfo)
 }
 
 void
+NetworkOPsImp::setBatchApplyTimer()
+{
+    JLOG(m_journal.debug()) << "setting batch apply timer";
+    using namespace std::chrono_literals;
+    setTimer(
+        batchApplyTimer_,
+        100ms,
+        [this]() {
+            std::unique_lock lock(mMutex);
+            if (mTransactions.size() && mDispatchState == DispatchState::none)
+            {
+                if (m_job_queue.addJob(
+                        jtBATCH, "transactionBatch", [this]() { transactionBatch(true, "setBatchApplyTimer"); }))
+                {
+                    mDispatchState = DispatchState::scheduled;
+                }
+            }
+            else
+            {
+                lock.unlock();
+                setBatchApplyTimer();
+            }
+        },
+        [this]() { setBatchApplyTimer(); });
+}
+
+void
 NetworkOPsImp::processHeartbeatTimer()
 {
     {
@@ -1289,6 +1330,7 @@ NetworkOPsImp::doTransactionAsync(
         TransactionStatus(transaction, bUnlimited, false, failType));
     transaction->setApplying();
 
+    /*
     if (mDispatchState == DispatchState::none)
     {
         if (m_job_queue.addJob(
@@ -1297,6 +1339,7 @@ NetworkOPsImp::doTransactionAsync(
             mDispatchState = DispatchState::scheduled;
         }
     }
+     */
 }
 
 void
@@ -1314,6 +1357,11 @@ NetworkOPsImp::doTransactionSync(
         transaction->setApplying();
     }
 
+//    JLOG(m_journal.debug()) << "APPLY waiting " << transaction->getID();
+//    mCond.wait(lock, [transaction](){ return !transaction->getApplying(); });
+//    JLOG(m_journal.debug()) << "APPLY done " << transaction->getID();
+
+    /*
     do
     {
         if (mDispatchState == DispatchState::running)
@@ -1323,13 +1371,13 @@ NetworkOPsImp::doTransactionSync(
         }
         else
         {
-            apply(lock);
+            apply(lock, "doTransactionSync");
 
             if (mTransactions.size())
             {
                 // More transactions need to be applied, but by another job.
                 if (m_job_queue.addJob(jtBATCH, "transactionBatch", [this]() {
-                        transactionBatch();
+                        transactionBatch(false, "doTransactionSync");
                     }))
                 {
                     mDispatchState = DispatchState::scheduled;
@@ -1337,26 +1385,33 @@ NetworkOPsImp::doTransactionSync(
             }
         }
     } while (transaction->getApplying());
+     */
 }
 
 void
-NetworkOPsImp::transactionBatch()
+NetworkOPsImp::transactionBatch(bool const setTimer, char const* msg)
 {
-    std::unique_lock<std::mutex> lock(mMutex);
-    if (mDispatchState == DispatchState::running)
-        return;
-    while (mTransactions.size())
+    JLOG(m_journal.debug()) << "transactionBatch " << setTimer << ' ' << msg;
     {
-        JLOG(m_journal.debug()) << "transactionBatch transactions " << mTransactions.size();
-        apply(lock);
+        std::unique_lock<std::mutex> lock(mMutex);
+        if (mDispatchState == DispatchState::running)
+            return;
+//        while (mTransactions.size())
+        if (mTransactions.size())
+            apply(lock);
     }
+    JLOG(m_journal.debug()) << "transactionBatch2 " << setTimer;
+    if (setTimer)
+        setBatchApplyTimer();
 }
 
 void
 NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
 {
     std::vector<TransactionStatus> submit_held;
-    std::vector<std::vector<TransactionStatus>> transactionBatches;
+    std::vector<TransactionStatus> transactions;
+    mTransactions.swap(transactions);
+    assert(!transactions.empty());
 
     assert(mDispatchState != DispatchState::running);
     mDispatchState = DispatchState::running;
@@ -1380,50 +1435,34 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
 
             auto tracer = perf::TRACER_PTR;
             app_.openLedger().modify([&](OpenView& view, beast::Journal j) {
-                batchLock.lock();
-                while (mTransactions.size())
+                for (TransactionStatus& e : transactions)
                 {
-                    JLOG(m_journal.debug()) << "apply batch size " << mTransactions.size();
-                    std::vector<TransactionStatus> singleBatch;
-                    mTransactions.swap(singleBatch);
-                    batchLock.unlock();
-                    assert(!singleBatch.empty());
+                    // we check before adding to the batch
+                    ApplyFlags flags = tapNONE;
+                    if (e.admin)
+                        flags |= tapUNLIMITED;
 
-                    for (TransactionStatus& e : singleBatch)
+                    if (e.failType == FailHard::yes)
+                        flags |= tapFAIL_HARD;
+
+                    auto timer = perf::START_TIMER(tracer);
+                    auto const result = app_.getTxQ().apply(
+                        app_, view, e.transaction->getSTransaction(), flags, j,
+                        tracer);
+                    perf::END_TIMER(tracer, timer);
+                    ++accounting_.txCounters.attempt;
+                    if (e.local)
+                        ++accounting_.txCounters.rpc_attempt;
+                    e.result = result.first;
+                    e.applied = result.second;
+                    if (e.applied)
                     {
-                        // we check before adding to the batch
-                        ApplyFlags flags = tapNONE;
-                        if (e.admin)
-                            flags |= tapUNLIMITED;
-
-                        if (e.failType == FailHard::yes)
-                            flags |= tapFAIL_HARD;
-
-                        auto timer = perf::START_TIMER(tracer);
-                        auto const result = app_.getTxQ().apply(
-                            app_,
-                            view,
-                            e.transaction->getSTransaction(),
-                            flags,
-                            j);
-                        perf::END_TIMER(tracer, timer);
-                        ++accounting_.txCounters.attempt;
+                        ++accounting_.txCounters.applied;
                         if (e.local)
-                            ++accounting_.txCounters.rpc_attempt;
-                        e.result = result.first;
-                        e.applied = result.second;
-                        if (e.applied)
-                        {
-                            ++accounting_.txCounters.applied;
-                            if (e.local)
-                                ++accounting_.txCounters.rpc_applied;
-                        }
-                        changed = changed || result.second;
+                            ++accounting_.txCounters.rpc_applied;
                     }
-                    transactionBatches.emplace_back(singleBatch);
-                    batchLock.lock();
+                    changed = changed || result.second;
                 }
-                batchLock.unlock();
                 return changed;
             },
                                      tracer);
@@ -1436,178 +1475,163 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
             validatedLedgerIndex = l->info().seq;
 
         auto newOL = app_.openLedger().current();
-        JLOG(m_journal.debug()) << "apply batches " << transactionBatches.size();
-        for (auto& transactions : transactionBatches)
+        for (TransactionStatus& e : transactions)
         {
-            JLOG(m_journal.debug()) << "applied batch size " << transactionBatches.size();
-            for (TransactionStatus& e : transactions)
+            e.transaction->clearSubmitResult();
+
+            if (e.applied)
             {
-                e.transaction->clearSubmitResult();
+                pubProposedTransaction(
+                    newOL, e.transaction->getSTransaction(), e.result);
+                e.transaction->setApplied();
+            }
 
-                if (e.applied)
-                {
-                    pubProposedTransaction(
-                        newOL, e.transaction->getSTransaction(), e.result);
-                    e.transaction->setApplied();
-                }
+            e.transaction->setResult(e.result);
 
-                e.transaction->setResult(e.result);
-
-                if (isTemMalformed(e.result))
-                    app_.getHashRouter().setFlags(
-                        e.transaction->getID(), SF_BAD);
+            if (isTemMalformed(e.result))
+                app_.getHashRouter().setFlags(e.transaction->getID(), SF_BAD);
 
 #ifdef DEBUG
-                if (e.result != tesSUCCESS)
-                {
-                    std::string token, human;
+            if (e.result != tesSUCCESS)
+            {
+                std::string token, human;
 
-                    if (transResultInfo(e.result, token, human))
-                    {
-                        JLOG(m_journal.info())
-                            << "TransactionResult: " << token << ": " << human;
-                    }
+                if (transResultInfo(e.result, token, human))
+                {
+                    JLOG(m_journal.info())
+                        << "TransactionResult: " << token << ": " << human;
                 }
+            }
 #endif
 
-                bool addLocal = e.local;
+            bool addLocal = e.local;
 
-                if (e.result == tesSUCCESS)
+            if (e.result == tesSUCCESS)
+            {
+                JLOG(m_journal.debug())
+                    << "Transaction is now included in open ledger";
+                e.transaction->setStatus(INCLUDED);
+
+                auto const& txCur = e.transaction->getSTransaction();
+                auto const txNext = m_ledgerMaster.popAcctTransaction(txCur);
+                if (txNext)
                 {
-                    JLOG(m_journal.debug())
-                        << "Transaction is now included in open ledger";
-                    e.transaction->setStatus(INCLUDED);
-
-                    auto const& txCur = e.transaction->getSTransaction();
-                    auto const txNext =
-                        m_ledgerMaster.popAcctTransaction(txCur);
-                    if (txNext)
-                    {
-                        std::string reason;
-                        auto const trans = sterilize(*txNext);
-                        auto t =
-                            std::make_shared<Transaction>(trans, reason, app_);
-                        submit_held.emplace_back(t, false, false, FailHard::no);
-                        t->setApplying();
-                    }
+                    std::string reason;
+                    auto const trans = sterilize(*txNext);
+                    auto t = std::make_shared<Transaction>(trans, reason, app_);
+                    submit_held.emplace_back(t, false, false, FailHard::no);
+                    t->setApplying();
                 }
-                else if (e.result == tefPAST_SEQ)
-                {
-                    // duplicate or conflict
-                    JLOG(m_journal.info()) << "Transaction is obsolete";
-                    e.transaction->setStatus(OBSOLETE);
-                }
-                else if (e.result == terQUEUED)
-                {
-                    JLOG(m_journal.debug())
-                        << "Transaction is likely to claim a"
-                        << " fee, but is queued until fee drops";
+            }
+            else if (e.result == tefPAST_SEQ)
+            {
+                // duplicate or conflict
+                JLOG(m_journal.info()) << "Transaction is obsolete";
+                e.transaction->setStatus(OBSOLETE);
+            }
+            else if (e.result == terQUEUED)
+            {
+                JLOG(m_journal.debug())
+                    << "Transaction is likely to claim a"
+                    << " fee, but is queued until fee drops";
 
+                e.transaction->setStatus(HELD);
+                // Add to held transactions, because it could get
+                // kicked out of the queue, and this will try to
+                // put it back.
+                m_ledgerMaster.addHeldTransaction(e.transaction);
+                e.transaction->setQueued();
+                e.transaction->setKept();
+            }
+            else if (isTerRetry(e.result))
+            {
+                if (e.failType != FailHard::yes)
+                {
+                    // transaction should be held
+                    JLOG(m_journal.debug())
+                        << "Transaction should be held: " << e.result;
                     e.transaction->setStatus(HELD);
-                    // Add to held transactions, because it could get
-                    // kicked out of the queue, and this will try to
-                    // put it back.
                     m_ledgerMaster.addHeldTransaction(e.transaction);
-                    e.transaction->setQueued();
                     e.transaction->setKept();
                 }
-                else if (isTerRetry(e.result))
-                {
-                    if (e.failType != FailHard::yes)
-                    {
-                        // transaction should be held
-                        JLOG(m_journal.debug())
-                            << "Transaction should be held: " << e.result;
-                        e.transaction->setStatus(HELD);
-                        m_ledgerMaster.addHeldTransaction(e.transaction);
-                        e.transaction->setKept();
-                    }
-                }
-                else
-                {
-                    JLOG(m_journal.debug())
-                        << "Status other than success " << e.result;
-                    e.transaction->setStatus(INVALID);
-                }
+            }
+            else
+            {
+                JLOG(m_journal.debug())
+                    << "Status other than success " << e.result;
+                e.transaction->setStatus(INVALID);
+            }
 
-                auto const enforceFailHard =
-                    e.failType == FailHard::yes && !isTesSuccess(e.result);
+            auto const enforceFailHard =
+                e.failType == FailHard::yes && !isTesSuccess(e.result);
 
-                if (addLocal && !enforceFailHard)
-                {
-                    m_localTX->push_back(
-                        m_ledgerMaster.getCurrentLedgerIndex(),
-                        e.transaction->getSTransaction());
-                    e.transaction->setKept();
-                }
+            if (addLocal && !enforceFailHard)
+            {
+                m_localTX->push_back(
+                    m_ledgerMaster.getCurrentLedgerIndex(),
+                    e.transaction->getSTransaction());
+                e.transaction->setKept();
+            }
 
-                if ((e.applied ||
-                     ((mMode != OperatingMode::FULL) &&
-                      (e.failType != FailHard::yes) && e.local) ||
-                     (e.result == terQUEUED)) &&
-                    !enforceFailHard)
+            if ((e.applied ||
+                 ((mMode != OperatingMode::FULL) &&
+                  (e.failType != FailHard::yes) && e.local) ||
+                 (e.result == terQUEUED)) &&
+                !enforceFailHard)
+            {
+                ++accounting_.txCounters.check_should_relay;
+                if (e.local)
+                    ++accounting_.txCounters.rpc_check_should_relay;
+                auto const toSkip =
+                    app_.getHashRouter().shouldRelay(e.transaction->getID());
+
+                if (toSkip)
                 {
-                    ++accounting_.txCounters.check_should_relay;
+                    protocol::TMTransaction tx;
+                    Serializer s;
+
+                    e.transaction->getSTransaction()->add(s);
+                    tx.set_rawtransaction(s.data(), s.size());
+                    tx.set_status(protocol::tsCURRENT);
+                    tx.set_receivetimestamp(
+                        app_.timeKeeper().now().time_since_epoch().count());
+                    tx.set_deferred(e.result == terQUEUED);
+                    // FIXME: This should be when we received it
+                    app_.overlay().relay(e.transaction->getID(), tx, *toSkip,
+                                         &accounting_.txCounters.relay_to_none);
+                    e.transaction->setBroadcast();
+                    ++accounting_.txCounters.should_relay;
                     if (e.local)
-                        ++accounting_.txCounters.rpc_check_should_relay;
-                    auto const toSkip =
-                        app_.getHashRouter().shouldRelay(e.transaction->getID());
-
-                    if (toSkip)
-                    {
-                        protocol::TMTransaction tx;
-                        Serializer s;
-
-                        e.transaction->getSTransaction()->add(s);
-                        tx.set_rawtransaction(s.data(), s.size());
-                        tx.set_status(protocol::tsCURRENT);
-                        tx.set_receivetimestamp(
-                            app_.timeKeeper().now().time_since_epoch().count());
-                        tx.set_deferred(e.result == terQUEUED);
-                        // FIXME: This should be when we received it
-                        app_.overlay().relay(e.transaction->getID(), tx, *toSkip,
-                                             &accounting_.txCounters.relay_to_none);
-                        e.transaction->setBroadcast();
-                        ++accounting_.txCounters.should_relay;
-                        if (e.local)
-                            ++accounting_.txCounters.rpc_should_relay;
-                    }
+                        ++accounting_.txCounters.rpc_should_relay;
                 }
-                else
-                {
-                    JLOG(m_journal.debug()) << "not relaying "
-                        << e.transaction->getID() << ',' << e.applied
-                        << ',' << static_cast<std::underlying_type<OperatingMode>::type>(mMode.load()) << ','
-                        << static_cast<std::underlying_type<FailHard>::type>(e.failType)
-                        << ',' << e.local << ',' << e.result << ','
-                        << enforceFailHard;
-                }
+            }
+            else
+            {
+                JLOG(m_journal.debug()) << "not relaying "
+                    << e.transaction->getID() << ',' << e.applied
+                    << ',' << static_cast<std::underlying_type<OperatingMode>::type>(mMode.load()) << ','
+                    << static_cast<std::underlying_type<FailHard>::type>(e.failType)
+                    << ',' << e.local << ',' << e.result << ','
+                    << enforceFailHard;
+            }
 
-                if (validatedLedgerIndex)
-                {
-                    auto [fee, accountSeq, availableSeq] =
-                        app_.getTxQ().getTxRequiredFeeAndSeq(
-                            *newOL, e.transaction->getSTransaction());
-                    e.transaction->setCurrentLedgerState(
-                        *validatedLedgerIndex, fee, accountSeq, availableSeq);
-                }
+            if (validatedLedgerIndex)
+            {
+                auto [fee, accountSeq, availableSeq] =
+                    app_.getTxQ().getTxRequiredFeeAndSeq(
+                        *newOL, e.transaction->getSTransaction());
+                e.transaction->setCurrentLedgerState(
+                    *validatedLedgerIndex, fee, accountSeq, availableSeq);
             }
         }
     }
 
-    JLOG(m_journal.debug()) << "clear locking";
     batchLock.lock();
-    JLOG(m_journal.debug()) << "clear locked";
 
-    JLOG(m_journal.debug()) << "clear how many transactionBatches " << transactionBatches.size();
-    for (auto& transactions : transactionBatches)
+    for (TransactionStatus& e : transactions)
     {
-        JLOG(m_journal.debug()) << "clear how many in this batch " << transactions.size();
-        for (TransactionStatus& e : transactions)
-        {
-            e.transaction->clearApplying();
-            JLOG(m_journal.debug()) << "clearApplying " << e.transaction->getID();
-        }
+        e.transaction->clearApplying();
+//        JLOG(m_journal.debug()) << "APPLY clear " << e.transaction->getID();
     }
 
     if (!submit_held.empty())

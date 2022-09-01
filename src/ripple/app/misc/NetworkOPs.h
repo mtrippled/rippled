@@ -187,6 +187,8 @@ public:
     setStandAlone() = 0;
     virtual void
     setStateTimer() = 0;
+    virtual void
+    setBatchApplyTimer() = 0;
 
     virtual void
     setNeedNetworkLedger() = 0;
