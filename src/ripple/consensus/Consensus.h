@@ -575,6 +575,8 @@ private:
     // Last validated ledger seen by consensus
     Ledger_t previousLedger_;
 
+    std::uint32_t previousSeq_ {0};
+
     // Transaction Sets, indexed by hash of transaction tree
     hash_map<typename TxSet_t::ID, const TxSet_t> acquired_;
 
@@ -675,6 +677,7 @@ Consensus<Adaptor>::startRoundInternal(
     now_ = now;
     prevLedgerID_ = prevLedgerID;
     previousLedger_ = prevLedger;
+    previousSeq_ = previousLedger_.seq();
     result_.reset();
     convergePercent_ = 0;
     haveCloseTimeConsensus_ = false;
@@ -727,13 +730,17 @@ Consensus<Adaptor>::peerProposalInternal(
     NetClock::time_point const& now,
     PeerPosition_t const& newPeerPos)
 {
+    auto const& newPeerProp = newPeerPos.proposal();
+
+    std::uint32_t proposeSeq = newPeerProp.proposeSeq();
+    JLOG(j_.debug()) << "got proposal " << newPeerProp.position() << " seq, prevseq: "
+        << proposeSeq << ',' << previousSeq_;
+
     // Nothing to do for now if we are currently working on a ledger
     if (phase_ == ConsensusPhase::accepted)
         return false;
 
     now_ = now;
-
-    auto const& newPeerProp = newPeerPos.proposal();
 
     if (newPeerProp.prevLedger() != prevLedgerID_)
     {

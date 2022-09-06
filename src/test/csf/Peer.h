@@ -810,7 +810,8 @@ struct Peer
         dest.push_back(p);
 
         // Rely on consensus to decide whether to relay
-        return consensus.peerProposal(now(), Position{p});
+//        return consensus.peerProposal(now(), Position{p});
+        return true;
     }
 
     bool
@@ -902,7 +903,7 @@ struct Peer
     void
     timerEntry()
     {
-        consensus.timerEntry(now());
+//        consensus.timerEntry(now());
         // only reschedule if not completed
         if (completedLedgers < targetLedgers)
             scheduler.in(parms().ledgerGRANULARITY, [this]() { timerEntry(); });
@@ -924,8 +925,8 @@ struct Peer
 
         // Not yet modeling dynamic UNL.
         hash_set<PeerID> nowUntrusted;
-        consensus.startRound(
-            now(), bestLCL, lastClosedLedger, nowUntrusted, runAsValidator);
+//        consensus.startRound(
+//            now(), bestLCL, lastClosedLedger, nowUntrusted, runAsValidator);
     }
 
     // Start the consensus process assuming it is not yet running
