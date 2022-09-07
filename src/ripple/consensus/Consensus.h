@@ -580,6 +580,8 @@ private:
     // Transaction Sets, indexed by hash of transaction tree
     hash_map<typename TxSet_t::ID, const TxSet_t> acquired_;
 
+    hash_map<typename TxSet_t::ID, std::optional<const TxSet_t>> futureAcquired_;
+
     std::optional<Result> result_;
     ConsensusCloseTimes rawCloseTimes_;
 
@@ -694,6 +696,11 @@ Consensus<Adaptor>::startRoundInternal(
         previousLedger_.seq() + typename Ledger_t::Seq{1});
 
     playbackProposals();
+    if (futureAcquired_.size() > 1000)
+    {
+        JLOG(j_.debug()) << "clearing futureAcquired";
+        futureAcquired_.clear();
+    }
     if (currPeerPositions_.size() > (prevProposers_ / 2))
     {
         // We may be falling behind, don't wait for the timer
@@ -737,8 +744,11 @@ Consensus<Adaptor>::peerProposalInternal(
         << proposeSeq << ',' << previousSeq_;
 
     // Nothing to do for now if we are currently working on a ledger
-    if (phase_ == ConsensusPhase::accepted)
+    if (phase_ == ConsensusPhase::accepted &&
+        newPeerProp.prevLedger() == prevLedgerID_)
+    {
         return false;
+    }
 
     now_ = now;
 
@@ -746,6 +756,16 @@ Consensus<Adaptor>::peerProposalInternal(
     {
         JLOG(j_.debug()) << "Got proposal for " << newPeerProp.prevLedger()
                          << " but we are on " << prevLedgerID_;
+        if (futureAcquired_.emplace(newPeerProp.position(),
+                                    std::nullopt).second)
+        {
+            if (auto set = adaptor_.acquireTxSet(newPeerProp.position()))
+                gotTxSet(now_, *set);
+            else
+                JLOG(j_.debug()) << "future proposal Don't have tx set for peer";
+            return true;
+        }
+
         return false;
     }
 
@@ -865,13 +885,25 @@ Consensus<Adaptor>::gotTxSet(
     NetClock::time_point const& now,
     TxSet_t const& txSet)
 {
+    auto id = txSet.id();
+
+    auto foundFuture = futureAcquired_.find(id);
+    if (foundFuture != futureAcquired_.end())
+    {
+        JLOG(j_.debug()) << "future gotTxSet " << id;
+        if (foundFuture->second == std::nullopt)
+        {
+            JLOG(j_.debug()) << "future gotTxSet inserting " << id;
+            foundFuture->second.emplace(txSet);
+        }
+        return;
+    }
+
     // Nothing to do if we've finished work on a ledger
     if (phase_ == ConsensusPhase::accepted)
         return;
 
     now_ = now;
-
-    auto id = txSet.id();
 
     // If we've already processed this transaction set since requesting
     // it from the network, there is nothing to do now
@@ -1109,6 +1141,26 @@ Consensus<Adaptor>::playbackProposals()
                 if (peerProposalInternal(now_, pos))
                     adaptor_.share(pos);
             }
+        }
+    }
+
+    for (auto currentIt = futureAcquired_.begin();
+         currentIt != futureAcquired_.end()
+         ;)
+    {
+        auto found = futureAcquired_.find(currentIt->first);
+        if (found != futureAcquired_.end() &&
+            found->second != std::nullopt &&
+            acquired_.count(currentIt->first))
+        {
+            JLOG(j_.debug()) << "playback already received tx set " <<
+                currentIt->first;
+            acquired_.emplace(currentIt->first, std::move(*found->second));
+            futureAcquired_.erase(found);
+        }
+        else
+        {
+            ++currentIt;
         }
     }
 }

@@ -819,8 +819,8 @@ struct Peer
     {
         bool const inserted =
             txSets.insert(std::make_pair(txs.id(), txs)).second;
-        if (inserted)
-            consensus.gotTxSet(now(), txs);
+//        if (inserted)
+//            consensus.gotTxSet(now(), txs);
         // relay only if new
         return inserted;
     }
