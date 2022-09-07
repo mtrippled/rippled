@@ -1158,7 +1158,7 @@ Consensus<Adaptor>::playbackProposals()
             JLOG(j_.debug()) << "playback already received tx set " <<
                 currentIt->first;
             acquired_.emplace(currentIt->first, std::move(*found->second));
-            futureAcquired_.erase(found);
+            currentIt = futureAcquired_.erase(found);
         }
         else
         {
