@@ -763,7 +763,6 @@ Consensus<Adaptor>::peerProposalInternal(
                 gotTxSet(now_, *set);
             else
                 JLOG(j_.debug()) << "future proposal Don't have tx set for peer";
-            return true;
         }
 
         return false;
