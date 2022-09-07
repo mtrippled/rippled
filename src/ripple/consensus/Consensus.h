@@ -886,16 +886,19 @@ Consensus<Adaptor>::gotTxSet(
 {
     auto id = txSet.id();
 
-    auto foundFuture = futureAcquired_.find(id);
-    if (foundFuture != futureAcquired_.end())
+    if (acquired_.count(id))
     {
-        JLOG(j_.debug()) << "future gotTxSet " << id;
-        if (foundFuture->second == std::nullopt)
+        auto foundFuture = futureAcquired_.find(id);
+        if (foundFuture != futureAcquired_.end())
         {
-            JLOG(j_.debug()) << "future gotTxSet inserting " << id;
-            foundFuture->second.emplace(txSet);
+            JLOG(j_.debug()) << "future gotTxSet " << id;
+            if (foundFuture->second == std::nullopt)
+            {
+                JLOG(j_.debug()) << "future gotTxSet inserting " << id;
+                foundFuture->second.emplace(txSet);
+            }
+            return;
         }
-        return;
     }
 
     // Nothing to do if we've finished work on a ledger
@@ -1150,7 +1153,7 @@ Consensus<Adaptor>::playbackProposals()
         auto found = futureAcquired_.find(currentIt->first);
         if (found != futureAcquired_.end() &&
             found->second != std::nullopt &&
-            acquired_.count(currentIt->first))
+            !acquired_.count(currentIt->first))
         {
             JLOG(j_.debug()) << "playback already received tx set " <<
                 currentIt->first;
