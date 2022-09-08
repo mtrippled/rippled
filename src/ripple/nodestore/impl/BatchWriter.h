@@ -20,7 +20,6 @@
 #ifndef RIPPLE_NODESTORE_BATCHWRITER_H_INCLUDED
 #define RIPPLE_NODESTORE_BATCHWRITER_H_INCLUDED
 
-#include <ripple/basics/Log.h>
 #include <ripple/nodestore/Scheduler.h>
 #include <ripple/nodestore/Task.h>
 #include <ripple/nodestore/Types.h>
@@ -55,9 +54,7 @@ public:
     };
 
     /** Create a batch writer. */
-    BatchWriter(Callback& callback,
-                Scheduler& scheduler,
-                beast::Journal journal);
+    BatchWriter(Callback& callback, Scheduler& scheduler);
 
     /** Destroy a batch writer.
 
@@ -91,7 +88,6 @@ private:
 
     Callback& m_callback;
     Scheduler& m_scheduler;
-    beast::Journal m_journal;
     LockType mWriteMutex;
     CondvarType mWriteCondition;
     int mWriteLoad;

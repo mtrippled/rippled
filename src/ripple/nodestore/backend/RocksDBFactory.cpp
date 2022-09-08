@@ -103,7 +103,7 @@ public:
         : m_deletePath(false)
         , m_journal(journal)
         , m_keyBytes(keyBytes)
-        , m_batch(*this, scheduler, journal)
+        , m_batch(*this, scheduler)
     {
         if (!get_if_exists(keyValues, "path", m_name))
             Throw<std::runtime_error>("Missing path in RocksDBFactory backend");

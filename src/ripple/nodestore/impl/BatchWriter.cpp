@@ -22,12 +22,9 @@
 namespace ripple {
 namespace NodeStore {
 
-BatchWriter::BatchWriter(Callback& callback,
-                         Scheduler& scheduler,
-                         beast::Journal journal)
+BatchWriter::BatchWriter(Callback& callback, Scheduler& scheduler)
     : m_callback(callback)
     , m_scheduler(scheduler)
-    , m_journal(journal)
     , mWriteLoad(0)
     , mWritePending(false)
 {
@@ -46,8 +43,8 @@ BatchWriter::store(std::shared_ptr<NodeObject> const& object)
 
     // If the batch has reached its limit, we wait
     // until the batch writer is finished
-//    while (mWriteSet.size() >= batchWriteLimitSize)
-//        mWriteCondition.wait(sl);
+    while (mWriteSet.size() >= batchWriteLimitSize)
+        mWriteCondition.wait(sl);
 
     mWriteSet.push_back(object);
 
@@ -107,8 +104,6 @@ BatchWriter::writeBatch()
 
         report.elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - before);
-        JLOG(m_journal.debug()) << "BatchWriter wrote " << report.writeCount
-            << " in " << report.elapsed.count() << "ms";
 
         m_scheduler.onBatchWrite(report);
     }
