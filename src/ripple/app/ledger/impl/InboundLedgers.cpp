@@ -97,6 +97,9 @@ public:
             }
             else
             {
+                JLOG(j_.debug()) << "InboundLedgers acquire " <<
+                    seq << ',' << hash << ',' <<
+                    static_cast<std::underlying_type<InboundLedger::Reason>::type>(reason);
                 inbound = std::make_shared<InboundLedger>(
                     app_,
                     hash,
