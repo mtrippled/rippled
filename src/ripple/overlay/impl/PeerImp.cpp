@@ -1826,6 +1826,14 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMLedgerData> const& m)
     if (!stringIsUint256Sized(m->ledgerhash()))
         return badData("Invalid ledger hash");
 
+    if (m->type() == protocol::liTX_NODE ||
+        m->type() == protocol::liTS_CANDIDATE)
+    {
+        JLOG(p_journal_.debug()) << "TMLedgerData  " <<
+            (m->type() == protocol::liTX_NODE ? "liTX_NODE " : "liTS_CANDIDATE ")
+            << m->ledgerhash();
+    }
+
     // Verify ledger sequence
     {
         auto const ledgerSeq{m->ledgerseq()};

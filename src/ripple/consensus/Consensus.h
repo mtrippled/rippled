@@ -831,7 +831,8 @@ Consensus<Adaptor>::peerProposalInternal(
             if (auto set = adaptor_.acquireTxSet(newPeerProp.position()))
                 gotTxSet(now_, *set);
             else
-                JLOG(j_.debug()) << "Don't have tx set for peer";
+                JLOG(j_.debug()) << "Don't have tx set for peer, requesting I"
+                                    "think " << newPeerProp.position();
         }
         else if (result_)
         {
