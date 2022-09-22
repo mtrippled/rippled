@@ -30,7 +30,9 @@
 #include <ripple/consensus/LedgerTiming.h>
 #include <ripple/json/json_writer.h>
 #include <boost/logic/tribool.hpp>
+#include <iterator>
 #include <optional>
+#include <set>
 #include <sstream>
 
 namespace ripple {
@@ -1370,11 +1372,39 @@ Consensus<Adaptor>::phaseEstablish()
 
     // Give everyone a chance to take an initial position unless enough
     // have already submitted theirs--because that means we're already behind.
-    if ((result_->proposers * 100) / adaptor_.getNeededValidations() >=
-            parms.minCONSENSUS_PCT)
+    std::multiset<std::chrono::steady_clock::time_point> arrivals;
+    for (auto const& pos : currPeerPositions_)
+        arrivals.insert(pos.second.second);
+    auto [quorum, trustedKeys] = adaptor_.getQuorumKeys();
+    std::size_t const& numKeys = trustedKeys.size();
+    std::size_t const thresh = numKeys - quorum + 1;
+    auto const now = std::chrono::steady_clock::now();
+    auto lb = arrivals.lower_bound(
+        now - parms.ledgerMIN_CONSENSUS);
+    std::stringstream ss;
+    ss << "phaseEstablish numKeys=" << numKeys <<
+        " quorum=" << quorum << " thresh=" << thresh << " MIN_CONSENSUSms="
+       << parms.ledgerMIN_CONSENSUS.count() << "| current peer position "
+                                               " received ms ago: ";
+    bool first = true;
+    for (auto const ts : arrivals)
     {
-        JLOG(j_.debug()) << "phaseEstablish not checking to pause because"
-                            "too many proposals";
+        if (first)
+            first = false;
+        else
+            ss << ',';
+        ss << std::chrono::duration_cast<std::chrono::milliseconds>(now - ts).count();
+    }
+    if (lb != arrivals.end())
+        ss << " exceeded threshold distance from begin: "
+            << std::distance(arrivals.begin(), lb);
+    JLOG(j_.debug()) << ss.str();
+    if (lb != arrivals.end() && std::distance(arrivals.begin(), lb) >= thresh)
+//    if ((result_->proposers * 100) / adaptor_.getNeededValidations() >=
+//            parms.minCONSENSUS_PCT)
+    {
+        JLOG(j_.debug()) << "phaseEstablish not checking to pause because "
+                            "enough proposals";
     }
     else
     {
