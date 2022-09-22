@@ -462,7 +462,7 @@ private:
     bool
     peerProposalInternal(
         NetClock::time_point const& now,
-        PeerPositionWithArrival const& newProposal);
+        PeerPositionWithArrival const& newPosPair);
 //        PeerPosition_t const& newProposal);
 
     /** Handle pre-close phase.
@@ -725,20 +725,15 @@ Consensus<Adaptor>::peerProposal(
     PeerPosition_t const& newPeerPos)
 {
     auto const& peerID = newPeerPos.proposal().nodeID();
-
     // Always need to store recent positions
-    auto const reallyNow = std::chrono::steady_clock::now();
-    {
-        auto& props = recentPeerPositions_[peerID];
+    auto& props = recentPeerPositions_[peerID];
+    if (props.size() >= 10)
+        props.pop_front();
+    JLOG(j_.debug()) << "peerProposal peer,prop: " << peerID
+        << ',' << newPeerPos.proposal().position();
+    props.push_back({newPeerPos, std::chrono::steady_clock::now()});
 
-        if (props.size() >= 10)
-            props.pop_front();
-
-        JLOG(j_.debug()) << "peerProposal peer,prop: " << peerID
-            << ',' << newPeerPos.proposal().position();
-        props.push_back({newPeerPos, reallyNow});
-    }
-    return peerProposalInternal(now, {newPeerPos, reallyNow});
+    return peerProposalInternal(now, props.back());
 }
 
 template <class Adaptor>
@@ -769,7 +764,7 @@ Consensus<Adaptor>::peerProposalInternal(
         JLOG(j_.debug()) << "Got proposal for " << newPeerProp.prevLedger()
                          << " but we are on " << prevLedgerID_;
         if (futureAcquired_.emplace(newPeerProp.position(),
-                    OptTXSetWithArrival{std::nullopt, std::chrono::steady_clock::now()}).second)
+                    OptTXSetWithArrival{std::nullopt, newPeerPosPair.second}).second)
         {
             if (auto set = adaptor_.acquireTxSet(newPeerProp.position()))
                 gotTxSet(now_, *set);
@@ -819,8 +814,7 @@ Consensus<Adaptor>::peerProposalInternal(
         if (peerPosIt != currPeerPositions_.end())
             peerPosIt->second.first = newPeerPos;
         else
-            currPeerPositions_.emplace(peerID,
-                PeerPositionWithArrival{newPeerPos, std::chrono::steady_clock::now()});
+            currPeerPositions_.emplace(peerID, newPeerPosPair);
     }
 
     if (newPeerProp.isInitial())
