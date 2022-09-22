@@ -1372,7 +1372,10 @@ Consensus<Adaptor>::phaseEstablish()
     else
     {
         if (result_->roundTime.read() < parms.ledgerMIN_CONSENSUS)
+        {
+            JLOG(j_.debug()) << "phaseEstablish not enough time passed";
             return;
+        }
     }
 
     updateOurPositions();
@@ -1386,11 +1389,11 @@ Consensus<Adaptor>::phaseEstablish()
 
     if (!haveCloseTimeConsensus_)
     {
-        JLOG(j_.info()) << "We have TX consensus but not CT consensus";
+        JLOG(j_.info()) << "phaseEstablish We have TX consensus but not CT consensus";
         return;
     }
 
-    JLOG(j_.info()) << "Converge cutoff (" << currPeerPositions_.size()
+    JLOG(j_.info()) << "phaseEstablish Converge cutoff (" << currPeerPositions_.size()
                     << " participants)";
     adaptor_.updateOperatingMode(currPeerPositions_.size());
     prevProposers_ = currPeerPositions_.size();
@@ -1676,14 +1679,14 @@ Consensus<Adaptor>::haveConsensus()
         }
         else
         {
-            JLOG(j_.debug()) << nodeId << " has " << peerProp.position();
+            JLOG(j_.debug()) << "haveConsensus " <<  nodeId << " has " << peerProp.position();
             ++disagree;
         }
     }
     auto currentFinished =
         adaptor_.proposersFinished(previousLedger_, prevLedgerID_);
 
-    JLOG(j_.debug()) << "Checking for TX consensus: agree=" << agree
+    JLOG(j_.debug()) << "haveConsensus Checking for TX consensus: agree=" << agree
                      << ", disagree=" << disagree;
 
     // Determine if we actually have consensus or not
@@ -1705,10 +1708,11 @@ Consensus<Adaptor>::haveConsensus()
     // without us.
     if (result_->state == ConsensusState::MovedOn)
     {
-        JLOG(j_.error()) << "Unable to reach consensus";
-        JLOG(j_.error()) << Json::Compact{getJson(true)};
+        JLOG(j_.error()) << "haveConsensus MovedOn Unable to reach consensus "
+            << Json::Compact{getJson(true)};
     }
 
+    JLOG(j_.debug()) << "haveConsensus true";
     return true;
 }
 
