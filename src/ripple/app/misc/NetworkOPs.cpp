@@ -654,7 +654,7 @@ private:
         std::function<void()> onExpire,
         std::function<void()> onError);
     void
-    setHeartbeatTimer();
+    setHeartbeatTimer(std::size_t const pauseMs = 1000);
     void
     setClusterTimer();
     void
@@ -1009,17 +1009,19 @@ NetworkOPsImp::setTimer(
 }
 
 void
-NetworkOPsImp::setHeartbeatTimer()
+NetworkOPsImp::setHeartbeatTimer(std::size_t const pauseMs)
 {
+    JLOG(m_journal.debug()) << "setHeartbeatTimer " << pauseMs << "ms";
     setTimer(
         heartbeatTimer_,
-        mConsensus.parms().ledgerGRANULARITY,
+        std::chrono::milliseconds(pauseMs),
+//        mConsensus.parms().ledgerGRANULARITY,
         [this]() {
             m_job_queue.addJob(jtNETOP_TIMER, "NetOPs.heartbeat", [this]() {
                 processHeartbeatTimer();
             });
         },
-        [this]() { setHeartbeatTimer(); });
+        [this, &pauseMs]() { setHeartbeatTimer(pauseMs); });
 }
 
 void
@@ -1125,7 +1127,7 @@ NetworkOPsImp::processHeartbeatTimer()
             setMode(OperatingMode::CONNECTED);
     }
 
-    mConsensus.timerEntry(app_.timeKeeper().closeTime());
+    std::size_t pauseMs = mConsensus.timerEntry(app_.timeKeeper().closeTime());
 
     const ConsensusPhase currPhase = mConsensus.phase();
     if (mLastConsensusPhase != currPhase)
@@ -1134,7 +1136,7 @@ NetworkOPsImp::processHeartbeatTimer()
         mLastConsensusPhase = currPhase;
     }
 
-    setHeartbeatTimer();
+    setHeartbeatTimer(pauseMs);
 }
 
 void

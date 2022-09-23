@@ -922,13 +922,13 @@ RCLConsensus::getJson(bool full) const
     return ret;
 }
 
-void
+std::size_t
 RCLConsensus::timerEntry(NetClock::time_point const& now)
 {
     try
     {
         std::lock_guard _{mutex_};
-        consensus_.timerEntry(now);
+        return consensus_.timerEntry(now);
     }
     catch (SHAMapMissingNode const& mn)
     {

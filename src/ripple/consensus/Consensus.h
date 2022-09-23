@@ -371,7 +371,7 @@ public:
 
         @param now The network adjusted time
     */
-    void
+    std::size_t
     timerEntry(NetClock::time_point const& now);
 
     /** Process a transaction set acquired from the network
@@ -473,7 +473,7 @@ private:
         transactions.  After enough time has elapsed, we will close the ledger,
         switch to the establish phase and start the consensus process.
     */
-    void
+    std::size_t
     phaseOpen();
 
     /** Handle establish phase.
@@ -484,7 +484,7 @@ private:
 
         If we have consensus, move to the accepted phase.
     */
-    void
+    std::size_t
     phaseEstablish();
 
     /** Evaluate whether pausing increases likelihood of validation.
@@ -513,7 +513,7 @@ private:
     shouldPause() const;
 
     // Close the open ledger and establish initial position.
-    void
+    std::size_t
     closeLedger();
 
     // Adjust our positions to try to agree with other validators.
@@ -853,15 +853,16 @@ Consensus<Adaptor>::peerProposalInternal(
 }
 
 template <class Adaptor>
-void
+std::size_t
 Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
 {
+    std::size_t ret = 1000;
     // Nothing to do if we are currently working on a ledger
     if (phase_ == ConsensusPhase::accepted)
     {
         JLOG(j_.debug()) << "timerEntry txCount " << adaptor_.txCount()
             << " accepted";
-        return;
+        return ret;
     }
 
     now_ = now;
@@ -873,19 +874,21 @@ Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
     {
         JLOG(j_.debug()) << "timerEntry txCount " << adaptor_.txCount()
                          << " open";
-        phaseOpen();
+        ret = phaseOpen();
     }
     else if (phase_ == ConsensusPhase::establish)
     {
         JLOG(j_.debug()) << "timerEntry txCount " << adaptor_.txCount()
                          << " establish";
-        phaseEstablish();
+        ret = phaseEstablish();
     }
     else
     {
         JLOG(j_.debug()) << "timerEntry txCount " << adaptor_.txCount()
                          << " or else accepted";
     }
+
+    return ret;
 }
 
 template <class Adaptor>
@@ -1178,7 +1181,7 @@ Consensus<Adaptor>::playbackProposals()
 }
 
 template <class Adaptor>
-void
+std::size_t
 Consensus<Adaptor>::phaseOpen()
 {
     using namespace std::chrono;
@@ -1227,12 +1230,13 @@ Consensus<Adaptor>::phaseOpen()
             j_))
     {
         JLOG(j_.debug()) << "closing with txCount " << adaptor_.txCount();
-        closeLedger();
+        return closeLedger();
     }
     else
     {
         JLOG(j_.debug()) << "not closing with txCount " << adaptor_.txCount();
     }
+    return 1000;
 }
 
 template <class Adaptor>
@@ -1350,11 +1354,13 @@ Consensus<Adaptor>::shouldPause() const
 }
 
 template <class Adaptor>
-void
+std::size_t
 Consensus<Adaptor>::phaseEstablish()
 {
     // can only establish consensus if we already took a stance
     assert(result_);
+
+    std::size_t ret = 1000;
 
     using namespace std::chrono;
     ConsensusParms const& parms = adaptor_.parms();
@@ -1379,13 +1385,13 @@ Consensus<Adaptor>::phaseEstablish()
     std::size_t const& numKeys = trustedKeys.size();
     std::size_t const thresh = numKeys - quorum + 1;
     auto const now = std::chrono::steady_clock::now();
-    auto lb = arrivals.lower_bound(
-        now - parms.ledgerMIN_CONSENSUS);
+    auto const cutoff = now - parms.ledgerMIN_CONSENSUS;
+    auto lb = arrivals.lower_bound(cutoff);
     std::stringstream ss;
     ss << "phaseEstablish numKeys=" << numKeys <<
         " quorum=" << quorum << " thresh=" << thresh << " MIN_CONSENSUSms="
-       << parms.ledgerMIN_CONSENSUS.count() << "| current peer position "
-                                               " received ms ago: ";
+       << parms.ledgerMIN_CONSENSUS.count() << " cutoff=" << cutoff.time_since_epoch().count()
+       << "| current peer position received ms ago: ";
     bool first = true;
     for (auto const ts : arrivals)
     {
@@ -1396,8 +1402,10 @@ Consensus<Adaptor>::phaseEstablish()
         ss << std::chrono::duration_cast<std::chrono::milliseconds>(now - ts).count();
     }
     if (lb != arrivals.end())
-        ss << " exceeded threshold distance from begin: "
-            << std::distance(arrivals.begin(), lb);
+    {
+        ss << " earlier than threshold distance from begin: "
+           << std::distance(arrivals.begin(), --lb);
+    }
     JLOG(j_.debug()) << ss.str();
     if (lb != arrivals.end() && std::distance(arrivals.begin(), lb) >= thresh)
 //    if ((result_->proposers * 100) / adaptor_.getNeededValidations() >=
@@ -1408,10 +1416,24 @@ Consensus<Adaptor>::phaseEstablish()
     }
     else
     {
-        if (result_->roundTime.read() < parms.ledgerMIN_CONSENSUS)
+        // now calculate how much time to sleep
+//        auto nowDiff = parms.ledgerMIN_CONSENSUS - result_->roundTime.read();
+        std::chrono::milliseconds latest = result_->roundTime.read();
+        if (arrivals.size() >= thresh)
         {
-            JLOG(j_.debug()) << "phaseEstablish not enough time passed";
-            return;
+            auto cutoffIt = arrivals.begin();
+            std::advance(cutoffIt, thresh - 1);
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - *cutoffIt) > latest)
+                latest = std::chrono::duration_cast<std::chrono::milliseconds>(now - *cutoffIt);
+        }
+
+//        if (result_->roundTime.read() < parms.ledgerMIN_CONSENSUS)
+        if (latest < parms.ledgerMIN_CONSENSUS)
+        {
+            std::size_t pauseFor = (parms.ledgerMIN_CONSENSUS - latest).count() + 1;
+            JLOG(j_.debug()) << "phaseEstablish not enough time passed "
+                                    "pausing for " << pauseFor << "ms";
+            return pauseFor;
         }
     }
 
@@ -1421,13 +1443,13 @@ Consensus<Adaptor>::phaseEstablish()
     if (shouldPause() || !haveConsensus())
     {
         JLOG(j_.debug()) << "phaseEstablish laggards or no consensus";
-        return;
+        return ret;
     }
 
     if (!haveCloseTimeConsensus_)
     {
         JLOG(j_.info()) << "phaseEstablish We have TX consensus but not CT consensus";
-        return;
+        return ret;
     }
 
     JLOG(j_.info()) << "phaseEstablish Converge cutoff (" << currPeerPositions_.size()
@@ -1446,10 +1468,12 @@ Consensus<Adaptor>::phaseEstablish()
         rawCloseTimes_,
         mode_.get(),
         getJson(true));
+
+    return ret;
 }
 
 template <class Adaptor>
-void
+std::size_t
 Consensus<Adaptor>::closeLedger()
 {
     // We should not be closing if we already have a position
@@ -1486,8 +1510,9 @@ Consensus<Adaptor>::closeLedger()
     }
     perf::END_TIMER(adaptor_.tracer_, timer);
     auto timer2 = perf::START_TIMER(adaptor_.tracer_);
-    phaseEstablish();
+    std::size_t ret = phaseEstablish();
     perf::END_TIMER(adaptor_.tracer_, timer2);
+    return ret;
 }
 
 /** How many of the participants must agree to reach a given threshold?

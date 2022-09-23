@@ -36,6 +36,7 @@
 #include <ripple/protocol/STValidation.h>
 #include <ripple/shamap/SHAMap.h>
 #include <atomic>
+#include <chrono>
 #include <mutex>
 #include <set>
 #include <string>
@@ -502,7 +503,7 @@ public:
         hash_set<NodeID> const& nowTrusted);
 
     //! @see Consensus::timerEntry
-    void
+    std::size_t
     timerEntry(NetClock::time_point const& now);
 
     //! @see Consensus::gotTxSet
