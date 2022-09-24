@@ -1401,10 +1401,11 @@ Consensus<Adaptor>::phaseEstablish()
             ss << ',';
         ss << std::chrono::duration_cast<std::chrono::milliseconds>(now - ts).count();
     }
-    if (lb != arrivals.end())
+    if (lb != arrivals.end() && lb != arrivals.begin())
     {
-        ss << " earlier than threshold distance from begin: "
-           << std::distance(arrivals.begin(), --lb);
+        ss << " earlier than threshold ms ago,distance from begin: "
+           << std::chrono::duration_cast<std::chrono::milliseconds>(now - *lb).count()
+           << ',' << std::distance(arrivals.begin(), --lb);
     }
     JLOG(j_.debug()) << ss.str();
     if (lb != arrivals.end() && std::distance(arrivals.begin(), lb) >= thresh)
