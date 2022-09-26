@@ -178,7 +178,7 @@ RCLConsensus::Adaptor::share(RCLCxTx const& tx)
     // If we didn't relay this transaction recently, relay it to all peers
     if (app_.getHashRouter().shouldRelay(tx.id()))
     {
-        JLOG(j_.debug()) << "Relaying disputed tx " << tx.id();
+        JLOG(j_.trace()) << "Relaying disputed tx " << tx.id();
         auto const slice = tx.tx_.slice();
         protocol::TMTransaction msg;
         msg.set_rawtransaction(slice.data(), slice.size());
@@ -190,7 +190,7 @@ RCLConsensus::Adaptor::share(RCLCxTx const& tx)
     }
     else
     {
-        JLOG(j_.debug()) << "Not relaying disputed tx " << tx.id();
+        JLOG(j_.trace()) << "Not relaying disputed tx " << tx.id();
     }
 }
 void
@@ -506,7 +506,7 @@ RCLConsensus::Adaptor::doAccept(
         {
             retriableTxs.insert(
                 std::make_shared<STTx const>(SerialIter{item.slice()}));
-            JLOG(j_.debug()) << "    Tx: " << item.key();
+            JLOG(j_.trace()) << "    Tx: " << item.key();
         }
         catch (std::exception const&)
         {
@@ -611,7 +611,7 @@ RCLConsensus::Adaptor::doAccept(
                 // we voted NO
                 try
                 {
-                    JLOG(j_.debug())
+                    JLOG(j_.trace())
                         << "Test applying disputed transaction that did"
                         << " not get in " << dispute.tx().id();
 

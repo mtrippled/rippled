@@ -822,12 +822,12 @@ Consensus<Adaptor>::peerProposalInternal(
     if (newPeerProp.isInitial())
     {
         // Record the close time estimate
-        JLOG(j_.trace()) << "Peer reports close time as "
+        JLOG(j_.debug()) << "Peer reports close time as "
                          << newPeerProp.closeTime().time_since_epoch().count();
         ++rawCloseTimes_.peers[newPeerProp.closeTime()];
     }
 
-    JLOG(j_.trace()) << "Processing peer proposal " << newPeerProp.proposeSeq()
+    JLOG(j_.debug()) << "Processing peer proposal " << newPeerProp.proposeSeq()
                      << "/" << newPeerProp.position();
 
     {
@@ -1832,7 +1832,7 @@ Consensus<Adaptor>::createDisputes(TxSet_t const& o)
         if (result_->disputes.find(txID) != result_->disputes.end())
             continue;
 
-        JLOG(j_.debug()) << "Transaction " << txID << " is disputed";
+        JLOG(j_.trace()) << "Transaction " << txID << " is disputed";
 
         typename Result::Dispute_t dtx{
             tx,
