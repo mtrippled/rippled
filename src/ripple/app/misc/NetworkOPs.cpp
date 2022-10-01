@@ -231,6 +231,7 @@ public:
         , heartbeatTimer_(io_svc)
         , clusterTimer_(io_svc)
         , accountHistoryTxTimer_(io_svc)
+        , batchApplyTimer_(io_svc)
         , mConsensus(
               app,
               make_FeeVote(
@@ -590,6 +591,15 @@ public:
                     << "NetworkOPs: accountHistoryTxTimer cancel error: "
                     << ec.message();
             }
+
+            ec.clear();
+            batchApplyTimer_.cancel(ec);
+            if (ec)
+            {
+                JLOG(m_journal.error())
+                    << "NetworkOPs: batchApplyTimer cancel error: "
+                    << ec.message();
+            }
         }
         // Make sure that any waitHandlers pending in our timers are done.
         using namespace std::chrono_literals;
@@ -707,6 +717,8 @@ private:
     addAccountHistoryJob(SubAccountHistoryInfoWeak subInfo);
     void
     setAccountHistoryJobTimer(SubAccountHistoryInfoWeak subInfo);
+    void
+    setBatchApplyTimer() override;
 
     Application& app_;
     beast::Journal m_journal;
@@ -726,6 +738,7 @@ private:
     boost::asio::steady_timer heartbeatTimer_;
     boost::asio::steady_timer clusterTimer_;
     boost::asio::steady_timer accountHistoryTxTimer_;
+    boost::asio::steady_timer batchApplyTimer_;
 
     RCLConsensus mConsensus;
 
@@ -1001,6 +1014,34 @@ NetworkOPsImp::setAccountHistoryJobTimer(SubAccountHistoryInfoWeak subInfo)
 }
 
 void
+NetworkOPsImp::setBatchApplyTimer()
+{
+    using namespace std::chrono_literals;
+    setTimer(
+        batchApplyTimer_,
+        100ms,
+        [this]() {
+            std::unique_lock lock(mMutex);
+            if (mTransactions.size() && mDispatchState == DispatchState::none)
+            {
+                if (m_job_queue.addJob(
+                        jtBATCH, "transactionBatch", [this]() {
+                            transactionBatch();
+                        }))
+                {
+                    mDispatchState = DispatchState::scheduled;
+                }
+            }
+            else
+            {
+                lock.unlock();
+                setBatchApplyTimer();
+            }
+        },
+        [this]() { setBatchApplyTimer(); });
+}
+
+void
 NetworkOPsImp::processHeartbeatTimer()
 {
     {
@@ -1242,15 +1283,6 @@ NetworkOPsImp::doTransactionAsync(
     mTransactions.push_back(
         TransactionStatus(transaction, bUnlimited, false, failType));
     transaction->setApplying();
-
-    if (mDispatchState == DispatchState::none)
-    {
-        if (m_job_queue.addJob(
-                jtBATCH, "transactionBatch", [this]() { transactionBatch(); }))
-        {
-            mDispatchState = DispatchState::scheduled;
-        }
-    }
 }
 
 void
@@ -1267,6 +1299,10 @@ NetworkOPsImp::doTransactionSync(
             TransactionStatus(transaction, bUnlimited, true, failType));
         transaction->setApplying();
     }
+
+#ifdef FIRE_AND_FORGET
+    return;
+#endif
 
     do
     {
@@ -1302,9 +1338,8 @@ NetworkOPsImp::transactionBatch()
         return;
 
     while (mTransactions.size())
-    {
         apply(lock);
-    }
+    setBatchApplyTimer();
 }
 
 void

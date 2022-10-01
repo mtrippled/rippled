@@ -1016,6 +1016,11 @@ message(STATUS "Reporting mode build: rippled renamed ${BIN_NAME}")
   target_compile_definitions(rippled PRIVATE RIPPLED_REPORTING)
 endif()
 
+if(fire_and_forget)
+  message(STATUS "Compiling with transaction submit FIRE_AND_FORGET")
+  target_compile_definitions(rippled PRIVATE FIRE_AND_FORGET)
+endif()
+
 # any files that don't play well with unity should be added here
 if (tests)
   set_source_files_properties(

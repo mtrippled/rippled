@@ -153,6 +153,16 @@ doSubmit(RPC::JsonContext& context)
             std::string sToken;
             std::string sHuman;
 
+#ifdef FIRE_AND_FORGET
+            jvResult[jss::engine_result] = "tesSUCCESS";
+            jvResult[jss::engine_result_code] = 0;
+            jvResult[jss::engine_result_message] = "All transactions are good.";
+            jvResult[jss::accepted] = true;
+            jvResult[jss::applied] = true;
+            jvResult[jss::broadcast] = true;
+            jvResult[jss::queued] = false;
+            jvResult[jss::kept] = true;
+#else
             transResultInfo(tpTrans->getResult(), sToken, sHuman);
 
             jvResult[jss::engine_result] = sToken;
@@ -181,6 +191,7 @@ doSubmit(RPC::JsonContext& context)
                     safe_cast<Json::Value::UInt>(
                         currentLedgerState->validatedLedger);
             }
+#endif
         }
 
         return jvResult;
