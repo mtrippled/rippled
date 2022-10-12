@@ -153,6 +153,7 @@ RCLConsensus::Adaptor::acquireLedger(LedgerHash const& hash)
 void
 RCLConsensus::Adaptor::share(RCLCxPeerPos const& peerPos)
 {
+    JLOG(j_.debug()) << "sharing proposal RCLCxPeerPos";
     protocol::TMProposeSet prop;
 
     auto const& proposal = peerPos.proposal();
@@ -171,12 +172,24 @@ RCLConsensus::Adaptor::share(RCLCxPeerPos const& peerPos)
     auto const sig = peerPos.signature();
     prop.set_signature(sig.data(), sig.size());
 
+    if (proposal.ledgerSeq().has_value())
+    {
+        prop.set_ledgerseq(*proposal.ledgerSeq());
+        JLOG(j_.debug()) << "share setting ledgerSeq " << prop.ledgerseq();
+    }
+    else
+    {
+        JLOG(j_.debug()) << "share not setting previousSeq";
+    }
+
     app_.overlay().relay(prop, peerPos.suppressionID(), peerPos.publicKey());
 }
 
 void
 RCLConsensus::Adaptor::share(RCLCxTx const& tx)
 {
+    JLOG(j_.debug()) << "sharing proposal RCLCxTx";
+
     // If we didn't relay this transaction recently, relay it to all peers
     if (app_.getHashRouter().shouldRelay(tx.id()))
     {
@@ -198,7 +211,7 @@ RCLConsensus::Adaptor::share(RCLCxTx const& tx)
 void
 RCLConsensus::Adaptor::propose(RCLCxPeerPos::Proposal const& proposal)
 {
-    JLOG(j_.trace()) << (proposal.isBowOut() ? "We bow out: " : "We propose: ")
+    JLOG(j_.debug()) << (proposal.isBowOut() ? "We bow out: " : "We propose: ")
                      << ripple::to_string(proposal.prevLedger()) << " -> "
                      << ripple::to_string(proposal.position());
 
@@ -212,6 +225,18 @@ RCLConsensus::Adaptor::propose(RCLCxPeerPos::Proposal const& proposal)
     prop.set_closetime(proposal.closeTime().time_since_epoch().count());
     prop.set_nodepubkey(
         validatorKeys_.publicKey.data(), validatorKeys_.publicKey.size());
+    if (proposal.ledgerSeq().has_value())
+    {
+        prop.set_ledgerseq(*proposal.ledgerSeq());
+        JLOG(j_.debug()) << "propose setting ledgerSeq " << prop.ledgerseq();
+    }
+    else
+    {
+        JLOG(j_.debug()) << "propose not setting ledgerSeq";
+    }
+
+
+
 
     auto sig = signDigest(
         validatorKeys_.publicKey,
@@ -236,6 +261,8 @@ RCLConsensus::Adaptor::propose(RCLCxPeerPos::Proposal const& proposal)
 void
 RCLConsensus::Adaptor::share(RCLTxSet const& txns)
 {
+    JLOG(j_.debug()) << "sharing proposal RCLTxSet";
+
     inboundTransactions_.giveSet(txns.id(), txns.map_, false);
 }
 
@@ -385,6 +412,8 @@ RCLConsensus::Adaptor::onClose(
     // Needed because of the move below.
     auto const setHash = initialSet->getHash().as_uint256();
 
+    JLOG(j_.debug()) << "onClose Result previousSeq I think should be " <<
+        initialLedger->info().seq;
     return Result{
         std::move(initialSet),
         RCLCxPeerPos::Proposal{
@@ -393,7 +422,8 @@ RCLConsensus::Adaptor::onClose(
             setHash,
             closeTime,
             app_.timeKeeper().closeTime(),
-            validatorKeys_.nodeID}};
+            validatorKeys_.nodeID,
+            initialLedger->info().seq}};
 }
 
 void

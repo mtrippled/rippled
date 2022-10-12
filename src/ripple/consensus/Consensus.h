@@ -749,8 +749,11 @@ Consensus<Adaptor>::peerProposalInternal(
     auto const& newPeerProp = newPeerPos.proposal();
 
     std::uint32_t proposeSeq = newPeerProp.proposeSeq();
-    JLOG(j_.debug()) << "got proposal " << newPeerProp.position() << " seq, prevseq: "
-        << proposeSeq << ',' << previousSeq_;
+    auto proposeLedgerSeq = newPeerProp.ledgerSeq();
+    JLOG(j_.debug()) << "got proposal " << newPeerProp.position() << " seq,ledgerseq,myprevseq: "
+        << proposeSeq << ','
+        << (proposeLedgerSeq.has_value() ? std::to_string(*proposeLedgerSeq) : "none")
+        << ',' << previousSeq_;
 
     // Nothing to do for now if we are currently working on a ledger
     if (phase_ == ConsensusPhase::accepted &&
@@ -1492,7 +1495,14 @@ Consensus<Adaptor>::closeLedger()
     // Share the newly created transaction set if we haven't already
     // received it from a peer
     if (acquired_.emplace(result_->txns.id(), result_->txns).second)
+    {
+        JLOG(j_.debug()) << "onClose sharing proposal";
         adaptor_.share(result_->txns);
+    }
+    else
+    {
+        JLOG(j_.debug()) << "onClose not sharing proposal";
+    }
 
     if (mode_.get() == ConsensusMode::proposing)
         adaptor_.propose(result_->position);
