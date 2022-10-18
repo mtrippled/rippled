@@ -605,6 +605,7 @@ private:
     // ledgers or rounds
     hash_map<NodeID_t, std::deque<PeerPositionWithArrival>> recentPeerPositions_;
 //    hash_map<NodeID_t, std::deque<PeerPosition_t>> recentPeerPositions_;
+    std::map<std::uint32_t, hash_map<NodeID_t, std::deque<PeerPositionWithArrival>>> recentPeerPositionsWithLedgerSeq_;
 
     // The number of proposers who participated in the last consensus round
     std::size_t prevProposers_ = 0;
@@ -649,6 +650,15 @@ Consensus<Adaptor>::startRound(
 
     for (NodeID_t const& n : nowUntrusted)
         recentPeerPositions_.erase(n);
+
+    auto rit = recentPeerPositionsWithLedgerSeq_.begin();
+    while (rit != recentPeerPositionsWithLedgerSeq_.end())
+    {
+        if (rit->first <= previousSeq_ + 1)
+            rit = recentPeerPositionsWithLedgerSeq_.erase(rit);
+        else
+            break;
+    }
 
     ConsensusMode startMode =
         proposing ? ConsensusMode::proposing : ConsensusMode::observing;
@@ -727,15 +737,29 @@ Consensus<Adaptor>::peerProposal(
     PeerPosition_t const& newPeerPos)
 {
     auto const& peerID = newPeerPos.proposal().nodeID();
+    auto const currentTimeStamp = std::chrono::steady_clock::now();
     // Always need to store recent positions
-    auto& props = recentPeerPositions_[peerID];
-    if (props.size() >= 10)
-        props.pop_front();
-    JLOG(j_.debug()) << "peerProposal peer,prop: " << peerID
-        << ',' << newPeerPos.proposal().position();
-    props.push_back({newPeerPos, std::chrono::steady_clock::now()});
+    if (newPeerPos.proposal().ledgerSeq().has_value())
+    {
+        if (*newPeerPos.proposal().ledgerSeq() >= previousSeq_ + 1)
+        {
+            auto& m = recentPeerPositionsWithLedgerSeq_[*newPeerPos.proposal().ledgerSeq()];
+            auto& props = m[peerID];
+            props.push_back({newPeerPos, currentTimeStamp});
+        }
+        return peerProposalInternal(now, {newPeerPos, currentTimeStamp});
+    }
+    else
+    {
+        auto& props = recentPeerPositions_[peerID];
+        if (props.size() >= 10)
+            props.pop_front();
+        JLOG(j_.debug()) << "peerProposal peer,prop: " << peerID << ','
+                         << newPeerPos.proposal().position();
+        props.push_back({newPeerPos, currentTimeStamp});
 
-    return peerProposalInternal(now, props.back());
+        return peerProposalInternal(now, props.back());
+    }
 }
 
 template <class Adaptor>
@@ -1150,6 +1174,19 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::playbackProposals()
 {
+    auto found = recentPeerPositionsWithLedgerSeq_.find(previousSeq_ + 1);
+    if (found != recentPeerPositionsWithLedgerSeq_.end())
+    {
+        for (auto const& it : found->second)
+        {
+            for (auto const& pos : it.second)
+            {
+                if (peerProposalInternal(now_, pos))
+                    adaptor_.share(pos.first);
+            }
+        }
+    }
+
     for (auto const& it : recentPeerPositions_)
     {
         for (auto const& pos : it.second)
