@@ -1174,18 +1174,29 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::playbackProposals()
 {
+    std::stringstream ss;
+    ss << "playbackProposals " << previousSeq_ + 1;
+    JLOG(j_.debug()) << "playbackProposals " << previousSeq_ + 1;
     auto found = recentPeerPositionsWithLedgerSeq_.find(previousSeq_ + 1);
     if (found != recentPeerPositionsWithLedgerSeq_.end())
     {
+        ss << " already found: ";
+        bool first = true;
         for (auto const& it : found->second)
         {
             for (auto const& pos : it.second)
             {
+                if (first)
+                    first = false;
+                else
+                    ss << ',';
+                ss << pos.first.proposal().position();
                 if (peerProposalInternal(now_, pos))
                     adaptor_.share(pos.first);
             }
         }
     }
+    JLOG(j_.debug()) << ss.str();
 
     for (auto const& it : recentPeerPositions_)
     {
@@ -1414,7 +1425,7 @@ Consensus<Adaptor>::phaseEstablish()
     JLOG(j_.debug()) << "phaseEstablish positions " << result_->proposers
         << " roundTime: " << result_->roundTime.read().count()
         << "ms, ledgerMIN_CONSENSUS: " << parms.ledgerMIN_CONSENSUS.count()
-        << "ms";
+        << "ms, seq: " << previousSeq_ + 1;
 
     // Give everyone a chance to take an initial position unless enough
     // have already submitted theirs--because that means we're already behind.

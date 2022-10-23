@@ -188,7 +188,7 @@ RCLConsensus::Adaptor::share(RCLCxPeerPos const& peerPos)
 void
 RCLConsensus::Adaptor::share(RCLCxTx const& tx)
 {
-    JLOG(j_.debug()) << "sharing proposal RCLCxTx";
+//    JLOG(j_.debug()) << "sharing proposal RCLCxTx";
 
     // If we didn't relay this transaction recently, relay it to all peers
     if (app_.getHashRouter().shouldRelay(tx.id()))
