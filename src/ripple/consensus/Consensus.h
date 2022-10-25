@@ -792,11 +792,11 @@ Consensus<Adaptor>::peerProposalInternal(
         << ',' << previousSeq_;
 
     // Nothing to do for now if we are currently working on a ledger
-    if (phase_ == ConsensusPhase::accepted &&
-        newPeerProp.prevLedger() == prevLedgerID_)
-    {
-        return false;
-    }
+//    if (phase_ == ConsensusPhase::accepted &&
+//        newPeerProp.prevLedger() == prevLedgerID_)
+//    {
+//        return false;
+//    }
 
     now_ = now;
 
