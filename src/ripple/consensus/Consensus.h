@@ -800,7 +800,8 @@ Consensus<Adaptor>::peerProposalInternal(
 
     now_ = now;
 
-    if (newPeerProp.prevLedger() != prevLedgerID_)
+    if (!newPeerProp.ledgerSeq().has_value() &&
+        newPeerProp.prevLedger() != prevLedgerID_)
     {
         JLOG(j_.debug()) << "Got proposal for " << newPeerProp.prevLedger()
                          << " but we are on " << prevLedgerID_;
