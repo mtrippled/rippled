@@ -654,7 +654,7 @@ Consensus<Adaptor>::startRound(
     auto rit = recentPeerPositionsWithLedgerSeq_.begin();
     while (rit != recentPeerPositionsWithLedgerSeq_.end())
     {
-        if (rit->first <= previousSeq_ + 1)
+        if (rit->first <= previousSeq_)
         {
             JLOG(j_.debug()) << "startRound " << (previousSeq_ + 1)
                              << " deleting positions for " << rit->first;
