@@ -655,9 +655,17 @@ Consensus<Adaptor>::startRound(
     while (rit != recentPeerPositionsWithLedgerSeq_.end())
     {
         if (rit->first <= previousSeq_ + 1)
+        {
             rit = recentPeerPositionsWithLedgerSeq_.erase(rit);
+            JLOG(j_.debug()) << "startRound " << (previousSeq_ + 1)
+                << " deleting positions for " << rit->first;
+        }
         else
+        {
             break;
+            JLOG(j_.debug()) << "startRound " << (previousSeq_ + 1)
+                << " not deleting >= " << rit->first;
+        }
     }
 
     ConsensusMode startMode =
@@ -745,6 +753,9 @@ Consensus<Adaptor>::peerProposal(
         {
             auto& m = recentPeerPositionsWithLedgerSeq_[*newPeerPos.proposal().ledgerSeq()];
             auto& props = m[peerID];
+            JLOG(j_.debug()) << "peerProposal received "
+                             << newPeerPos.proposal().position()
+                             << ',' << *newPeerPos.proposal().ledgerSeq();
             props.push_back({newPeerPos, currentTimeStamp});
         }
         return peerProposalInternal(now, {newPeerPos, currentTimeStamp});
