@@ -656,9 +656,9 @@ Consensus<Adaptor>::startRound(
     {
         if (rit->first <= previousSeq_ + 1)
         {
-            rit = recentPeerPositionsWithLedgerSeq_.erase(rit);
             JLOG(j_.debug()) << "startRound " << (previousSeq_ + 1)
-                << " deleting positions for " << rit->first;
+                             << " deleting positions for " << rit->first;
+            rit = recentPeerPositionsWithLedgerSeq_.erase(rit);
         }
         else
         {
