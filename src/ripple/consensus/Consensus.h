@@ -605,7 +605,7 @@ private:
     // ledgers or rounds
     hash_map<NodeID_t, std::deque<PeerPositionWithArrival>> recentPeerPositions_;
 //    hash_map<NodeID_t, std::deque<PeerPosition_t>> recentPeerPositions_;
-    std::map<std::uint32_t, hash_map<NodeID_t, PeerPositionWithArrival>> recentPeerPositionsWithLedgerSeq_;
+    std::map<std::uint32_t, hash_map<NodeID_t, std::deque<PeerPositionWithArrival>>> recentPeerPositionsWithLedgerSeq_;
 
     // The number of proposers who participated in the last consensus round
     std::size_t prevProposers_ = 0;
@@ -739,25 +739,13 @@ Consensus<Adaptor>::peerProposal(
     auto const& peerID = newPeerPos.proposal().nodeID();
     auto const currentTimeStamp = std::chrono::steady_clock::now();
     // Always need to store recent positions
-    hash_map<std::uint32_t, std::uint32_t> ledgerSeq2ProposalSeq;
     if (newPeerPos.proposal().ledgerSeq().has_value())
     {
         if (*newPeerPos.proposal().ledgerSeq() >= previousSeq_ + 1)
         {
             auto& m = recentPeerPositionsWithLedgerSeq_[*newPeerPos.proposal().ledgerSeq()];
-            std::uint32_t pSeq = newPeerPos.proposal().proposeSeq();
-            auto found = m.find(peerID);
-            if (found == m.end())
-            {
-                m.insert({peerID, {newPeerPos, currentTimeStamp}});
-                ledgerSeq2ProposalSeq[*newPeerPos.proposal().ledgerSeq()] =
-                    pSeq;
-            }
-            else
-            {
-                if (pSeq > found->second.first.proposal().proposeSeq())
-                    found->second = {newPeerPos, currentTimeStamp};
-            }
+            auto& props = m[peerID];
+            props.push_back({newPeerPos, currentTimeStamp});
         }
         return peerProposalInternal(now, {newPeerPos, currentTimeStamp});
     }
@@ -1197,23 +1185,16 @@ Consensus<Adaptor>::playbackProposals()
         bool first = true;
         for (auto const& it : found->second)
         {
-            if (first)
-                first = false;
-            else
-                ss << ',';
-            ss << it.first << '=' << it.second.first.proposal().position();
-            if (peerProposalInternal(now_, it.second))
-                adaptor_.share(it.second.first);
-//            for (auto const& pos : it.second)
-//            {
-//                if (first)
-//                    first = false;
-//                else
-//                    ss << ',';
-//                ss << pos.first.proposal().position();
-//                if (peerProposalInternal(now_, pos))
-//                    adaptor_.share(pos.first);
-//            }
+            for (auto const& pos : it.second)
+            {
+                if (first)
+                    first = false;
+                else
+                    ss << ',';
+                ss << pos.first.proposal().position();
+                if (peerProposalInternal(now_, pos))
+                    adaptor_.share(pos.first);
+            }
         }
     }
     JLOG(j_.debug()) << ss.str();
