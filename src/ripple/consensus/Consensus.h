@@ -803,7 +803,9 @@ Consensus<Adaptor>::peerProposalInternal(
         newPeerProp.prevLedger() != prevLedgerID_)
     {
         JLOG(j_.debug()) << "Got proposal for " << newPeerProp.prevLedger()
-                         << " but we are on " << prevLedgerID_;
+                         << " but we are on " << prevLedgerID_ << ' '
+                         << newPeerPos.proposal().position()
+                         << ',' << *newPeerPos.proposal().ledgerSeq();
         if (futureAcquired_.emplace(newPeerProp.position(),
                     OptTXSetWithArrival{std::nullopt, newPeerPosPair.second}).second)
         {
@@ -820,7 +822,9 @@ Consensus<Adaptor>::peerProposalInternal(
 
     if (deadNodes_.find(peerID) != deadNodes_.end())
     {
-        JLOG(j_.info()) << "Position from dead node: " << peerID;
+        JLOG(j_.info()) << "Position from dead node: " << peerID << ' '
+                        << newPeerPos.proposal().position()
+                        << ',' << *newPeerPos.proposal().ledgerSeq();
         return false;
     }
 
@@ -833,13 +837,18 @@ Consensus<Adaptor>::peerProposalInternal(
             if (newPeerProp.proposeSeq() <=
                 peerPosIt->second.first.proposal().proposeSeq())
             {
+                JLOG(j_.debug()) << "Position for old ledger sequence "
+                                 << newPeerPos.proposal().position()
+                                 << ',' << *newPeerPos.proposal().ledgerSeq();
                 return false;
             }
         }
 
         if (newPeerProp.isBowOut())
         {
-            JLOG(j_.info()) << "Peer " << peerID << " bows out";
+            JLOG(j_.info()) << "Peer " << peerID << " bows out" << ' '
+                            << newPeerPos.proposal().position()
+                            << ',' << *newPeerPos.proposal().ledgerSeq();
             if (result_)
             {
                 for (auto& it : result_->disputes)
@@ -862,7 +871,9 @@ Consensus<Adaptor>::peerProposalInternal(
     {
         // Record the close time estimate
         JLOG(j_.debug()) << "Peer reports close time as "
-                         << newPeerProp.closeTime().time_since_epoch().count();
+                         << newPeerProp.closeTime().time_since_epoch().count() << ' '
+                         << newPeerPos.proposal().position()
+                         << ',' << *newPeerPos.proposal().ledgerSeq();
         ++rawCloseTimes_.peers[newPeerProp.closeTime()];
     }
 
@@ -873,18 +884,27 @@ Consensus<Adaptor>::peerProposalInternal(
         auto const ait = acquired_.find(newPeerProp.position());
         if (ait == acquired_.end())
         {
+            JLOG(j_.debug()) << "not yet acquired or acquiring tx set "
+                             << newPeerPos.proposal().position()
+                             << ',' << *newPeerPos.proposal().ledgerSeq();
             // acquireTxSet will return the set if it is available, or
             // spawn a request for it and return nullopt/nullptr.  It will call
             // gotTxSet once it arrives
             if (auto set = adaptor_.acquireTxSet(newPeerProp.position()))
                 gotTxSet(now_, *set);
             else
-                JLOG(j_.debug()) << "Don't have tx set for peer, requesting I"
+                JLOG(j_.debug()) << "Don't have tx set for peer, requesting I "
                                     "think " << newPeerProp.position();
         }
         else if (result_)
         {
             updateDisputes(newPeerProp.nodeID(), ait->second);
+        }
+        else
+        {
+            JLOG(j_.debug()) << "already acquired or acquiring tx set "
+                             << newPeerPos.proposal().position()
+                             << ',' << *newPeerPos.proposal().ledgerSeq();
         }
     }
 
@@ -954,8 +974,8 @@ Consensus<Adaptor>::gotTxSet(
     }
 
     // Nothing to do if we've finished work on a ledger
-    if (phase_ == ConsensusPhase::accepted)
-        return;
+//    if (phase_ == ConsensusPhase::accepted)
+//        return;
 
     now_ = now;
 
