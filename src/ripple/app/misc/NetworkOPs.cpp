@@ -1788,16 +1788,16 @@ NetworkOPsImp::checkLastClosedLedger(
 
     JLOG(m_journal.debug()) << "NetworkOPsImp::checkLastClosedLedger";
 
-    if (app_.getLedgerMaster().getValidatedLedgerAge() < std::chrono::seconds(60))
-    {
-        if (app_.getLedgerMaster().getValidatedLedger())
-        {
-            JLOG(m_journal.debug()) << "checkLastClosedLedger is last validated"
-                                       " ledger's parent: " << app_.getLedgerMaster().getValidatedLedger()->info().parentHash;
-            networkClosed = app_.getLedgerMaster().getValidatedLedger()->info().parentHash;
-            return false;
-        }
-    }
+//    if (app_.getLedgerMaster().getValidatedLedgerAge() < std::chrono::seconds(60))
+//    {
+//        if (app_.getLedgerMaster().getValidatedLedger())
+//        {
+//            JLOG(m_journal.debug()) << "checkLastClosedLedger is last validated"
+//                                       " ledger's parent: " << app_.getLedgerMaster().getValidatedLedger()->info().parentHash;
+//            networkClosed = app_.getLedgerMaster().getValidatedLedger()->info().parentHash;
+//            return false;
+//        }
+//    }
 
     auto const ourClosed = m_ledgerMaster.getClosedLedger();
 
