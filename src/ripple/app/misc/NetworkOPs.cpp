@@ -1793,8 +1793,8 @@ NetworkOPsImp::checkLastClosedLedger(
         if (app_.getLedgerMaster().getValidatedLedger())
         {
             JLOG(m_journal.debug()) << "checkLastClosedLedger is last validated"
-                                       " ledger: " << app_.getLedgerMaster().getValidatedLedger()->info().hash;
-            networkClosed = app_.getLedgerMaster().getValidatedLedger()->info().hash;
+                                       " ledger's parent: " << app_.getLedgerMaster().getValidatedLedger()->info().parentHash;
+            networkClosed = app_.getLedgerMaster().getValidatedLedger()->info().parentHash;
             return false;
         }
     }
