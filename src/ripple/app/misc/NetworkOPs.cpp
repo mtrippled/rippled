@@ -1786,7 +1786,18 @@ NetworkOPsImp::checkLastClosedLedger(
     // our last closed ledger? Or do sufficient nodes agree? And do we have no
     // better ledger available?  If so, we are either tracking or full.
 
-    JLOG(m_journal.trace()) << "NetworkOPsImp::checkLastClosedLedger";
+    JLOG(m_journal.debug()) << "NetworkOPsImp::checkLastClosedLedger";
+
+    if (app_.getLedgerMaster().getValidatedLedgerAge() < std::chrono::seconds(60))
+    {
+        if (app_.getLedgerMaster().getValidatedLedger())
+        {
+            JLOG(m_journal.debug()) << "checkLastClosedLedger is last validated"
+                                       " ledger: " << app_.getLedgerMaster().getValidatedLedger()->info().hash;
+            networkClosed = app_.getLedgerMaster().getValidatedLedger()->info().hash;
+            return false;
+        }
+    }
 
     auto const ourClosed = m_ledgerMaster.getClosedLedger();
 
@@ -1795,15 +1806,15 @@ NetworkOPsImp::checkLastClosedLedger(
 
     uint256 closedLedger = ourClosed->info().hash;
     uint256 prevClosedLedger = ourClosed->info().parentHash;
-    JLOG(m_journal.trace()) << "OurClosed:  " << closedLedger;
-    JLOG(m_journal.trace()) << "PrevClosed: " << prevClosedLedger;
+    JLOG(m_journal.debug()) << " checkLastClosedLedger OurClosed:  " << closedLedger;
+    JLOG(m_journal.debug()) << "checkLastClosedLedger PrevClosed: " << prevClosedLedger;
 
     //-------------------------------------------------------------------------
     // Determine preferred last closed ledger
 
     auto& validations = app_.getValidations();
     JLOG(m_journal.debug())
-        << "ValidationTrie " << Json::Compact(validations.getJsonTrie());
+        << "checkLastClosedLedger ValidationTrie " << Json::Compact(validations.getJsonTrie());
 
     // Will rely on peer LCL if no trusted validations exist
     hash_map<uint256, std::uint32_t> peerCounts;
@@ -1820,7 +1831,7 @@ NetworkOPsImp::checkLastClosedLedger(
     }
 
     for (auto const& it : peerCounts)
-        JLOG(m_journal.debug()) << "L: " << it.first << " n=" << it.second;
+        JLOG(m_journal.debug()) << "checkLastClosedLedger L: " << it.first << " n=" << it.second;
 
     uint256 preferredLCL = validations.getPreferredLCL(
         RCLValidatedLedger{ourClosed, validations.adaptor().journal()},
@@ -1834,12 +1845,16 @@ NetworkOPsImp::checkLastClosedLedger(
     if (switchLedgers && (closedLedger == prevClosedLedger))
     {
         // don't switch to our own previous ledger
-        JLOG(m_journal.info()) << "We won't switch to our own previous ledger";
+        JLOG(m_journal.info()) << "checkLastClosedLedger We won't switch to our own previous ledger";
+        JLOG(m_journal.debug()) << "checkLastClosedLedger setting to ourClosed->info().hash 1 " << ourClosed->info().hash;
         networkClosed = ourClosed->info().hash;
         switchLedgers = false;
     }
     else
+    {
+        JLOG(m_journal.debug()) << "checkLastClosedLedger setting to closedLedger " << closedLedger;
         networkClosed = closedLedger;
+    }
 
     if (!switchLedgers)
         return false;
@@ -1853,17 +1868,18 @@ NetworkOPsImp::checkLastClosedLedger(
     if (consensus &&
         (!m_ledgerMaster.canBeCurrent(consensus) ||
          !m_ledgerMaster.isCompatible(
-             *consensus, m_journal.debug(), "Not switching")))
+             *consensus, m_journal.debug(), "checkLastClosedLedger Not switching")))
     {
         // Don't switch to a ledger not on the validated chain
         // or with an invalid close time or sequence
+        JLOG(m_journal.debug()) << "checkLastClosedLedger setting to ourClosed->info().hash 2 " << ourClosed->info().hash;
         networkClosed = ourClosed->info().hash;
         return false;
     }
 
-    JLOG(m_journal.warn()) << "We are not running on the consensus ledger";
-    JLOG(m_journal.info()) << "Our LCL: " << getJson({*ourClosed, {}});
-    JLOG(m_journal.info()) << "Net LCL " << closedLedger;
+    JLOG(m_journal.warn()) << "checkLastClosedLedger We are not running on the consensus ledger";
+    JLOG(m_journal.info()) << "checkLastClosedLedger Our LCL: " << getJson({*ourClosed, {}});
+    JLOG(m_journal.info()) << "checkLastClosedLedger Net LCL " << closedLedger;
 
     if ((mMode == OperatingMode::TRACKING) || (mMode == OperatingMode::FULL))
     {
