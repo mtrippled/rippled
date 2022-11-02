@@ -1653,8 +1653,8 @@ Consensus<Adaptor>::updateOurPositions()
         }
         auto [quorum, trustedKeys] = adaptor_.getQuorumKeys();
         JLOG(j_.debug()) << "updateOurPositions most popular peer position,"
-                            "count,quorum" << most << ',' << mostCount
-            << ',' << quorum;
+                            "count,validators" << most << ',' << mostCount
+            << ',' << trustedKeys.size();
     }
 
     // Compute a cutoff time
