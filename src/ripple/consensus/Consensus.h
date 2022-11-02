@@ -1634,6 +1634,29 @@ Consensus<Adaptor>::updateOurPositions()
     assert(result_);
     ConsensusParms const& parms = adaptor_.parms();
 
+    {
+        std::map<uint256, std::size_t> positions;
+        for (auto const& [nodeId, peerPos] : currPeerPositions_)
+        {
+            Proposal_t const& peerProp = peerPos.first.proposal();
+            ++positions[peerProp.position()];
+        }
+        uint256 most;
+        std::size_t mostCount = 0;
+        for (auto const& [pos, count] : positions)
+        {
+            if (count > mostCount)
+            {
+                most = pos;
+                mostCount = count;
+            }
+        }
+        auto [quorum, trustedKeys] = adaptor_.getQuorumKeys();
+        JLOG(j_.debug()) << "updateOurPositions most popular peer position,"
+                            "count,quorum" << most << ',' << mostCount
+            << ',' << quorum;
+    }
+
     // Compute a cutoff time
     auto const peerCutoff = now_ - parms.proposeFRESHNESS;
     auto const ourCutoff = now_ - parms.proposeINTERVAL;
