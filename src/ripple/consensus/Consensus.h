@@ -1595,7 +1595,7 @@ Consensus<Adaptor>::closeLedger()
             }
         }
         auto [quorum, trustedKeys] = adaptor_.getQuorumKeys();
-        JLOG(j_.debug()) << "updateOurPositions most popular peer position,"
+        JLOG(j_.debug()) << "closeLedger most popular peer position,"
                             "count,validators "
                          << most << ',' << mostCount << ','
                          << trustedKeys.size();
@@ -1610,12 +1610,12 @@ Consensus<Adaptor>::closeLedger()
     // received it from a peer
     if (acquired_.emplace(result_->txns.id(), result_->txns).second)
     {
-        JLOG(j_.debug()) << "onClose sharing proposal";
+        JLOG(j_.debug()) << "closeLedger sharing proposal";
         adaptor_.share(result_->txns);
     }
     else
     {
-        JLOG(j_.debug()) << "onClose not sharing proposal";
+        JLOG(j_.debug()) << "closeLedger not sharing proposal";
     }
 
     if (mode_.get() == ConsensusMode::proposing)
