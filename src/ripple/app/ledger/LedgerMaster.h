@@ -293,6 +293,13 @@ public:
     std::optional<LedgerIndex>
     minSqlSeq();
 
+    CanonicalTXSet
+    heldTransactions() const
+    {
+        perf::LOCK_GUARD(m_mutex, sl);
+        return mHeldTransactions;
+    }
+
 private:
     void
     setValidLedger(std::shared_ptr<Ledger const> const& l);

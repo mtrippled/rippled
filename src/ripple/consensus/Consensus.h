@@ -34,6 +34,7 @@
 #include <optional>
 #include <set>
 #include <sstream>
+#include <unordered_set>
 
 namespace ripple {
 
@@ -531,6 +532,9 @@ private:
     // Will call createDisputes as needed.
     void
     updateDisputes(NodeID_t const& node, TxSet_t const& other);
+
+    std::stringstream
+    logLost( TxSet_t const& o);
 
     // Revoke our outstanding proposal, if any, and cease proposing
     // until this round ends.
@@ -1572,6 +1576,36 @@ Consensus<Adaptor>::closeLedger()
 
     result_.emplace(adaptor_.onClose(previousLedger_, now_, mode_.get()));
     result_->roundTime.reset(clock_.now());
+
+    {
+        std::map<uint256, std::size_t> positions;
+        for (auto const& [nodeId, peerPos] : currPeerPositions_)
+        {
+            Proposal_t const& peerProp = peerPos.first.proposal();
+            ++positions[peerProp.position()];
+        }
+        uint256 most;
+        std::size_t mostCount = 0;
+        for (auto const& [pos, count] : positions)
+        {
+            if (count > mostCount)
+            {
+                most = pos;
+                mostCount = count;
+            }
+        }
+        auto [quorum, trustedKeys] = adaptor_.getQuorumKeys();
+        JLOG(j_.debug()) << "updateOurPositions most popular peer position,"
+                            "count,validators "
+                         << most << ',' << mostCount << ','
+                         << trustedKeys.size();
+        auto found = acquired_.find(most);
+        if (found != acquired_.end() && ((mostCount + 0.0) / trustedKeys.size() > 0.5))
+        {
+            JLOG(j_.debug()) << logLost(found->second).str();
+        }
+    }
+
     // Share the newly created transaction set if we haven't already
     // received it from a peer
     if (acquired_.emplace(result_->txns.id(), result_->txns).second)
@@ -1653,7 +1687,7 @@ Consensus<Adaptor>::updateOurPositions()
         }
         auto [quorum, trustedKeys] = adaptor_.getQuorumKeys();
         JLOG(j_.debug()) << "updateOurPositions most popular peer position,"
-                            "count,validators" << most << ',' << mostCount
+                            "count,validators " << most << ',' << mostCount
             << ',' << trustedKeys.size();
     }
 
@@ -1966,6 +2000,56 @@ Consensus<Adaptor>::createDisputes(TxSet_t const& o)
         result_->disputes.emplace(txID, std::move(dtx));
     }
     JLOG(j_.debug()) << dc << " differences found";
+}
+
+template <class Adaptor>
+std::stringstream
+Consensus<Adaptor>::logLost(TxSet_t const& o)
+{
+    std::stringstream ss;
+    // Nothing to dispute if we agree
+    if (result_->txns.id() == o.id())
+    {
+        ss << "logLost positions identical: " << o.id();
+        return ss;
+    }
+
+//    @param j The set to compare with
+//        @return Map of transactions in this set and `j` but not both. The key
+//            is the transaction ID and the value is a bool of the transaction
+//                exists in this set.
+// the set of missing are those keys whose value is false
+    auto differences = result_->txns.compare(o);
+    std::set<uint256> missing;
+    for (auto const& d : differences)
+    {
+        if (d.second)
+            missing.insert(d.first);
+    }
+    auto held = adaptor_.ledgerMaster_.heldTransactions();
+    for (auto const& h : held)
+    {
+        auto found = missing.find(h.first.getTXID());
+        if (found != missing.end())
+            missing.erase(found);
+    }
+    for (auto const& dispute : result_->disputes)
+    {
+        auto found = missing.find(dispute.first);
+        if (found != missing.end())
+            missing.erase(found);
+    }
+    ss << "logLost " << result_->txns.id() << " to " << o.id() << ':';
+    bool first = true;
+    for (auto const& m : missing)
+    {
+        if (first)
+            first = false;
+        else
+            ss << ',';
+        ss << m;
+    }
+    return ss;
 }
 
 template <class Adaptor>
