@@ -2026,16 +2026,19 @@ Consensus<Adaptor>::logLost(TxSet_t const& o)
         if (d.second)
             missing.insert(d.first);
     }
+
+    auto openLedger = adaptor_.app_.openLedger().current();
+    for (auto tx = missing.begin(); tx != missing.end();)
+    {
+        if (openLedger->txExists(*tx) || result_->disputes.contains(*tx))
+            tx = missing.erase(tx);
+        else
+            ++tx;
+    }
     auto held = adaptor_.ledgerMaster_.heldTransactions();
     for (auto const& h : held)
     {
         auto found = missing.find(h.first.getTXID());
-        if (found != missing.end())
-            missing.erase(found);
-    }
-    for (auto const& dispute : result_->disputes)
-    {
-        auto found = missing.find(dispute.first);
         if (found != missing.end())
             missing.erase(found);
     }

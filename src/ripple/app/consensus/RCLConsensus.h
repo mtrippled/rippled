@@ -59,6 +59,7 @@ class RCLConsensus
     // Implements the Adaptor template interface required by Consensus.
     class Adaptor
     {
+    public:
         Application& app_;
         std::unique_ptr<FeeVote> feeVote_;
     public:
