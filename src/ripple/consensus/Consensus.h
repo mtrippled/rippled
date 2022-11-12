@@ -29,6 +29,7 @@
 #include <ripple/consensus/DisputedTx.h>
 #include <ripple/consensus/LedgerTiming.h>
 #include <ripple/json/json_writer.h>
+#include <ripple/shamap/SHAMap.h>
 #include <boost/logic/tribool.hpp>
 #include <iterator>
 #include <optional>
@@ -432,6 +433,9 @@ public:
     */
     Json::Value
     getJson(bool full) const;
+
+    bool
+    fastConsensus();
 
 private:
     void
@@ -2079,6 +2083,58 @@ NetClock::time_point
 Consensus<Adaptor>::asCloseTime(NetClock::time_point raw) const
 {
     return roundCloseTime(raw, closeResolution_);
+}
+
+template <class Adaptor>
+bool
+Consensus<Adaptor>::fastConsensus()
+{
+    std::uint32_t const validatedSeq = adaptor_.getValidLedgerIndex();
+    if (previousSeq_ >= validatedSeq)
+    {
+        JLOG(j_.debug()) << "fastConsensus false previous,validated: "
+            << previousSeq_ << ',' << validatedSeq;
+        return false;
+    }
+    std::uint32_t workingSeq = previousSeq_ + 1;
+    auto validations = adaptor_.app_.validators().negativeUNLFilter(
+        adaptor_.app_.getValidations().getTrustedForSeq(workingSeq));
+    auto const minVal = adaptor_.ledgerMaster_.getNeededValidations();
+
+    std::map<uint256, std::size_t> valCounts;
+    for (auto const& validation : validations)
+        ++valCounts[validation->getConsensusHash()];
+    uint256 most;
+    std::size_t mostCount = 0;
+    for (auto const& [pos, count] : valCounts)
+    {
+        if (count > mostCount)
+        {
+            most = pos;
+            mostCount = count;
+        }
+    }
+    JLOG(j_.debug()) << "fastConsensus working seq,validation,count: "
+        << workingSeq << ',' << most << ',' << mostCount;
+    if (mostCount < minVal)
+    {
+        JLOG(j_.debug()) << "fastConsensus false not enough validations,minval"
+            << mostCount << ',' << minVal;
+        return false;
+    }
+
+    if (acquired_.contains(most))
+    {
+        JLOG(j_.debug()) << "fastConsensus true has " << most;
+        return true;
+    }
+    else
+    {
+        JLOG(j_.debug()) << "fastConsensus false does not have " << most;
+        return false;
+    }
+
+    return acquired_.contains(most);
 }
 
 }  // namespace ripple

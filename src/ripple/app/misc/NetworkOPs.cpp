@@ -2050,8 +2050,13 @@ NetworkOPsImp::endConsensus()
     }
 
     uint256 networkClosed;
-    bool ledgerChange =
-        checkLastClosedLedger(app_.overlay().getActivePeers(), networkClosed);
+    bool ledgerChange = false;
+    // MAKE SURE TO TAKE true OUT and set networkClosed or whatever correctly!
+    if (true || mConsensus.fastConsensus())
+    {
+        ledgerChange = checkLastClosedLedger(
+            app_.overlay().getActivePeers(), networkClosed);
+    }
 
     if (networkClosed.isZero())
         return;

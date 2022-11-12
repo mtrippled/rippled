@@ -503,6 +503,9 @@ public:
         hash_set<NodeID> const& nowUntrusted,
         hash_set<NodeID> const& nowTrusted);
 
+     bool
+     fastConsensus();
+
     //! @see Consensus::timerEntry
     std::size_t
     timerEntry(NetClock::time_point const& now);
