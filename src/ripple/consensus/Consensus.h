@@ -434,7 +434,7 @@ public:
     Json::Value
     getJson(bool full) const;
 
-    bool
+    std::optional<PeerPosition_t>
     fastConsensus();
 
 private:
@@ -2086,7 +2086,7 @@ Consensus<Adaptor>::asCloseTime(NetClock::time_point raw) const
 }
 
 template <class Adaptor>
-bool
+std::optional<typename Adaptor::PeerPosition_t>
 Consensus<Adaptor>::fastConsensus()
 {
     std::uint32_t const validatedSeq = adaptor_.getValidLedgerIndex();
@@ -2094,7 +2094,7 @@ Consensus<Adaptor>::fastConsensus()
     {
         JLOG(j_.debug()) << "fastConsensus false previous,validated: "
             << previousSeq_ << ',' << validatedSeq;
-        return false;
+        return std::nullopt;
     }
     std::uint32_t workingSeq = previousSeq_ + 1;
     auto validations = adaptor_.app_.validators().negativeUNLFilter(
@@ -2120,21 +2120,37 @@ Consensus<Adaptor>::fastConsensus()
     {
         JLOG(j_.debug()) << "fastConsensus false not enough validations,minval"
             << mostCount << ',' << minVal;
-        return false;
+        return std::nullopt;
     }
 
-    if (acquired_.contains(most))
-    {
-        JLOG(j_.debug()) << "fastConsensus true has " << most;
-        return true;
-    }
-    else
+    auto position = acquired_.find(most);
+    if (!acquired_.contains(most))
     {
         JLOG(j_.debug()) << "fastConsensus false does not have " << most;
-        return false;
+        return std::nullopt;
     }
+    JLOG(j_.debug()) << "fastConsensus true has " << most;
 
-    return acquired_.contains(most);
+    auto positionsWorkingSeq = recentPeerPositionsWithLedgerSeq_.find(
+        workingSeq);
+    if (positionsWorkingSeq == recentPeerPositionsWithLedgerSeq_.end())
+    {
+        JLOG(j_.debug()) << "fastConsensus false do not have positions for "
+            << workingSeq;
+        return std::nullopt;
+    }
+    for (auto const& posMap : positionsWorkingSeq->second)
+    {
+        for (auto const& [pos, _] : posMap.second)
+
+            if (pos.proposal().position() == most)
+            {
+                JLOG(j_.debug()) << "fastConsensus true found position " << most;
+                return pos;
+        }
+    }
+    JLOG(j_.debug()) << "fastConsensus false do not have position " << most;
+    return std::nullopt;
 }
 
 }  // namespace ripple

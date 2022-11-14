@@ -38,6 +38,7 @@
 #include <atomic>
 #include <chrono>
 #include <mutex>
+#include <optional>
 #include <set>
 #include <string>
 
@@ -503,8 +504,11 @@ public:
         hash_set<NodeID> const& nowUntrusted,
         hash_set<NodeID> const& nowTrusted);
 
-     bool
-     fastConsensus();
+     std::optional<RCLCxPeerPos>
+     fastConsensus()
+     {
+         return consensus_.fastConsensus();
+     }
 
     //! @see Consensus::timerEntry
     std::size_t

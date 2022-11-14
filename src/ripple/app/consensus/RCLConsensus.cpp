@@ -1111,10 +1111,4 @@ RCLConsensus::startRound(
         adaptor_.preStartRound(prevLgr, nowTrusted));
 }
 
-bool
-RCLConsensus::fastConsensus()
-{
-    return consensus_.fastConsensus();
-}
-
 }  // namespace ripple
