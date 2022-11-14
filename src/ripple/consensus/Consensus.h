@@ -2129,7 +2129,7 @@ Consensus<Adaptor>::fastConsensus()
         JLOG(j_.debug()) << "fastConsensus false does not have " << most;
         return std::nullopt;
     }
-    JLOG(j_.debug()) << "fastConsensus true has " << most;
+    JLOG(j_.debug()) << "fastConsensus has " << most;
 
     auto positionsWorkingSeq = recentPeerPositionsWithLedgerSeq_.find(
         workingSeq);
