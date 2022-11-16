@@ -93,6 +93,12 @@ public:
         return proposal_;
     }
 
+    Proposal&
+    proposalMutable()
+    {
+        return proposal_;
+    }
+
     //! JSON representation of proposal
     Json::Value
     getJson() const;

@@ -592,7 +592,7 @@ private:
     // Transaction Sets, indexed by hash of transaction tree
 //    using TxSetWithArrival = std::pair<const TxSet_t, std::chrono::steady_clock::time_point>;
 //    hash_map<typename TxSet_t::ID, TxSetWithArrival> acquired_;
-    hash_map<typename TxSet_t::ID, const TxSet_t> acquired_;
+    hash_map<typename TxSet_t::ID, TxSet_t> acquired_;
 
 //    std::pair<std::optional<const TxSet_t>, std::chrono::steady_clock::time_point> pp_;
     using OptTXSetWithArrival = std::pair<std::optional<const TxSet_t>, std::chrono::steady_clock::time_point>;
@@ -1553,13 +1553,48 @@ Consensus<Adaptor>::phaseEstablish()
     perf::END_TIMER(adaptor_.tracer_, adaptor_.startTimer_);
     adaptor_.startTimer_ = perf::START_TIMER(adaptor_.tracer_);
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::accepted";
-    adaptor_.onAccept(
-        *result_,
-        previousLedger_,
-        closeResolution_,
-        rawCloseTimes_,
-        mode_.get(),
-        getJson(true));
+    while (true)
+    {
+        uint256 const beforeValid =
+            adaptor_.ledgerMaster_.getValidatedLedger()->info().hash;
+        adaptor_.doAccept(
+            *result_,
+            previousLedger_,
+            closeResolution_,
+            rawCloseTimes_,
+            mode_.get(),
+            getJson(true));
+
+        if (beforeValid != adaptor_.ledgerMaster_.getValidatedLedger()->info().hash)
+            break;
+        JLOG(j_.debug()) << "phaseEstablish valid ledger hasn't progressed "
+            << beforeValid;
+        auto f = fastConsensus();
+        if (f)
+        {
+            JLOG(j_.debug()) << "phaseEstablish setting result_ to consensus "
+                                "position " << f->proposal().position();
+            auto posPair = acquired_.find(f->proposal().position());
+            Result r(
+                std::move(posPair->second),
+                std::move(f->proposalMutable()));
+            acquired_.erase(posPair);
+            result_.emplace(r);
+        }
+        else
+        {
+            break;
+        }
+    }
+    adaptor_.app_.getOPs().endConsensus();
+
+//    adaptor_.onAccept(
+//        *result_,
+//        previousLedger_,
+//        closeResolution_,
+//        rawCloseTimes_,
+//        mode_.get(),
+//        getJson(true));
 
     return ret;
 }
