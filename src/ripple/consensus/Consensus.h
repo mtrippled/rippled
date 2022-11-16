@@ -1557,7 +1557,7 @@ Consensus<Adaptor>::phaseEstablish()
         previousLedger_.id() << ':' << previousSeq_ << ','
         << adaptor_.ledgerMaster_.getValidatedLedger()->info().hash << ':'
         << adaptor_.ledgerMaster_.getValidatedLedger()->info().seq;
-    while (previousLedger_.id() == adaptor_.ledgerMaster_.getValidatedLedger()->info().hash)
+    while (true)
     {
         adaptor_.doAccept(
             *result_,
@@ -1567,6 +1567,8 @@ Consensus<Adaptor>::phaseEstablish()
             mode_.get(),
             getJson(true));
 
+        if (previousLedger_.id() != adaptor_.ledgerMaster_.getValidatedLedger()->info().hash)
+            break;
         JLOG(j_.debug()) << "phaseEstablish valid ledger hasn't progressed "
             << previousSeq_ << ',' << previousLedger_.id();
         auto f = fastConsensus();
