@@ -1844,7 +1844,8 @@ Consensus<Adaptor>::updateOurPositions()
                 << t.time_since_epoch().count() << " has " << v << ", "
                 << threshVote << " required";
 
-            if (v >= threshVote)
+
+            if (v + static_cast<int>(adaptor_.validating()) >= threshVote)
             {
                 // A close time has enough votes for us to try to agree
                 consensusCloseTime = t;
