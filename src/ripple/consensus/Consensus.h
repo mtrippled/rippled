@@ -790,10 +790,11 @@ Consensus<Adaptor>::peerProposalInternal(
 {
     auto const& newPeerPos = newPeerPosPair.first;
     auto const& newPeerProp = newPeerPos.proposal();
-
+    auto const& peerID = newPeerProp.nodeID();
     std::uint32_t proposeSeq = newPeerProp.proposeSeq();
     auto proposeLedgerSeq = newPeerProp.ledgerSeq();
-    JLOG(j_.debug()) << "got proposal " << newPeerProp.position() << " seq,ledgerseq,myprevseq: "
+    JLOG(j_.debug()) << "got peerid proposal " << peerID << ' '
+        << newPeerProp.position() << " seq,ledgerseq,myprevseq: "
         << proposeSeq << ','
         << (proposeLedgerSeq.has_value() ? std::to_string(*proposeLedgerSeq) : "none")
         << ',' << previousSeq_;
@@ -826,8 +827,6 @@ Consensus<Adaptor>::peerProposalInternal(
         return false;
     }
 
-    auto const& peerID = newPeerProp.nodeID();
-
     if (deadNodes_.find(peerID) != deadNodes_.end())
     {
         JLOG(j_.info()) << "Position from dead node: " << peerID << ' '
@@ -845,9 +844,13 @@ Consensus<Adaptor>::peerProposalInternal(
             if (newPeerProp.proposeSeq() <=
                 peerPosIt->second.first.proposal().proposeSeq())
             {
-                JLOG(j_.debug()) << "Position for old ledger sequence "
-                                 << newPeerPos.proposal().position()
-                                 << ',' << *newPeerPos.proposal().ledgerSeq();
+                JLOG(j_.debug()) << "Position for old proposal sequence "
+                    << " peerid current prop:seq,new prop:seq. "
+                    << peerID << ' '
+                    << peerPosIt->second.first.proposal().position() << ':'
+                    << peerPosIt->second.first.proposal().proposeSeq() << ','
+                    << newPeerPos.proposal().position() << ':'
+                    << newPeerPos.proposal().proposeSeq();
                 return false;
             }
         }
@@ -869,6 +872,10 @@ Consensus<Adaptor>::peerProposalInternal(
             return true;
         }
 
+        JLOG(j_.debug()) << "peerProposalInternal position for ledger seq,"
+                            "peerid,position: "
+                            << previousSeq_ + 1 << ',' << peerID
+                            << ',' << newPeerPos.proposal().position();
         if (peerPosIt != currPeerPositions_.end())
             peerPosIt->second.first = newPeerPos;
         else
@@ -1529,7 +1536,23 @@ Consensus<Adaptor>::phaseEstablish()
         }
     }
 
-    updateOurPositions();
+    {
+        auto f = fastConsensus();
+        if (f)
+        {
+            JLOG(j_.debug()) << "phaseEstablish 1 setting result_ to consensus "
+                                "position "
+                             << f->proposal().position();
+            auto posPair = acquired_.find(f->proposal().position());
+            result_.emplace(Result(std::move(posPair->second),
+                                   std::move(f->proposalMutable())));
+            haveCloseTimeConsensus_ = true;
+        }
+        else
+        {
+            updateOurPositions();
+        }
+    }
 
     // Nothing to do if too many laggards or we don't have consensus.
     if (shouldPause() || !haveConsensus())
@@ -1574,14 +1597,11 @@ Consensus<Adaptor>::phaseEstablish()
         auto f = fastConsensus();
         if (f)
         {
-            JLOG(j_.debug()) << "phaseEstablish setting result_ to consensus "
+            JLOG(j_.debug()) << "phaseEstablish 2 setting result_ to consensus "
                                 "position " << f->proposal().position();
             auto posPair = acquired_.find(f->proposal().position());
-            Result r(
-                std::move(posPair->second),
-                std::move(f->proposalMutable()));
-            acquired_.erase(posPair);
-            result_.emplace(r);
+            result_.emplace(Result(std::move(posPair->second),
+                                   std::move(f->proposalMutable())));
         }
         else
         {
@@ -1636,12 +1656,13 @@ Consensus<Adaptor>::closeLedger()
             }
         }
         auto [quorum, trustedKeys] = adaptor_.getQuorumKeys();
-        JLOG(j_.debug()) << "closeLedger most popular peer position,"
-                            "count,validators "
-                         << most << ',' << mostCount << ','
-                         << trustedKeys.size();
+        JLOG(j_.debug())
+            << "closeLedger most popular peer position,"
+               "count,validators "
+            << most << ',' << mostCount << ',' << trustedKeys.size();
         auto found = acquired_.find(most);
-        if (found != acquired_.end() && ((mostCount + 0.0) / trustedKeys.size() > 0.5))
+        if (found != acquired_.end() &&
+            ((mostCount + 0.0) / trustedKeys.size() > 0.5))
         {
             JLOG(j_.debug()) << logLost(found->second).str();
         }
@@ -2127,48 +2148,8 @@ template <class Adaptor>
 std::optional<typename Adaptor::PeerPosition_t>
 Consensus<Adaptor>::fastConsensus()
 {
-    std::uint32_t const validatedSeq = adaptor_.getValidLedgerIndex();
-    if (previousSeq_ >= validatedSeq)
-    {
-        JLOG(j_.debug()) << "fastConsensus false previous,validated: "
-            << previousSeq_ << ',' << validatedSeq;
-        return std::nullopt;
-    }
     std::uint32_t workingSeq = previousSeq_ + 1;
-    auto validations = adaptor_.app_.validators().negativeUNLFilter(
-        adaptor_.app_.getValidations().getTrustedForSeq(workingSeq));
-    auto const minVal = adaptor_.ledgerMaster_.getNeededValidations();
-
-    std::map<uint256, std::size_t> valCounts;
-    for (auto const& validation : validations)
-        ++valCounts[validation->getConsensusHash()];
-    uint256 most;
-    std::size_t mostCount = 0;
-    for (auto const& [pos, count] : valCounts)
-    {
-        if (count > mostCount)
-        {
-            most = pos;
-            mostCount = count;
-        }
-    }
-    JLOG(j_.debug()) << "fastConsensus working seq,validation,count: "
-        << workingSeq << ',' << most << ',' << mostCount;
-    if (mostCount < minVal)
-    {
-        JLOG(j_.debug()) << "fastConsensus false not enough validations,minval"
-            << mostCount << ',' << minVal;
-        return std::nullopt;
-    }
-
-    auto position = acquired_.find(most);
-    if (!acquired_.contains(most))
-    {
-        JLOG(j_.debug()) << "fastConsensus false does not have " << most;
-        return std::nullopt;
-    }
-    JLOG(j_.debug()) << "fastConsensus has " << most;
-
+    JLOG(j_.debug()) << "fastConsensus working on " << workingSeq;
     auto positionsWorkingSeq = recentPeerPositionsWithLedgerSeq_.find(
         workingSeq);
     if (positionsWorkingSeq == recentPeerPositionsWithLedgerSeq_.end())
@@ -2177,17 +2158,59 @@ Consensus<Adaptor>::fastConsensus()
             << workingSeq;
         return std::nullopt;
     }
+
+    std::map<PeerPosition_t, std::size_t> posCounts;
     for (auto const& posMap : positionsWorkingSeq->second)
     {
+        std::optional<PeerPosition_t> peerPos;
         for (auto const& [pos, _] : posMap.second)
-
-            if (pos.proposal().position() == most)
+        {
+            if (!peerPos)
             {
-                JLOG(j_.debug()) << "fastConsensus true found position " << most;
-                return pos;
+                peerPos = pos;
+                continue;
+            }
+            if (pos.proposal().proposeSeq() > peerPos->proposal().proposeSeq())
+                peerPos = pos;
+        }
+        if (peerPos)
+            ++posCounts[*peerPos];
+    }
+
+    std::optional<PeerPosition_t> ret;
+    std::size_t most = 0;
+    for (auto const& [pos, count] : posCounts)
+    {
+        if (count > most)
+        {
+            most = count;
+            ret.emplace(std::move(pos));
         }
     }
-    JLOG(j_.debug()) << "fastConsensus false do not have position " << most;
+    if (!ret)
+    {
+        JLOG(j_.debug()) << "fastConsensus false no peer positions";
+        return std::nullopt;
+    }
+
+    if (!acquired_.contains(ret->proposal().position()))
+    {
+        JLOG(j_.debug()) << "fastConsensus false has not acquired "
+            << ret->proposal().position();
+    }
+
+    auto const minVal = adaptor_.ledgerMaster_.getNeededValidations();
+    if ((most + 0.0) / minVal > 0.5)
+    {
+        JLOG(j_.debug()) << "fastConsensus true position,agree,validators "
+                         << ret->proposal().position() << ',' << most
+                         << ',' << minVal;
+        return ret;
+    }
+
+    JLOG(j_.debug()) << "fastConsensus false not enough agreement "
+                        "position, agree, validators "
+        << ret->proposal().position() << ',' << most << ',' << minVal;
     return std::nullopt;
 }
 
