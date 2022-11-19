@@ -1580,6 +1580,7 @@ Consensus<Adaptor>::phaseEstablish()
         previousLedger_.id() << ':' << previousSeq_ << ','
         << adaptor_.ledgerMaster_.getValidatedLedger()->info().hash << ':'
         << adaptor_.ledgerMaster_.getValidatedLedger()->info().seq;
+    /*
     while (true)
     {
         adaptor_.doAccept(
@@ -1609,14 +1610,15 @@ Consensus<Adaptor>::phaseEstablish()
         }
     }
     adaptor_.app_.getOPs().endConsensus();
+     */
 
-//    adaptor_.onAccept(
-//        *result_,
-//        previousLedger_,
-//        closeResolution_,
-//        rawCloseTimes_,
-//        mode_.get(),
-//        getJson(true));
+    adaptor_.onAccept(
+        *result_,
+        previousLedger_,
+        closeResolution_,
+        rawCloseTimes_,
+        mode_.get(),
+        getJson(true));
 
     return ret;
 }
