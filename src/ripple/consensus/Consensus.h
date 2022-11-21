@@ -1540,6 +1540,13 @@ Consensus<Adaptor>::phaseEstablish()
         auto f = fastConsensus();
         if (f)
         {
+            JLOG(j_.debug()) << "phaseEstablish fastConsensus position "
+                << f->proposal().position() << ", lost: "
+                << logLost(acquired_.find(f->proposal().position())->second).str();
+        }
+        /*
+        if (f)
+        {
             JLOG(j_.debug()) << "phaseEstablish 1 setting result_ to consensus "
                                 "position "
                              << f->proposal().position();
@@ -1552,6 +1559,7 @@ Consensus<Adaptor>::phaseEstablish()
         {
             updateOurPositions();
         }
+         */
     }
 
     // Nothing to do if too many laggards or we don't have consensus.
@@ -1662,12 +1670,12 @@ Consensus<Adaptor>::closeLedger()
             << "closeLedger most popular peer position,"
                "count,validators "
             << most << ',' << mostCount << ',' << trustedKeys.size();
-        auto found = acquired_.find(most);
-        if (found != acquired_.end() &&
-            ((mostCount + 0.0) / trustedKeys.size() > 0.5))
-        {
-            JLOG(j_.debug()) << logLost(found->second).str();
-        }
+//        auto found = acquired_.find(most);
+//        if (found != acquired_.end() &&
+//            ((mostCount + 0.0) / trustedKeys.size() > 0.5))
+//        {
+//            JLOG(j_.debug()) << logLost(found->second).str();
+//        }
     }
 
     // Share the newly created transaction set if we haven't already
