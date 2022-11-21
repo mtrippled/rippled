@@ -1544,6 +1544,7 @@ Consensus<Adaptor>::phaseEstablish()
                 << f->proposal().position() << ", lost: "
                 << logLost(acquired_.find(f->proposal().position())->second).str();
         }
+        updateOurPositions();
         /*
         if (f)
         {
