@@ -2097,9 +2097,11 @@ Consensus<Adaptor>::logLost(TxSet_t const& o)
     std::set<uint256> missing;
     for (auto const& d : differences)
     {
-        if (d.second)
+        if (!d.second)
             missing.insert(d.first);
     }
+    ss << "logLost result_ to other" << result_->txns.id() << " to " << o.id()
+       << " missing from result_ but in other:  " << missing.size() << '.';
 
     auto openLedger = adaptor_.app_.openLedger().current();
     for (auto tx = missing.begin(); tx != missing.end();)
@@ -2116,14 +2118,18 @@ Consensus<Adaptor>::logLost(TxSet_t const& o)
         if (found != missing.end())
             missing.erase(found);
     }
-    ss << "logLost " << result_->txns.id() << " to " << o.id() << ':';
     bool first = true;
     for (auto const& m : missing)
     {
         if (first)
+        {
             first = false;
+            ss << " missing from all local places: ";
+        }
         else
+        {
             ss << ',';
+        }
         ss << m;
     }
     return ss;
