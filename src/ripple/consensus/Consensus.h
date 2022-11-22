@@ -1881,7 +1881,7 @@ Consensus<Adaptor>::updateOurPositions()
             {
                 // A close time has enough votes for us to try to agree
                 consensusCloseTime = t;
-                threshVote = v;
+                threshVote = v + static_cast<int>(adaptor_.validating());
 
                 if (threshVote >= threshConsensus)
                     haveCloseTimeConsensus_ = true;
@@ -2100,7 +2100,7 @@ Consensus<Adaptor>::logLost(TxSet_t const& o)
         if (!d.second)
             missing.insert(d.first);
     }
-    ss << "logLost result_ to other" << result_->txns.id() << " to " << o.id()
+    ss << "logLost result_ to other " << result_->txns.id() << " to " << o.id()
        << " missing from result_ but in other:  " << missing.size() << '.';
 
     auto openLedger = adaptor_.app_.openLedger().current();
