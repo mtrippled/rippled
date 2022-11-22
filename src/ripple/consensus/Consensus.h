@@ -2208,6 +2208,7 @@ Consensus<Adaptor>::fastConsensus()
     {
         JLOG(j_.debug()) << "fastConsensus false has not acquired "
             << ret->proposal().position();
+        return std::nullopt;
     }
 
     auto const minVal = adaptor_.ledgerMaster_.getNeededValidations();
