@@ -813,8 +813,7 @@ Consensus<Adaptor>::peerProposalInternal(
     {
         JLOG(j_.debug()) << "Got proposal for " << newPeerProp.prevLedger()
                          << " but we are on " << prevLedgerID_ << ' '
-                         << newPeerPos.proposal().position()
-                         << ',' << *newPeerPos.proposal().ledgerSeq();
+                         << newPeerPos.proposal().position();
         if (futureAcquired_.emplace(newPeerProp.position(),
                     OptTXSetWithArrival{std::nullopt, newPeerPosPair.second}).second)
         {
@@ -823,7 +822,17 @@ Consensus<Adaptor>::peerProposalInternal(
             else
                 JLOG(j_.debug()) << "future proposal Don't have tx set for peer";
         }
-
+        return false;
+    }
+    else if (newPeerProp.ledgerSeq().has_value() &&
+             *newPeerProp.ledgerSeq() != previousSeq_ + 1)
+    {
+        JLOG(j_.debug()) << "Got proposal for " << newPeerProp.prevLedger()
+                         << " but we are on " << prevLedgerID_ << ' '
+                         << newPeerPos.proposal().position()
+                         << " working seq,proposalseq: "
+                         << previousSeq_
+                         << ',' << *newPeerPos.proposal().ledgerSeq();
         return false;
     }
 
