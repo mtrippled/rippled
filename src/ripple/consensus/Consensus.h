@@ -825,14 +825,32 @@ Consensus<Adaptor>::peerProposalInternal(
         return false;
     }
     else if (newPeerProp.ledgerSeq().has_value() &&
-             *newPeerProp.ledgerSeq() != previousSeq_ + 1)
+             *newPeerProp.ledgerSeq() > previousSeq_ + 1)
     {
         JLOG(j_.debug()) << "Got proposal for " << newPeerProp.prevLedger()
                          << " but we are on " << prevLedgerID_ << ' '
                          << newPeerPos.proposal().position()
-                         << " working seq,proposalseq: "
+                         << " working seq,proposal ledger seq: "
                          << previousSeq_
                          << ',' << *newPeerPos.proposal().ledgerSeq();
+
+        auto const ait = acquired_.find(newPeerProp.position());
+        if (ait == acquired_.end())
+        {
+            JLOG(j_.debug()) << "not yet acquired or acquiring tx set 1 "
+                             << newPeerPos.proposal().position() << ','
+                             << *newPeerPos.proposal().ledgerSeq();
+            // acquireTxSet will return the set if it is available, or
+            // spawn a request for it and return nullopt/nullptr.  It will call
+            // gotTxSet once it arrives
+            if (auto set = adaptor_.acquireTxSet(newPeerProp.position()))
+                gotTxSet(now_, *set);
+            else
+                JLOG(j_.debug()) << "Don't have tx set for peer, requesting I "
+                                    "think 1 "
+                                 << newPeerProp.position();
+        }
+
         return false;
     }
 
@@ -908,7 +926,7 @@ Consensus<Adaptor>::peerProposalInternal(
         auto const ait = acquired_.find(newPeerProp.position());
         if (ait == acquired_.end())
         {
-            JLOG(j_.debug()) << "not yet acquired or acquiring tx set "
+            JLOG(j_.debug()) << "not yet acquired or acquiring tx set 2 "
                              << newPeerPos.proposal().position()
                              << ',' << *newPeerPos.proposal().ledgerSeq();
             // acquireTxSet will return the set if it is available, or
@@ -918,7 +936,7 @@ Consensus<Adaptor>::peerProposalInternal(
                 gotTxSet(now_, *set);
             else
                 JLOG(j_.debug()) << "Don't have tx set for peer, requesting I "
-                                    "think " << newPeerProp.position();
+                                    "think 2 " << newPeerProp.position();
         }
         else if (result_)
         {
