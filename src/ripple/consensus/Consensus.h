@@ -817,10 +817,12 @@ Consensus<Adaptor>::peerProposalInternal(
         if (futureAcquired_.emplace(newPeerProp.position(),
                     OptTXSetWithArrival{std::nullopt, newPeerPosPair.second}).second)
         {
+            JLOG(j_.debug()) << "peerProposalInternal need to acquire 1 "
+                             << newPeerPos.proposal().position();
             if (auto set = adaptor_.acquireTxSet(newPeerProp.position()))
                 gotTxSet(now_, *set);
             else
-                JLOG(j_.debug()) << "future proposal Don't have tx set for peer";
+                JLOG(j_.debug()) << "future proposal Don't have tx set for peer 1";
         }
         return false;
     }
@@ -834,21 +836,15 @@ Consensus<Adaptor>::peerProposalInternal(
                          << previousSeq_
                          << ',' << *newPeerPos.proposal().ledgerSeq();
 
-        auto const ait = acquired_.find(newPeerProp.position());
-        if (ait == acquired_.end())
+        if (futureAcquired_.emplace(newPeerProp.position(),
+                                    OptTXSetWithArrival{std::nullopt, newPeerPosPair.second}).second)
         {
-            JLOG(j_.debug()) << "not yet acquired or acquiring tx set 1 "
-                             << newPeerPos.proposal().position() << ','
-                             << *newPeerPos.proposal().ledgerSeq();
-            // acquireTxSet will return the set if it is available, or
-            // spawn a request for it and return nullopt/nullptr.  It will call
-            // gotTxSet once it arrives
+            JLOG(j_.debug()) << "peerProposalInternal need to acquire 2 "
+                << newPeerPos.proposal().position();
             if (auto set = adaptor_.acquireTxSet(newPeerProp.position()))
                 gotTxSet(now_, *set);
             else
-                JLOG(j_.debug()) << "Don't have tx set for peer, requesting I "
-                                    "think 1 "
-                                 << newPeerProp.position();
+                JLOG(j_.debug()) << "future proposal Don't have tx set for peer 2";
         }
 
         return false;
