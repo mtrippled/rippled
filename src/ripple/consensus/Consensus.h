@@ -996,7 +996,18 @@ Consensus<Adaptor>::gotTxSet(
 {
     auto id = txSet.id();
 
-    if (acquired_.count(id))
+    bool current = false;
+    for (auto const& [nodeId, peerPos] : currPeerPositions_)
+    {
+        if (peerPos.first.proposal().position() == id)
+        {
+            current = true;
+            break;
+        }
+    }
+
+//    if (acquired_.count(id))
+    if (!current)
     {
         auto foundFuture = futureAcquired_.find(id);
         if (foundFuture != futureAcquired_.end())
