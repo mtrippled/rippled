@@ -68,6 +68,7 @@ RCLConsensus::RCLConsensus(
           journal)
     , consensus_(clock, adaptor_, journal)
     , j_(journal)
+    , mutex_(adaptor_.mutex_)
 {
 }
 

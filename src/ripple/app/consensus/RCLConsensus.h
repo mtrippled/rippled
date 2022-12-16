@@ -66,6 +66,7 @@ class RCLConsensus
     public:
 
         LedgerMaster& ledgerMaster_;
+        mutable std::recursive_mutex mutex_;
     private:
         LocalTxs& localTxs_;
         InboundTransactions& inboundTransactions_;
@@ -544,15 +545,18 @@ public:
         return adaptor_.parms();
     }
 
-private:
     // Since Consensus does not provide intrinsic thread-safety, this mutex
     // guards all calls to consensus_. adaptor_ uses atomics internally
     // to allow concurrent access of its data members that have getters.
-    mutable std::recursive_mutex mutex_;
 
+private:
     Adaptor adaptor_;
     Consensus<Adaptor> consensus_;
     beast::Journal const j_;
+
+public:
+    std::recursive_mutex& mutex_;
+
 };
 }  // namespace ripple
 

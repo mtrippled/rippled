@@ -793,6 +793,8 @@ Consensus<Adaptor>::peerProposalInternal(
     auto const& peerID = newPeerProp.nodeID();
     std::uint32_t proposeSeq = newPeerProp.proposeSeq();
     auto proposeLedgerSeq = newPeerProp.ledgerSeq();
+    // This is because we might be doing this during phase accept.
+    std::lock_guard<std::recursive_mutex> _(adaptor_.mutex_);
     JLOG(j_.debug()) << "got peerid proposal " << peerID << ' '
         << newPeerProp.position() << " seq,ledgerseq,myprevseq: "
         << proposeSeq << ','
