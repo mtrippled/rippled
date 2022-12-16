@@ -503,7 +503,8 @@ public:
         RCLCxLedger::ID const& prevLgrId,
         RCLCxLedger const& prevLgr,
         hash_set<NodeID> const& nowUntrusted,
-        hash_set<NodeID> const& nowTrusted);
+        hash_set<NodeID> const& nowTrusted,
+        bool fromEndConsensus);
 
      std::optional<RCLCxPeerPos>
      fastConsensus()

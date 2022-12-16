@@ -180,7 +180,7 @@ public:
 
     // network state machine
     virtual bool
-    beginConsensus(uint256 const& netLCL) = 0;
+    beginConsensus(uint256 const& netLCL, bool fromEndConsensus) = 0;
     virtual void
     endConsensus() = 0;
     virtual void

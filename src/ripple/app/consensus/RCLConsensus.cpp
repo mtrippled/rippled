@@ -1101,9 +1101,15 @@ RCLConsensus::startRound(
     RCLCxLedger::ID const& prevLgrId,
     RCLCxLedger const& prevLgr,
     hash_set<NodeID> const& nowUntrusted,
-    hash_set<NodeID> const& nowTrusted)
+    hash_set<NodeID> const& nowTrusted,
+    bool fromEndConsensus)
 {
     std::lock_guard _{mutex_};
+    if (fromEndConsensus)
+    {
+        // logic here for catching up, also change the function parameters as
+        // necessary
+    }
     consensus_.startRound(
         now,
         prevLgrId,
