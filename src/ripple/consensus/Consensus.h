@@ -356,7 +356,8 @@ public:
         typename Ledger_t::ID const& prevLedgerID,
         Ledger_t prevLedger,
         hash_set<NodeID_t> const& nowUntrusted,
-        bool proposing);
+        bool proposing,
+        bool fromEndConsensus);
 
     /** A peer has proposed a new position, adjust our tracking.
 
@@ -642,7 +643,8 @@ Consensus<Adaptor>::startRound(
     typename Ledger_t::ID const& prevLedgerID,
     Ledger_t prevLedger,
     hash_set<NodeID_t> const& nowUntrusted,
-    bool proposing)
+    bool proposing,
+    bool fromEndConsensus)
 {
     if (firstRound_)
     {
@@ -655,6 +657,13 @@ Consensus<Adaptor>::startRound(
     {
         prevCloseTime_ = rawCloseTimes_.self;
     }
+
+    if (fromEndConsensus)
+    {
+        // logic here for catching up, also change the function parameters as
+        // necessary
+    }
+
 
     for (NodeID_t const& n : nowUntrusted)
         recentPeerPositions_.erase(n);

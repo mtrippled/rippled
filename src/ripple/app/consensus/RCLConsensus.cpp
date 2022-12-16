@@ -1105,17 +1105,13 @@ RCLConsensus::startRound(
     bool fromEndConsensus)
 {
     std::lock_guard _{mutex_};
-    if (fromEndConsensus)
-    {
-        // logic here for catching up, also change the function parameters as
-        // necessary
-    }
     consensus_.startRound(
         now,
         prevLgrId,
         prevLgr,
         nowUntrusted,
-        adaptor_.preStartRound(prevLgr, nowTrusted));
+        adaptor_.preStartRound(prevLgr, nowTrusted),
+        fromEndConsensus);
 }
 
 }  // namespace ripple
