@@ -343,7 +343,9 @@ class RCLConsensus
             NetClock::duration const& closeResolution,
             ConsensusCloseTimes const& rawCloseTimes,
             ConsensusMode const& mode,
-            Json::Value&& consensusJson);
+            Json::Value&& consensusJson,
+            CanonicalTXSet& retriableTxs,
+            RCLCxLedger& built);
 
         /** Process the accepted ledger that was a result of simulation/force
             accept.
@@ -384,14 +386,15 @@ class RCLConsensus
             ConsensusMode const& mode,
             Json::Value&& consensusJson);
 
-        void
+        RCLCxLedger
         doAcceptA(
             Result const& result,
             RCLCxLedger const& prevLedger,
             NetClock::duration closeResolution,
             ConsensusCloseTimes const& rawCloseTimes,
             ConsensusMode const& mode,
-            Json::Value&& consensusJson);
+            Json::Value&& consensusJson,
+            CanonicalTXSet& retriableTxs);
 
         void
         doAcceptB(
@@ -400,7 +403,9 @@ class RCLConsensus
             NetClock::duration closeResolution,
             ConsensusCloseTimes const& rawCloseTimes,
             ConsensusMode const& mode,
-            Json::Value&& consensusJson);
+            Json::Value&& consensusJson,
+            CanonicalTXSet& retriableTxs,
+            RCLCxLedger& built);
 
         /** Build the new last closed ledger.
 

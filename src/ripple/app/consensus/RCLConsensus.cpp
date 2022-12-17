@@ -452,7 +452,9 @@ RCLConsensus::Adaptor::onAccept(
     NetClock::duration const& closeResolution,
     ConsensusCloseTimes const& rawCloseTimes,
     ConsensusMode const& mode,
-    Json::Value&& consensusJson)
+    Json::Value&& consensusJson,
+    CanonicalTXSet& retriableTxs,
+    RCLCxLedger& built)
 {
     auto timer = perf::START_TIMER(tracer_);
     app_.getJobQueue().addJob(
@@ -464,13 +466,15 @@ RCLConsensus::Adaptor::onAccept(
             // is accepted, the consensus results and capture by reference state
             // will not change until startRound is called (which happens via
             // endConsensus).
-            this->doAccept(
+            this->doAcceptB(
                 result,
                 prevLedger,
                 closeResolution,
                 rawCloseTimes,
                 mode,
-                std::move(cj));
+                std::move(cj),
+                retriableTxs,
+                built);
             this->app_.getOPs().endConsensus();
         });
     perf::END_TIMER(tracer_, timer);
@@ -485,20 +489,26 @@ RCLConsensus::Adaptor::doAccept(
     ConsensusMode const& mode,
     Json::Value&& consensusJson)
 {
-    doAcceptA(result, prevLedger, closeResolution, rawCloseTimes, mode,
-              std::move(consensusJson));
+    // We want to put transactions in an unpredictable but deterministic order:
+    // we use the hash of the set.
+    //
+    // FIXME: Use a std::vector and a custom sorter instead of CanonicalTXSet?
+    CanonicalTXSet retriableTxs{result.txns.map_->getHash().as_uint256()};
+    auto built = doAcceptA(result, prevLedger, closeResolution, rawCloseTimes, mode,
+              std::move(consensusJson), retriableTxs);
     doAcceptB(result, prevLedger, closeResolution, rawCloseTimes, mode,
-              std::move(consensusJson));
+              std::move(consensusJson), retriableTxs, built);
 }
 
-void
+RCLCxLedger
 RCLConsensus::Adaptor::doAcceptA(
     Result const& result,
     RCLCxLedger const& prevLedger,
     NetClock::duration closeResolution,
     ConsensusCloseTimes const& rawCloseTimes,
     ConsensusMode const& mode,
-    Json::Value&& consensusJson)
+    Json::Value&& consensusJson,
+    CanonicalTXSet& retriableTxs)
 {
     auto timer = perf::START_TIMER(tracer_);
     prevProposers_ = result.proposers;
@@ -536,12 +546,6 @@ RCLConsensus::Adaptor::doAcceptA(
 
     //--------------------------------------------------------------------------
     std::set<TxID> failed;
-
-    // We want to put transactions in an unpredictable but deterministic order:
-    // we use the hash of the set.
-    //
-    // FIXME: Use a std::vector and a custom sorter instead of CanonicalTXSet?
-    CanonicalTXSet retriableTxs{result.txns.map_->getHash().as_uint256()};
 
     JLOG(j_.debug()) << "Building canonical tx set: " << retriableTxs.key();
 
@@ -634,6 +638,22 @@ RCLConsensus::Adaptor::doAcceptA(
     ledgerMaster_.consensusBuilt(
         built.ledger_, result.txns.id(), std::move(consensusJson));
 
+    perf::END_TIMER(tracer_, timer);
+    return built;
+}
+
+void
+RCLConsensus::Adaptor::doAcceptB(
+    Result const& result,
+    RCLCxLedger const& prevLedger,
+    NetClock::duration closeResolution,
+    ConsensusCloseTimes const& rawCloseTimes,
+    ConsensusMode const& mode,
+    Json::Value&& consensusJson,
+    CanonicalTXSet& retriableTxs,
+    RCLCxLedger& built)
+{
+    const bool consensusFail = result.state == ConsensusState::MovedOn;
     //-------------------------------------------------------------------------
     {
         // Apply disputed transactions that didn't get in
@@ -683,11 +703,11 @@ RCLConsensus::Adaptor::doAcceptA(
         // Build new open ledger
         perf::unique_lock lock(*app_.getMasterMutex(), FILE_LINE);
         perf::unique_lock sl(ledgerMaster_.peekMutex(), FILE_LINE);
-//        perf::unique_lock lock(*app_.getMasterMutex(), FILE_LINE, std::defer_lock);
+        //        perf::unique_lock lock(*app_.getMasterMutex(), FILE_LINE, std::defer_lock);
         //std::unique_lock lock{app_.getMasterMutex(), std::defer_lock};
-//        perf::unique_lock sl(ledgerMaster_.peekMutex(), FILE_LINE, std::defer_lock);
+        //        perf::unique_lock sl(ledgerMaster_.peekMutex(), FILE_LINE, std::defer_lock);
         //std::unique_lock sl{ledgerMaster_.peekMutex(), std::defer_lock};
-//        perf::lock2(lock, sl, FILE_LINE);
+        //        perf::lock2(lock, sl, FILE_LINE);
         //std::lock(lock, sl);
 
         auto const lastVal = ledgerMaster_.getValidatedLedger();
@@ -763,18 +783,6 @@ RCLConsensus::Adaptor::doAcceptA(
 
         app_.timeKeeper().adjustCloseTime(offset);
     }
-    perf::END_TIMER(tracer_, timer);
-}
-
-void
-RCLConsensus::Adaptor::doAcceptB(
-    Result const& result,
-    RCLCxLedger const& prevLedger,
-    NetClock::duration closeResolution,
-    ConsensusCloseTimes const& rawCloseTimes,
-    ConsensusMode const& mode,
-    Json::Value&& consensusJson)
-{
 }
 
 

@@ -20,6 +20,7 @@
 #ifndef RIPPLE_CONSENSUS_CONSENSUS_H_INCLUDED
 #define RIPPLE_CONSENSUS_CONSENSUS_H_INCLUDED
 
+#include <ripple/app/misc/CanonicalTXSet.h>
 #include <ripple/basics/Log.h>
 #include <ripple/basics/chrono.h>
 #include <ripple/beast/utility/Journal.h>
@@ -1675,13 +1676,26 @@ Consensus<Adaptor>::phaseEstablish(std::unique_lock<std::recursive_mutex>& lock)
     adaptor_.app_.getOPs().endConsensus();
      */
 
+    CanonicalTXSet retriableTxs{result_->txns.map_->getHash().as_uint256()};
+    lock.unlock();
+    auto built = adaptor_.doAcceptA(
+            *result_,
+            previousLedger_,
+            closeResolution_,
+            rawCloseTimes_,
+            mode_.get(),
+            getJson(true),
+            retriableTxs);
+
     adaptor_.onAccept(
         *result_,
         previousLedger_,
         closeResolution_,
         rawCloseTimes_,
         mode_.get(),
-        getJson(true));
+        getJson(true),
+        retriableTxs,
+        built);
 
     return ret;
 }
