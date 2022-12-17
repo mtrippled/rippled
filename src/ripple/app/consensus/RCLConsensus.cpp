@@ -485,6 +485,21 @@ RCLConsensus::Adaptor::doAccept(
     ConsensusMode const& mode,
     Json::Value&& consensusJson)
 {
+    doAcceptA(result, prevLedger, closeResolution, rawCloseTimes, mode,
+              std::move(consensusJson));
+    doAcceptB(result, prevLedger, closeResolution, rawCloseTimes, mode,
+              std::move(consensusJson));
+}
+
+void
+RCLConsensus::Adaptor::doAcceptA(
+    Result const& result,
+    RCLCxLedger const& prevLedger,
+    NetClock::duration closeResolution,
+    ConsensusCloseTimes const& rawCloseTimes,
+    ConsensusMode const& mode,
+    Json::Value&& consensusJson)
+{
     auto timer = perf::START_TIMER(tracer_);
     prevProposers_ = result.proposers;
     prevRoundTime_ = result.roundTime.read();
@@ -752,6 +767,18 @@ RCLConsensus::Adaptor::doAccept(
 }
 
 void
+RCLConsensus::Adaptor::doAcceptB(
+    Result const& result,
+    RCLCxLedger const& prevLedger,
+    NetClock::duration closeResolution,
+    ConsensusCloseTimes const& rawCloseTimes,
+    ConsensusMode const& mode,
+    Json::Value&& consensusJson)
+{
+}
+
+
+void
 RCLConsensus::Adaptor::notify(
     protocol::NodeEvent ne,
     RCLCxLedger const& ledger,
@@ -958,8 +985,8 @@ RCLConsensus::timerEntry(NetClock::time_point const& now)
 {
     try
     {
-        std::lock_guard _{mutex_};
-        return consensus_.timerEntry(now);
+        std::unique_lock<std::recursive_mutex> lock(mutex_);
+        return consensus_.timerEntry(now, lock);
     }
     catch (SHAMapMissingNode const& mn)
     {
@@ -1104,14 +1131,15 @@ RCLConsensus::startRound(
     hash_set<NodeID> const& nowTrusted,
     bool fromEndConsensus)
 {
-    std::lock_guard _{mutex_};
+    std::unique_lock<std::recursive_mutex> lock{mutex_};
     consensus_.startRound(
         now,
         prevLgrId,
         prevLgr,
         nowUntrusted,
         adaptor_.preStartRound(prevLgr, nowTrusted),
-        fromEndConsensus);
+        fromEndConsensus,
+        lock);
 }
 
 }  // namespace ripple

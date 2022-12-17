@@ -384,6 +384,24 @@ class RCLConsensus
             ConsensusMode const& mode,
             Json::Value&& consensusJson);
 
+        void
+        doAcceptA(
+            Result const& result,
+            RCLCxLedger const& prevLedger,
+            NetClock::duration closeResolution,
+            ConsensusCloseTimes const& rawCloseTimes,
+            ConsensusMode const& mode,
+            Json::Value&& consensusJson);
+
+        void
+        doAcceptB(
+            Result const& result,
+            RCLCxLedger const& prevLedger,
+            NetClock::duration closeResolution,
+            ConsensusCloseTimes const& rawCloseTimes,
+            ConsensusMode const& mode,
+            Json::Value&& consensusJson);
+
         /** Build the new last closed ledger.
 
             Accept the given the provided set of consensus transactions and
