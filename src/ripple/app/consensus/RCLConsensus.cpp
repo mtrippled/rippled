@@ -493,22 +493,20 @@ RCLConsensus::Adaptor::doAccept(
     // we use the hash of the set.
     //
     // FIXME: Use a std::vector and a custom sorter instead of CanonicalTXSet?
-    CanonicalTXSet retriableTxs{result.txns.map_->getHash().as_uint256()};
-    auto built = doAcceptA(result, prevLedger, closeResolution, rawCloseTimes, mode,
-              std::move(consensusJson), retriableTxs);
+    auto [retriableTxs, built] = doAcceptA(result, prevLedger, closeResolution, rawCloseTimes, mode,
+              std::move(consensusJson));
     doAcceptB(result, prevLedger, closeResolution, rawCloseTimes, mode,
               std::move(consensusJson), retriableTxs, built);
 }
 
-RCLCxLedger
+std::pair<CanonicalTXSet, RCLCxLedger>
 RCLConsensus::Adaptor::doAcceptA(
     Result const& result,
     RCLCxLedger const& prevLedger,
     NetClock::duration closeResolution,
     ConsensusCloseTimes const& rawCloseTimes,
     ConsensusMode const& mode,
-    Json::Value&& consensusJson,
-    CanonicalTXSet& retriableTxs)
+    Json::Value&& consensusJson)
 {
     auto timer = perf::START_TIMER(tracer_);
     prevProposers_ = result.proposers;
@@ -547,6 +545,7 @@ RCLConsensus::Adaptor::doAcceptA(
     //--------------------------------------------------------------------------
     std::set<TxID> failed;
 
+    CanonicalTXSet retriableTxs{result.txns.map_->getHash().as_uint256()};
     JLOG(j_.debug()) << "Building canonical tx set: " << retriableTxs.key();
 
     for (auto const& item : *result.txns.map_)
@@ -639,7 +638,7 @@ RCLConsensus::Adaptor::doAcceptA(
         built.ledger_, result.txns.id(), std::move(consensusJson));
 
     perf::END_TIMER(tracer_, timer);
-    return built;
+    return {retriableTxs, built};
 }
 
 void

@@ -20,6 +20,7 @@
 #ifndef RIPPLE_CONSENSUS_CONSENSUS_H_INCLUDED
 #define RIPPLE_CONSENSUS_CONSENSUS_H_INCLUDED
 
+#include <ripple/app/consensus/RCLCxLedger.h>
 #include <ripple/app/misc/CanonicalTXSet.h>
 #include <ripple/basics/Log.h>
 #include <ripple/basics/chrono.h>
@@ -529,7 +530,7 @@ private:
 
     // Adjust our positions to try to agree with other validators.
     void
-    updateOurPositions();
+    updateOurPositions(bool share = true);
 
     bool
     haveConsensus();
@@ -1676,16 +1677,65 @@ Consensus<Adaptor>::phaseEstablish(std::unique_lock<std::recursive_mutex>& lock)
     adaptor_.app_.getOPs().endConsensus();
      */
 
-    CanonicalTXSet retriableTxs{result_->txns.map_->getHash().as_uint256()};
-    lock.unlock();
-    auto built = adaptor_.doAcceptA(
+//    std::optional<CanonicalTXSet> retriableTxs;
+//    std::optional<RCLCxLedger> built;
+    std::optional<std::pair<CanonicalTXSet, RCLCxLedger>> txsBuilt;
+    auto startTime = std::chrono::steady_clock::now();
+//    CanonicalTXSet retriableTxs{result_->txns.map_->getHash().as_uint256()};
+//    while (std::chrono::duration_cast<std::chrono::seconds>(
+//        std::chrono::steady_clock::now() - startTime).count() < 5)
+    do
+    {
+        if (txsBuilt)
+            updateOurPositions(false);
+        lock.unlock();
+        txsBuilt = adaptor_.doAcceptA(
             *result_,
             previousLedger_,
             closeResolution_,
             rawCloseTimes_,
             mode_.get(),
-            getJson(true),
-            retriableTxs);
+            getJson(true));
+        RCLCxLedger& built = txsBuilt->second;
+
+        // criteria for not moving forward yet:
+        // 1) new (built) ledger is not our latest validated ledger, and
+        // 2) our latest validated ledger sequence is <= that of the new ledger.
+        // If they're equal, then get the validated ledger's proposal
+        // and try to re-apply it to the previous ledger.
+        // Otherwise, check for new proposals for the current round to see
+        // if a new consensus txset can be tried. If so, try it.
+        // If not, then pause 100ms or something and check this all again.
+        // Wait up to 5s or something.
+//        if (built.id() == adaptor_.ledgerMaster_.getValidatedLedger()->info().hash)
+//        {
+//            JLOG(j_.debug()) << "phaseEstablish built ledger " << built.id()
+//                << ',' << built.seq() << " has been validated";
+//            break;
+//        }
+//        JLOG(j_.debug()) << "phaseEstablish built ledger " << built.id()
+//                         << ',' << built.seq() << " has not been validated"
+//                         << " (" << adaptor_.ledgerMaster_.getValidatedLedger()->info().hash
+//                         << ',' << adaptor_.ledgerMaster_.getValidatedLedger()->info().seq
+//                         << "). retrying";
+//        if (previousLedger_.id() == adaptor_.ledgerMaster_.getValidatedLedger()->info().hash)
+//            break;
+        lock.lock();
+        JLOG(j_.debug()) << "phaseEstablish doAcceptA loop duration so far: "
+            << std::chrono::duration_cast<std::chrono::milliseconds>(
+                                std::chrono::steady_clock::now() - startTime).count()
+            << "ms. built: " << built.id() << ','
+            << built.seq()
+            << " validated: "
+            << adaptor_.ledgerMaster_.getValidatedLedger()->info().hash
+            << ','
+            << adaptor_.ledgerMaster_.getValidatedLedger()->info().seq;
+    }
+    while (adaptor_.haveValidated() &&
+           (std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::steady_clock::now() - startTime).count() < 5) &&
+           (txsBuilt->second.id() != adaptor_.ledgerMaster_.getValidatedLedger()->info().hash) &&
+           (txsBuilt->second.seq() >= adaptor_.ledgerMaster_.getValidatedLedger()->info().seq));
 
     adaptor_.onAccept(
         *result_,
@@ -1694,8 +1744,8 @@ Consensus<Adaptor>::phaseEstablish(std::unique_lock<std::recursive_mutex>& lock)
         rawCloseTimes_,
         mode_.get(),
         getJson(true),
-        retriableTxs,
-        built);
+        txsBuilt->first,
+        txsBuilt->second);
 
     return ret;
 }
@@ -1803,7 +1853,7 @@ participantsNeeded(int participants, int percent)
 
 template <class Adaptor>
 void
-Consensus<Adaptor>::updateOurPositions()
+Consensus<Adaptor>::updateOurPositions(bool share)
 {
     // We must have a position if we are updating it
     assert(result_);
@@ -1991,7 +2041,7 @@ Consensus<Adaptor>::updateOurPositions()
         // if we haven't already received it
         if (acquired_.emplace(newID, result_->txns).second)
         {
-            if (!result_->position.isBowOut())
+            if (!result_->position.isBowOut() || !share)
                 adaptor_.share(result_->txns);
 
             for (auto const& [nodeId, peerPos] : currPeerPositions_)

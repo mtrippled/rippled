@@ -386,15 +386,14 @@ class RCLConsensus
             ConsensusMode const& mode,
             Json::Value&& consensusJson);
 
-        RCLCxLedger
+        std::pair<CanonicalTXSet, RCLCxLedger>
         doAcceptA(
             Result const& result,
             RCLCxLedger const& prevLedger,
             NetClock::duration closeResolution,
             ConsensusCloseTimes const& rawCloseTimes,
             ConsensusMode const& mode,
-            Json::Value&& consensusJson,
-            CanonicalTXSet& retriableTxs);
+            Json::Value&& consensusJson);
 
         void
         doAcceptB(
