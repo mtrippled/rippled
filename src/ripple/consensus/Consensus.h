@@ -1694,8 +1694,7 @@ Consensus<Adaptor>::phaseEstablish(std::unique_lock<std::recursive_mutex>& lock)
             if (prevProposal == result_->position)
             {
                 JLOG(j_.debug()) << "phaseEstablish old and new positions "
-                                    "match: " << prevProposal
-                    << " sleeping 100ms";
+                                    "match, sleeping 100ms";
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 continue;
             }
