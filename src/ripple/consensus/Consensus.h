@@ -37,6 +37,7 @@
 #include <optional>
 #include <set>
 #include <sstream>
+#include <thread>
 #include <unordered_set>
 
 namespace ripple {
@@ -1687,7 +1688,18 @@ Consensus<Adaptor>::phaseEstablish(std::unique_lock<std::recursive_mutex>& lock)
     do
     {
         if (txsBuilt)
+        {
+            auto prevProposal = result_->position;
             updateOurPositions(false);
+            if (prevProposal == result_->position)
+            {
+                JLOG(j_.debug()) << "phaseEstablish old and new positions "
+                                    "match: " << prevProposal
+                    << " sleeping 100ms";
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                continue;
+            }
+        }
         lock.unlock();
         txsBuilt = adaptor_.doAcceptA(
             *result_,
@@ -2041,7 +2053,7 @@ Consensus<Adaptor>::updateOurPositions(bool share)
         // if we haven't already received it
         if (acquired_.emplace(newID, result_->txns).second)
         {
-            if (!result_->position.isBowOut() || !share)
+            if (!result_->position.isBowOut() && share)
                 adaptor_.share(result_->txns);
 
             for (auto const& [nodeId, peerPos] : currPeerPositions_)
@@ -2054,7 +2066,8 @@ Consensus<Adaptor>::updateOurPositions(bool share)
 
         // Share our new position if we are still participating this round
         if (!result_->position.isBowOut() &&
-            (mode_.get() == ConsensusMode::proposing))
+            (mode_.get() == ConsensusMode::proposing) &&
+            share)
             adaptor_.propose(result_->position);
     }
 }
