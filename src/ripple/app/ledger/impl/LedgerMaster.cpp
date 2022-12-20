@@ -372,6 +372,7 @@ LedgerMaster::setValidLedger(std::shared_ptr<Ledger const> const& l)
     }
 
     mValidLedger.set(l);
+    validCond_.notify_all();
     mValidLedgerSign = signTime.time_since_epoch().count();
     assert(
         mValidLedgerSeq || !app_.getMaxDisallowedLedger() ||

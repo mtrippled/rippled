@@ -1681,7 +1681,7 @@ Consensus<Adaptor>::phaseEstablish(std::unique_lock<std::recursive_mutex>& lock)
 //    std::optional<CanonicalTXSet> retriableTxs;
 //    std::optional<RCLCxLedger> built;
     std::optional<std::pair<CanonicalTXSet, RCLCxLedger>> txsBuilt;
-    auto startTime = std::chrono::steady_clock::now();
+    std::optional<std::chrono::time_point<std::chrono::steady_clock>> startTime;
 //    CanonicalTXSet retriableTxs{result_->txns.map_->getHash().as_uint256()};
 //    while (std::chrono::duration_cast<std::chrono::seconds>(
 //        std::chrono::steady_clock::now() - startTime).count() < 5)
@@ -1694,10 +1694,14 @@ Consensus<Adaptor>::phaseEstablish(std::unique_lock<std::recursive_mutex>& lock)
             if (prevProposal == result_->position)
             {
                 JLOG(j_.debug()) << "phaseEstablish old and new positions "
-                                    "match, sleeping 100ms";
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                                    "match, pausing "
+                    << prevProposal.position();
+                adaptor_.ledgerMaster_.waitForValidated(
+                    std::chrono::milliseconds(100));
                 continue;
             }
+            JLOG(j_.debug()) << "phaseEstablish retrying doAcceptA with new "
+                                "position: " << result_->position.position();
         }
         lock.unlock();
         txsBuilt = adaptor_.doAcceptA(
@@ -1707,6 +1711,8 @@ Consensus<Adaptor>::phaseEstablish(std::unique_lock<std::recursive_mutex>& lock)
             rawCloseTimes_,
             mode_.get(),
             getJson(true));
+        if (!startTime)
+            startTime = std::chrono::steady_clock::now();
         RCLCxLedger& built = txsBuilt->second;
 
         // criteria for not moving forward yet:
@@ -1734,7 +1740,7 @@ Consensus<Adaptor>::phaseEstablish(std::unique_lock<std::recursive_mutex>& lock)
         lock.lock();
         JLOG(j_.debug()) << "phaseEstablish doAcceptA loop duration so far: "
             << std::chrono::duration_cast<std::chrono::milliseconds>(
-                                std::chrono::steady_clock::now() - startTime).count()
+                                std::chrono::steady_clock::now() - *startTime).count()
             << "ms. built: " << built.id() << ','
             << built.seq()
             << " validated: "
@@ -1744,7 +1750,7 @@ Consensus<Adaptor>::phaseEstablish(std::unique_lock<std::recursive_mutex>& lock)
     }
     while (adaptor_.haveValidated() &&
            (std::chrono::duration_cast<std::chrono::seconds>(
-                std::chrono::steady_clock::now() - startTime).count() < 5) &&
+                std::chrono::steady_clock::now() - *startTime).count() < 5) &&
            (txsBuilt->second.id() != adaptor_.ledgerMaster_.getValidatedLedger()->info().hash) &&
            (txsBuilt->second.seq() >= adaptor_.ledgerMaster_.getValidatedLedger()->info().seq));
 

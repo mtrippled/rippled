@@ -37,9 +37,9 @@
 #include <ripple/protocol/RippleLedgerHash.h>
 #include <ripple/protocol/STValidation.h>
 #include <ripple/protocol/messages.h>
-#include <optional>
-
+#include <condition_variable>
 #include <mutex>
+#include <optional>
 
 namespace ripple {
 
@@ -300,6 +300,14 @@ public:
         return mHeldTransactions;
     }
 
+    template <class Rep, class Period>
+    void
+    waitForValidated(std::chrono::duration<Rep, Period> const& dur)
+    {
+        std::unique_lock<std::mutex> lock(validMutex_);
+        validCond_.wait_for(lock, dur);
+    }
+
 private:
     void
     setValidLedger(std::shared_ptr<Ledger const> const& l);
@@ -353,6 +361,9 @@ private:
 
     // The highest-sequence ledger we have fully accepted.
     LedgerHolder mValidLedger;
+
+    std::mutex validMutex_;
+    std::condition_variable validCond_;
 
     // The last ledger we have published.
     std::shared_ptr<Ledger const> mPubLedger;
