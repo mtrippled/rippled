@@ -621,7 +621,8 @@ private:
     // ledgers or rounds
     hash_map<NodeID_t, std::deque<PeerPositionWithArrival>> recentPeerPositions_;
 //    hash_map<NodeID_t, std::deque<PeerPosition_t>> recentPeerPositions_;
-    std::map<std::uint32_t, hash_map<NodeID_t, std::deque<PeerPositionWithArrival>>> recentPeerPositionsWithLedgerSeq_;
+//    std::map<std::uint32_t, hash_map<NodeID_t, std::deque<PeerPositionWithArrival>>> recentPeerPositionsWithLedgerSeq_;
+    std::map<std::uint32_t, hash_map<NodeID_t, PeerPositionWithArrival>> recentPeerPositionsWithLedgerSeq_;
 
     // The number of proposers who participated in the last consensus round
     std::size_t prevProposers_ = 0;
@@ -778,11 +779,22 @@ Consensus<Adaptor>::peerProposal(
         if (*newPeerPos.proposal().ledgerSeq() >= previousSeq_ + 1)
         {
             auto& m = recentPeerPositionsWithLedgerSeq_[*newPeerPos.proposal().ledgerSeq()];
-            auto& props = m[peerID];
+//            auto& props = m[peerID];
             JLOG(j_.debug()) << "peerProposal received "
                              << newPeerPos.proposal().position()
                              << ',' << *newPeerPos.proposal().ledgerSeq();
-            props.push_back({newPeerPos, currentTimeStamp});
+            auto found = m.find(peerID);
+            if (found != m.end())
+            {
+                if (newPeerPos.proposal().proposeSeq() <= found->second.first.proposal().proposeSeq())
+                    return false;
+                found->second = {newPeerPos, currentTimeStamp};
+            }
+            else
+            {
+                m.emplace(peerID, std::make_pair(newPeerPos, currentTimeStamp));
+            }
+//            props.push_back({newPeerPos, currentTimeStamp});
         }
         return peerProposalInternal(now, {newPeerPos, currentTimeStamp});
     }
@@ -1280,24 +1292,30 @@ Consensus<Adaptor>::playbackProposals()
 {
     std::stringstream ss;
     ss << "playbackProposals " << previousSeq_ + 1;
-    JLOG(j_.debug()) << "playbackProposals " << previousSeq_ + 1;
+    JLOG(j_.debug()) << " playbackProposals " << previousSeq_ + 1;
     auto found = recentPeerPositionsWithLedgerSeq_.find(previousSeq_ + 1);
     if (found != recentPeerPositionsWithLedgerSeq_.end())
     {
         ss << " already found: ";
-        bool first = true;
+ //       bool first = true;
         for (auto const& it : found->second)
         {
-            for (auto const& pos : it.second)
-            {
-                if (first)
-                    first = false;
-                else
-                    ss << ',';
-                ss << pos.first.proposal().position();
-                if (peerProposalInternal(now_, pos))
-                    adaptor_.share(pos.first);
-            }
+//            for (auto const& pos : it.second)
+//            {
+//                if (first)
+//                    first = false;
+//                else
+//                    ss << ',';
+//                ss << pos.first.proposal().position();
+//                ss << pos.proposal().position();
+//                if (peerProposalInternal(now_, pos))
+//                    adaptor_.share(pos.first);
+//            }
+            auto const& peer = it.first;
+            auto const& pos = it.second;
+            ss << "peer: " << peer << " proposal: " << pos.first.proposal().position();
+            if (peerProposalInternal(now_, pos))
+                adaptor_.share(pos.first);
         }
     }
     JLOG(j_.debug()) << ss.str();
@@ -2316,6 +2334,8 @@ Consensus<Adaptor>::fastConsensus()
     for (auto const& posMap : positionsWorkingSeq->second)
     {
         std::optional<PeerPosition_t> peerPos;
+        peerPos = posMap.second.first;
+        /*
         for (auto const& [pos, _] : posMap.second)
         {
             if (!peerPos)
@@ -2326,6 +2346,7 @@ Consensus<Adaptor>::fastConsensus()
             if (pos.proposal().proposeSeq() > peerPos->proposal().proposeSeq())
                 peerPos = pos;
         }
+         */
         if (peerPos)
             ++posCounts[*peerPos];
     }
