@@ -739,7 +739,7 @@ Consensus<Adaptor>::startRoundInternal(
     result_.reset();
     convergePercent_ = 0;
     haveCloseTimeConsensus_ = false;
-    openTime_.reset(clock_.now());
+//    openTime_.reset(clock_.now());
     currPeerPositions_.clear();
     acquired_.clear();
     rawCloseTimes_.peers.clear();
@@ -1254,6 +1254,7 @@ Consensus<Adaptor>::handleWrongLedger(typename Ledger_t::ID const& lgrId,
     if (auto newLedger = adaptor_.acquireLedger(prevLedgerID_))
     {
         JLOG(j_.info()) << "Have the consensus ledger " << prevLedgerID_;
+        openTime_.reset(clock_.now());
         startRoundInternal(
             now_, lgrId, *newLedger, ConsensusMode::switchedLedger, lock);
     }
@@ -1703,6 +1704,8 @@ Consensus<Adaptor>::phaseEstablish(std::unique_lock<std::recursive_mutex>& lock)
 //    CanonicalTXSet retriableTxs{result_->txns.map_->getHash().as_uint256()};
 //    while (std::chrono::duration_cast<std::chrono::seconds>(
 //        std::chrono::steady_clock::now() - startTime).count() < 5)
+
+    openTime_.reset(clock_.now());
     do
     {
         if (txsBuilt)
