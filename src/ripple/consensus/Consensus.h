@@ -1707,6 +1707,8 @@ Consensus<Adaptor>::phaseEstablish(std::unique_lock<std::recursive_mutex>& lock)
     {
         if (txsBuilt)
         {
+            // Only send a single validation per round.
+            adaptor_.validating_ = false;
             auto prevProposal = result_->position;
             updateOurPositions(false);
             if (prevProposal == result_->position)

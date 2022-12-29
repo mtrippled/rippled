@@ -87,7 +87,6 @@ class RCLConsensus
 
         // These members are queried via public accesors and are atomic for
         // thread safety.
-        std::atomic<bool> validating_{false};
         std::atomic<std::size_t> prevProposers_{0};
         std::atomic<std::chrono::milliseconds> prevRoundTime_{
             std::chrono::milliseconds{0}};
@@ -97,6 +96,7 @@ class RCLConsensus
         NegativeUNLVote nUnlVote_;
 
     public:
+        std::atomic<bool> validating_{false};
         using Ledger_t = RCLCxLedger;
         using NodeID_t = NodeID;
         using NodeKey_t = PublicKey;
