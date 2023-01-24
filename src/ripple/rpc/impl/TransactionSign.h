@@ -75,7 +75,7 @@ checkFee(
 using ProcessTransactionFn = std::function<void(
     std::shared_ptr<Transaction>& transaction,
     bool bUnlimited,
-    bool bLocal,
+    RPC::SubmitSync sync,
     NetworkOPs::FailHard failType)>;
 
 inline ProcessTransactionFn
@@ -84,9 +84,9 @@ getProcessTxnFn(NetworkOPs& netOPs)
     return [&netOPs](
                std::shared_ptr<Transaction>& transaction,
                bool bUnlimited,
-               bool bLocal,
+               RPC::SubmitSync sync,
                NetworkOPs::FailHard failType) {
-        netOPs.processTransaction(transaction, bUnlimited, bLocal, failType);
+        netOPs.processTransaction(transaction, bUnlimited, sync, true, failType);
     };
 }
 
@@ -107,7 +107,8 @@ transactionSubmit(
     Role role,
     std::chrono::seconds validatedLedgerAge,
     Application& app,
-    ProcessTransactionFn const& processTransaction);
+    ProcessTransactionFn const& processTransaction,
+    RPC::SubmitSync sync);
 
 /** Returns a Json::objectValue. */
 Json::Value
@@ -126,7 +127,8 @@ transactionSubmitMultiSigned(
     Role role,
     std::chrono::seconds validatedLedgerAge,
     Application& app,
-    ProcessTransactionFn const& processTransaction);
+    ProcessTransactionFn const& processTransaction,
+    RPC::SubmitSync sync);
 
 }  // namespace RPC
 }  // namespace ripple

@@ -40,6 +40,7 @@
 #include <ripple/overlay/impl/Tuning.h>
 #include <ripple/overlay/predicates.h>
 #include <ripple/protocol/digest.h>
+#include <ripple/rpc/impl/RPCHelpers.h>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/predicate.hpp>
@@ -3108,7 +3109,8 @@ PeerImp::checkTransaction(
 
         bool const trusted(flags & SF_TRUSTED);
         app_.getOPs().processTransaction(
-            tx, trusted, false, NetworkOPs::FailHard::no);
+            tx, trusted, RPC::SubmitSync::async, false,
+            NetworkOPs::FailHard::no);
     }
     catch (std::exception const&)
     {
