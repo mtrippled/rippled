@@ -573,6 +573,7 @@ JSS(subcommand);            // in: PathFind
 JSS(subtimers);
 JSS(success);               // rpc
 JSS(supported);             // out: AmendmentTableImpl
+JSS(sync);                  // in: Submit
 JSS(system_time_offset);    // out: NetworkOPs
 JSS(tag);                   // out: Peers
 JSS(taker);                 // in: Subscribe, BookOffers

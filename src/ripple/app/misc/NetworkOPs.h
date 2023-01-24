@@ -71,6 +71,8 @@ enum class OperatingMode {
     FULL = 4           //!< we have the ledger and can even validate
 };
 
+namespace RPC { enum class SubmitSync; }
+
 /** Provides server functionality for clients.
 
     Clients include backend applications, local commands, and connected
@@ -124,18 +126,33 @@ public:
     submitTransaction(std::shared_ptr<STTx const> const&) = 0;
 
     /**
-     * Process transactions as they arrive from the network or which are
+     * Process transactions as they arrive from the peer network or which are
      * submitted by clients. Process local transactions synchronously
+     *
+     * First, do some initial sanity checking. Then, insert the
+     * transaction into a batch.
+     *
+     * If supplied either by a peer or if specified to be "async" by the
+     * client, return immediately.
+     *
+     * If specified as "sync" by the client, then process the batch
+     * immediately and return only once the transaction has been processed.
+     *
+     * If specified as "wait" by the client, then do not process the batch
+     * immediately. Instead, the transaction will be processed at the
+     * next batch processing interval.
      *
      * @param transaction Transaction object
      * @param bUnlimited Whether a privileged client connection submitted it.
-     * @param bLocal Client submission.
+     * @param sync Specify return conditions.
+     * @param bLocal If transaction was submitted by a client and not a peer.
      * @param failType fail_hard setting from transaction submission.
      */
     virtual void
     processTransaction(
         std::shared_ptr<Transaction>& transaction,
         bool bUnlimited,
+        RPC::SubmitSync sync,
         bool bLocal,
         FailHard failType) = 0;
 
@@ -271,6 +288,17 @@ public:
     forwardProposedTransaction(Json::Value const& jvObj) = 0;
     virtual void
     forwardProposedAccountTransaction(Json::Value const& jvObj) = 0;
+
+    /**
+     * Attempt to apply batches of transactions and post-process based
+     * on the results. Continue to apply transactions until none remain
+     * in a new batch. Optionally repeat until no transactions are pending.
+     *
+     * @param drain Whether to repeat until no pending transactions.
+     * returns the number of transactions applied.
+     */
+    virtual std::size_t
+    applyBatch(bool const drain = false) = 0;
 
     virtual void
     stateAccounting(Json::Value& obj) = 0;

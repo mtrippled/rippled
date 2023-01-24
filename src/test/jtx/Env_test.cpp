@@ -25,10 +25,12 @@
 #include <ripple/protocol/Feature.h>
 #include <ripple/protocol/TxFlags.h>
 #include <ripple/protocol/jss.h>
+#include <ripple/rpc/impl/RPCHelpers.h>
 #include <test/jtx.h>
 
 #include <boost/lexical_cast.hpp>
 #include <optional>
+#include <thread>
 #include <utility>
 
 namespace ripple {
@@ -901,6 +903,93 @@ public:
     }
 
     void
+    testSyncSubmit()
+    {
+        using namespace jtx;
+        Env env(*this);
+
+        auto const alice = Account{"alice"};
+        auto const n = XRP(10000);
+        env.fund(n, alice);
+        BEAST_EXPECT(env.balance(alice) == n);
+
+        // submit only
+        auto applyBlobTxn = [&env](RPC::SubmitSync sync, auto&&... txnArgs) {
+            auto jt = env.jt(txnArgs...);
+            Serializer s;
+            jt.stx->add(s);
+
+            Json::Value args{Json::objectValue};
+
+            args[jss::tx_blob] = strHex(s.slice());
+            args[jss::fail_hard] = true;
+            args[jss::sync] = RPC::toCString(sync);
+
+            return env.rpc("json", "submit", args.toStyledString());
+        };
+
+        auto jr = applyBlobTxn(RPC::SubmitSync::sync, noop(alice));
+        BEAST_EXPECT(jr[jss::result][jss::engine_result] == "tesSUCCESS");
+
+        jr = applyBlobTxn(RPC::SubmitSync::async, noop(alice));
+        BEAST_EXPECT(jr[jss::result][jss::engine_result] == "terSUBMITTED");
+        // Make sure it gets processed before submitting and waiting.
+        env.app().getOPs().applyBatch(true);
+
+        auto applier = [&env]() {
+            while (!env.app().getOPs().applyBatch())
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        };
+        auto t = std::thread(applier);
+
+        jr = applyBlobTxn(RPC::SubmitSync::wait, noop(alice));
+        BEAST_EXPECT(jr[jss::result][jss::engine_result] == "tesSUCCESS");
+        t.join();
+
+        // sign and submit
+        auto applyJsonTxn = [&env](RPC::SubmitSync sync,
+                std::string const secret, Json::Value&& val) {
+            Json::Value args{Json::objectValue};
+            args[jss::secret] = secret;
+            args[jss::tx_json] = val;
+            args[jss::fail_hard] = true;
+            args[jss::sync] = RPC::toCString(sync);
+
+            return env.rpc("json", "submit", args.toStyledString());
+        };
+
+        Json::Value payment;
+        auto secret = toBase58(generateSeed("alice"));
+        payment = noop("alice");
+        payment[sfSequence.fieldName] = env.seq("alice");
+        payment[sfSetFlag.fieldName] = 0;
+        auto req = payment;
+        jr = applyJsonTxn(RPC::SubmitSync::sync, secret,
+            std::move(req));
+        BEAST_EXPECT(jr[jss::result][jss::engine_result] == "tesSUCCESS");
+
+        payment[sfSequence.fieldName] = env.seq("alice");
+        req = payment;
+        jr = applyJsonTxn(RPC::SubmitSync::async, secret,
+            std::move(req));
+        BEAST_EXPECT(jr[jss::result][jss::engine_result] == "terSUBMITTED");
+
+        env.app().getOPs().applyBatch(true);
+        payment[sfSequence.fieldName] = env.seq("alice");
+        req = payment;
+
+        auto aSeq = env.seq("alice");
+        t = std::thread(applier);
+        jr = applyJsonTxn(RPC::SubmitSync::wait, secret,
+            std::move(req));
+        BEAST_EXPECT(jr[jss::result][jss::engine_result] == "tesSUCCESS");
+        t.join();
+
+        // Ensure the last transaction was processed.
+        BEAST_EXPECT(env.seq("alice") == aSeq + 1);
+    }
+
+    void
     run() override
     {
         testAccount();
@@ -925,6 +1014,7 @@ public:
         testSignAndSubmit();
         testFeatures();
         testExceptionalShutdown();
+        testSyncSubmit();
     }
 };
 
