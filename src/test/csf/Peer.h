@@ -22,6 +22,7 @@
 #include <ripple/beast/utility/WrappedSink.h>
 #include <ripple/consensus/Consensus.h>
 #include <ripple/consensus/Validations.h>
+#include <ripple/core/JobQueue.h>
 #include <ripple/protocol/PublicKey.h>
 #include <boost/container/flat_map.hpp>
 #include <boost/container/flat_set.hpp>
@@ -268,10 +269,11 @@ struct Peer
         BasicNetwork<Peer*>& n,
         TrustGraph<Peer*>& tg,
         CollectorRefs& c,
-        beast::Journal jIn)
+        beast::Journal jIn,
+        JobQueue& jobQueue)
         : sink(jIn, "Peer " + to_string(i) + ": ")
         , j(sink)
-        , consensus(s.clock(), *this, j)
+        , consensus(s.clock(), *this, j, jobQueue)
         , id{i}
         , key{id, 0}
         , oracle{o}

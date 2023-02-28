@@ -66,7 +66,7 @@ RCLConsensus::RCLConsensus(
           inboundTransactions,
           validatorKeys,
           journal)
-    , consensus_(clock, adaptor_, journal)
+    , consensus_(clock, adaptor_, journal, app.getJobQueue())
     , j_(journal)
 {
 }

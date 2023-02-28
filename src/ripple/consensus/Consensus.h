@@ -28,6 +28,7 @@
 #include <ripple/consensus/ConsensusTypes.h>
 #include <ripple/consensus/DisputedTx.h>
 #include <ripple/consensus/LedgerTiming.h>
+#include <ripple/core/JobQueue.h>
 #include <ripple/json/json_writer.h>
 #include <boost/logic/tribool.hpp>
 #include <optional>
@@ -331,7 +332,8 @@ public:
         @param adaptor The instance of the adaptor class
         @param j The journal to log debug output
     */
-    Consensus(clock_type const& clock, Adaptor& adaptor, beast::Journal j);
+    Consensus(clock_type const& clock, Adaptor& adaptor, beast::Journal j,
+        JobQueue& jobQueue);
 
     /** Kick-off the next round of consensus.
 
@@ -514,7 +516,7 @@ private:
 
     // Adjust our positions to try to agree with other validators.
     void
-    updateOurPositions();
+    updateOurPositions(bool const share = true);
 
     bool
     haveConsensus();
@@ -538,6 +540,7 @@ private:
     asCloseTime(NetClock::time_point raw) const;
 
 private:
+    JobQueue& jobQueue_;
     Adaptor& adaptor_;
 
     ConsensusPhase phase_{ConsensusPhase::accepted};
@@ -605,8 +608,10 @@ template <class Adaptor>
 Consensus<Adaptor>::Consensus(
     clock_type const& clock,
     Adaptor& adaptor,
-    beast::Journal journal)
-    : adaptor_(adaptor), clock_(clock), j_{journal}
+    beast::Journal journal,
+    JobQueue& jobQueue)
+    : jobQueue_(jobQueue)
+    , adaptor_(adaptor), clock_(clock), j_{journal}
 {
     JLOG(j_.debug()) << "Creating consensus object";
 }
@@ -1356,7 +1361,7 @@ participantsNeeded(int participants, int percent)
 
 template <class Adaptor>
 void
-Consensus<Adaptor>::updateOurPositions()
+Consensus<Adaptor>::updateOurPositions(bool const share)
 {
     // We must have a position if we are updating it
     assert(result_);
@@ -1520,7 +1525,7 @@ Consensus<Adaptor>::updateOurPositions()
         // if we haven't already received it
         if (acquired_.emplace(newID, result_->txns).second)
         {
-            if (!result_->position.isBowOut())
+            if (share && !result_->position.isBowOut())
                 adaptor_.share(result_->txns);
 
             for (auto const& [nodeId, peerPos] : currPeerPositions_)

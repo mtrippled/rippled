@@ -20,6 +20,8 @@
 #ifndef RIPPLE_TEST_CSF_SIM_H_INCLUDED
 #define RIPPLE_TEST_CSF_SIM_H_INCLUDED
 
+#include <ripple/beast/unit_test.h>
+
 #include <test/csf/BasicNetwork.h>
 #include <test/csf/CollectorRef.h>
 #include <test/csf/Digraph.h>
@@ -28,6 +30,7 @@
 #include <test/csf/Scheduler.h>
 #include <test/csf/SimTime.h>
 #include <test/csf/TrustGraph.h>
+#include <test/jtx/Env.h>
 
 #include <deque>
 #include <iostream>
@@ -76,7 +79,12 @@ public:
     TrustGraph<Peer*> trustGraph;
     CollectorRefs collectors;
 
-    /** Create a simulation
+    struct Null_test : public beast::unit_test::suite
+    {
+        void run() override {}
+    };
+
+        /** Create a simulation
 
         Creates a new simulation. The simulation has no peers, no trust links
         and no network connections.
@@ -100,6 +108,8 @@ public:
     PeerGroup
     createGroup(std::size_t numPeers)
     {
+        Null_test nullTest;
+        test::jtx::Env env(nullTest);
         std::vector<Peer*> newPeers;
         newPeers.reserve(numPeers);
         for (std::size_t i = 0; i < numPeers; ++i)
@@ -111,7 +121,8 @@ public:
                 net,
                 trustGraph,
                 collectors,
-                j);
+                j,
+                env.app().getJobQueue());
             newPeers.emplace_back(&peers.back());
         }
         PeerGroup res{newPeers};
