@@ -31,6 +31,7 @@
 #include <ripple/core/JobQueue.h>
 #include <ripple/json/json_writer.h>
 #include <boost/logic/tribool.hpp>
+#include <mutex>
 #include <optional>
 #include <sstream>
 
@@ -354,7 +355,8 @@ public:
         typename Ledger_t::ID const& prevLedgerID,
         Ledger_t prevLedger,
         hash_set<NodeID_t> const& nowUntrusted,
-        bool proposing);
+        bool proposing,
+        std::unique_lock<std::recursive_mutex>& lock);
 
     /** A peer has proposed a new position, adjust our tracking.
 
@@ -372,7 +374,8 @@ public:
         @param now The network adjusted time
     */
     void
-    timerEntry(NetClock::time_point const& now);
+    timerEntry(NetClock::time_point const& now,
+        std::unique_lock<std::recursive_mutex>& lock);
 
     /** Process a transaction set acquired from the network
 
@@ -438,11 +441,13 @@ private:
         NetClock::time_point const& now,
         typename Ledger_t::ID const& prevLedgerID,
         Ledger_t const& prevLedger,
-        ConsensusMode mode);
+        ConsensusMode mode,
+        std::unique_lock<std::recursive_mutex>& lock);
 
     // Change our view of the previous ledger
     void
-    handleWrongLedger(typename Ledger_t::ID const& lgrId);
+    handleWrongLedger(typename Ledger_t::ID const& lgrId,
+        std::unique_lock<std::recursive_mutex>& lock);
 
     /** Check if our previous ledger matches the network's.
 
@@ -450,7 +455,7 @@ private:
         the network and need to bow out/switch modes.
     */
     void
-    checkLedger();
+    checkLedger(std::unique_lock<std::recursive_mutex>& lock);
 
     /** If we radically changed our consensus context for some reason,
         we need to replay recent proposals so that they're not lost.
@@ -483,7 +488,10 @@ private:
         If we have consensus, move to the accepted phase.
     */
     void
-    phaseEstablish();
+    phaseEstablish(std::unique_lock<std::recursive_mutex>& lock);
+
+    void
+    onAccept(std::unique_lock<std::recursive_mutex>& lock);
 
     /** Evaluate whether pausing increases likelihood of validation.
      *
@@ -623,7 +631,8 @@ Consensus<Adaptor>::startRound(
     typename Ledger_t::ID const& prevLedgerID,
     Ledger_t prevLedger,
     hash_set<NodeID_t> const& nowUntrusted,
-    bool proposing)
+    bool proposing,
+    std::unique_lock<std::recursive_mutex>& lock)
 {
     if (firstRound_)
     {
@@ -660,7 +669,7 @@ Consensus<Adaptor>::startRound(
         }
     }
 
-    startRoundInternal(now, prevLedgerID, prevLedger, startMode);
+    startRoundInternal(now, prevLedgerID, prevLedger, startMode, lock);
 }
 template <class Adaptor>
 void
@@ -668,7 +677,8 @@ Consensus<Adaptor>::startRoundInternal(
     NetClock::time_point const& now,
     typename Ledger_t::ID const& prevLedgerID,
     Ledger_t const& prevLedger,
-    ConsensusMode mode)
+    ConsensusMode mode,
+    std::unique_lock<std::recursive_mutex>& lock)
 {
     phase_ = ConsensusPhase::open;
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::open";
@@ -696,7 +706,7 @@ Consensus<Adaptor>::startRoundInternal(
     {
         // We may be falling behind, don't wait for the timer
         // consider closing the ledger immediately
-        timerEntry(now_);
+        timerEntry(now_, lock);
     }
 }
 
@@ -817,7 +827,8 @@ Consensus<Adaptor>::peerProposalInternal(
 
 template <class Adaptor>
 void
-Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
+Consensus<Adaptor>::timerEntry(NetClock::time_point const& now,
+    std::unique_lock<std::recursive_mutex>& lock)
 {
     // Nothing to do if we are currently working on a ledger
     if (phase_ == ConsensusPhase::accepted)
@@ -826,7 +837,7 @@ Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
     now_ = now;
 
     // Check we are on the proper ledger (this may change phase_)
-    checkLedger();
+    checkLedger(lock);
 
     if (phase_ == ConsensusPhase::open)
     {
@@ -834,7 +845,7 @@ Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
     }
     else if (phase_ == ConsensusPhase::establish)
     {
-        phaseEstablish();
+        phaseEstablish(lock);
     }
 }
 
@@ -1008,7 +1019,8 @@ Consensus<Adaptor>::getJson(bool full) const
 // Handle a change in the prior ledger during a consensus round
 template <class Adaptor>
 void
-Consensus<Adaptor>::handleWrongLedger(typename Ledger_t::ID const& lgrId)
+Consensus<Adaptor>::handleWrongLedger(typename Ledger_t::ID const& lgrId,
+    std::unique_lock<std::recursive_mutex>& lock)
 {
     assert(lgrId != prevLedgerID_ || previousLedger_.id() != lgrId);
 
@@ -1043,7 +1055,7 @@ Consensus<Adaptor>::handleWrongLedger(typename Ledger_t::ID const& lgrId)
     {
         JLOG(j_.info()) << "Have the consensus ledger " << prevLedgerID_;
         startRoundInternal(
-            now_, lgrId, *newLedger, ConsensusMode::switchedLedger);
+            now_, lgrId, *newLedger, ConsensusMode::switchedLedger, lock);
     }
     else
     {
@@ -1053,7 +1065,7 @@ Consensus<Adaptor>::handleWrongLedger(typename Ledger_t::ID const& lgrId)
 
 template <class Adaptor>
 void
-Consensus<Adaptor>::checkLedger()
+Consensus<Adaptor>::checkLedger(std::unique_lock<std::recursive_mutex>& lock)
 {
     auto netLgr =
         adaptor_.getPrevLedger(prevLedgerID_, previousLedger_, mode_.get());
@@ -1068,10 +1080,10 @@ Consensus<Adaptor>::checkLedger()
         JLOG(j_.warn()) << Json::Compact{previousLedger_.getJson()};
         JLOG(j_.debug()) << "State on consensus change "
                          << Json::Compact{getJson(true)};
-        handleWrongLedger(netLgr);
+        handleWrongLedger(netLgr, lock);
     }
     else if (previousLedger_.id() != prevLedgerID_)
-        handleWrongLedger(netLgr);
+        handleWrongLedger(netLgr, lock);
 }
 
 template <class Adaptor>
@@ -1260,7 +1272,8 @@ Consensus<Adaptor>::shouldPause() const
 
 template <class Adaptor>
 void
-Consensus<Adaptor>::phaseEstablish()
+Consensus<Adaptor>::phaseEstablish(
+    std::unique_lock<std::recursive_mutex>& lock)
 {
     // can only establish consensus if we already took a stance
     assert(result_);
@@ -1297,13 +1310,98 @@ Consensus<Adaptor>::phaseEstablish()
     prevRoundTime_ = result_->roundTime.read();
     phase_ = ConsensusPhase::accepted;
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::accepted";
-    adaptor_.onAccept(
-        *result_,
-        previousLedger_,
-        closeResolution_,
-        rawCloseTimes_,
-        mode_.get(),
-        getJson(true));
+    onAccept(lock);
+//    adaptor_.onAccept(
+//        *result_,
+//        previousLedger_,
+//        closeResolution_,
+//        rawCloseTimes_,
+//        mode_.get(),
+//        getJson(true));
+}
+
+template <class Adaptor>
+void
+Consensus<Adaptor>::onAccept(std::unique_lock<std::recursive_mutex>& lock)
+{
+    /*
+    jobQueue_.addJob(
+        jtACCEPT,
+        "acceptLedger",
+        [&, this]() {
+            std::optional<std::pair<CanonicalTXSet, RCLCxLedger>> txsBuilt;
+            std::optional<std::chrono::time_point<std::chrono::steady_clock>> startTime;
+
+            std::unique_lock lock(adaptor_)
+            do
+            {
+                if (txsBuilt)
+                {
+                    // Only send a single validation per round.
+                    adaptor_.validating_ = false;
+                    auto prevProposal = result_->position;
+                    updateOurPositions(false);
+                    if (prevProposal == result_->position)
+                    {
+                        JLOG(j_.debug()) << "phaseEstablish old and new positions "
+                                            "match, pausing "
+                                         << prevProposal.position();
+                        adaptor_.ledgerMaster_.waitForValidated(
+                            std::chrono::milliseconds(100));
+                        continue;
+                    }
+                    JLOG(j_.debug()) << "phaseEstablish retrying doAcceptA with new "
+                                        "position: " << result_->position.position();
+                }
+                lock.unlock();
+                txsBuilt = adaptor_.doAcceptA(
+                    *result_,
+                    previousLedger_,
+                    closeResolution_,
+                    rawCloseTimes_,
+                    mode_.get(),
+                    getJson(true));
+                if (!startTime)
+                    startTime = std::chrono::steady_clock::now();
+                RCLCxLedger& built = txsBuilt->second;
+
+                // criteria for not moving forward yet:
+                // 1) new (built) ledger is not our latest validated ledger, and
+                // 2) our latest validated ledger sequence is <= that of the new ledger.
+                // If they're equal, then get the validated ledger's proposal
+                // and try to re-apply it to the previous ledger.
+                // Otherwise, check for new proposals for the current round to see
+                // if a new consensus txset can be tried. If so, try it.
+                // If not, then pause 100ms or something and check this all again.
+                // Wait up to 5s or something.
+                lock.lock();
+                JLOG(j_.debug()) << "phaseEstablish doAcceptA loop duration so far: "
+                                 << std::chrono::duration_cast<std::chrono::milliseconds>(
+                                     std::chrono::steady_clock::now() - *startTime).count()
+                                 << "ms. built: " << built.id() << ','
+                                 << built.seq()
+                                 << " validated: "
+                                 << adaptor_.ledgerMaster_.getValidatedLedger()->info().hash
+                                 << ','
+                                 << adaptor_.ledgerMaster_.getValidatedLedger()->info().seq;
+            }
+            while (adaptor_.haveValidated() &&
+                   (std::chrono::duration_cast<std::chrono::seconds>(
+                       std::chrono::steady_clock::now() - *startTime).count() < 5) &&
+                   (txsBuilt->second.id() != adaptor_.ledgerMaster_.getValidatedLedger()->info().hash) &&
+                   (txsBuilt->second.seq() >= adaptor_.ledgerMaster_.getValidatedLedger()->info().seq));
+
+            adaptor_.onAccept(
+                *result_,
+                previousLedger_,
+                closeResolution_,
+                rawCloseTimes_,
+                mode_.get(),
+                getJson(true),
+                txsBuilt->first,
+                txsBuilt->second);
+        });
+        */
 }
 
 template <class Adaptor>

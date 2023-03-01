@@ -903,8 +903,8 @@ RCLConsensus::timerEntry(NetClock::time_point const& now)
 {
     try
     {
-        std::lock_guard _{mutex_};
-        consensus_.timerEntry(now);
+        std::unique_lock<std::recursive_mutex>  lock(mutex_);
+        consensus_.timerEntry(now, lock);
     }
     catch (SHAMapMissingNode const& mn)
     {
@@ -1048,12 +1048,13 @@ RCLConsensus::startRound(
     hash_set<NodeID> const& nowUntrusted,
     hash_set<NodeID> const& nowTrusted)
 {
-    std::lock_guard _{mutex_};
+    std::unique_lock<std::recursive_mutex> lock(mutex_);
     consensus_.startRound(
         now,
         prevLgrId,
         prevLgr,
         nowUntrusted,
-        adaptor_.preStartRound(prevLgr, nowTrusted));
+        adaptor_.preStartRound(prevLgr, nowTrusted),
+        lock);
 }
 }  // namespace ripple

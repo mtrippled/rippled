@@ -34,6 +34,7 @@
 #include <test/csf/Validation.h>
 #include <test/csf/events.h>
 #include <test/csf/ledgers.h>
+#include <mutex>
 
 namespace ripple {
 namespace test {
@@ -250,6 +251,8 @@ struct Peer
 
     //! The collectors to report events to
     CollectorRefs& collectors;
+
+    std::recursive_mutex mtx;
 
     /** Constructor
 
@@ -889,7 +892,8 @@ struct Peer
     void
     timerEntry()
     {
-        consensus.timerEntry(now());
+        std::unique_lock<std::recursive_mutex> lock(mtx);
+        consensus.timerEntry(now(), lock);
         // only reschedule if not completed
         if (completedLedgers < targetLedgers)
             scheduler.in(parms().ledgerGRANULARITY, [this]() { timerEntry(); });
@@ -911,8 +915,10 @@ struct Peer
 
         // Not yet modeling dynamic UNL.
         hash_set<PeerID> nowUntrusted;
+        std::unique_lock<std::recursive_mutex> lock(mtx);
         consensus.startRound(
-            now(), bestLCL, lastClosedLedger, nowUntrusted, runAsValidator);
+            now(), bestLCL, lastClosedLedger, nowUntrusted, runAsValidator,
+            lock);
     }
 
     // Start the consensus process assuming it is not yet running
