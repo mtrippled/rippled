@@ -19,14 +19,14 @@
 #ifndef RIPPLE_TEST_CSF_PEER_H_INCLUDED
 #define RIPPLE_TEST_CSF_PEER_H_INCLUDED
 
+#include <ripple/app/main/Application.h>
+#include <ripple/app/misc/CanonicalTXSet.h>
 #include <ripple/beast/utility/WrappedSink.h>
 #include <ripple/consensus/Consensus.h>
 #include <ripple/consensus/Validations.h>
-#include <ripple/core/JobQueue.h>
 #include <ripple/protocol/PublicKey.h>
 #include <boost/container/flat_map.hpp>
 #include <boost/container/flat_set.hpp>
-#include <algorithm>
 #include <test/csf/CollectorRef.h>
 #include <test/csf/Scheduler.h>
 #include <test/csf/TrustGraph.h>
@@ -34,7 +34,12 @@
 #include <test/csf/Validation.h>
 #include <test/csf/events.h>
 #include <test/csf/ledgers.h>
+#include <test/jtx/Env.h>
+#include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <mutex>
+#include <utility>
 
 namespace ripple {
 namespace test {
@@ -155,6 +160,11 @@ struct Peer
         }
     };
 
+    struct Null_test : public beast::unit_test::suite
+    {
+        void run() override {}
+    };
+
     //! Type definitions for generic consensus
     using Ledger_t = Ledger;
     using NodeID_t = PeerID;
@@ -253,6 +263,7 @@ struct Peer
     CollectorRefs& collectors;
 
     std::recursive_mutex mtx;
+    std::atomic<bool> validating_{false};
 
     /** Constructor
 
@@ -273,10 +284,10 @@ struct Peer
         TrustGraph<Peer*>& tg,
         CollectorRefs& c,
         beast::Journal jIn,
-        JobQueue& jobQueue)
+        Application& app)
         : sink(jIn, "Peer " + to_string(i) + ": ")
         , j(sink)
-        , consensus(s.clock(), *this, j, jobQueue)
+        , consensus(s.clock(), *this, j, app)
         , id{i}
         , key{id, 0}
         , oracle{o}
@@ -606,6 +617,18 @@ struct Peer
         });
     }
 
+    std::pair<CanonicalTXSet, Ledger_t>
+    buildAndValidate(
+        Result const& result,
+        Ledger_t const& prevLedger,
+        NetClock::duration closeResolution,
+        ConsensusMode const& mode,
+        Json::Value&& consensusJson)
+    {
+        CanonicalTXSet retriableTXs{uint256(0)};
+        return {retriableTXs, Ledger_t()};
+    }
+
     // Earliest allowed sequence number when checking for ledgers with more
     // validations than our current ledger
     Ledger::Seq
@@ -706,6 +729,19 @@ struct Peer
             fullyValidatedLedger = ledger;
         }
     }
+
+    bool
+    isNotValid(std::chrono::time_point<std::chrono::steady_clock> const& start,
+        Ledger_t const& ledger)
+    {
+        return false;
+    }
+
+    template <class Rep, class Period>
+    void
+    waitForValidated(std::chrono::duration<Rep, Period> const& dur)
+    {}
+
 
     //-------------------------------------------------------------------------
     // Peer messaging members
@@ -892,8 +928,11 @@ struct Peer
     void
     timerEntry()
     {
+        Null_test nullTest;
+        test::jtx::Env env(nullTest);
+
         std::unique_lock<std::recursive_mutex> lock(mtx);
-        consensus.timerEntry(now(), lock);
+        consensus.timerEntry(now(), lock, env.app());
         // only reschedule if not completed
         if (completedLedgers < targetLedgers)
             scheduler.in(parms().ledgerGRANULARITY, [this]() { timerEntry(); });

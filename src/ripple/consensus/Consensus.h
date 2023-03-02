@@ -20,6 +20,10 @@
 #ifndef RIPPLE_CONSENSUS_CONSENSUS_H_INCLUDED
 #define RIPPLE_CONSENSUS_CONSENSUS_H_INCLUDED
 
+#include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/misc/CanonicalTXSet.h>
+#include <ripple/app/misc/NetworkOPs.h>
 #include <ripple/basics/Log.h>
 #include <ripple/basics/chrono.h>
 #include <ripple/beast/utility/Journal.h>
@@ -28,6 +32,7 @@
 #include <ripple/consensus/ConsensusTypes.h>
 #include <ripple/consensus/DisputedTx.h>
 #include <ripple/consensus/LedgerTiming.h>
+#include <ripple/core/Job.h>
 #include <ripple/core/JobQueue.h>
 #include <ripple/json/json_writer.h>
 #include <boost/logic/tribool.hpp>
@@ -334,7 +339,7 @@ public:
         @param j The journal to log debug output
     */
     Consensus(clock_type const& clock, Adaptor& adaptor, beast::Journal j,
-        JobQueue& jobQueue);
+        Application& app);
 
     /** Kick-off the next round of consensus.
 
@@ -375,7 +380,8 @@ public:
     */
     void
     timerEntry(NetClock::time_point const& now,
-        std::unique_lock<std::recursive_mutex>& lock);
+        std::unique_lock<std::recursive_mutex>& lock,
+        Application& app);
 
     /** Process a transaction set acquired from the network
 
@@ -488,10 +494,12 @@ private:
         If we have consensus, move to the accepted phase.
     */
     void
-    phaseEstablish(std::unique_lock<std::recursive_mutex>& lock);
+    phaseEstablish(std::unique_lock<std::recursive_mutex>& lock,
+        Application& app);
 
     void
-    onAccept(std::unique_lock<std::recursive_mutex>& lock);
+    onAccept(std::unique_lock<std::recursive_mutex>& lock,
+        Application& app, Json::Value&& consensusJson);
 
     /** Evaluate whether pausing increases likelihood of validation.
      *
@@ -548,7 +556,7 @@ private:
     asCloseTime(NetClock::time_point raw) const;
 
 private:
-    JobQueue& jobQueue_;
+    Application& app_;
     Adaptor& adaptor_;
 
     ConsensusPhase phase_{ConsensusPhase::accepted};
@@ -617,8 +625,8 @@ Consensus<Adaptor>::Consensus(
     clock_type const& clock,
     Adaptor& adaptor,
     beast::Journal journal,
-    JobQueue& jobQueue)
-    : jobQueue_(jobQueue)
+    Application& app)
+    : app_(app)
     , adaptor_(adaptor), clock_(clock), j_{journal}
 {
     JLOG(j_.debug()) << "Creating consensus object";
@@ -706,7 +714,7 @@ Consensus<Adaptor>::startRoundInternal(
     {
         // We may be falling behind, don't wait for the timer
         // consider closing the ledger immediately
-        timerEntry(now_, lock);
+        timerEntry(now_, lock, app_);
     }
 }
 
@@ -828,7 +836,8 @@ Consensus<Adaptor>::peerProposalInternal(
 template <class Adaptor>
 void
 Consensus<Adaptor>::timerEntry(NetClock::time_point const& now,
-    std::unique_lock<std::recursive_mutex>& lock)
+    std::unique_lock<std::recursive_mutex>& lock,
+    Application& app)
 {
     // Nothing to do if we are currently working on a ledger
     if (phase_ == ConsensusPhase::accepted)
@@ -845,7 +854,7 @@ Consensus<Adaptor>::timerEntry(NetClock::time_point const& now,
     }
     else if (phase_ == ConsensusPhase::establish)
     {
-        phaseEstablish(lock);
+        phaseEstablish(lock, app);
     }
 }
 
@@ -1273,7 +1282,8 @@ Consensus<Adaptor>::shouldPause() const
 template <class Adaptor>
 void
 Consensus<Adaptor>::phaseEstablish(
-    std::unique_lock<std::recursive_mutex>& lock)
+    std::unique_lock<std::recursive_mutex>& lock,
+    Application& app)
 {
     // can only establish consensus if we already took a stance
     assert(result_);
@@ -1310,29 +1320,32 @@ Consensus<Adaptor>::phaseEstablish(
     prevRoundTime_ = result_->roundTime.read();
     phase_ = ConsensusPhase::accepted;
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::accepted";
-    onAccept(lock);
-//    adaptor_.onAccept(
-//        *result_,
-//        previousLedger_,
-//        closeResolution_,
-//        rawCloseTimes_,
-//        mode_.get(),
-//        getJson(true));
+//    onAccept(lock, app, getJson(true));
+    adaptor_.onAccept(
+        *result_,
+        previousLedger_,
+        closeResolution_,
+        rawCloseTimes_,
+        mode_.get(),
+        getJson(true));
 }
 
 template <class Adaptor>
 void
-Consensus<Adaptor>::onAccept(std::unique_lock<std::recursive_mutex>& lock)
+Consensus<Adaptor>::onAccept(std::unique_lock<std::recursive_mutex>& lock,
+    Application& app, Json::Value&& consensusJson)
 {
-    /*
-    jobQueue_.addJob(
+    constexpr std::chrono::milliseconds validationWait(100);
+    lock.unlock();
+
+    app.getJobQueue().addJob(
         jtACCEPT,
         "acceptLedger",
         [&, this]() {
-            std::optional<std::pair<CanonicalTXSet, RCLCxLedger>> txsBuilt;
+            std::optional<std::pair<CanonicalTXSet, Ledger_t>> txsBuilt;
             std::optional<std::chrono::time_point<std::chrono::steady_clock>> startTime;
 
-            std::unique_lock lock(adaptor_)
+            lock.lock();
             do
             {
                 if (txsBuilt)
@@ -1346,24 +1359,29 @@ Consensus<Adaptor>::onAccept(std::unique_lock<std::recursive_mutex>& lock)
                         JLOG(j_.debug()) << "phaseEstablish old and new positions "
                                             "match, pausing "
                                          << prevProposal.position();
-                        adaptor_.ledgerMaster_.waitForValidated(
-                            std::chrono::milliseconds(100));
+                        adaptor_.waitForValidated(validationWait);
                         continue;
                     }
                     JLOG(j_.debug()) << "phaseEstablish retrying doAcceptA with new "
                                         "position: " << result_->position.position();
                 }
                 lock.unlock();
-                txsBuilt = adaptor_.doAcceptA(
+                txsBuilt = adaptor_.buildAndValidate(
                     *result_,
                     previousLedger_,
                     closeResolution_,
-                    rawCloseTimes_,
                     mode_.get(),
-                    getJson(true));
+                    std::move(consensusJson));
+//                txsBuilt = adaptor_.doAcceptA(
+//                    *result_,
+//                    previousLedger_,
+//                    closeResolution_,
+//                    rawCloseTimes_,
+//                    mode_.get(),
+//                    getJson(true));
                 if (!startTime)
                     startTime = std::chrono::steady_clock::now();
-                RCLCxLedger& built = txsBuilt->second;
+                Ledger_t& built = txsBuilt->second;
 
                 // criteria for not moving forward yet:
                 // 1) new (built) ledger is not our latest validated ledger, and
@@ -1381,27 +1399,33 @@ Consensus<Adaptor>::onAccept(std::unique_lock<std::recursive_mutex>& lock)
                                  << "ms. built: " << built.id() << ','
                                  << built.seq()
                                  << " validated: "
-                                 << adaptor_.ledgerMaster_.getValidatedLedger()->info().hash
+                                 << app_.getLedgerMaster().getValidatedLedger()->info().hash
                                  << ','
-                                 << adaptor_.ledgerMaster_.getValidatedLedger()->info().seq;
+                                 << app_.getLedgerMaster().getValidatedLedger()->info().seq;
             }
-            while (adaptor_.haveValidated() &&
-                   (std::chrono::duration_cast<std::chrono::seconds>(
-                       std::chrono::steady_clock::now() - *startTime).count() < 5) &&
-                   (txsBuilt->second.id() != adaptor_.ledgerMaster_.getValidatedLedger()->info().hash) &&
-                   (txsBuilt->second.seq() >= adaptor_.ledgerMaster_.getValidatedLedger()->info().seq));
+            while (adaptor_.isNotValid(*startTime, txsBuilt->second));
+            lock.unlock();
 
-            adaptor_.onAccept(
-                *result_,
-                previousLedger_,
-                closeResolution_,
-                rawCloseTimes_,
-                mode_.get(),
-                getJson(true),
-                txsBuilt->first,
-                txsBuilt->second);
+//            adaptor_.onAccept(
+//                *result_,
+//                previousLedger_,
+//                closeResolution_,
+//                rawCloseTimes_,
+//                mode_.get(),
+//                getJson(true),
+//                txsBuilt->first,
+//                txsBuilt->second);
+
+            app.getOPs().endConsensus();
         });
-        */
+
+//    adaptor_.onAccept(
+//        *result_,
+//        previousLedger_,
+//        closeResolution_,
+//        rawCloseTimes_,
+//        mode_.get(),
+//        getJson(true));
 }
 
 template <class Adaptor>

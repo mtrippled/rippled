@@ -21,7 +21,6 @@
 #define RIPPLE_TEST_CSF_SIM_H_INCLUDED
 
 #include <ripple/beast/unit_test.h>
-
 #include <test/csf/BasicNetwork.h>
 #include <test/csf/CollectorRef.h>
 #include <test/csf/Digraph.h>
@@ -35,6 +34,7 @@
 #include <deque>
 #include <iostream>
 #include <random>
+#include <utility>
 
 namespace ripple {
 namespace test {
@@ -122,7 +122,7 @@ public:
                 trustGraph,
                 collectors,
                 j,
-                env.app().getJobQueue());
+                env.app());
             newPeers.emplace_back(&peers.back());
         }
         PeerGroup res{newPeers};

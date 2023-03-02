@@ -1054,7 +1054,7 @@ NetworkOPsImp::processHeartbeatTimer()
             setMode(OperatingMode::CONNECTED);
     }
 
-    mConsensus.timerEntry(app_.timeKeeper().closeTime());
+    mConsensus.timerEntry(app_.timeKeeper().closeTime(), app_);
 
     const ConsensusPhase currPhase = mConsensus.phase();
     if (mLastConsensusPhase != currPhase)

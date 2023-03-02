@@ -36,6 +36,7 @@
 #include <ripple/protocol/STValidation.h>
 #include <ripple/shamap/SHAMap.h>
 #include <atomic>
+#include <chrono>
 #include <mutex>
 #include <set>
 namespace ripple {
@@ -93,6 +94,7 @@ class RCLConsensus
         using NodeKey_t = PublicKey;
         using TxSet_t = RCLTxSet;
         using PeerPosition_t = RCLCxPeerPos;
+        using CanoniclTXSet_t = CanonicalTXSet;
 
         using Result = ConsensusResult<Adaptor>;
 
@@ -326,6 +328,14 @@ class RCLConsensus
             ConsensusMode const& mode,
             Json::Value&& consensusJson);
 
+        std::pair<CanonicalTXSet, RCLCxLedger>
+        buildAndValidate(
+            Result const& result,
+            RCLCxLedger const& prevLedger,
+            NetClock::duration closeResolution,
+            ConsensusMode const& mode,
+            Json::Value&& consensusJson);
+
         /** Process the accepted ledger that was a result of simulation/force
             accept.
 
@@ -411,6 +421,18 @@ class RCLConsensus
             RCLCxLedger const& ledger,
             RCLTxSet const& txns,
             bool proposing);
+
+        bool
+        isNotValid(
+            std::chrono::time_point<std::chrono::steady_clock> const& start,
+            Ledger_t const& ledger);
+
+        template <class Rep, class Period>
+        void
+        waitForValidated(std::chrono::duration<Rep, Period> const& dur)
+        {
+            app_.getLedgerMaster().waitForValidated(dur);
+        }
     };
 
 public:
@@ -488,7 +510,8 @@ public:
 
     //! @see Consensus::timerEntry
     void
-    timerEntry(NetClock::time_point const& now);
+    timerEntry(NetClock::time_point const& now,
+        Application& app);
 
     //! @see Consensus::gotTxSet
     void
