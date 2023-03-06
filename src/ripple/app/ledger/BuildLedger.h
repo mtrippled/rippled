@@ -21,6 +21,7 @@
 #define RIPPLE_APP_LEDGER_BUILD_LEDGER_H_INCLUDED
 
 #include <ripple/basics/chrono.h>
+#include <ripple/basics/PerfLog.h>
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/ledger/ApplyView.h>
 #include <chrono>
