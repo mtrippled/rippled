@@ -483,6 +483,9 @@ private:
     void
     phaseEstablish();
 
+    void
+    onAccept();
+
     /** Evaluate whether pausing increases likelihood of validation.
      *
      *  As a validator that has previously synced to the network, if our most
@@ -514,7 +517,7 @@ private:
 
     // Adjust our positions to try to agree with other validators.
     void
-    updateOurPositions();
+    updateOurPositions(bool const share);
 
     bool
     haveConsensus();
@@ -1273,7 +1276,7 @@ Consensus<Adaptor>::phaseEstablish()
     if (result_->roundTime.read() < parms.ledgerMIN_CONSENSUS)
         return;
 
-    updateOurPositions();
+    updateOurPositions(true);
 
     // Nothing to do if too many laggards or we don't have consensus.
     if (shouldPause() || !haveConsensus())
@@ -1292,13 +1295,81 @@ Consensus<Adaptor>::phaseEstablish()
     prevRoundTime_ = result_->roundTime.read();
     phase_ = ConsensusPhase::accepted;
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::accepted";
-    adaptor_.onAccept(
+    onAccept();
+//    adaptor_.onAccept(
+//        *result_,
+//        previousLedger_,
+//        closeResolution_,
+//        rawCloseTimes_,
+//        mode_.get(),
+//        getJson(true));
+}
+
+template <class Adaptor>
+void
+Consensus<Adaptor>::onAccept()
+{
+    std::optional<std::pair<typename Adaptor::CanonicalTxSet_t,
+        typename Adaptor::Ledger_t>> txsBuilt;
+    std::optional<std::chrono::time_point<std::chrono::steady_clock>> startTime;
+
+    std::unique_lock<std::recursive_mutex> lock(adaptor_.peekMutex());
+    do
+    {
+        if (txsBuilt)
+        {
+            if (!startTime)
+                startTime = std::chrono::steady_clock::now();
+
+            // Only send a single validation per round.
+            adaptor_.clearValidating();
+            auto prevProposal = result_->position;
+            updateOurPositions(false);
+
+            if (prevProposal == result_->position)
+            {
+                JLOG(j_.debug()) << "phaseEstablish old and new positions "
+                                    "match, pausing "
+                                 << prevProposal.position();
+                adaptor_.getLedgerMaster().waitForValidated(
+                    std::chrono::milliseconds(100));
+                continue;
+            }
+            JLOG(j_.debug()) << "phaseEstablish retrying buildAndValidate with "
+                "new position: " << result_->position.position();
+        }
+
+        lock.unlock();
+
+        txsBuilt = adaptor_.buildAndValidate(
+            *result_,
+            previousLedger_,
+            closeResolution_,
+            mode_.get(),
+            getJson(true));
+
+        lock.lock();
+    }
+    while (adaptor_.retryAccept(txsBuilt->second, startTime));
+
+    lock.unlock();
+    adaptor_.prepareOpenLedger(std::move(*txsBuilt),
         *result_,
+        rawCloseTimes_,
+        mode_.get());
+    adaptor_.endConsensus();
+
+    /*
+    auto txsBuilt = adaptor_.buildAndValidate(*result_,
         previousLedger_,
         closeResolution_,
-        rawCloseTimes_,
         mode_.get(),
         getJson(true));
+    adaptor_.prepareOpenLedger(std::move(txsBuilt),
+        *result_,
+        rawCloseTimes_,
+        mode_.get());
+        */
 }
 
 template <class Adaptor>
@@ -1356,7 +1427,7 @@ participantsNeeded(int participants, int percent)
 
 template <class Adaptor>
 void
-Consensus<Adaptor>::updateOurPositions()
+Consensus<Adaptor>::updateOurPositions(bool const share)
 {
     // We must have a position if we are updating it
     assert(result_);
@@ -1517,8 +1588,10 @@ Consensus<Adaptor>::updateOurPositions()
         result_->position.changePosition(newID, consensusCloseTime, now_);
 
         // Share our new transaction set and update disputes
-        // if we haven't already received it
-        if (acquired_.emplace(newID, result_->txns).second)
+        // if we haven't already received it. Unless we have already
+        // accepted a position, but are recalculating because it didn't
+        // validate.
+        if (share && acquired_.emplace(newID, result_->txns).second)
         {
             if (!result_->position.isBowOut())
                 adaptor_.share(result_->txns);
@@ -1531,8 +1604,10 @@ Consensus<Adaptor>::updateOurPositions()
             }
         }
 
-        // Share our new position if we are still participating this round
-        if (!result_->position.isBowOut() &&
+        // Share our new position if we are still participating this round,
+        // unless we have already accepted a position but are recalculating
+        // because it didn't validate.
+        if (share && !result_->position.isBowOut() &&
             (mode_.get() == ConsensusMode::proposing))
             adaptor_.propose(result_->position);
     }

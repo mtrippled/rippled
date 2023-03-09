@@ -399,6 +399,17 @@ RCLConsensus::Adaptor::onForceAccept(
     ConsensusMode const& mode,
     Json::Value&& consensusJson)
 {
+    auto txsBuilt = buildAndValidate(result,
+        prevLedger,
+        closeResolution,
+        mode,
+        std::move(consensusJson));
+    prepareOpenLedger(std::move(txsBuilt),
+        result,
+        rawCloseTimes,
+        mode);
+
+    /*
     doAccept(
         result,
         prevLedger,
@@ -406,8 +417,10 @@ RCLConsensus::Adaptor::onForceAccept(
         rawCloseTimes,
         mode,
         std::move(consensusJson));
+        */
 }
 
+/*
 void
 RCLConsensus::Adaptor::onAccept(
     Result const& result,
@@ -436,7 +449,288 @@ RCLConsensus::Adaptor::onAccept(
             this->app_.getOPs().endConsensus();
         });
 }
+ */
 
+std::pair<RCLConsensus::Adaptor::CanonicalTxSet_t,
+        RCLConsensus::Adaptor::Ledger_t>
+RCLConsensus::Adaptor::buildAndValidate(
+    Result const& result,
+    Ledger_t const& prevLedger,
+    NetClock::duration const& closeResolution,
+    ConsensusMode const& mode,
+    Json::Value&& consensusJson)
+{
+    prevProposers_ = result.proposers;
+    prevRoundTime_ = result.roundTime.read();
+
+    bool closeTimeCorrect;
+
+    const bool proposing = mode == ConsensusMode::proposing;
+    const bool haveCorrectLCL = mode != ConsensusMode::wrongLedger;
+    const bool consensusFail = result.state == ConsensusState::MovedOn;
+
+    auto consensusCloseTime = result.position.closeTime();
+
+    if (consensusCloseTime == NetClock::time_point{})
+    {
+        // We agreed to disagree on the close time
+        using namespace std::chrono_literals;
+        consensusCloseTime = prevLedger.closeTime() + 1s;
+        closeTimeCorrect = false;
+    }
+    else
+    {
+        // We agreed on a close time
+        consensusCloseTime = effCloseTime(
+            consensusCloseTime, closeResolution, prevLedger.closeTime());
+        closeTimeCorrect = true;
+    }
+
+    JLOG(j_.debug()) << "Report: Prop=" << (proposing ? "yes" : "no")
+                     << " val=" << (validating_ ? "yes" : "no")
+                     << " corLCL=" << (haveCorrectLCL ? "yes" : "no")
+                     << " fail=" << (consensusFail ? "yes" : "no");
+    JLOG(j_.debug()) << "Report: Prev = " << prevLedger.id() << ":"
+                     << prevLedger.seq();
+
+    //--------------------------------------------------------------------------
+    std::set<TxID> failed;
+
+    // We want to put transactions in an unpredictable but deterministic order:
+    // we use the hash of the set.
+    //
+    // FIXME: Use a std::vector and a custom sorter instead of CanonicalTXSet?
+    CanonicalTXSet retriableTxs{result.txns.map_->getHash().as_uint256()};
+
+    JLOG(j_.debug()) << "Building canonical tx set: " << retriableTxs.key();
+
+    for (auto const& item : *result.txns.map_)
+    {
+        try
+        {
+            retriableTxs.insert(
+                std::make_shared<STTx const>(SerialIter{item.slice()}));
+            JLOG(j_.debug()) << "    Tx: " << item.key();
+        }
+        catch (std::exception const&)
+        {
+            failed.insert(item.key());
+            JLOG(j_.warn()) << "    Tx: " << item.key() << " throws!";
+        }
+    }
+
+    auto built = buildLCL(
+        prevLedger,
+        retriableTxs,
+        consensusCloseTime,
+        closeTimeCorrect,
+        closeResolution,
+        result.roundTime.read(),
+        failed);
+
+    auto const newLCLHash = built.id();
+    JLOG(j_.debug()) << "Built ledger #" << built.seq() << ": " << newLCLHash;
+
+    // Tell directly connected peers that we have a new LCL
+    notify(protocol::neACCEPTED_LEDGER, built, haveCorrectLCL);
+
+    // As long as we're in sync with the network, attempt to detect attempts
+    // at censorship of transaction by tracking which ones don't make it in
+    // after a period of time.
+    if (haveCorrectLCL && result.state == ConsensusState::Yes)
+    {
+        std::vector<TxID> accepted;
+
+        result.txns.map_->visitLeaves(
+            [&accepted](std::shared_ptr<SHAMapItem const> const& item) {
+                accepted.push_back(item->key());
+            });
+
+        // Track all the transactions which failed or were marked as retriable
+        for (auto const& r : retriableTxs)
+            failed.insert(r.first.getTXID());
+
+        censorshipDetector_.check(
+            std::move(accepted),
+            [curr = built.seq(),
+                j = app_.journal("CensorshipDetector"),
+                &failed](uint256 const& id, LedgerIndex seq) {
+                if (failed.count(id))
+                    return true;
+
+                auto const wait = curr - seq;
+
+                if (wait && (wait % censorshipWarnInternal == 0))
+                {
+                    std::ostringstream ss;
+                    ss << "Potential Censorship: Eligible tx " << id
+                       << ", which we are tracking since ledger " << seq
+                       << " has not been included as of ledger " << curr << ".";
+
+                    JLOG(j.warn()) << ss.str();
+                }
+
+                return false;
+            });
+    }
+
+    if (validating_)
+        validating_ = ledgerMaster_.isCompatible(
+            *built.ledger_, j_.warn(), "Not validating");
+
+    if (validating_ && !consensusFail &&
+        app_.getValidations().canValidateSeq(built.seq()))
+    {
+        validate(built, result.txns, proposing);
+        JLOG(j_.info()) << "CNF Val " << newLCLHash;
+    }
+    else
+    JLOG(j_.info()) << "CNF buildLCL " << newLCLHash;
+
+    // See if we can accept a ledger as fully-validated
+    ledgerMaster_.consensusBuilt(
+        built.ledger_, result.txns.id(), std::move(consensusJson));
+
+    return {retriableTxs, built};
+}
+
+void
+RCLConsensus::Adaptor::prepareOpenLedger(
+    std::pair<CanonicalTxSet_t, Ledger_t>&& txsBuilt,
+    Result const& result,
+    ConsensusCloseTimes const& rawCloseTimes,
+    ConsensusMode const& mode)
+{
+    auto& retriableTxs = txsBuilt.first;
+    auto const& built = txsBuilt.second;
+
+    //-------------------------------------------------------------------------
+    {
+        // Apply disputed transactions that didn't get in
+        //
+        // The first crack of transactions to get into the new
+        // open ledger goes to transactions proposed by a validator
+        // we trust but not included in the consensus set.
+        //
+        // These are done first because they are the most likely
+        // to receive agreement during consensus. They are also
+        // ordered logically "sooner" than transactions not mentioned
+        // in the previous consensus round.
+        //
+        bool anyDisputes = false;
+        for (auto const& [_, dispute] : result.disputes)
+        {
+            (void)_;
+            if (!dispute.getOurVote())
+            {
+                // we voted NO
+                try
+                {
+                    JLOG(j_.debug())
+                        << "Test applying disputed transaction that did"
+                        << " not get in " << dispute.tx().id();
+
+                    SerialIter sit(dispute.tx().tx_.slice());
+                    auto txn = std::make_shared<STTx const>(sit);
+
+                    // Disputed pseudo-transactions that were not accepted
+                    // can't be successfully applied in the next ledger
+                    if (isPseudoTx(*txn))
+                        continue;
+
+                    retriableTxs.insert(txn);
+
+                    anyDisputes = true;
+                }
+                catch (std::exception const&)
+                {
+                    JLOG(j_.debug())
+                        << "Failed to apply transaction we voted NO on";
+                }
+            }
+        }
+
+        // Build new open ledger
+        std::unique_lock lock{app_.getMasterMutex(), std::defer_lock};
+        std::unique_lock sl{ledgerMaster_.peekMutex(), std::defer_lock};
+        std::lock(lock, sl);
+
+        auto const lastVal = ledgerMaster_.getValidatedLedger();
+        std::optional<Rules> rules;
+        if (lastVal)
+            rules = makeRulesGivenLedger(*lastVal, app_.config().features);
+        else
+            rules.emplace(app_.config().features);
+        app_.openLedger().accept(
+            app_,
+            *rules,
+            built.ledger_,
+            localTxs_.getTxSet(),
+            anyDisputes,
+            retriableTxs,
+            tapNONE,
+            "consensus",
+            [&](OpenView& view, beast::Journal j) {
+                // Stuff the ledger with transactions from the queue.
+                return app_.getTxQ().accept(app_, view);
+            });
+
+        // Signal a potential fee change to subscribers after the open ledger
+        // is created
+        app_.getOPs().reportFeeChange();
+    }
+
+    //-------------------------------------------------------------------------
+    {
+        ledgerMaster_.switchLCL(built.ledger_);
+
+        // Do these need to exist?
+        assert(ledgerMaster_.getClosedLedger()->info().hash == built.id());
+        assert(app_.openLedger().current()->info().parentHash == built.id());
+    }
+
+    //-------------------------------------------------------------------------
+    // we entered the round with the network,
+    // see how close our close time is to other node's
+    //  close time reports, and update our clock.
+    if ((mode == ConsensusMode::proposing ||
+         mode == ConsensusMode::observing) &&
+        result.state != ConsensusState::MovedOn)
+    {
+        auto closeTime = rawCloseTimes.self;
+
+        JLOG(j_.info()) << "We closed at "
+                        << closeTime.time_since_epoch().count();
+        using usec64_t = std::chrono::duration<std::uint64_t>;
+        usec64_t closeTotal =
+            std::chrono::duration_cast<usec64_t>(closeTime.time_since_epoch());
+        int closeCount = 1;
+
+        for (auto const& [t, v] : rawCloseTimes.peers)
+        {
+            JLOG(j_.info()) << std::to_string(v) << " time votes for "
+                            << std::to_string(t.time_since_epoch().count());
+            closeCount += v;
+            closeTotal +=
+                std::chrono::duration_cast<usec64_t>(t.time_since_epoch()) * v;
+        }
+
+        closeTotal += usec64_t(closeCount / 2);  // for round to nearest
+        closeTotal /= closeCount;
+
+        // Use signed times since we are subtracting
+        using duration = std::chrono::duration<std::int32_t>;
+        using time_point = std::chrono::time_point<NetClock, duration>;
+        auto offset = time_point{closeTotal} -
+                      std::chrono::time_point_cast<duration>(closeTime);
+        JLOG(j_.info()) << "Our close offset is estimated at " << offset.count()
+                        << " (" << closeCount << ")";
+
+        app_.timeKeeper().adjustCloseTime(offset);
+    }
+}
+
+/*
 void
 RCLConsensus::Adaptor::doAccept(
     Result const& result,
@@ -702,6 +996,7 @@ RCLConsensus::Adaptor::doAccept(
         app_.timeKeeper().adjustCloseTime(offset);
     }
 }
+ */
 
 void
 RCLConsensus::Adaptor::notify(
@@ -886,12 +1181,30 @@ RCLConsensus::Adaptor::onModeChange(ConsensusMode before, ConsensusMode after)
     mode_ = after;
 }
 
+bool
+RCLConsensus::Adaptor::retryAccept(Ledger_t const& newLedger,
+    std::optional<std::chrono::time_point<std::chrono::steady_clock>>& start) const
+{
+    static bool const standalone = ledgerMaster_.standalone();
+    auto const& validLedger = ledgerMaster_.getValidatedLedger();
+
+    return (!standalone &&
+            (validLedger &&
+             (newLedger.id() != validLedger->info().hash) &&
+             (newLedger.seq() >= validLedger->info().seq))) &&
+           (!start ||
+            std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::steady_clock::now() - *start).count() < 5);
+}
+
+//-----------------------------------------------------------------------------
+
 Json::Value
 RCLConsensus::getJson(bool full) const
 {
     Json::Value ret;
     {
-        std::lock_guard _{mutex_};
+        std::lock_guard _{adaptor_.peekMutex()};
         ret = consensus_.getJson(full);
     }
     ret["validating"] = adaptor_.validating();
@@ -903,7 +1216,7 @@ RCLConsensus::timerEntry(NetClock::time_point const& now)
 {
     try
     {
-        std::lock_guard _{mutex_};
+        std::lock_guard _{adaptor_.peekMutex()};
         consensus_.timerEntry(now);
     }
     catch (SHAMapMissingNode const& mn)
@@ -919,7 +1232,7 @@ RCLConsensus::gotTxSet(NetClock::time_point const& now, RCLTxSet const& txSet)
 {
     try
     {
-        std::lock_guard _{mutex_};
+        std::lock_guard _{adaptor_.peekMutex()};
         consensus_.gotTxSet(now, txSet);
     }
     catch (SHAMapMissingNode const& mn)
@@ -937,7 +1250,7 @@ RCLConsensus::simulate(
     NetClock::time_point const& now,
     std::optional<std::chrono::milliseconds> consensusDelay)
 {
-    std::lock_guard _{mutex_};
+    std::lock_guard _{adaptor_.peekMutex()};
     consensus_.simulate(now, consensusDelay);
 }
 
@@ -946,7 +1259,7 @@ RCLConsensus::peerProposal(
     NetClock::time_point const& now,
     RCLCxPeerPos const& newProposal)
 {
-    std::lock_guard _{mutex_};
+    std::lock_guard _{adaptor_.peekMutex()};
     return consensus_.peerProposal(now, newProposal);
 }
 
@@ -1048,7 +1361,7 @@ RCLConsensus::startRound(
     hash_set<NodeID> const& nowUntrusted,
     hash_set<NodeID> const& nowTrusted)
 {
-    std::lock_guard _{mutex_};
+    std::lock_guard _{adaptor_.peekMutex()};
     consensus_.startRound(
         now,
         prevLgrId,
