@@ -1537,8 +1537,26 @@ Consensus<Adaptor>::updateOurPositions(bool const share)
                         << " nw:" << neededWeight << " thrV:" << threshVote
                         << " thrC:" << threshConsensus;
 
-        for (auto const& [t, v] : closeTimeVotes)
+        // An impasse is possible unless a validator pretends to change
+        // its close time vote. Imagine 5 validators. 3 have positions
+        // for close time t1, and 2 with t2. That's an impasse because
+        // 75% will never be met. However, if one of the validators voting
+        // for t2 switches to t1, then that will be 80% and sufficient
+        // to break the impasse. It's also OK for those agreeing
+        // with the 3 to pretend to vote for the one with 2, because
+        // that will never exceed the threshold of 75%, even with as
+        // few as 3 validators. The most it can achieve is 2/3.
+        for (auto& [t, v] : closeTimeVotes)
         {
+            if (adaptor_.validating() && t != asCloseTime(
+                result_->position.closeTime()))
+            {
+                JLOG(j_.debug()) << "Others have voted for a close time "
+                                    "different than ours. Adding our vote "
+                                    "to this one in case it is necessary "
+                                    "to break an impasse.";
+                ++v;
+            }
             JLOG(j_.debug())
                 << "CCTime: seq "
                 << static_cast<std::uint32_t>(previousLedger_.seq()) + 1 << ": "
@@ -1552,7 +1570,12 @@ Consensus<Adaptor>::updateOurPositions(bool const share)
                 threshVote = v;
 
                 if (threshVote >= threshConsensus)
+                {
                     haveCloseTimeConsensus_ = true;
+                    // Make sure that the winning close time is the one
+                    // that propagates to the rest of the function.
+                    break;
+                }
             }
         }
 

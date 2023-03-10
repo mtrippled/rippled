@@ -1112,6 +1112,13 @@ struct Peer
     void
     endConsensus() const
     {}
+
+    bool
+    validating() const
+    {
+        return false;
+    }
+
 };
 
 }  // namespace csf
