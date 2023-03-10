@@ -62,6 +62,7 @@ shouldCloseLedger(
     std::chrono::milliseconds prevRoundTime,
     std::chrono::milliseconds timeSincePrevClose,
     std::chrono::milliseconds openTime,
+    std::optional<std::chrono::milliseconds> validationDelay,
     std::chrono::milliseconds idleInterval,
     ConsensusParms const& parms,
     beast::Journal j);
@@ -1134,6 +1135,7 @@ Consensus<Adaptor>::phaseOpen()
             prevRoundTime_,
             sinceClose,
             openTime_.read(),
+            adaptor_.validationDelay(),
             idleInterval,
             adaptor_.parms(),
             j_))
@@ -1311,15 +1313,15 @@ Consensus<Adaptor>::onAccept()
 {
     std::optional<std::pair<typename Adaptor::CanonicalTxSet_t,
         typename Adaptor::Ledger_t>> txsBuilt;
-    std::optional<std::chrono::time_point<std::chrono::steady_clock>> startTime;
+    std::optional<std::chrono::time_point<std::chrono::steady_clock>> startDelay;
 
     std::unique_lock<std::recursive_mutex> lock(adaptor_.peekMutex());
     do
     {
         if (txsBuilt)
         {
-            if (!startTime)
-                startTime = std::chrono::steady_clock::now();
+            if (!startDelay)
+                startDelay = std::chrono::steady_clock::now();
 
             // Only send a single validation per round.
             adaptor_.clearValidating();
@@ -1338,7 +1340,6 @@ Consensus<Adaptor>::onAccept()
             JLOG(j_.debug()) << "phaseEstablish retrying buildAndValidate with "
                 "new position: " << result_->position.position();
         }
-
         lock.unlock();
 
         txsBuilt = adaptor_.buildAndValidate(
@@ -1350,9 +1351,16 @@ Consensus<Adaptor>::onAccept()
 
         lock.lock();
     }
-    while (adaptor_.retryAccept(txsBuilt->second, startTime));
+    while (adaptor_.retryAccept(txsBuilt->second, startDelay));
 
     lock.unlock();
+
+    if (startDelay)
+    {
+        adaptor_.setValidationDelay(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - *startDelay));
+    }
     adaptor_.prepareOpenLedger(std::move(*txsBuilt),
         *result_,
         rawCloseTimes_,
@@ -1382,6 +1390,8 @@ Consensus<Adaptor>::closeLedger()
     phase_ = ConsensusPhase::establish;
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::establish";
     rawCloseTimes_.self = now_;
+
+    adaptor_.setValidationDelay(std::nullopt);
 
     result_.emplace(adaptor_.onClose(previousLedger_, now_, mode_.get()));
     result_->roundTime.reset(clock_.now());

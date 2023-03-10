@@ -32,6 +32,7 @@ shouldCloseLedger(
     std::chrono::milliseconds
         timeSincePrevClose,              // Time since last ledger's close time
     std::chrono::milliseconds openTime,  // Time waiting to close this ledger
+    std::optional<std::chrono::milliseconds> validationDelay,
     std::chrono::milliseconds idleInterval,
     ConsensusParms const& parms,
     beast::Journal j)
@@ -60,6 +61,13 @@ shouldCloseLedger(
     {
         // Only close at the end of the idle interval
         return timeSincePrevClose >= idleInterval;  // normal idle
+    }
+
+    if (validationDelay)
+    {
+        openTime += *validationDelay;
+        JLOG(j.debug()) << "shouldCloseLedger previous round validation delay "
+                           "of " << validationDelay->count() << "ms.";
     }
 
     // Preserve minimum ledger open time

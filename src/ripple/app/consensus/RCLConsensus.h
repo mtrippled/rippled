@@ -38,7 +38,9 @@
 #include <ripple/protocol/STValidation.h>
 #include <ripple/shamap/SHAMap.h>
 #include <atomic>
+#include <chrono>
 #include <mutex>
+#include <optional>
 #include <set>
 
 namespace ripple {
@@ -93,6 +95,8 @@ class RCLConsensus
         // Since Consensus does not provide intrinsic thread-safety, this mutex
         // guards all calls to consensus_.
         mutable std::recursive_mutex mutex_;
+
+        std::optional<std::chrono::milliseconds> validationDelay_;
 
     public:
         using Ledger_t = RCLCxLedger;
@@ -207,6 +211,19 @@ class RCLConsensus
         bool
         retryAccept(Ledger_t const& newLedger,
             std::optional<std::chrono::time_point<std::chrono::steady_clock>>& start) const;
+
+        std::optional<std::chrono::milliseconds>
+        validationDelay()
+        {
+            return validationDelay_;
+        }
+
+        void
+        setValidationDelay(
+            std::optional<std::chrono::milliseconds>validationDelay)
+        {
+            validationDelay_ = validationDelay;
+        }
 
     private:
         //---------------------------------------------------------------------

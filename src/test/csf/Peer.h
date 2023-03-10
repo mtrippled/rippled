@@ -36,7 +36,9 @@
 #include <test/csf/ledgers.h>
 #include <test/jtx.h>
 #include <algorithm>
+#include <chrono>
 #include <mutex>
+#include <optional>
 
 namespace ripple {
 namespace test {
@@ -1118,6 +1120,16 @@ struct Peer
     {
         return false;
     }
+
+    std::optional<std::chrono::milliseconds>
+    validationDelay()
+    {
+        return std::nullopt;
+    }
+
+    void
+    setValidationDelay(std::optional<std::chrono::milliseconds> validationDelay)
+    {}
 
 };
 
