@@ -379,15 +379,17 @@ RCLConsensus::Adaptor::onClose(
     // Needed because of the move below.
     auto const setHash = initialSet->getHash().as_uint256();
 
+    auto const& initialLedgerInfo = initialLedger->info();
     return Result{
         std::move(initialSet),
         RCLCxPeerPos::Proposal{
-            initialLedger->info().parentHash,
+            initialLedgerInfo.parentHash,
             RCLCxPeerPos::Proposal::seqJoin,
             setHash,
             closeTime,
             app_.timeKeeper().closeTime(),
-            validatorKeys_.nodeID}};
+            validatorKeys_.nodeID,
+            initialLedgerInfo.seq}};
 }
 
 void

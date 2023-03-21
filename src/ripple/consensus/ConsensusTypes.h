@@ -208,7 +208,8 @@ struct ConsensusResult
     using Proposal_t = ConsensusProposal<
         NodeID_t,
         typename Ledger_t::ID,
-        typename TxSet_t::ID>;
+        typename TxSet_t::ID,
+        typename Ledger_t::Seq>;
     using Dispute_t = DisputedTx<Tx_t, NodeID_t>;
 
     ConsensusResult(TxSet_t&& s, Proposal_t&& p)

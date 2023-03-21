@@ -292,7 +292,8 @@ class Consensus
     using Proposal_t = ConsensusProposal<
         NodeID_t,
         typename Ledger_t::ID,
-        typename TxSet_t::ID>;
+        typename TxSet_t::ID,
+        typename Ledger_t::Seq>;
 
     using Result = ConsensusResult<Adaptor>;
 

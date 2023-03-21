@@ -522,7 +522,8 @@ struct Peer
                 TxSet::calcID(openTxs),
                 closeTime,
                 now(),
-                id));
+                id,
+                prevLedger.seq()));
     }
 
     void

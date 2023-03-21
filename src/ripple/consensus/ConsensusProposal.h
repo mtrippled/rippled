@@ -24,6 +24,8 @@
 #include <ripple/json/json_value.h>
 #include <ripple/protocol/HashPrefix.h>
 #include <ripple/protocol/jss.h>
+#include <ripple/protocol/Protocol.h>
+#include <chrono>
 #include <cstdint>
 #include <optional>
 
@@ -51,7 +53,7 @@ namespace ripple {
     @tparam Position_t Type used to represent the position taken on transactions
                        under consideration during this round of consensus
  */
-template <class NodeID_t, class LedgerID_t, class Position_t>
+template <class NodeID_t, class LedgerID_t, class Position_t, class Seq>
 class ConsensusProposal
 {
 public:
@@ -78,13 +80,15 @@ public:
         Position_t const& position,
         NetClock::time_point closeTime,
         NetClock::time_point now,
-        NodeID_t const& nodeID)
+        NodeID_t const& nodeID,
+        std::optional<Seq> ledgerSeq)
         : previousLedger_(prevLedger)
         , position_(position)
         , closeTime_(closeTime)
         , time_(now)
         , proposeSeq_(seq)
         , nodeID_(nodeID)
+        , ledgerSeq_(ledgerSeq)
     {
     }
 
@@ -232,6 +236,18 @@ public:
         return signingHash_.value();
     }
 
+    std::optional<Seq> const&
+    ledgerSeq() const
+    {
+        return ledgerSeq_;
+    }
+
+    std::chrono::steady_clock::time_point const&
+    arrivalTime() const
+    {
+        return arrivalTime_;
+    }
+
 private:
     //! Unique identifier of prior ledger this proposal is based on
     LedgerID_t previousLedger_;
@@ -251,15 +267,20 @@ private:
     //! The identifier of the node taking this position
     NodeID_t nodeID_;
 
+    std::optional<Seq> ledgerSeq_;
+
     //! The signing hash for this proposal
     mutable std::optional<uint256> signingHash_;
+
+    std::chrono::steady_clock::time_point arrivalTime_{
+        std::chrono::steady_clock::now()};
 };
 
-template <class NodeID_t, class LedgerID_t, class Position_t>
+template <class NodeID_t, class LedgerID_t, class Position_t, class Seq>
 bool
 operator==(
-    ConsensusProposal<NodeID_t, LedgerID_t, Position_t> const& a,
-    ConsensusProposal<NodeID_t, LedgerID_t, Position_t> const& b)
+    ConsensusProposal<NodeID_t, LedgerID_t, Position_t, Seq> const& a,
+    ConsensusProposal<NodeID_t, LedgerID_t, Position_t, Seq> const& b)
 {
     return a.nodeID() == b.nodeID() && a.proposeSeq() == b.proposeSeq() &&
         a.prevLedger() == b.prevLedger() && a.position() == b.position() &&
