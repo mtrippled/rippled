@@ -37,6 +37,7 @@
 #include <test/jtx.h>
 #include <algorithm>
 #include <chrono>
+#include <memory>
 #include <mutex>
 #include <optional>
 
@@ -258,6 +259,9 @@ struct Peer
     CollectorRefs& collectors;
 
     mutable std::recursive_mutex mtx;
+
+    std::unique_ptr<std::chrono::milliseconds> delay{
+        std::make_unique<std::chrono::milliseconds>(0)};
 
     struct Null_test : public beast::unit_test::suite
     {
@@ -1122,16 +1126,11 @@ struct Peer
         return false;
     }
 
-    std::optional<std::chrono::milliseconds>
+    std::unique_ptr<std::chrono::milliseconds>&
     validationDelay()
     {
-        return std::nullopt;
+        return delay;
     }
-
-    void
-    setValidationDelay(std::optional<std::chrono::milliseconds> validationDelay)
-    {}
-
 };
 
 }  // namespace csf

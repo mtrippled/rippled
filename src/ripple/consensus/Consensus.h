@@ -62,7 +62,7 @@ shouldCloseLedger(
     std::chrono::milliseconds prevRoundTime,
     std::chrono::milliseconds timeSincePrevClose,
     std::chrono::milliseconds openTime,
-    std::optional<std::chrono::milliseconds> validationDelay,
+    std::unique_ptr<std::chrono::milliseconds> const& validationDelay,
     std::chrono::milliseconds idleInterval,
     ConsensusParms const& parms,
     beast::Journal j);
@@ -1358,7 +1358,8 @@ Consensus<Adaptor>::onAccept()
 
     if (startDelay)
     {
-        adaptor_.setValidationDelay(
+        adaptor_.validationDelay() =
+            std::make_unique<std::chrono::milliseconds>(
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - *startDelay));
     }
@@ -1392,7 +1393,7 @@ Consensus<Adaptor>::closeLedger()
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::establish";
     rawCloseTimes_.self = now_;
 
-    adaptor_.setValidationDelay(std::nullopt);
+    adaptor_.validationDelay().reset();
 
     result_.emplace(adaptor_.onClose(previousLedger_, now_, mode_.get()));
     result_->roundTime.reset(clock_.now());
