@@ -30,6 +30,7 @@
 #include <ripple/consensus/LedgerTiming.h>
 #include <ripple/json/json_writer.h>
 #include <boost/logic/tribool.hpp>
+#include <iterator>
 #include <optional>
 #include <sstream>
 
@@ -1286,9 +1287,42 @@ Consensus<Adaptor>::phaseEstablish()
     convergePercent_ = result_->roundTime.read() * 100 /
         std::max<milliseconds>(prevRoundTime_, parms.avMIN_CONSENSUS_TIME);
 
-    // Give everyone a chance to take an initial position
-    if (result_->roundTime.read() < parms.ledgerMIN_CONSENSUS)
-        return;
+    {
+        // Give everyone a chance to take an initial position unless enough
+        // have already submitted theirs a long enough time ago
+        // --because that means we're already
+        // behind. Optimize pause duration if pausing. Pause until exactly
+        // the number of ms after roundTime.read().
+        // how many byzantine nodes on the UNL can we tolerate, plus 1?
+        auto const [quorum, _] = adaptor_.getQuorumKeys();
+        std::size_t const discard = static_cast<std::size_t>(
+            quorum / parms.minCONSENSUS_FACTOR) - quorum;
+
+        std::chrono::milliseconds beginning;
+        if (currPeerPositions_.size() > discard)
+        {
+            std::multiset<std::chrono::steady_clock::time_point> arrivals;
+            for (auto const& pos : currPeerPositions_)
+                arrivals.insert(pos.second.proposal().arrivalTime());
+            auto it = arrivals.begin();
+            std::advance(it, discard);
+            beginning = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch() -
+                it->time_since_epoch());
+        }
+        else
+        {
+            beginning = result_->roundTime.read();
+        }
+
+        // Give everyone a chance to take an initial position
+        if (beginning < parms.ledgerMIN_CONSENSUS)
+        {
+            adaptor_.timerDelay() = std::make_unique<std::chrono::milliseconds>(
+                parms.ledgerMIN_CONSENSUS - beginning);
+            return;
+        }
+    }
 
     updateOurPositions(true);
 
@@ -1637,7 +1671,7 @@ Consensus<Adaptor>::updateOurPositions(bool const share)
         // if we haven't already received it. Unless we have already
         // accepted a position, but are recalculating because it didn't
         // validate.
-        if (share && acquired_.emplace(newID, result_->txns).second)
+        if (acquired_.emplace(newID, result_->txns).second && share)
         {
             if (!result_->position.isBowOut())
                 adaptor_.share(result_->txns);
