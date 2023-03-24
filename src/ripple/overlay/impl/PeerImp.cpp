@@ -21,6 +21,7 @@
 #include <ripple/app/ledger/InboundLedgers.h>
 #include <ripple/app/ledger/InboundTransactions.h>
 #include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/app/ledger/OpenLedger.h>
 #include <ripple/app/ledger/TransactionMaster.h>
 #include <ripple/app/misc/HashRouter.h>
 #include <ripple/app/misc/LoadFeeTrack.h>
@@ -40,6 +41,7 @@
 #include <ripple/overlay/impl/Tuning.h>
 #include <ripple/overlay/predicates.h>
 #include <ripple/protocol/digest.h>
+#include <ripple/protocol/Protocol.h>
 #include <ripple/rpc/impl/RPCHelpers.h>
 
 #include <boost/algorithm/string.hpp>
@@ -1951,11 +1953,6 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMProposeSet> const& m)
 
     NetClock::time_point const closeTime{NetClock::duration{set.closetime()}};
 
-    std::optional<std::uint32_t> ledgerSeq;
-    if (set.has_ledgerseq())
-        ledgerSeq = set.ledgerseq();
-
-
     uint256 const suppression = proposalUniqueId(
         proposeHash,
         prevLedger,
@@ -1996,6 +1993,18 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMProposeSet> const& m)
 
     JLOG(p_journal_.trace())
         << "Proposal: " << (isTrusted ? "trusted" : "untrusted");
+
+    LedgerIndex ledgerSeq = 0;
+    if (set.has_ledgerseq())
+    {
+        ledgerSeq = set.ledgerseq();
+    }
+    else
+    {
+        auto const& current = app_.openLedger().current();
+        if (current)
+            ledgerSeq = current->info().seq;
+    }
 
     auto proposal = RCLCxPeerPos(
         publicKey,

@@ -711,7 +711,7 @@ Consensus<Adaptor>::peerProposal(
 {
     // Always need to store recent positions
     auto const& peerID = newPeerPos.proposal().nodeID();
-    auto& bySeq = recentPeerPositions_[*newPeerPos.proposal().ledgerSeq()];
+    auto& bySeq = recentPeerPositions_[newPeerPos.proposal().ledgerSeq()];
 
     auto props = bySeq.find(peerID);
     if (props == bySeq.end())
