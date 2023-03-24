@@ -1131,6 +1131,12 @@ struct Peer
     {
         return delay;
     }
+
+    std::unique_ptr<std::chrono::milliseconds>&
+    timerDelay()
+    {
+        return delay;
+    }
 };
 
 }  // namespace csf
