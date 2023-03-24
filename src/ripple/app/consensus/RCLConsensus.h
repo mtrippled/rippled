@@ -99,6 +99,8 @@ class RCLConsensus
 
         std::unique_ptr<std::chrono::milliseconds> validationDelay_;
 
+        std::unique_ptr<std::chrono::milliseconds> timerDelay_;
+
     public:
         using Ledger_t = RCLCxLedger;
         using NodeID_t = NodeID;
@@ -217,6 +219,12 @@ class RCLConsensus
         validationDelay()
         {
             return validationDelay_;
+        }
+
+        std::unique_ptr<std::chrono::milliseconds>&
+        timerDelay()
+        {
+            return timerDelay_;
         }
 
     private:
@@ -584,6 +592,12 @@ public:
     parms() const
     {
         return adaptor_.parms();
+    }
+
+    std::unique_ptr<std::chrono::milliseconds>&
+    timerDelay()
+    {
+        return adaptor_.timerDelay();
     }
 
 private:
