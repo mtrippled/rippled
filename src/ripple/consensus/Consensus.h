@@ -30,6 +30,7 @@
 #include <ripple/consensus/LedgerTiming.h>
 #include <ripple/json/json_writer.h>
 #include <boost/logic/tribool.hpp>
+#include <iterator>
 #include <optional>
 #include <sstream>
 
@@ -62,7 +63,7 @@ shouldCloseLedger(
     std::chrono::milliseconds prevRoundTime,
     std::chrono::milliseconds timeSincePrevClose,
     std::chrono::milliseconds openTime,
-    std::optional<std::chrono::milliseconds> validationDelay,
+    std::unique_ptr<std::chrono::milliseconds> const& validationDelay,
     std::chrono::milliseconds idleInterval,
     ConsensusParms const& parms,
     beast::Journal j);
@@ -575,8 +576,9 @@ private:
     //-------------------------------------------------------------------------
     // Non-peer (self) consensus data
 
-    // Last validated ledger ID provided to consensus
+    // Last validated ledger ID and sequence provided to consensus
     typename Ledger_t::ID prevLedgerID_;
+    typename Ledger_t::Seq prevLedgerSeq_{0};
     // Last validated ledger seen by consensus
     Ledger_t previousLedger_;
 
@@ -594,7 +596,7 @@ private:
 
     // Recently received peer positions, available when transitioning between
     // ledgers or rounds
-    hash_map<NodeID_t, std::deque<PeerPosition_t>> recentPeerPositions_;
+    std::map<typename Ledger_t::Seq, hash_map<NodeID_t, PeerPosition_t>> recentPeerPositions_;
 
     // The number of proposers who participated in the last consensus round
     std::size_t prevProposers_ = 0;
@@ -637,8 +639,9 @@ Consensus<Adaptor>::startRound(
         prevCloseTime_ = rawCloseTimes_.self;
     }
 
-    for (NodeID_t const& n : nowUntrusted)
-        recentPeerPositions_.erase(n);
+    auto it = recentPeerPositions_.begin();
+    while (it->first <= prevLedgerSeq_ && it != recentPeerPositions_.end())
+        it = recentPeerPositions_.erase(it);
 
     ConsensusMode startMode =
         proposing ? ConsensusMode::proposing : ConsensusMode::observing;
@@ -676,6 +679,7 @@ Consensus<Adaptor>::startRoundInternal(
     now_ = now;
     prevLedgerID_ = prevLedgerID;
     previousLedger_ = prevLedger;
+    prevLedgerSeq_ = previousLedger_.seq();
     result_.reset();
     convergePercent_ = 0;
     haveCloseTimeConsensus_ = false;
@@ -689,7 +693,7 @@ Consensus<Adaptor>::startRoundInternal(
     closeResolution_ = getNextLedgerTimeResolution(
         previousLedger_.closeTimeResolution(),
         previousLedger_.closeAgree(),
-        previousLedger_.seq() + typename Ledger_t::Seq{1});
+        prevLedgerSeq_ + typename Ledger_t::Seq{1});
 
     playbackProposals();
     if (currPeerPositions_.size() > (prevProposers_ / 2))
@@ -706,17 +710,23 @@ Consensus<Adaptor>::peerProposal(
     NetClock::time_point const& now,
     PeerPosition_t const& newPeerPos)
 {
-    auto const& peerID = newPeerPos.proposal().nodeID();
-
     // Always need to store recent positions
+    auto const& peerID = newPeerPos.proposal().nodeID();
+    auto& bySeq = recentPeerPositions_[newPeerPos.proposal().ledgerSeq()];
+
+    auto props = bySeq.find(peerID);
+    if (props == bySeq.end())
     {
-        auto& props = recentPeerPositions_[peerID];
-
-        if (props.size() >= 10)
-            props.pop_front();
-
-        props.push_back(newPeerPos);
+        bySeq.emplace(peerID, newPeerPos);
     }
+    else
+    {
+        // Only keep it if it's the latest proposal from the peer for the round.
+        if (newPeerPos.proposal().proposeSeq() <= props->second.proposal().proposeSeq())
+            return false;
+        props->second = newPeerPos;
+    }
+
     return peerProposalInternal(now, newPeerPos);
 }
 
@@ -924,7 +934,7 @@ Consensus<Adaptor>::getJson(bool full) const
     {
         ret["synched"] = true;
         ret["ledger_seq"] =
-            static_cast<std::uint32_t>(previousLedger_.seq()) + 1;
+            static_cast<std::uint32_t>(prevLedgerSeq_) + 1;
         ret["close_granularity"] = static_cast<Int>(closeResolution_.count());
     }
     else
@@ -1078,17 +1088,18 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::playbackProposals()
 {
-    for (auto const& it : recentPeerPositions_)
+    auto currentPositions = recentPeerPositions_.find(
+        prevLedgerSeq_ + typename Ledger_t::Seq{1});
+    if (currentPositions != recentPeerPositions_.end())
     {
-        for (auto const& pos : it.second)
+        for (auto const& it : currentPositions->second)
         {
-            if (pos.proposal().prevLedger() == prevLedgerID_)
-            {
-                if (peerProposalInternal(now_, pos))
-                    adaptor_.share(pos);
-            }
+            auto const& pos = it.second;
+            if (peerProposalInternal(now_, pos))
+                adaptor_.share(pos);
         }
     }
+    // from here, do futureAcquired_ and put in acquired_
 }
 
 template <class Adaptor>
@@ -1152,15 +1163,15 @@ Consensus<Adaptor>::shouldPause() const
     auto const& parms = adaptor_.parms();
     std::uint32_t const ahead(
         previousLedger_.seq() -
-        std::min(adaptor_.getValidLedgerIndex(), previousLedger_.seq()));
+        std::min(adaptor_.getValidLedgerIndex(), prevLedgerSeq_));
     auto [quorum, trustedKeys] = adaptor_.getQuorumKeys();
     std::size_t const totalValidators = trustedKeys.size();
     std::size_t laggards =
-        adaptor_.laggards(previousLedger_.seq(), trustedKeys);
+        adaptor_.laggards(prevLedgerSeq_, trustedKeys);
     std::size_t const offline = trustedKeys.size();
 
     std::stringstream vars;
-    vars << " (working seq: " << previousLedger_.seq() << ", "
+    vars << " (working seq: " << prevLedgerSeq_ << ", "
          << "validated seq: " << adaptor_.getValidLedgerIndex() << ", "
          << "am validator: " << adaptor_.validator() << ", "
          << "have validated: " << adaptor_.haveValidated() << ", "
@@ -1275,9 +1286,43 @@ Consensus<Adaptor>::phaseEstablish()
     convergePercent_ = result_->roundTime.read() * 100 /
         std::max<milliseconds>(prevRoundTime_, parms.avMIN_CONSENSUS_TIME);
 
-    // Give everyone a chance to take an initial position
-    if (result_->roundTime.read() < parms.ledgerMIN_CONSENSUS)
-        return;
+    {
+        // Give everyone a chance to take an initial position unless enough
+        // have already submitted theirs a long enough time ago
+        // --because that means we're already
+        // behind. Optimize pause duration if pausing. Pause until exactly
+        // the number of ms after roundTime.read().
+        // how many byzantine nodes on the UNL can we tolerate, plus 1?
+        auto const [quorum, _] = adaptor_.getQuorumKeys();
+        static float const consensusFactor = parms.minCONSENSUS_PCT / 100.0f;
+        std::size_t const discard = static_cast<std::size_t>(
+            quorum / consensusFactor) - quorum;
+
+        std::chrono::milliseconds beginning;
+        if (currPeerPositions_.size() > discard)
+        {
+            std::multiset<std::chrono::steady_clock::time_point> arrivals;
+            for (auto const& pos : currPeerPositions_)
+                arrivals.insert(pos.second.proposal().arrivalTime());
+            auto it = arrivals.begin();
+            std::advance(it, discard);
+            beginning = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch() -
+                it->time_since_epoch());
+        }
+        else
+        {
+            beginning = result_->roundTime.read();
+        }
+
+        // Give everyone a chance to take an initial position
+        if (beginning < parms.ledgerMIN_CONSENSUS)
+        {
+            adaptor_.timerDelay() = std::make_unique<std::chrono::milliseconds>(
+                parms.ledgerMIN_CONSENSUS - beginning);
+            return;
+        }
+    }
 
     updateOurPositions(true);
 
@@ -1358,7 +1403,8 @@ Consensus<Adaptor>::onAccept()
 
     if (startDelay)
     {
-        adaptor_.setValidationDelay(
+        adaptor_.validationDelay() =
+            std::make_unique<std::chrono::milliseconds>(
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - *startDelay));
     }
@@ -1392,7 +1438,7 @@ Consensus<Adaptor>::closeLedger()
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::establish";
     rawCloseTimes_.self = now_;
 
-    adaptor_.setValidationDelay(std::nullopt);
+    adaptor_.validationDelay().reset();
 
     result_.emplace(adaptor_.onClose(previousLedger_, now_, mode_.get()));
     result_->roundTime.reset(clock_.now());
@@ -1570,7 +1616,7 @@ Consensus<Adaptor>::updateOurPositions(bool const share)
             }
             JLOG(j_.debug())
                 << "CCTime: seq "
-                << static_cast<std::uint32_t>(previousLedger_.seq()) + 1 << ": "
+                << static_cast<std::uint32_t>(prevLedgerSeq_) + 1 << ": "
                 << t.time_since_epoch().count() << " has " << v << ", "
                 << threshVote << " required";
 
@@ -1625,7 +1671,7 @@ Consensus<Adaptor>::updateOurPositions(bool const share)
         // if we haven't already received it. Unless we have already
         // accepted a position, but are recalculating because it didn't
         // validate.
-        if (share && acquired_.emplace(newID, result_->txns).second)
+        if (acquired_.emplace(newID, result_->txns).second && share)
         {
             if (!result_->position.isBowOut())
                 adaptor_.share(result_->txns);

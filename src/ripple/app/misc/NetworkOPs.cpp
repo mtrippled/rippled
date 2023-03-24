@@ -948,9 +948,20 @@ NetworkOPsImp::setTimer(
 void
 NetworkOPsImp::setHeartbeatTimer()
 {
+    std::chrono::milliseconds timerDelay;
+    if (mConsensus.timerDelay())
+    {
+        timerDelay = *mConsensus.timerDelay();
+        mConsensus.timerDelay().reset();
+    }
+    else
+    {
+        timerDelay = mConsensus.parms().ledgerGRANULARITY;
+    }
+
     setTimer(
         heartbeatTimer_,
-        mConsensus.parms().ledgerGRANULARITY,
+        timerDelay,
         [this]() {
             m_job_queue.addJob(jtNETOP_TIMER, "NetOPs.heartbeat", [this]() {
                 processHeartbeatTimer();

@@ -73,6 +73,10 @@ struct ConsensusParms
     //! The percentage threshold above which we can declare consensus.
     std::size_t minCONSENSUS_PCT = 80;
 
+    //! The percentage threshold above which we can declare consensus
+    // based on nodes having fallen off of the UNL.
+    std::size_t negUNL_MIN_CONSENSUS_PCT = 60;
+
     //! The duration a ledger may remain idle before closing
     std::chrono::milliseconds ledgerIDLE_INTERVAL = std::chrono::seconds{15};
 

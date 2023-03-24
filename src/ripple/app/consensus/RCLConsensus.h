@@ -39,6 +39,7 @@
 #include <ripple/shamap/SHAMap.h>
 #include <atomic>
 #include <chrono>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <set>
@@ -96,7 +97,9 @@ class RCLConsensus
         // guards all calls to consensus_.
         mutable std::recursive_mutex mutex_;
 
-        std::optional<std::chrono::milliseconds> validationDelay_;
+        std::unique_ptr<std::chrono::milliseconds> validationDelay_;
+
+        std::unique_ptr<std::chrono::milliseconds> timerDelay_;
 
     public:
         using Ledger_t = RCLCxLedger;
@@ -212,17 +215,16 @@ class RCLConsensus
         retryAccept(Ledger_t const& newLedger,
             std::optional<std::chrono::time_point<std::chrono::steady_clock>>& start) const;
 
-        std::optional<std::chrono::milliseconds>
+        std::unique_ptr<std::chrono::milliseconds>&
         validationDelay()
         {
             return validationDelay_;
         }
 
-        void
-        setValidationDelay(
-            std::optional<std::chrono::milliseconds>validationDelay)
+        std::unique_ptr<std::chrono::milliseconds>&
+        timerDelay()
         {
-            validationDelay_ = validationDelay;
+            return timerDelay_;
         }
 
     private:
@@ -590,6 +592,12 @@ public:
     parms() const
     {
         return adaptor_.parms();
+    }
+
+    std::unique_ptr<std::chrono::milliseconds>&
+    timerDelay()
+    {
+        return adaptor_.timerDelay();
     }
 
 private:

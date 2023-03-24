@@ -1122,16 +1122,17 @@ struct Peer
         return false;
     }
 
-    std::optional<std::chrono::milliseconds>
+    std::unique_ptr<std::chrono::milliseconds>
     validationDelay()
     {
-        return std::nullopt;
+        return {};
     }
 
-    void
-    setValidationDelay(std::optional<std::chrono::milliseconds> validationDelay)
-    {}
-
+    std::unique_ptr<std::chrono::milliseconds>
+    timerDelay()
+    {
+        return {};
+    }
 };
 
 }  // namespace csf
