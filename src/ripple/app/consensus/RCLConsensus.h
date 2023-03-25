@@ -67,6 +67,9 @@ class RCLConsensus
         LedgerMaster& ledgerMaster_;
         LocalTxs& localTxs_;
         InboundTransactions& inboundTransactions_;
+        //! Clock type for measuring time within the consensus code
+        using clock_type = beast::abstract_clock<std::chrono::steady_clock>;
+        clock_type const& clock_;
         beast::Journal const j_;
 
         // If the server is validating, the necessary keying information:
@@ -118,6 +121,7 @@ class RCLConsensus
             LocalTxs& localTxs,
             InboundTransactions& inboundTransactions,
             ValidatorKeys const& validatorKeys,
+            clock_type const& clock,
             beast::Journal journal);
 
         bool

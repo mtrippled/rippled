@@ -1276,6 +1276,10 @@ Consensus<Adaptor>::phaseEstablish()
     convergePercent_ = result_->roundTime.read() * 100 /
         std::max<milliseconds>(prevRoundTime_, parms.avMIN_CONSENSUS_TIME);
 
+    // Give everyone a chance to take an initial position
+//    if (result_->roundTime.read() < parms.ledgerMIN_CONSENSUS)
+//        return;
+
     {
         // Give everyone a chance to take an initial position unless enough
         // have already submitted theirs a long enough time ago
@@ -1290,14 +1294,15 @@ Consensus<Adaptor>::phaseEstablish()
         std::chrono::milliseconds beginning;
         if (currPeerPositions_.size() > discard)
         {
-            std::multiset<std::chrono::steady_clock::time_point> arrivals;
-            for (auto const& pos : currPeerPositions_)
-                arrivals.insert(pos.second.proposal().arrivalTime());
-            auto it = arrivals.begin();
+            std::multiset<std::chrono::milliseconds> arrivals;
+            for (auto& pos : currPeerPositions_)
+            {
+                pos.second.proposal().arrivalTime().tick(clock_.now());
+                arrivals.insert(pos.second.proposal().arrivalTime().read());
+            }
+            auto it = arrivals.rbegin();
             std::advance(it, discard);
-            beginning = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now().time_since_epoch() -
-                it->time_since_epoch());
+            beginning = *it;
         }
         else
         {

@@ -65,6 +65,7 @@ RCLConsensus::RCLConsensus(
           localTxs,
           inboundTransactions,
           validatorKeys,
+          clock,
           journal)
     , consensus_(clock, adaptor_, journal)
     , j_(journal)
@@ -78,12 +79,14 @@ RCLConsensus::Adaptor::Adaptor(
     LocalTxs& localTxs,
     InboundTransactions& inboundTransactions,
     ValidatorKeys const& validatorKeys,
+    clock_type const& clock,
     beast::Journal journal)
     : app_(app)
     , feeVote_(std::move(feeVote))
     , ledgerMaster_(ledgerMaster)
     , localTxs_(localTxs)
     , inboundTransactions_{inboundTransactions}
+    , clock_(clock)
     , j_(journal)
     , validatorKeys_(validatorKeys)
     , valCookie_(
@@ -389,7 +392,8 @@ RCLConsensus::Adaptor::onClose(
             closeTime,
             app_.timeKeeper().closeTime(),
             validatorKeys_.nodeID,
-            initialLedgerInfo.seq}};
+            initialLedgerInfo.seq,
+            clock_}};
 }
 
 void

@@ -527,7 +527,8 @@ struct Peer
                 closeTime,
                 now(),
                 id,
-                prevLedger.seq()));
+                prevLedger.seq(),
+                scheduler.clock()));
     }
 
     void
