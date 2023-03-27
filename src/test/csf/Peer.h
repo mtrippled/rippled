@@ -527,7 +527,7 @@ struct Peer
                 closeTime,
                 now(),
                 id,
-                prevLedger.seq(),
+                prevLedger.seq() + typename Ledger_t::Seq{1},
                 scheduler.clock()));
     }
 

@@ -595,7 +595,7 @@ private:
 
     // Recently received peer positions, available when transitioning between
     // ledgers or rounds
-    hash_map<NodeID_t, std::deque<PeerPosition_t>> recentPeerPositions_;
+    std::map<typename Ledger_t::Seq, hash_map<NodeID_t, std::deque<PeerPosition_t>>> recentPeerPositions_;
 
     // The number of proposers who participated in the last consensus round
     std::size_t prevProposers_ = 0;
@@ -638,8 +638,18 @@ Consensus<Adaptor>::startRound(
         prevCloseTime_ = rawCloseTimes_.self;
     }
 
-    for (NodeID_t const& n : nowUntrusted)
-        recentPeerPositions_.erase(n);
+    auto it = recentPeerPositions_.begin();
+    while (it != recentPeerPositions_.end() && it->first <= previousLedger_.seq())
+        it = recentPeerPositions_.erase(it);
+    auto currentPositions = recentPeerPositions_.find(previousLedger_.seq() +
+        typename Ledger_t::Seq{1});
+    if (currentPositions != recentPeerPositions_.end())
+    {
+        for (NodeID_t const& n : nowUntrusted)
+        {
+            currentPositions->second.erase(n);
+        }
+    }
 
     ConsensusMode startMode =
         proposing ? ConsensusMode::proposing : ConsensusMode::observing;
@@ -707,11 +717,11 @@ Consensus<Adaptor>::peerProposal(
     NetClock::time_point const& now,
     PeerPosition_t const& newPeerPos)
 {
-    auto const& peerID = newPeerPos.proposal().nodeID();
-
     // Always need to store recent positions
+    auto const& peerID = newPeerPos.proposal().nodeID();
+    auto& bySeq = recentPeerPositions_[newPeerPos.proposal().ledgerSeq()];
     {
-        auto& props = recentPeerPositions_[peerID];
+        auto& props = bySeq[peerID];
 
         if (props.size() >= 10)
             props.pop_front();
@@ -1079,14 +1089,21 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::playbackProposals()
 {
-    for (auto const& it : recentPeerPositions_)
+    auto currentPositions = recentPeerPositions_.find(
+        previousLedger_.seq() + typename Ledger_t::Seq{1});
     {
-        for (auto const& pos : it.second)
+        if (currentPositions != recentPeerPositions_.end())
         {
-            if (pos.proposal().prevLedger() == prevLedgerID_)
+            for (auto const &it: currentPositions->second)
             {
-                if (peerProposalInternal(now_, pos))
-                    adaptor_.share(pos);
+                for (auto const &pos: it.second)
+                {
+                    if (pos.proposal().prevLedger() == prevLedgerID_)
+                    {
+                        if (peerProposalInternal(now_, pos))
+                            adaptor_.share(pos);
+                    }
+                }
             }
         }
     }
