@@ -639,16 +639,14 @@ Consensus<Adaptor>::startRound(
     }
 
     auto it = recentPeerPositions_.begin();
-    while (it != recentPeerPositions_.end() && it->first <= previousLedger_.seq())
+    while (it != recentPeerPositions_.end() && it->first <= prevLedger.seq())
         it = recentPeerPositions_.erase(it);
-    auto currentPositions = recentPeerPositions_.find(previousLedger_.seq() +
+    auto currentPositions = recentPeerPositions_.find(prevLedger.seq() +
         typename Ledger_t::Seq{1});
     if (currentPositions != recentPeerPositions_.end())
     {
         for (NodeID_t const& n : nowUntrusted)
-        {
             currentPositions->second.erase(n);
-        }
     }
 
     ConsensusMode startMode =
