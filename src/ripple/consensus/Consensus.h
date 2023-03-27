@@ -595,7 +595,7 @@ private:
 
     // Recently received peer positions, available when transitioning between
     // ledgers or rounds
-    std::map<typename Ledger_t::Seq, hash_map<NodeID_t, std::deque<PeerPosition_t>>> recentPeerPositions_;
+    std::map<typename Ledger_t::Seq, hash_map<NodeID_t, PeerPosition_t>> recentPeerPositions_;
 
     // The number of proposers who participated in the last consensus round
     std::size_t prevProposers_ = 0;
@@ -715,16 +715,30 @@ Consensus<Adaptor>::peerProposal(
     NetClock::time_point const& now,
     PeerPosition_t const& newPeerPos)
 {
-    // Always need to store recent positions
+    typename Ledger_t::Seq const& propLedgerSeq = newPeerPos.proposal().ledgerSeq();
+    if (propLedgerSeq <= previousLedger_.seq())
+        return false;
+
+    // Store all positions from current and future ledgers.
     auto const& peerID = newPeerPos.proposal().nodeID();
-    auto& bySeq = recentPeerPositions_[newPeerPos.proposal().ledgerSeq()];
+    auto& bySeq = recentPeerPositions_[propLedgerSeq];
     {
-        auto& props = bySeq[peerID];
-
-        if (props.size() >= 10)
-            props.pop_front();
-
-        props.push_back(newPeerPos);
+        auto peerProp = bySeq.find(peerID);
+        if (peerProp == bySeq.end())
+        {
+            bySeq.emplace(peerID, newPeerPos);
+        }
+        else
+        {
+            // Only store if it's the latest proposal from this peer for the
+            // consensus round in the proposal.
+            if (newPeerPos.proposal().proposeSeq() <=
+                    peerProp->second.proposal().proposeSeq())
+            {
+                return false;
+            }
+            peerProp->second = newPeerPos;
+        }
     }
     return peerProposalInternal(now, newPeerPos);
 }
@@ -735,10 +749,6 @@ Consensus<Adaptor>::peerProposalInternal(
     NetClock::time_point const& now,
     PeerPosition_t const& newPeerPos)
 {
-    // Nothing to do for now if we are currently working on a ledger
-    if (phase_ == ConsensusPhase::accepted)
-        return false;
-
     now_ = now;
 
     auto const& newPeerProp = newPeerPos.proposal();
@@ -853,10 +863,6 @@ Consensus<Adaptor>::gotTxSet(
     NetClock::time_point const& now,
     TxSet_t const& txSet)
 {
-    // Nothing to do if we've finished work on a ledger
-    if (phase_ == ConsensusPhase::accepted)
-        return;
-
     now_ = now;
 
     auto id = txSet.id();
@@ -1087,20 +1093,17 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::playbackProposals()
 {
-    auto currentPositions = recentPeerPositions_.find(
+    auto const currentPositions = recentPeerPositions_.find(
         previousLedger_.seq() + typename Ledger_t::Seq{1});
     {
         if (currentPositions != recentPeerPositions_.end())
         {
-            for (auto const &it: currentPositions->second)
+            for (auto const& [peerID, pos] : currentPositions->second)
             {
-                for (auto const &pos: it.second)
+                if (pos.proposal().prevLedger() == prevLedgerID_ &&
+                    peerProposalInternal(now_, pos))
                 {
-                    if (pos.proposal().prevLedger() == prevLedgerID_)
-                    {
-                        if (peerProposalInternal(now_, pos))
-                            adaptor_.share(pos);
-                    }
+                    adaptor_.share(pos);
                 }
             }
         }
