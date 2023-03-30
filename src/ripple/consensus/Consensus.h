@@ -1751,7 +1751,7 @@ Consensus<Adaptor>::updateOurPositions(bool const share)
         // unless we have already accepted a position but are recalculating
         // because it didn't validate.
         if (share && !result_->position.isBowOut() &&
-            (mode_.get() == ConsensusMode::proposing))
+                (mode_.get() == ConsensusMode::proposing))
             adaptor_.propose(result_->position);
     }
 }
