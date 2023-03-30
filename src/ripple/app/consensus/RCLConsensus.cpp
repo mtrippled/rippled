@@ -55,7 +55,7 @@ RCLConsensus::RCLConsensus(
     LedgerMaster& ledgerMaster,
     LocalTxs& localTxs,
     InboundTransactions& inboundTransactions,
-    Consensus<Adaptor>::clock_type const& clock,
+    Consensus<Adaptor>::clock_type& clock,
     ValidatorKeys const& validatorKeys,
     beast::Journal journal)
     : adaptor_(
@@ -79,7 +79,7 @@ RCLConsensus::Adaptor::Adaptor(
     LocalTxs& localTxs,
     InboundTransactions& inboundTransactions,
     ValidatorKeys const& validatorKeys,
-    clock_type const& clock,
+    clock_type& clock,
     beast::Journal journal)
     : app_(app)
     , feeVote_(std::move(feeVote))

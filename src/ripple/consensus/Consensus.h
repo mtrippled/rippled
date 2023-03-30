@@ -22,6 +22,8 @@
 
 #include <ripple/basics/Log.h>
 #include <ripple/basics/chrono.h>
+#include <ripple/beast/container/aged_unordered_map.h>
+#include <ripple/beast/hash/uhash.h>
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/consensus/ConsensusParms.h>
 #include <ripple/consensus/ConsensusProposal.h>
@@ -324,7 +326,7 @@ class Consensus
 
 public:
     //! Clock type for measuring time within the consensus code
-    using clock_type = beast::abstract_clock<std::chrono::steady_clock>;
+    using clock_type = Stopwatch;
 
     Consensus(Consensus&&) noexcept = default;
 
@@ -334,7 +336,7 @@ public:
         @param adaptor The instance of the adaptor class
         @param j The journal to log debug output
     */
-    Consensus(clock_type const& clock, Adaptor& adaptor, beast::Journal j);
+    Consensus(clock_type& clock, Adaptor& adaptor, beast::Journal j);
 
     /** Kick-off the next round of consensus.
 
@@ -543,7 +545,9 @@ private:
     NetClock::time_point
     asCloseTime(NetClock::time_point raw) const;
 
-private:
+    void
+    clearPositions();
+
     Adaptor& adaptor_;
 
     ConsensusPhase phase_{ConsensusPhase::accepted};
@@ -551,7 +555,7 @@ private:
     bool firstRound_ = true;
     bool haveCloseTimeConsensus_ = false;
 
-    clock_type const& clock_;
+    clock_type& clock_;
 
     // How long the consensus convergence has taken, expressed as
     // a percentage of the time that we expected it to take.
@@ -582,7 +586,12 @@ private:
     Ledger_t previousLedger_;
 
     // Transaction Sets, indexed by hash of transaction tree
-    hash_map<typename TxSet_t::ID, const TxSet_t> acquired_;
+    beast::aged_unordered_map<
+            typename TxSet_t::ID,
+            const TxSet_t,
+            clock_type::clock_type,
+            beast::uhash<>>
+        acquired_;
 
     std::optional<Result> result_;
     ConsensusCloseTimes rawCloseTimes_;
@@ -609,10 +618,10 @@ private:
 
 template <class Adaptor>
 Consensus<Adaptor>::Consensus(
-    clock_type const& clock,
+    clock_type& clock,
     Adaptor& adaptor,
     beast::Journal journal)
-    : adaptor_(adaptor), clock_(clock), j_{journal}
+    : adaptor_(adaptor), clock_(clock), acquired_(clock), j_{journal}
 {
     JLOG(j_.debug()) << "Creating consensus object";
 }
@@ -689,8 +698,8 @@ Consensus<Adaptor>::startRoundInternal(
     convergePercent_ = 0;
     haveCloseTimeConsensus_ = false;
     openTime_.reset(clock_.now());
-    currPeerPositions_.clear();
-    acquired_.clear();
+    clearPositions();
+    beast::expire(acquired_, std::chrono::minutes(30));
     rawCloseTimes_.peers.clear();
     rawCloseTimes_.self = {};
     deadNodes_.clear();
@@ -757,6 +766,18 @@ Consensus<Adaptor>::peerProposalInternal(
     {
         JLOG(j_.debug()) << "Got proposal for " << newPeerProp.prevLedger()
                          << " but we are on " << prevLedgerID_;
+
+        if (!acquired_.count(newPeerProp.position()))
+        {
+            // acquireTxSet will return the set if it is available, or
+            // spawn a request for it and return nullopt/nullptr.  It will call
+            // gotTxSet once it arrives
+            if (auto set = adaptor_.acquireTxSet(newPeerProp.position()))
+                gotTxSet(now_, *set);
+            else
+                JLOG(j_.debug()) << "Do not have tx set for peer";
+        }
+
         return false;
     }
 
@@ -790,16 +811,38 @@ Consensus<Adaptor>::peerProposalInternal(
                     it.second.unVote(peerID);
             }
             if (peerPosIt != currPeerPositions_.end())
+            {
+                // Remove from acquired_ or else it will consume space for awhile.
+                // beast::aged_unordered_map::erase by key is broken and
+                // is not used anywhere in the existing codebase.
+                if (auto found = acquired_.find(peerPosIt->second.proposal().position());
+                    found != acquired_.end())
+                {
+                    acquired_.erase(found);
+                }
                 currPeerPositions_.erase(peerID);
+            }
             deadNodes_.insert(peerID);
 
             return true;
         }
 
         if (peerPosIt != currPeerPositions_.end())
+        {
+            // Remove from acquired_ or else it will consume space for awhile.
+            // beast::aged_unordered_container::erase by key is broken and
+            // is not used anywhere in the existing codebase.
+            if (auto found = acquired_.find(newPeerPos.proposal().position());
+                found != acquired_.end())
+            {
+                acquired_.erase(found);
+            }
             peerPosIt->second = newPeerPos;
+        }
         else
+        {
             currPeerPositions_.emplace(peerID, newPeerPos);
+        }
     }
 
     if (newPeerProp.isInitial())
@@ -814,6 +857,7 @@ Consensus<Adaptor>::peerProposalInternal(
                      << "/" << newPeerProp.position();
 
     {
+        bool got = false;
         auto const ait = acquired_.find(newPeerProp.position());
         if (ait == acquired_.end())
         {
@@ -821,14 +865,18 @@ Consensus<Adaptor>::peerProposalInternal(
             // spawn a request for it and return nullopt/nullptr.  It will call
             // gotTxSet once it arrives
             if (auto set = adaptor_.acquireTxSet(newPeerProp.position()))
+            {
                 gotTxSet(now_, *set);
+                got = true;
+            }
             else
+            {
                 JLOG(j_.debug()) << "Don't have tx set for peer";
+            }
         }
-        else if (result_)
-        {
+
+        if (result_ && got)
             updateDisputes(newPeerProp.nodeID(), ait->second);
-        }
     }
 
     return true;
@@ -1042,7 +1090,7 @@ Consensus<Adaptor>::handleWrongLedger(typename Ledger_t::ID const& lgrId)
             result_->compares.clear();
         }
 
-        currPeerPositions_.clear();
+        clearPositions();
         rawCloseTimes_.peers.clear();
         deadNodes_.clear();
 
@@ -1468,9 +1516,7 @@ Consensus<Adaptor>::closeLedger()
         auto const& pos = pit.second.proposal().position();
         auto const it = acquired_.find(pos);
         if (it != acquired_.end())
-        {
             createDisputes(it->second);
-        }
     }
 }
 
@@ -1520,7 +1566,17 @@ Consensus<Adaptor>::updateOurPositions(bool const share)
                 JLOG(j_.warn()) << "Removing stale proposal from " << peerID;
                 for (auto& dt : result_->disputes)
                     dt.second.unVote(peerID);
-                it = currPeerPositions_.erase(it);
+                {
+                    // Remove from acquired_ or else it will consume space for awhile.
+                    // beast::aged_unordered_map::erase by key is broken and
+                    // is not used anywhere in the existing codebase.
+                    if (auto found = acquired_.find(peerProp.position());
+                        found != acquired_.end())
+                    {
+                        acquired_.erase(found);
+                    }
+                    it = currPeerPositions_.erase(it);
+                }
             }
             else
             {
@@ -1864,6 +1920,24 @@ Consensus<Adaptor>::asCloseTime(NetClock::time_point raw) const
 {
     return roundCloseTime(raw, closeResolution_);
 }
+
+template <class Adaptor>
+void
+Consensus<Adaptor>::clearPositions()
+{
+    for (auto it = currPeerPositions_.begin(); it != currPeerPositions_.end();)
+    {
+        // beast::aged_unordered_map::erase by key is broken and
+        // is not used anywhere in the existing codebase.
+        if (auto found = acquired_.find(it->second.proposal().position());
+            found != acquired_.end())
+        {
+            acquired_.erase(found);
+        }
+        it = currPeerPositions_.erase(it);
+    }
+}
+
 
 }  // namespace ripple
 

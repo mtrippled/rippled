@@ -28,6 +28,7 @@
 #include <ripple/app/misc/FeeVote.h>
 #include <ripple/app/misc/NegativeUNLVote.h>
 #include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/basics/chrono.h>
 #include <ripple/basics/CountedObject.h>
 #include <ripple/basics/Log.h>
 #include <ripple/beast/utility/Journal.h>
@@ -68,8 +69,8 @@ class RCLConsensus
         LocalTxs& localTxs_;
         InboundTransactions& inboundTransactions_;
         //! Clock type for measuring time within the consensus code
-        using clock_type = beast::abstract_clock<std::chrono::steady_clock>;
-        clock_type const& clock_;
+        using clock_type = Stopwatch;
+        clock_type& clock_;
         beast::Journal const j_;
 
         // If the server is validating, the necessary keying information:
@@ -121,7 +122,7 @@ class RCLConsensus
             LocalTxs& localTxs,
             InboundTransactions& inboundTransactions,
             ValidatorKeys const& validatorKeys,
-            clock_type const& clock,
+            clock_type& clock,
             beast::Journal journal);
 
         bool
@@ -499,7 +500,7 @@ public:
         LedgerMaster& ledgerMaster,
         LocalTxs& localTxs,
         InboundTransactions& inboundTransactions,
-        Consensus<Adaptor>::clock_type const& clock,
+        Consensus<Adaptor>::clock_type& clock,
         ValidatorKeys const& validatorKeys,
         beast::Journal journal);
 
