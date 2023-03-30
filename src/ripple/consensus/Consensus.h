@@ -857,7 +857,6 @@ Consensus<Adaptor>::peerProposalInternal(
                      << "/" << newPeerProp.position();
 
     {
-        bool got = false;
         auto const ait = acquired_.find(newPeerProp.position());
         if (ait == acquired_.end())
         {
@@ -865,18 +864,14 @@ Consensus<Adaptor>::peerProposalInternal(
             // spawn a request for it and return nullopt/nullptr.  It will call
             // gotTxSet once it arrives
             if (auto set = adaptor_.acquireTxSet(newPeerProp.position()))
-            {
                 gotTxSet(now_, *set);
-                got = true;
-            }
             else
-            {
                 JLOG(j_.debug()) << "Don't have tx set for peer";
-            }
         }
-
-        if (result_ && got)
+        else if (result_)
+        {
             updateDisputes(newPeerProp.nodeID(), ait->second);
+        }
     }
 
     return true;
