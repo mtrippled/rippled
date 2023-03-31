@@ -127,8 +127,7 @@ public:
         other things
     */
     using MutexType = std::recursive_mutex;
-//    virtual MutexType&
-    virtual perf::mutex<MutexType>*
+    virtual MutexType&
     getMasterMutex() = 0;
 
 public:

@@ -80,7 +80,6 @@ JobQueue::addRefCountedJob(
     std::string const& name,
     JobFunction const& func)
 {
-    auto tracer = perf::TRACER;
     assert(type != jtINVALID);
 
     auto iter(m_jobData.find(type));

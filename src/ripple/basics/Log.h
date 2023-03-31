@@ -22,7 +22,6 @@
 
 #include <ripple/basics/UnorderedContainers.h>
 #include <ripple/beast/utility/Journal.h>
-#include <ripple/perflog/Tracer.h>
 #include <boost/beast/core/string.hpp>
 #include <boost/filesystem.hpp>
 #include <map>
