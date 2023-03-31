@@ -105,10 +105,6 @@ class RCLConsensus
 
         using Result = ConsensusResult<Adaptor>;
 
-        std::shared_ptr<perf::Tracer> tracer_ {
-            std::make_shared<perf::Tracer>(FILE_LINE)};
-        std::string startTimer_;
-
         Adaptor(
             Application& app,
             std::unique_ptr<FeeVote>&& feeVote,
