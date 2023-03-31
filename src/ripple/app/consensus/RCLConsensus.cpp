@@ -456,7 +456,6 @@ RCLConsensus::Adaptor::onAccept(
     CanonicalTXSet& retriableTxs,
     RCLCxLedger& built)
 {
-    auto timer = perf::START_TIMER(tracer_);
     app_.getJobQueue().addJob(
         jtACCEPT,
         "acceptLedger",
@@ -477,7 +476,6 @@ RCLConsensus::Adaptor::onAccept(
                 built);
             this->app_.getOPs().endConsensus();
         });
-    perf::END_TIMER(tracer_, timer);
 }
 
 void
@@ -508,7 +506,6 @@ RCLConsensus::Adaptor::doAcceptA(
     ConsensusMode const& mode,
     Json::Value&& consensusJson)
 {
-    auto timer = perf::START_TIMER(tracer_);
     prevProposers_ = result.proposers;
     prevRoundTime_ = result.roundTime.read();
 
@@ -563,7 +560,6 @@ RCLConsensus::Adaptor::doAcceptA(
         }
     }
 
-    auto buildLclTimer = perf::START_TIMER(tracer_);
     auto built = buildLCL(
         prevLedger,
         retriableTxs,
@@ -572,7 +568,6 @@ RCLConsensus::Adaptor::doAcceptA(
         closeResolution,
         result.roundTime.read(),
         failed);
-    perf::END_TIMER(tracer_, buildLclTimer);
 
     auto const newLCLHash = built.id();
     JLOG(j_.debug()) << "Built ledger #" << built.seq() << ": " << newLCLHash;
@@ -637,7 +632,6 @@ RCLConsensus::Adaptor::doAcceptA(
     ledgerMaster_.consensusBuilt(
         built.ledger_, result.txns.id(), std::move(consensusJson));
 
-    perf::END_TIMER(tracer_, timer);
     return {retriableTxs, built};
 }
 
@@ -700,14 +694,9 @@ RCLConsensus::Adaptor::doAcceptB(
         }
 
         // Build new open ledger
-        perf::unique_lock lock(*app_.getMasterMutex(), FILE_LINE);
-        perf::unique_lock sl(ledgerMaster_.peekMutex(), FILE_LINE);
-        //        perf::unique_lock lock(*app_.getMasterMutex(), FILE_LINE, std::defer_lock);
-        //std::unique_lock lock{app_.getMasterMutex(), std::defer_lock};
-        //        perf::unique_lock sl(ledgerMaster_.peekMutex(), FILE_LINE, std::defer_lock);
-        //std::unique_lock sl{ledgerMaster_.peekMutex(), std::defer_lock};
-        //        perf::lock2(lock, sl, FILE_LINE);
-        //std::lock(lock, sl);
+        std::unique_lock lock{app_.getMasterMutex(), std::defer_lock};
+        std::unique_lock sl{ledgerMaster_.peekMutex(), std::defer_lock};
+        std::lock(lock, sl);
 
         auto const lastVal = ledgerMaster_.getValidatedLedger();
         std::optional<Rules> rules;
@@ -848,8 +837,7 @@ RCLConsensus::Adaptor::buildLCL(
             app_,
             retriableTxs,
             failedTxs,
-            j_,
-            tracer_);
+            j_);
     }();
 
     // Update fee computations based on accepted txs

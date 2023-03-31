@@ -23,7 +23,6 @@
 #include <ripple/app/tx/applySteps.h>
 #include <ripple/ledger/ApplyView.h>
 #include <ripple/ledger/OpenView.h>
-#include <ripple/perflog/Tracer.h>
 #include <ripple/protocol/RippleLedgerHash.h>
 #include <ripple/protocol/STTx.h>
 #include <ripple/protocol/SeqProxy.h>
@@ -274,8 +273,7 @@ public:
         OpenView& view,
         std::shared_ptr<STTx const> const& tx,
         ApplyFlags flags,
-        beast::Journal j,
-        std::shared_ptr<perf::Tracer> const& tracer = {});
+        beast::Journal j);
 
     /**
         Fill the new open ledger with transactions from the queue.

@@ -715,8 +715,7 @@ TxQ::apply(
     OpenView& view,
     std::shared_ptr<STTx const> const& tx,
     ApplyFlags flags,
-    beast::Journal j,
-    std::shared_ptr<perf::Tracer> const& tracer)
+    beast::Journal j)
 {
     STAmountSO stAmountSO{view.rules().enabled(fixSTAmountCanonicalize)};
     NumberSO stNumberSO{view.rules().enabled(fixUniversalNumber)};

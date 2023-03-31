@@ -545,9 +545,6 @@ private:
     void
     updateDisputes(NodeID_t const& node, TxSet_t const& other);
 
-    std::stringstream
-    logLost( TxSet_t const& o);
-
     // Revoke our outstanding proposal, if any, and cease proposing
     // until this round ends.
     void
@@ -726,10 +723,6 @@ Consensus<Adaptor>::startRoundInternal(
     std::unique_lock<std::recursive_mutex>& lock)
 {
     phase_ = ConsensusPhase::open;
-    perf::END_TIMER(adaptor_.tracer_, adaptor_.startTimer_);
-    adaptor_.tracer_.reset(new perf::Tracer(FILE_LINE));
-    adaptor_.startTimer_ = perf::START_TIMER(adaptor_.tracer_);
-    auto timer = perf::START_TIMER(adaptor_.tracer_);
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::open";
     mode_.set(mode, adaptor_);
     now_ = now;
@@ -1612,13 +1605,6 @@ Consensus<Adaptor>::phaseEstablish(std::unique_lock<std::recursive_mutex>& lock)
     }
 
     {
-        auto f = fastConsensus();
-        if (f)
-        {
-            JLOG(j_.debug()) << "phaseEstablish fastConsensus position "
-                << f->proposal().position() << ", lost: "
-                << logLost(acquired_.find(f->proposal().position())->second).str();
-        }
         updateOurPositions();
         /*
         if (f)
@@ -1657,8 +1643,6 @@ Consensus<Adaptor>::phaseEstablish(std::unique_lock<std::recursive_mutex>& lock)
     prevProposers_ = currPeerPositions_.size();
     prevRoundTime_ = result_->roundTime.read();
     phase_ = ConsensusPhase::accepted;
-    perf::END_TIMER(adaptor_.tracer_, adaptor_.startTimer_);
-    adaptor_.startTimer_ = perf::START_TIMER(adaptor_.tracer_);
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::accepted";
     JLOG(j_.debug()) << "phaseEstablish previous,validated: " <<
         previousLedger_.id() << ':' << previousSeq_ << ','
@@ -1795,10 +1779,7 @@ Consensus<Adaptor>::closeLedger(std::unique_lock<std::recursive_mutex>& lock)
     assert(!result_);
 
     phase_ = ConsensusPhase::establish;
-    perf::END_TIMER(adaptor_.tracer_, adaptor_.startTimer_);
-    adaptor_.startTimer_ = perf::START_TIMER(adaptor_.tracer_);
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::establish";
-    auto timer = perf::START_TIMER(adaptor_.tracer_);
     rawCloseTimes_.self = now_;
 
     result_.emplace(adaptor_.onClose(previousLedger_, now_, mode_.get()));
@@ -1861,10 +1842,7 @@ Consensus<Adaptor>::closeLedger(std::unique_lock<std::recursive_mutex>& lock)
             createDisputes(it->second);
         }
     }
-    perf::END_TIMER(adaptor_.tracer_, timer);
-    auto timer2 = perf::START_TIMER(adaptor_.tracer_);
     std::size_t ret = phaseEstablish(lock);
-    perf::END_TIMER(adaptor_.tracer_, timer2);
     return ret;
 }
 
@@ -2230,65 +2208,6 @@ Consensus<Adaptor>::createDisputes(TxSet_t const& o)
         result_->disputes.emplace(txID, std::move(dtx));
     }
     JLOG(j_.debug()) << dc << " differences found";
-}
-
-template <class Adaptor>
-std::stringstream
-Consensus<Adaptor>::logLost(TxSet_t const& o)
-{
-    std::stringstream ss;
-    // Nothing to dispute if we agree
-    if (result_->txns.id() == o.id())
-    {
-        ss << "logLost positions identical: " << o.id();
-        return ss;
-    }
-
-//    @param j The set to compare with
-//        @return Map of transactions in this set and `j` but not both. The key
-//            is the transaction ID and the value is a bool of the transaction
-//                exists in this set.
-// the set of missing are those keys whose value is false
-    auto differences = result_->txns.compare(o);
-    std::set<uint256> missing;
-    for (auto const& d : differences)
-    {
-        if (!d.second)
-            missing.insert(d.first);
-    }
-    ss << "logLost result_ to other " << result_->txns.id() << " to " << o.id()
-       << " missing from result_ but in other:  " << missing.size() << '.';
-
-    auto openLedger = adaptor_.app_.openLedger().current();
-    for (auto tx = missing.begin(); tx != missing.end();)
-    {
-        if (openLedger->txExists(*tx) || result_->disputes.contains(*tx))
-            tx = missing.erase(tx);
-        else
-            ++tx;
-    }
-    auto held = adaptor_.ledgerMaster_.heldTransactions();
-    for (auto const& h : held)
-    {
-        auto found = missing.find(h.first.getTXID());
-        if (found != missing.end())
-            missing.erase(found);
-    }
-    bool first = true;
-    for (auto const& m : missing)
-    {
-        if (first)
-        {
-            first = false;
-            ss << " missing from all local places: ";
-        }
-        else
-        {
-            ss << ',';
-        }
-        ss << m;
-    }
-    return ss;
 }
 
 template <class Adaptor>
