@@ -148,43 +148,6 @@ class NetworkOPsImp final : public NetworkOPs
         static std::array<Json::StaticString const, 5> const states_;
 
     public:
-        struct TxCounters
-        {
-            std::atomic<std::uint64_t> rpc{0};
-            std::atomic<std::uint64_t> peer{0};
-            std::atomic<std::uint64_t> attempt{0};
-            std::atomic<std::uint64_t> rpc_attempt{0};
-            std::atomic<std::uint64_t> applied{0};
-            std::atomic<std::uint64_t> rpc_applied{0};
-            std::atomic<std::uint64_t> should_relay{0};
-            std::atomic<std::uint64_t> rpc_should_relay{0};
-            std::atomic<std::uint64_t> check_should_relay{0};
-            std::atomic<std::uint64_t> rpc_check_should_relay{0};
-            std::atomic<std::uint64_t> relay_to_none{0};
-            std::atomic<std::uint64_t> rpc_relay_to_none{0};
-
-            Json::Value
-            json() const
-            {
-                Json::Value ret{Json::objectValue};
-                ret["rpc"] = std::to_string(rpc);
-                ret["peer"] = std::to_string(peer);
-                ret["attempt"] = std::to_string(attempt);
-                ret["rpc_attempt"] = std::to_string(rpc_attempt);
-                ret["applied"] = std::to_string(applied);
-                ret["rpc_applied"] = std::to_string(rpc_applied);
-                ret["should_relay"] = std::to_string(should_relay);
-                ret["rpc_should_relay"] = std::to_string(rpc_should_relay);
-                ret["check_should_relay"] = std::to_string(check_should_relay);
-                ret["rpc_check_should_relay"] = std::to_string(rpc_check_should_relay);
-                ret["relay_to_none"] = std::to_string(relay_to_none);
-                ret["rpc_relay_to_none"] = std::to_string(rpc_relay_to_none);
-                return ret;
-            }
-        };
-
-        TxCounters txCounters;
-
         explicit StateAccounting()
         {
             counters_[static_cast<std::size_t>(OperatingMode::DISCONNECTED)]
@@ -1305,15 +1268,9 @@ NetworkOPsImp::processTransaction(
     JLOG(m_journal.debug()) << "processTransaction " << transaction->getID()
         << ',' << bLocal;
     if (bLocal)
-    {
-        accounting_.txCounters.rpc++;
         doTransactionSync(transaction, bUnlimited, failType);
-    }
     else
-    {
-        accounting_.txCounters.peer++;
         doTransactionAsync(transaction, bUnlimited, failType);
-    }
 }
 
 void
@@ -1440,17 +1397,8 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
 
                     auto const result = app_.getTxQ().apply(
                         app_, view, e.transaction->getSTransaction(), flags, j);
-                    ++accounting_.txCounters.attempt;
-                    if (e.local)
-                        ++accounting_.txCounters.rpc_attempt;
                     e.result = result.first;
                     e.applied = result.second;
-                    if (e.applied)
-                    {
-                        ++accounting_.txCounters.applied;
-                        if (e.local)
-                            ++accounting_.txCounters.rpc_applied;
-                    }
                     changed = changed || result.second;
                 }
                 return changed;
@@ -1568,9 +1516,6 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
                  (e.result == terQUEUED)) &&
                 !enforceFailHard)
             {
-                ++accounting_.txCounters.check_should_relay;
-                if (e.local)
-                    ++accounting_.txCounters.rpc_check_should_relay;
                 auto const toSkip =
                     app_.getHashRouter().shouldRelay(e.transaction->getID());
 
@@ -1586,12 +1531,8 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
                         app_.timeKeeper().now().time_since_epoch().count());
                     tx.set_deferred(e.result == terQUEUED);
                     // FIXME: This should be when we received it
-                    app_.overlay().relay(e.transaction->getID(), tx, *toSkip,
-                                         &accounting_.txCounters.relay_to_none);
+                    app_.overlay().relay(e.transaction->getID(), tx, *toSkip);
                     e.transaction->setBroadcast();
-                    ++accounting_.txCounters.should_relay;
-                    if (e.local)
-                        ++accounting_.txCounters.rpc_should_relay;
                 }
             }
             else
@@ -4716,8 +4657,6 @@ NetworkOPsImp::StateAccounting::json(Json::Value& obj) const
     obj[jss::server_state_duration_us] = std::to_string(current.count());
     if (initialSync)
         obj[jss::initial_sync_duration_us] = std::to_string(initialSync);
-
-    obj["tx"] = txCounters.json();
 }
 
 //------------------------------------------------------------------------------
