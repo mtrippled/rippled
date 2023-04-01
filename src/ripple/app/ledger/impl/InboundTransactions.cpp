@@ -139,7 +139,7 @@ public:
     {
         protocol::TMLedgerData& packet = *packet_ptr;
 
-        JLOG(j_.debug()) << "Got data (" << packet.nodes().size()
+        JLOG(j_.trace()) << "Got data (" << packet.nodes().size()
                          << ") for acquiring ledger: " << hash;
 
         TransactionAcquire::pointer ta = getAcquire(hash);
