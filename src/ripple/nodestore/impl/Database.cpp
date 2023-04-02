@@ -213,7 +213,7 @@ void
 Database::importInternal(Backend& dstBackend, Database& srcDB)
 {
     Batch batch;
-    batch.reserve(batchWriteLimitSize);
+    batch.reserve(batchWritePreallocationSize);
     auto storeBatch = [&, fname = __func__]() {
         try
         {
@@ -239,7 +239,7 @@ Database::importInternal(Backend& dstBackend, Database& srcDB)
             return;
 
         batch.emplace_back(std::move(nodeObject));
-        if (batch.size() >= batchWriteLimitSize)
+        if (batch.size() >= batchWritePreallocationSize)
             storeBatch();
     });
 
@@ -296,7 +296,7 @@ Database::storeLedger(
         return fail("Source and destination databases are the same");
 
     Batch batch;
-    batch.reserve(batchWriteLimitSize);
+    batch.reserve(batchWritePreallocationSize);
     auto storeBatch = [&, fname = __func__]() {
         std::uint64_t sz{0};
         for (auto const& nodeObject : batch)
@@ -337,7 +337,7 @@ Database::storeLedger(
                     node.getHash().as_uint256(), srcLedger.info().seq))
             {
                 batch.emplace_back(std::move(nodeObject));
-                if (batch.size() < batchWriteLimitSize || storeBatch())
+                if (batch.size() < batchWritePreallocationSize || storeBatch())
                     return true;
             }
         }

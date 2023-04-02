@@ -28,7 +28,7 @@ BatchWriter::BatchWriter(Callback& callback, Scheduler& scheduler)
     , mWriteLoad(0)
     , mWritePending(false)
 {
-    mWriteSet.reserve(batchWriteLimitSize);
+    mWriteSet.reserve(batchWritePreallocationSize);
 }
 
 BatchWriter::~BatchWriter()
@@ -77,7 +77,7 @@ BatchWriter::writeBatch()
     {
         std::vector<std::shared_ptr<NodeObject>> set;
 
-        set.reserve(batchWriteLimitSize);
+        set.reserve(batchWritePreallocationSize);
 
         {
             std::lock_guard sl(mWriteMutex);
