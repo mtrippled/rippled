@@ -98,7 +98,7 @@ InboundLedger::InboundLedger(
     , mReceiveDispatched(false)
     , mPeerSet(std::move(peerSet))
 {
-    JLOG(journal_.debug()) << "Acquiring ledger " << hash_;
+    JLOG(journal_.trace()) << "Acquiring ledger " << hash_;
     touch();
 }
 

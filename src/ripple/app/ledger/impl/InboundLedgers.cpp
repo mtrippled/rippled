@@ -97,9 +97,6 @@ public:
             }
             else
             {
-                JLOG(j_.debug()) << "InboundLedgers acquire " <<
-                    seq << ',' << hash << ',' <<
-                    static_cast<std::underlying_type<InboundLedger::Reason>::type>(reason);
                 inbound = std::make_shared<InboundLedger>(
                     app_,
                     hash,
@@ -186,7 +183,7 @@ public:
     {
         if (auto ledger = find(hash))
         {
-            JLOG(j_.debug()) << "Got data (" << packet->nodes().size()
+            JLOG(j_.trace()) << "Got data (" << packet->nodes().size()
                              << ") for acquiring ledger: " << hash;
 
             // Stash the data for later processing and see if we need to
@@ -200,7 +197,7 @@ public:
             return true;
         }
 
-        JLOG(j_.debug()) << "Got data for ledger " << hash
+        JLOG(j_.trace()) << "Got data for ledger " << hash
                          << " which we're no longer acquiring";
 
         // If it's state node data, stash it because it still might be
