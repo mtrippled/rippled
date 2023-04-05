@@ -1294,6 +1294,7 @@ NetworkOPsImp::processTransaction(
             break;
 
         case RPC::SubmitSync::async:
+            JLOG(m_journal.debug()) << "async tx";
             // Ensure that the tx object doesn't get processed before being
             // returned to client, so the client can expect the terSUBMITTED
             // result in all cases.
@@ -1389,6 +1390,7 @@ NetworkOPsImp::doTransactionSync(
 void
 NetworkOPsImp::transactionBatch(bool const drain)
 {
+    JLOG(m_journal.debug()) << "transactionBatch";
     std::unique_lock<std::mutex> lock(mMutex);
     do
         apply(lock);
@@ -1398,6 +1400,8 @@ NetworkOPsImp::transactionBatch(bool const drain)
 void
 NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
 {
+    JLOG(m_journal.debug()) << "apply transactions,is running: " <<
+        mTransactions.size() << ',' << (mDispatchState == DispatchState::running);
     if (mTransactions.empty() || mDispatchState == DispatchState::running)
         return;
 
