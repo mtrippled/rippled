@@ -48,6 +48,19 @@ doSubmit(RPC::JsonContext& context)
 {
     context.loadType = Resource::feeMediumBurdenRPC;
 
+    RPC::SubmitSync sync = RPC::SubmitSync::sync;
+    if (context.params.isMember(jss::sync))
+    {
+        if (context.params["sync"].asString() == "async")
+            sync = RPC::SubmitSync::async;
+        else if (context.params["sync"].asString() == "wait")
+            sync = RPC::SubmitSync::wait;
+        else if (context.params["sync"].asString() != "sync")
+            return RPC::make_error(rpcINVALID_PARAMS,
+                "sync parameter must be one of \"sync\", \"async\", or "
+                "\"wait\".");
+    }
+
     if (!context.params.isMember(jss::tx_blob))
     {
         auto const failType = getFailHard(context);
@@ -62,7 +75,8 @@ doSubmit(RPC::JsonContext& context)
             context.role,
             context.ledgerMaster.getValidatedLedgerAge(),
             context.app,
-            RPC::getProcessTxnFn(context.netOps));
+            RPC::getProcessTxnFn(context.netOps),
+            sync);
 
         ret[jss::deprecated] =
             "Signing support in the 'submit' command has been "
@@ -131,7 +145,7 @@ doSubmit(RPC::JsonContext& context)
         auto const failType = getFailHard(context);
 
         context.netOps.processTransaction(
-            tpTrans, isUnlimited(context.role), true, failType);
+            tpTrans, isUnlimited(context.role), sync, true, failType);
     }
     catch (std::exception& e)
     {
@@ -152,29 +166,20 @@ doSubmit(RPC::JsonContext& context)
             std::string sToken;
             std::string sHuman;
 
-//            transResultInfo(tpTrans->getResult(), sToken, sHuman);
+            transResultInfo(tpTrans->getResult(), sToken, sHuman);
 
-            jvResult[jss::engine_result] = "tesSUCCESS";
-            jvResult[jss::engine_result_code] = 0;
-            jvResult[jss::engine_result_message] = "Close enough for jazz.";
-//            jvResult[jss::engine_result] = sToken;
-//            jvResult[jss::engine_result_code] = tpTrans->getResult();
-//            jvResult[jss::engine_result_message] = sHuman;
+            jvResult[jss::engine_result] = sToken;
+            jvResult[jss::engine_result_code] = tpTrans->getResult();
+            jvResult[jss::engine_result_message] = sHuman;
 
-//            auto const submitResult = tpTrans->getSubmitResult();
+            auto const submitResult = tpTrans->getSubmitResult();
 
-            jvResult[jss::accepted] = true;
-            jvResult[jss::applied] = true;
-            jvResult[jss::broadcast] = true;
-            jvResult[jss::queued] = false;
-            jvResult[jss::kept] = true;
-//            jvResult[jss::accepted] = submitResult.any();
-//            jvResult[jss::applied] = submitResult.applied;
-//            jvResult[jss::broadcast] = submitResult.broadcast;
-//            jvResult[jss::queued] = submitResult.queued;
-//            jvResult[jss::kept] = submitResult.kept;
+            jvResult[jss::accepted] = submitResult.any();
+            jvResult[jss::applied] = submitResult.applied;
+            jvResult[jss::broadcast] = submitResult.broadcast;
+            jvResult[jss::queued] = submitResult.queued;
+            jvResult[jss::kept] = submitResult.kept;
 
-            /*
             if (auto currentLedgerState = tpTrans->getCurrentLedgerState())
             {
                 jvResult[jss::account_sequence_next] =
@@ -189,7 +194,6 @@ doSubmit(RPC::JsonContext& context)
                     safe_cast<Json::Value::UInt>(
                         currentLedgerState->validatedLedger);
             }
-            */
         }
 
         return jvResult;
