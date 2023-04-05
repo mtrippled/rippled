@@ -1275,6 +1275,7 @@ NetworkOPsImp::processTransaction(
     switch (sync)
     {
         case RPC::SubmitSync::sync:
+            JLOG(m_journal.debug()) << "sync tx";
             // applyBatch() must guarantee that all transactions currently
             // batched will be processed.
             do
@@ -1288,6 +1289,7 @@ NetworkOPsImp::processTransaction(
             break;
 
         case RPC::SubmitSync::wait:
+            JLOG(m_journal.debug()) << "wait tx";
             mCond.wait(lock,
                 [&transaction]{ return !transaction->getApplying(); }
             );
