@@ -1390,10 +1390,14 @@ NetworkOPsImp::doTransactionSync(
 void
 NetworkOPsImp::transactionBatch(bool const drain)
 {
-    JLOG(m_journal.debug()) << "transactionBatch";
     std::unique_lock<std::mutex> lock(mMutex);
+    JLOG(m_journal.debug()) << "transactionBatch ";
     do
+    {
+        JLOG(m_journal.debug()) << "transactionBatch txs,drain: " <<
+            mTransactions.size() << ',' << drain;
         apply(lock);
+    }
     while (drain && mTransactions.size());
 }
 
