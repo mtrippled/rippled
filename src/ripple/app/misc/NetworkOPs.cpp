@@ -1026,15 +1026,15 @@ NetworkOPsImp::setBatchApplyTimer()
         batchApplyTimer_,
         100ms,
         [this]() {
-            std::unique_lock lock(mMutex);
             if (m_job_queue.addJob(
                         jtBATCH, "transactionBatch", [this]() {
                             transactionBatch(false);
-                            setBatchApplyTimer();
                         }))
                 {
+                    std::lock_guard _(mMutex);
                     mDispatchState = DispatchState::scheduled;
                 }
+            setBatchApplyTimer();
         },
         [this]() { setBatchApplyTimer(); });
 }
