@@ -24,8 +24,11 @@
 #include <ripple/app/consensus/RCLCxLedger.h>
 #include <ripple/app/consensus/RCLCxPeerPos.h>
 #include <ripple/app/consensus/RCLCxTx.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/misc/CanonicalTXSet.h>
 #include <ripple/app/misc/FeeVote.h>
 #include <ripple/app/misc/NegativeUNLVote.h>
+#include <ripple/app/misc/NetworkOPs.h>
 #include <ripple/basics/CountedObject.h>
 #include <ripple/basics/Log.h>
 #include <ripple/beast/utility/Journal.h>
@@ -66,7 +69,6 @@ class RCLConsensus
     public:
 
         LedgerMaster& ledgerMaster_;
-        mutable std::recursive_mutex mutex_;
     private:
         LocalTxs& localTxs_;
         InboundTransactions& inboundTransactions_;
@@ -87,6 +89,7 @@ class RCLConsensus
 
         // These members are queried via public accesors and are atomic for
         // thread safety.
+        std::atomic<bool> validating_{false};
         std::atomic<std::size_t> prevProposers_{0};
         std::atomic<std::chrono::milliseconds> prevRoundTime_{
             std::chrono::milliseconds{0}};
@@ -95,12 +98,18 @@ class RCLConsensus
         RCLCensorshipDetector<TxID, LedgerIndex> censorshipDetector_;
         NegativeUNLVote nUnlVote_;
 
+        // Since Consensus does not provide intrinsic thread-safety, this mutex
+        // guards all calls to consensus_.
+        mutable std::recursive_mutex mutex_;
+
+        std::unique_ptr<std::chrono::milliseconds> validationDelay_;
+
     public:
-        std::atomic<bool> validating_{false};
         using Ledger_t = RCLCxLedger;
         using NodeID_t = NodeID;
         using NodeKey_t = PublicKey;
         using TxSet_t = RCLTxSet;
+        using CanonicalTxSet_t = CanonicalTXSet;
         using PeerPosition_t = RCLCxPeerPos;
 
         using Result = ConsensusResult<Adaptor>;
@@ -187,8 +196,36 @@ class RCLConsensus
             return parms_;
         }
 
+        std::recursive_mutex&
+        peekMutex() const
+        {
+            return mutex_;
+        }
+
         std::size_t
         getNeededValidations() const;
+
+        LedgerMaster&
+        getLedgerMaster() const
+        {
+            return ledgerMaster_;
+        }
+
+        void
+        clearValidating()
+        {
+            validating_ = false;
+        }
+
+        bool
+        retryAccept(Ledger_t const& newLedger,
+            std::optional<std::chrono::time_point<std::chrono::steady_clock>>& start) const;
+
+        std::unique_ptr<std::chrono::milliseconds>&
+        validationDelay()
+        {
+            return validationDelay_;
+        }
 
     private:
         //---------------------------------------------------------------------
@@ -320,28 +357,20 @@ class RCLConsensus
             NetClock::time_point const& closeTime,
             ConsensusMode mode);
 
-        /** Process the accepted ledger.
-
-            @param result The result of consensus
-            @param prevLedger The closed ledger consensus worked from
-            @param closeResolution The resolution used in agreeing on an
-                                   effective closeTime
-            @param rawCloseTimes The unrounded closetimes of ourself and our
-                                 peers
-            @param mode Our participating mode at the time consensus was
-                        declared
-            @param consensusJson Json representation of consensus state
-        */
-        void
-        onAccept(
+        std::pair<CanonicalTxSet_t, Ledger_t>
+        buildAndValidate(
             Result const& result,
-            RCLCxLedger const& prevLedger,
+            Ledger_t const& prevLedger,
             NetClock::duration const& closeResolution,
-            ConsensusCloseTimes const& rawCloseTimes,
             ConsensusMode const& mode,
-            Json::Value&& consensusJson,
-            CanonicalTXSet& retriableTxs,
-            RCLCxLedger& built);
+            Json::Value&& consensusJson);
+
+        void
+        prepareOpenLedger(
+            std::pair<CanonicalTxSet_t, Ledger_t>&& txsBuilt,
+            Result const& result,
+            ConsensusCloseTimes const& rawCloseTimes,
+            ConsensusMode const& mode);
 
         /** Process the accepted ledger that was a result of simulation/force
             accept.
@@ -368,39 +397,6 @@ class RCLConsensus
             protocol::NodeEvent ne,
             RCLCxLedger const& ledger,
             bool haveCorrectLCL);
-
-        /** Accept a new ledger based on the given transactions.
-
-            @ref onAccept
-         */
-        void
-        doAccept(
-            Result const& result,
-            RCLCxLedger const& prevLedger,
-            NetClock::duration closeResolution,
-            ConsensusCloseTimes const& rawCloseTimes,
-            ConsensusMode const& mode,
-            Json::Value&& consensusJson);
-
-        std::pair<CanonicalTXSet, RCLCxLedger>
-        doAcceptA(
-            Result const& result,
-            RCLCxLedger const& prevLedger,
-            NetClock::duration closeResolution,
-            ConsensusCloseTimes const& rawCloseTimes,
-            ConsensusMode const& mode,
-            Json::Value&& consensusJson);
-
-        void
-        doAcceptB(
-            Result const& result,
-            RCLCxLedger const& prevLedger,
-            NetClock::duration closeResolution,
-            ConsensusCloseTimes const& rawCloseTimes,
-            ConsensusMode const& mode,
-            Json::Value&& consensusJson,
-            CanonicalTXSet& retriableTxs,
-            RCLCxLedger& built);
 
         /** Build the new last closed ledger.
 
@@ -448,6 +444,12 @@ class RCLConsensus
             RCLCxLedger const& ledger,
             RCLTxSet const& txns,
             bool proposing);
+
+        void
+        endConsensus() const
+        {
+            app_.getOPs().endConsensus();
+        }
     };
 
 public:
@@ -563,10 +565,6 @@ public:
     {
         return adaptor_.parms();
     }
-
-    // Since Consensus does not provide intrinsic thread-safety, this mutex
-    // guards all calls to consensus_. adaptor_ uses atomics internally
-    // to allow concurrent access of its data members that have getters.
 
 private:
     Adaptor adaptor_;

@@ -68,7 +68,7 @@ RCLConsensus::RCLConsensus(
           journal)
     , consensus_(clock, adaptor_, journal)
     , j_(journal)
-    , mutex_(adaptor_.mutex_)
+    , mutex_(adaptor_.peekMutex())
 {
 }
 
@@ -436,73 +436,23 @@ RCLConsensus::Adaptor::onForceAccept(
     ConsensusMode const& mode,
     Json::Value&& consensusJson)
 {
-    doAccept(
-        result,
+    auto txsBuilt = buildAndValidate(result,
         prevLedger,
         closeResolution,
-        rawCloseTimes,
         mode,
         std::move(consensusJson));
+    prepareOpenLedger(std::move(txsBuilt),
+        result,
+        rawCloseTimes,
+        mode);
 }
 
-void
-RCLConsensus::Adaptor::onAccept(
+std::pair<RCLConsensus::Adaptor::CanonicalTxSet_t,
+    RCLConsensus::Adaptor::Ledger_t>
+RCLConsensus::Adaptor::buildAndValidate(
     Result const& result,
-    RCLCxLedger const& prevLedger,
+    Ledger_t const& prevLedger,
     NetClock::duration const& closeResolution,
-    ConsensusCloseTimes const& rawCloseTimes,
-    ConsensusMode const& mode,
-    Json::Value&& consensusJson,
-    CanonicalTXSet& retriableTxs,
-    RCLCxLedger& built)
-{
-    app_.getJobQueue().addJob(
-        jtACCEPT,
-        "acceptLedger",
-        [=, this, cj = std::move(consensusJson)]() mutable {
-            // Note that no lock is held or acquired during this job.
-            // This is because generic Consensus guarantees that once a ledger
-            // is accepted, the consensus results and capture by reference state
-            // will not change until startRound is called (which happens via
-            // endConsensus).
-            this->doAcceptB(
-                result,
-                prevLedger,
-                closeResolution,
-                rawCloseTimes,
-                mode,
-                std::move(cj),
-                retriableTxs,
-                built);
-            this->app_.getOPs().endConsensus();
-        });
-}
-
-void
-RCLConsensus::Adaptor::doAccept(
-    Result const& result,
-    RCLCxLedger const& prevLedger,
-    NetClock::duration closeResolution,
-    ConsensusCloseTimes const& rawCloseTimes,
-    ConsensusMode const& mode,
-    Json::Value&& consensusJson)
-{
-    // We want to put transactions in an unpredictable but deterministic order:
-    // we use the hash of the set.
-    //
-    // FIXME: Use a std::vector and a custom sorter instead of CanonicalTXSet?
-    auto [retriableTxs, built] = doAcceptA(result, prevLedger, closeResolution, rawCloseTimes, mode,
-              std::move(consensusJson));
-    doAcceptB(result, prevLedger, closeResolution, rawCloseTimes, mode,
-              std::move(consensusJson), retriableTxs, built);
-}
-
-std::pair<CanonicalTXSet, RCLCxLedger>
-RCLConsensus::Adaptor::doAcceptA(
-    Result const& result,
-    RCLCxLedger const& prevLedger,
-    NetClock::duration closeResolution,
-    ConsensusCloseTimes const& rawCloseTimes,
     ConsensusMode const& mode,
     Json::Value&& consensusJson)
 {
@@ -542,7 +492,12 @@ RCLConsensus::Adaptor::doAcceptA(
     //--------------------------------------------------------------------------
     std::set<TxID> failed;
 
+    // We want to put transactions in an unpredictable but deterministic order:
+    // we use the hash of the set.
+    //
+    // FIXME: Use a std::vector and a custom sorter instead of CanonicalTXSet?
     CanonicalTXSet retriableTxs{result.txns.map_->getHash().as_uint256()};
+
     JLOG(j_.debug()) << "Building canonical tx set: " << retriableTxs.key();
 
     for (auto const& item : *result.txns.map_)
@@ -551,7 +506,7 @@ RCLConsensus::Adaptor::doAcceptA(
         {
             retriableTxs.insert(
                 std::make_shared<STTx const>(SerialIter{item.slice()}));
-            JLOG(j_.trace()) << "    Tx: " << item.key();
+            JLOG(j_.debug()) << "    Tx: " << item.key();
         }
         catch (std::exception const&)
         {
@@ -594,8 +549,8 @@ RCLConsensus::Adaptor::doAcceptA(
         censorshipDetector_.check(
             std::move(accepted),
             [curr = built.seq(),
-             j = app_.journal("CensorshipDetector"),
-             &failed](uint256 const& id, LedgerIndex seq) {
+                j = app_.journal("CensorshipDetector"),
+                &failed](uint256 const& id, LedgerIndex seq) {
                 if (failed.count(id))
                     return true;
 
@@ -626,7 +581,7 @@ RCLConsensus::Adaptor::doAcceptA(
         JLOG(j_.info()) << "CNF Val " << newLCLHash;
     }
     else
-        JLOG(j_.info()) << "CNF buildLCL " << newLCLHash;
+    JLOG(j_.info()) << "CNF buildLCL " << newLCLHash;
 
     // See if we can accept a ledger as fully-validated
     ledgerMaster_.consensusBuilt(
@@ -636,17 +591,15 @@ RCLConsensus::Adaptor::doAcceptA(
 }
 
 void
-RCLConsensus::Adaptor::doAcceptB(
+RCLConsensus::Adaptor::prepareOpenLedger(
+    std::pair<CanonicalTxSet_t, Ledger_t>&& txsBuilt,
     Result const& result,
-    RCLCxLedger const& prevLedger,
-    NetClock::duration closeResolution,
     ConsensusCloseTimes const& rawCloseTimes,
-    ConsensusMode const& mode,
-    Json::Value&& consensusJson,
-    CanonicalTXSet& retriableTxs,
-    RCLCxLedger& built)
+    ConsensusMode const& mode)
 {
-    const bool consensusFail = result.state == ConsensusState::MovedOn;
+    auto& retriableTxs = txsBuilt.first;
+    auto const& built = txsBuilt.second;
+
     //-------------------------------------------------------------------------
     {
         // Apply disputed transactions that didn't get in
@@ -669,7 +622,7 @@ RCLConsensus::Adaptor::doAcceptB(
                 // we voted NO
                 try
                 {
-                    JLOG(j_.trace())
+                    JLOG(j_.debug())
                         << "Test applying disputed transaction that did"
                         << " not get in " << dispute.tx().id();
 
@@ -738,7 +691,7 @@ RCLConsensus::Adaptor::doAcceptB(
     //  close time reports, and update our clock.
     if ((mode == ConsensusMode::proposing ||
          mode == ConsensusMode::observing) &&
-        !consensusFail)
+        result.state != ConsensusState::MovedOn)
     {
         auto closeTime = rawCloseTimes.self;
 
@@ -765,14 +718,13 @@ RCLConsensus::Adaptor::doAcceptB(
         using duration = std::chrono::duration<std::int32_t>;
         using time_point = std::chrono::time_point<NetClock, duration>;
         auto offset = time_point{closeTotal} -
-            std::chrono::time_point_cast<duration>(closeTime);
+                      std::chrono::time_point_cast<duration>(closeTime);
         JLOG(j_.info()) << "Our close offset is estimated at " << offset.count()
                         << " (" << closeCount << ")";
 
         app_.timeKeeper().adjustCloseTime(offset);
     }
 }
-
 
 void
 RCLConsensus::Adaptor::notify(
@@ -962,6 +914,24 @@ RCLConsensus::Adaptor::getNeededValidations() const
 {
     return ledgerMaster_.getNeededValidations();
 }
+
+bool
+RCLConsensus::Adaptor::retryAccept(Ledger_t const& newLedger,
+    std::optional<std::chrono::time_point<std::chrono::steady_clock>>& start) const
+{
+    static bool const standalone = ledgerMaster_.standalone();
+    auto const& validLedger = ledgerMaster_.getValidatedLedger();
+
+    return (!standalone &&
+            (validLedger &&
+             (newLedger.id() != validLedger->info().hash) &&
+             (newLedger.seq() >= validLedger->info().seq))) &&
+           (!start ||
+            std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::steady_clock::now() - *start).count() < 5);
+}
+
+//-----------------------------------------------------------------------------
 
 Json::Value
 RCLConsensus::getJson(bool full) const

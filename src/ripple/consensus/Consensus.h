@@ -500,6 +500,9 @@ private:
     std::size_t
     phaseEstablish(std::unique_lock<std::recursive_mutex>& lock);
 
+    void
+    onAccept();
+
     /** Evaluate whether pausing increases likelihood of validation.
      *
      *  As a validator that has previously synced to the network, if our most
@@ -1644,131 +1647,71 @@ Consensus<Adaptor>::phaseEstablish(std::unique_lock<std::recursive_mutex>& lock)
     prevRoundTime_ = result_->roundTime.read();
     phase_ = ConsensusPhase::accepted;
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::accepted";
-    JLOG(j_.debug()) << "phaseEstablish previous,validated: " <<
-        previousLedger_.id() << ':' << previousSeq_ << ','
-        << adaptor_.ledgerMaster_.getValidatedLedger()->info().hash << ':'
-        << adaptor_.ledgerMaster_.getValidatedLedger()->info().seq;
-    /*
-    while (true)
-    {
-        adaptor_.doAccept(
-            *result_,
-            previousLedger_,
-            closeResolution_,
-            rawCloseTimes_,
-            mode_.get(),
-            getJson(true));
+    onAccept();
 
-        if (previousLedger_.id() != adaptor_.ledgerMaster_.getValidatedLedger()->info().hash)
-            break;
-        JLOG(j_.debug()) << "phaseEstablish valid ledger hasn't progressed "
-            << previousSeq_ << ',' << previousLedger_.id();
-        auto f = fastConsensus();
-        if (f)
-        {
-            JLOG(j_.debug()) << "phaseEstablish 2 setting result_ to consensus "
-                                "position " << f->proposal().position();
-            auto posPair = acquired_.find(f->proposal().position());
-            result_.emplace(Result(std::move(posPair->second),
-                                   std::move(f->proposalMutable())));
-        }
-        else
-        {
-            break;
-        }
-    }
-    adaptor_.app_.getOPs().endConsensus();
-     */
+    return ret;
+}
 
-//    std::optional<CanonicalTXSet> retriableTxs;
-//    std::optional<RCLCxLedger> built;
-    std::optional<std::pair<CanonicalTXSet, RCLCxLedger>> txsBuilt;
-    std::optional<std::chrono::time_point<std::chrono::steady_clock>> startTime;
-//    CanonicalTXSet retriableTxs{result_->txns.map_->getHash().as_uint256()};
-//    while (std::chrono::duration_cast<std::chrono::seconds>(
-//        std::chrono::steady_clock::now() - startTime).count() < 5)
+template <class Adaptor>
+void
+Consensus<Adaptor>::onAccept()
+{
+    std::optional<std::pair<typename Adaptor::CanonicalTxSet_t,
+        typename Adaptor::Ledger_t>> txsBuilt;
+    std::optional<std::chrono::time_point<std::chrono::steady_clock>> startDelay;
+
+    std::unique_lock<std::recursive_mutex> lock(adaptor_.peekMutex());
     do
     {
         if (txsBuilt)
         {
+            if (!startDelay)
+                startDelay = std::chrono::steady_clock::now();
+
             // Only send a single validation per round.
-            adaptor_.validating_ = false;
+            adaptor_.clearValidating();
             auto prevProposal = result_->position;
             updateOurPositions(false);
+
             if (prevProposal == result_->position)
             {
                 JLOG(j_.debug()) << "phaseEstablish old and new positions "
                                     "match, pausing "
-                    << prevProposal.position();
-                adaptor_.ledgerMaster_.waitForValidated(
+                                 << prevProposal.position();
+                adaptor_.getLedgerMaster().waitForValidated(
                     std::chrono::milliseconds(100));
                 continue;
             }
-            JLOG(j_.debug()) << "phaseEstablish retrying doAcceptA with new "
-                                "position: " << result_->position.position();
+            JLOG(j_.debug()) << "phaseEstablish retrying buildAndValidate with "
+                                "new position: " << result_->position.position();
         }
         lock.unlock();
-        txsBuilt = adaptor_.doAcceptA(
+
+        txsBuilt = adaptor_.buildAndValidate(
             *result_,
             previousLedger_,
             closeResolution_,
-            rawCloseTimes_,
             mode_.get(),
             getJson(true));
-        if (!startTime)
-            startTime = std::chrono::steady_clock::now();
-        RCLCxLedger& built = txsBuilt->second;
 
-        // criteria for not moving forward yet:
-        // 1) new (built) ledger is not our latest validated ledger, and
-        // 2) our latest validated ledger sequence is <= that of the new ledger.
-        // If they're equal, then get the validated ledger's proposal
-        // and try to re-apply it to the previous ledger.
-        // Otherwise, check for new proposals for the current round to see
-        // if a new consensus txset can be tried. If so, try it.
-        // If not, then pause 100ms or something and check this all again.
-        // Wait up to 5s or something.
-//        if (built.id() == adaptor_.ledgerMaster_.getValidatedLedger()->info().hash)
-//        {
-//            JLOG(j_.debug()) << "phaseEstablish built ledger " << built.id()
-//                << ',' << built.seq() << " has been validated";
-//            break;
-//        }
-//        JLOG(j_.debug()) << "phaseEstablish built ledger " << built.id()
-//                         << ',' << built.seq() << " has not been validated"
-//                         << " (" << adaptor_.ledgerMaster_.getValidatedLedger()->info().hash
-//                         << ',' << adaptor_.ledgerMaster_.getValidatedLedger()->info().seq
-//                         << "). retrying";
-//        if (previousLedger_.id() == adaptor_.ledgerMaster_.getValidatedLedger()->info().hash)
-//            break;
         lock.lock();
-        JLOG(j_.debug()) << "phaseEstablish doAcceptA loop duration so far: "
-            << std::chrono::duration_cast<std::chrono::milliseconds>(
-                                std::chrono::steady_clock::now() - *startTime).count()
-            << "ms. built: " << built.id() << ','
-            << built.seq()
-            << " validated: "
-            << adaptor_.ledgerMaster_.getValidatedLedger()->info().hash
-            << ','
-            << adaptor_.ledgerMaster_.getValidatedLedger()->info().seq;
     }
-    while (adaptor_.haveValidated() &&
-           (std::chrono::duration_cast<std::chrono::seconds>(
-                std::chrono::steady_clock::now() - *startTime).count() < 5) &&
-           (txsBuilt->second.id() != adaptor_.ledgerMaster_.getValidatedLedger()->info().hash) &&
-           (txsBuilt->second.seq() >= adaptor_.ledgerMaster_.getValidatedLedger()->info().seq));
+    while (adaptor_.retryAccept(txsBuilt->second, startDelay));
 
-    adaptor_.onAccept(
+    lock.unlock();
+
+    if (startDelay)
+    {
+        adaptor_.validationDelay() =
+            std::make_unique<std::chrono::milliseconds>(
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now() - *startDelay));
+    }
+    adaptor_.prepareOpenLedger(std::move(*txsBuilt),
         *result_,
-        previousLedger_,
-        closeResolution_,
         rawCloseTimes_,
-        mode_.get(),
-        getJson(true),
-        txsBuilt->first,
-        txsBuilt->second);
-
-    return ret;
+        mode_.get());
+    adaptor_.endConsensus();
 }
 
 template <class Adaptor>
