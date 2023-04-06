@@ -1270,10 +1270,64 @@ NetworkOPsImp::processTransaction(
 
     JLOG(m_journal.debug()) << "processTransaction " << transaction->getID()
         << ',' << bLocal;
+    std::unique_lock lock(mMutex);
+    if (!transaction->getApplying())
+    {
+        transaction->setApplying();
+        mTransactions.push_back(
+            TransactionStatus(transaction, bUnlimited, bLocal, failType));
+    }
+    switch (sync)
+    {
+        case RPC::SubmitSync::sync:
+            do
+            {
+                if (mDispatchState == DispatchState::running)
+                {
+                    // A batch processing job is already running, so wait.
+                    mCond.wait(lock);
+                }
+                else
+                {
+                    apply(lock);
+
+                    if (mTransactions.size())
+                    {
+                        // More transactions need to be applied, but by another job.
+                        if (m_job_queue.addJob(jtBATCH, "transactionBatch", [this]() {
+                            transactionBatch();
+                        }))
+                        {
+                            mDispatchState = DispatchState::scheduled;
+                        }
+                    }
+                }
+            } while (transaction->getApplying());
+            break;
+
+        case RPC::SubmitSync::async:
+            // Ensure that the tx object doesn't get processed before being
+            // returned to client, so the client can expect the terSUBMITTED
+            // result in all cases.
+            transaction = std::make_shared<Transaction>(*transaction);
+            transaction->setResult(terSUBMITTED);
+            break;
+
+        case RPC::SubmitSync::wait:
+            mCond.wait(lock,
+                [&transaction]{ return !transaction->getApplying(); });
+            break;
+
+        default:
+            assert(false);
+    }
+
+    /*
     if (sync == RPC::SubmitSync::sync)
         doTransactionSync(transaction, bUnlimited, failType);
     else
         doTransactionAsync(transaction, bUnlimited, failType);
+*/
 }
 
 void
