@@ -318,7 +318,7 @@ public:
      * Apply transactions in batches. Continue until none are queued.
      */
     void
-    transactionBatch(bool const drain);
+    transactionBatch();
 
     /**
      * Attempt to apply transactions and post-process based on the results.
@@ -1026,15 +1026,20 @@ NetworkOPsImp::setBatchApplyTimer()
         batchApplyTimer_,
         100ms,
         [this]() {
-            if (m_job_queue.addJob(
-                        jtBATCH, "transactionBatch", [this]() {
-                            transactionBatch(false);
-                        }))
+            std::unique_lock lock(mMutex);
+            if (mTransactions.size() && mDispatchState == DispatchState::none)
+            {
+                if (m_job_queue.addJob(
+                        jtBATCH, "transactionBatch", [this]() { transactionBatch(); }))
                 {
-                    std::lock_guard _(mMutex);
                     mDispatchState = DispatchState::scheduled;
                 }
-            setBatchApplyTimer();
+            }
+            else
+            {
+                lock.unlock();
+                setBatchApplyTimer();
+            }
         },
         [this]() { setBatchApplyTimer(); });
 }
@@ -1265,55 +1270,10 @@ NetworkOPsImp::processTransaction(
 
     JLOG(m_journal.debug()) << "processTransaction " << transaction->getID()
         << ',' << bLocal;
-    std::unique_lock lock(mMutex);
-    if (!transaction->getApplying())
-    {
-        transaction->setApplying();
-        mTransactions.push_back(
-            TransactionStatus(transaction, bUnlimited, bLocal, failType));
-    }
-    switch (sync)
-    {
-        case RPC::SubmitSync::sync:
-            JLOG(m_journal.debug()) << "sync tx";
-            // applyBatch() must guarantee that all transactions currently
-            // batched will be processed.
-            do
-            {
-                // Wait if a batch job is already running.
-                if (mDispatchState == DispatchState::running)
-                    mCond.wait(lock);
-                else
-                    apply(lock);
-            } while (transaction->getApplying());
-            break;
-
-        case RPC::SubmitSync::wait:
-            JLOG(m_journal.debug()) << "wait tx";
-            mCond.wait(lock,
-                [&transaction]{ return !transaction->getApplying(); }
-            );
-            break;
-
-        case RPC::SubmitSync::async:
-            JLOG(m_journal.debug()) << "async tx";
-            // Ensure that the tx object doesn't get processed before being
-            // returned to client, so the client can expect the terSUBMITTED
-            // result in all cases.
-            transaction = std::make_shared<Transaction>(*transaction);
-            transaction->setResult(terSUBMITTED);
-            break;
-
-        default:
-            assert(false);
-    }
-
-    /*
-    if (bLocal)
+    if (sync == RPC::SubmitSync::sync)
         doTransactionSync(transaction, bUnlimited, failType);
     else
         doTransactionAsync(transaction, bUnlimited, failType);
-        */
 }
 
 void
@@ -1390,27 +1350,22 @@ NetworkOPsImp::doTransactionSync(
 }
 
 void
-NetworkOPsImp::transactionBatch(bool const drain)
+NetworkOPsImp::transactionBatch()
 {
-    std::unique_lock<std::mutex> lock(mMutex);
-    JLOG(m_journal.debug()) << "transactionBatch ";
-    do
     {
-        JLOG(m_journal.debug()) << "transactionBatch txs,drain: " <<
-            mTransactions.size() << ',' << drain;
-        apply(lock);
+        std::unique_lock<std::mutex> lock(mMutex);
+        if (mDispatchState == DispatchState::running)
+            return;
+//        while (mTransactions.size())
+        if (mTransactions.size())
+            apply(lock);
     }
-    while (drain && mTransactions.size());
+    setBatchApplyTimer();
 }
 
 void
 NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
 {
-    JLOG(m_journal.debug()) << "apply transactions,is running: " <<
-        mTransactions.size() << ',' << (mDispatchState == DispatchState::running);
-    if (mTransactions.empty() || mDispatchState == DispatchState::running)
-        return;
-
     std::vector<TransactionStatus> submit_held;
     std::vector<TransactionStatus> transactions;
     mTransactions.swap(transactions);
