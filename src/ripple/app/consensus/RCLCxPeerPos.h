@@ -26,6 +26,7 @@
 #include <ripple/consensus/ConsensusProposal.h>
 #include <ripple/json/json_value.h>
 #include <ripple/protocol/HashPrefix.h>
+#include <ripple/protocol/Protocol.h>
 #include <ripple/protocol/PublicKey.h>
 #include <ripple/protocol/SecretKey.h>
 #include <boost/container/static_vector.hpp>
@@ -44,7 +45,7 @@ class RCLCxPeerPos
 {
 public:
     //< The type of the proposed position
-    using Proposal = ConsensusProposal<NodeID, uint256, uint256>;
+    using Proposal = ConsensusProposal<NodeID, uint256, uint256, LedgerIndex>;
 
     /** Constructor
 
@@ -61,12 +62,6 @@ public:
         Slice const& signature,
         uint256 const& suppress,
         Proposal&& proposal);
-
-    bool
-    operator<(RCLCxPeerPos const& rhs) const
-    {
-        return proposal_.proposeSeq() < rhs.proposal().proposeSeq();
-    }
 
     //! Verify the signing hash of the proposal
     bool
@@ -95,12 +90,6 @@ public:
 
     Proposal const&
     proposal() const
-    {
-        return proposal_;
-    }
-
-    Proposal&
-    proposalMutable()
     {
         return proposal_;
     }

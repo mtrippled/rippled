@@ -24,8 +24,11 @@
 #include <ripple/app/consensus/RCLCxLedger.h>
 #include <ripple/app/consensus/RCLCxPeerPos.h>
 #include <ripple/app/consensus/RCLCxTx.h>
+#include <ripple/app/main/Application.h>
 #include <ripple/app/misc/FeeVote.h>
 #include <ripple/app/misc/NegativeUNLVote.h>
+#include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/basics/chrono.h>
 #include <ripple/basics/CountedObject.h>
 #include <ripple/basics/Log.h>
 #include <ripple/beast/utility/Journal.h>
@@ -37,10 +40,10 @@
 #include <ripple/shamap/SHAMap.h>
 #include <atomic>
 #include <chrono>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <set>
-#include <string>
 
 namespace ripple {
 
@@ -60,16 +63,14 @@ class RCLConsensus
     // Implements the Adaptor template interface required by Consensus.
     class Adaptor
     {
-    public:
         Application& app_;
         std::unique_ptr<FeeVote> feeVote_;
-    public:
-
         LedgerMaster& ledgerMaster_;
-        mutable std::recursive_mutex mutex_;
-    private:
         LocalTxs& localTxs_;
         InboundTransactions& inboundTransactions_;
+        //! Clock type for measuring time within the consensus code
+        using clock_type = Stopwatch;
+        clock_type& clock_;
         beast::Journal const j_;
 
         // If the server is validating, the necessary keying information:
@@ -87,6 +88,7 @@ class RCLConsensus
 
         // These members are queried via public accesors and are atomic for
         // thread safety.
+        std::atomic<bool> validating_{false};
         std::atomic<std::size_t> prevProposers_{0};
         std::atomic<std::chrono::milliseconds> prevRoundTime_{
             std::chrono::milliseconds{0}};
@@ -95,12 +97,20 @@ class RCLConsensus
         RCLCensorshipDetector<TxID, LedgerIndex> censorshipDetector_;
         NegativeUNLVote nUnlVote_;
 
+        // Since Consensus does not provide intrinsic thread-safety, this mutex
+        // guards all calls to consensus_.
+        mutable std::recursive_mutex mutex_;
+
+        std::unique_ptr<std::chrono::milliseconds> validationDelay_;
+
+        std::unique_ptr<std::chrono::milliseconds> timerDelay_;
+
     public:
-        std::atomic<bool> validating_{false};
         using Ledger_t = RCLCxLedger;
         using NodeID_t = NodeID;
         using NodeKey_t = PublicKey;
         using TxSet_t = RCLTxSet;
+        using CanonicalTxSet_t = CanonicalTXSet;
         using PeerPosition_t = RCLCxPeerPos;
 
         using Result = ConsensusResult<Adaptor>;
@@ -112,6 +122,7 @@ class RCLConsensus
             LocalTxs& localTxs,
             InboundTransactions& inboundTransactions,
             ValidatorKeys const& validatorKeys,
+            clock_type& clock,
             beast::Journal journal);
 
         bool
@@ -187,8 +198,39 @@ class RCLConsensus
             return parms_;
         }
 
-        std::size_t
-        getNeededValidations() const;
+        std::recursive_mutex&
+        peekMutex() const
+        {
+            return mutex_;
+        }
+
+        LedgerMaster&
+        getLedgerMaster() const
+        {
+            return ledgerMaster_;
+        }
+
+        void
+        clearValidating()
+        {
+            validating_ = false;
+        }
+
+        bool
+        retryAccept(Ledger_t const& newLedger,
+            std::optional<std::chrono::time_point<std::chrono::steady_clock>>& start) const;
+
+        std::unique_ptr<std::chrono::milliseconds>&
+        validationDelay()
+        {
+            return validationDelay_;
+        }
+
+        std::unique_ptr<std::chrono::milliseconds>&
+        timerDelay()
+        {
+            return timerDelay_;
+        }
 
     private:
         //---------------------------------------------------------------------
@@ -245,9 +287,6 @@ class RCLConsensus
          */
         bool
         hasOpenTransactions() const;
-
-        std::size_t
-        txCount() const;
 
         /** Number of proposers that have validated the given ledger
 
@@ -332,6 +371,7 @@ class RCLConsensus
                         declared
             @param consensusJson Json representation of consensus state
         */
+        /*
         void
         onAccept(
             Result const& result,
@@ -339,9 +379,8 @@ class RCLConsensus
             NetClock::duration const& closeResolution,
             ConsensusCloseTimes const& rawCloseTimes,
             ConsensusMode const& mode,
-            Json::Value&& consensusJson,
-            CanonicalTXSet& retriableTxs,
-            RCLCxLedger& built);
+            Json::Value&& consensusJson);
+            */
 
         /** Process the accepted ledger that was a result of simulation/force
             accept.
@@ -356,6 +395,21 @@ class RCLConsensus
             ConsensusCloseTimes const& rawCloseTimes,
             ConsensusMode const& mode,
             Json::Value&& consensusJson);
+
+        std::pair<CanonicalTxSet_t, Ledger_t>
+        buildAndValidate(
+            Result const& result,
+            Ledger_t const& prevLedger,
+            NetClock::duration const& closeResolution,
+            ConsensusMode const& mode,
+            Json::Value&& consensusJson);
+
+        void
+        prepareOpenLedger(
+            std::pair<CanonicalTxSet_t, Ledger_t>&& txsBuilt,
+            Result const& result,
+            ConsensusCloseTimes const& rawCloseTimes,
+            ConsensusMode const& mode);
 
         /** Notify peers of a consensus state change
 
@@ -373,6 +427,7 @@ class RCLConsensus
 
             @ref onAccept
          */
+         /*
         void
         doAccept(
             Result const& result,
@@ -381,26 +436,7 @@ class RCLConsensus
             ConsensusCloseTimes const& rawCloseTimes,
             ConsensusMode const& mode,
             Json::Value&& consensusJson);
-
-        std::pair<CanonicalTXSet, RCLCxLedger>
-        doAcceptA(
-            Result const& result,
-            RCLCxLedger const& prevLedger,
-            NetClock::duration closeResolution,
-            ConsensusCloseTimes const& rawCloseTimes,
-            ConsensusMode const& mode,
-            Json::Value&& consensusJson);
-
-        void
-        doAcceptB(
-            Result const& result,
-            RCLCxLedger const& prevLedger,
-            NetClock::duration closeResolution,
-            ConsensusCloseTimes const& rawCloseTimes,
-            ConsensusMode const& mode,
-            Json::Value&& consensusJson,
-            CanonicalTXSet& retriableTxs,
-            RCLCxLedger& built);
+            */
 
         /** Build the new last closed ledger.
 
@@ -448,6 +484,12 @@ class RCLConsensus
             RCLCxLedger const& ledger,
             RCLTxSet const& txns,
             bool proposing);
+
+        void
+        endConsensus() const
+        {
+            app_.getOPs().endConsensus();
+        }
     };
 
 public:
@@ -458,7 +500,7 @@ public:
         LedgerMaster& ledgerMaster,
         LocalTxs& localTxs,
         InboundTransactions& inboundTransactions,
-        Consensus<Adaptor>::clock_type const& clock,
+        Consensus<Adaptor>::clock_type& clock,
         ValidatorKeys const& validatorKeys,
         beast::Journal journal);
 
@@ -524,12 +566,6 @@ public:
         hash_set<NodeID> const& nowTrusted,
         bool fromEndConsensus);
 
-     std::optional<RCLCxPeerPos>
-     fastConsensus()
-     {
-         return consensus_.fastConsensus();
-     }
-
     //! @see Consensus::timerEntry
     std::size_t
     timerEntry(NetClock::time_point const& now);
@@ -542,7 +578,7 @@ public:
     RCLCxLedger::ID
     prevLedgerID() const
     {
-        std::lock_guard _{mutex_};
+        std::lock_guard _{adaptor_.peekMutex()};
         return consensus_.prevLedgerID();
     }
 
@@ -564,18 +600,16 @@ public:
         return adaptor_.parms();
     }
 
-    // Since Consensus does not provide intrinsic thread-safety, this mutex
-    // guards all calls to consensus_. adaptor_ uses atomics internally
-    // to allow concurrent access of its data members that have getters.
+    std::unique_ptr<std::chrono::milliseconds>&
+    timerDelay()
+    {
+        return adaptor_.timerDelay();
+    }
 
 private:
     Adaptor adaptor_;
     Consensus<Adaptor> consensus_;
     beast::Journal const j_;
-
-public:
-    std::recursive_mutex& mutex_;
-
 };
 }  // namespace ripple
 
