@@ -262,8 +262,9 @@ public:
         if ((cores == 1) || ((config.NODE_SIZE == 0) && (cores == 2)))
             return 1;
 
-        // Otherwise, prefer two threads.
-        return 2;
+        // Otherwise, prefer three threads. Consensus and network I/O run
+        // within this thread pool.
+        return 3;
 #endif
     }
 
