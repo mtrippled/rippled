@@ -506,7 +506,7 @@ RCLConsensus::Adaptor::buildAndValidate(
         {
             retriableTxs.insert(
                 std::make_shared<STTx const>(SerialIter{item.slice()}));
-            JLOG(j_.debug()) << "    Tx: " << item.key();
+            JLOG(j_.trace()) << "    Tx: " << item.key();
         }
         catch (std::exception const&)
         {
@@ -622,7 +622,7 @@ RCLConsensus::Adaptor::prepareOpenLedger(
                 // we voted NO
                 try
                 {
-                    JLOG(j_.debug())
+                    JLOG(j_.trace())
                         << "Test applying disputed transaction that did"
                         << " not get in " << dispute.tx().id();
 
@@ -640,7 +640,7 @@ RCLConsensus::Adaptor::prepareOpenLedger(
                 }
                 catch (std::exception const&)
                 {
-                    JLOG(j_.debug())
+                    JLOG(j_.trace())
                         << "Failed to apply transaction we voted NO on";
                 }
             }
