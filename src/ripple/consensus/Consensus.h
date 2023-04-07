@@ -1704,10 +1704,17 @@ Consensus<Adaptor>::phaseEstablish(std::unique_lock<std::recursive_mutex>& lock)
                     std::chrono::milliseconds(100));
                 continue;
             }
-            JLOG(j_.debug()) << "phaseEstablish retrying doAcceptA with new "
+            JLOG(j_.debug()) << "phaseEstablish retrying buildAndValidate with new "
                                 "position: " << result_->position.position();
         }
         lock.unlock();
+        txsBuilt = adaptor_.buildAndValidate(
+            *result_,
+            previousLedger_,
+            closeResolution_,
+            mode_.get(),
+            getJson(true));
+        /*
         txsBuilt = adaptor_.doAcceptA(
             *result_,
             previousLedger_,
@@ -1715,6 +1722,7 @@ Consensus<Adaptor>::phaseEstablish(std::unique_lock<std::recursive_mutex>& lock)
             rawCloseTimes_,
             mode_.get(),
             getJson(true));
+            */
         if (!startTime)
             startTime = std::chrono::steady_clock::now();
         RCLCxLedger& built = txsBuilt->second;
@@ -1742,7 +1750,7 @@ Consensus<Adaptor>::phaseEstablish(std::unique_lock<std::recursive_mutex>& lock)
 //        if (previousLedger_.id() == adaptor_.ledgerMaster_.getValidatedLedger()->info().hash)
 //            break;
         lock.lock();
-        JLOG(j_.debug()) << "phaseEstablish doAcceptA loop duration so far: "
+        JLOG(j_.debug()) << "phaseEstablish buildAndValidate loop duration so far: "
             << std::chrono::duration_cast<std::chrono::milliseconds>(
                                 std::chrono::steady_clock::now() - *startTime).count()
             << "ms. built: " << built.id() << ','
@@ -1765,8 +1773,7 @@ Consensus<Adaptor>::phaseEstablish(std::unique_lock<std::recursive_mutex>& lock)
         rawCloseTimes_,
         mode_.get(),
         getJson(true),
-        txsBuilt->first,
-        txsBuilt->second);
+        std::move(*txsBuilt));
 
     return ret;
 }

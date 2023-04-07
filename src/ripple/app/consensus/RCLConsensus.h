@@ -101,6 +101,7 @@ class RCLConsensus
         using NodeID_t = NodeID;
         using NodeKey_t = PublicKey;
         using TxSet_t = RCLTxSet;
+        using CanonicalTxSet_t = CanonicalTXSet;
         using PeerPosition_t = RCLCxPeerPos;
 
         using Result = ConsensusResult<Adaptor>;
@@ -340,8 +341,7 @@ class RCLConsensus
             ConsensusCloseTimes const& rawCloseTimes,
             ConsensusMode const& mode,
             Json::Value&& consensusJson,
-            CanonicalTXSet& retriableTxs,
-            RCLCxLedger& built);
+            std::pair<CanonicalTxSet_t, Ledger_t>&& txsBuilt);
 
         /** Process the accepted ledger that was a result of simulation/force
             accept.
@@ -369,38 +369,20 @@ class RCLConsensus
             RCLCxLedger const& ledger,
             bool haveCorrectLCL);
 
-        /** Accept a new ledger based on the given transactions.
-
-            @ref onAccept
-         */
-        void
-        doAccept(
+        std::pair<CanonicalTxSet_t, Ledger_t>
+        buildAndValidate(
             Result const& result,
-            RCLCxLedger const& prevLedger,
-            NetClock::duration closeResolution,
-            ConsensusCloseTimes const& rawCloseTimes,
-            ConsensusMode const& mode,
-            Json::Value&& consensusJson);
-
-        std::pair<CanonicalTXSet, RCLCxLedger>
-        doAcceptA(
-            Result const& result,
-            RCLCxLedger const& prevLedger,
-            NetClock::duration closeResolution,
-            ConsensusCloseTimes const& rawCloseTimes,
+            Ledger_t const& prevLedger,
+            NetClock::duration const& closeResolution,
             ConsensusMode const& mode,
             Json::Value&& consensusJson);
 
         void
-        doAcceptB(
+        prepareOpenLedger(
+            std::pair<CanonicalTxSet_t, Ledger_t>&& txsBuilt,
             Result const& result,
-            RCLCxLedger const& prevLedger,
-            NetClock::duration closeResolution,
             ConsensusCloseTimes const& rawCloseTimes,
-            ConsensusMode const& mode,
-            Json::Value&& consensusJson,
-            CanonicalTXSet& retriableTxs,
-            RCLCxLedger& built);
+            ConsensusMode const& mode);
 
         /** Build the new last closed ledger.
 
