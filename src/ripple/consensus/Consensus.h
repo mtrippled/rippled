@@ -1751,6 +1751,7 @@ Consensus<Adaptor>::phaseEstablish()
            (txsBuilt->second.id() != adaptor_.ledgerMaster_.getValidatedLedger()->info().hash) &&
            (txsBuilt->second.seq() >= adaptor_.ledgerMaster_.getValidatedLedger()->info().seq));
 
+    lock.unlock();
     adaptor_.onAccept(
         *result_,
         previousLedger_,

@@ -456,22 +456,22 @@ RCLConsensus::Adaptor::onAccept(
     Json::Value&& consensusJson,
     std::pair<CanonicalTxSet_t, Ledger_t>&& tb)
 {
-    app_.getJobQueue().addJob(
-        jtACCEPT,
-        "acceptLedger",
-        [=, this, cj = std::move(consensusJson),
-            txsBuilt = std::move(tb)]() mutable {
+//    app_.getJobQueue().addJob(
+//        jtACCEPT,
+//        "acceptLedger",
+//        [=, this, cj = std::move(consensusJson),
+//            txsBuilt = std::move(tb)]() mutable {
             // Note that no lock is held or acquired during this job.
             // This is because generic Consensus guarantees that once a ledger
             // is accepted, the consensus results and capture by reference state
             // will not change until startRound is called (which happens via
             // endConsensus).
-            prepareOpenLedger(std::move(txsBuilt),
+            prepareOpenLedger(std::move(tb),
                 result,
                 rawCloseTimes,
                 mode);
             this->app_.getOPs().endConsensus();
-        });
+//        });
 }
 
 std::pair<RCLConsensus::Adaptor::CanonicalTxSet_t,
