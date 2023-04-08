@@ -98,6 +98,8 @@ class RCLConsensus
         // guards all calls to consensus_.
         mutable std::recursive_mutex mutex_;
 
+        std::unique_ptr<std::chrono::milliseconds> validationDelay_;
+
     public:
         std::atomic<bool> validating_{false};
         using Ledger_t = RCLCxLedger;
@@ -195,6 +197,12 @@ class RCLConsensus
         peekMutex() const
         {
             return mutex_;
+        }
+
+        std::unique_ptr<std::chrono::milliseconds>&
+        validationDelay()
+        {
+            return validationDelay_;
         }
 
         std::size_t

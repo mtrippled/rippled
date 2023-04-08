@@ -32,6 +32,7 @@ shouldCloseLedger(
     std::chrono::milliseconds
         timeSincePrevClose,              // Time since last ledger's close time
     std::chrono::milliseconds openTime,  // Time waiting to close this ledger
+    std::unique_ptr<std::chrono::milliseconds> const& validationDelay,
     std::chrono::milliseconds idleInterval,
     ConsensusParms const& parms,
     beast::Journal j)
