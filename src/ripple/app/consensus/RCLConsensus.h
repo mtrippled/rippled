@@ -100,6 +100,8 @@ class RCLConsensus
 
         std::unique_ptr<std::chrono::milliseconds> validationDelay_;
 
+        std::unique_ptr<std::chrono::milliseconds> timerDelay_;
+
     public:
         std::atomic<bool> validating_{false};
         using Ledger_t = RCLCxLedger;
@@ -203,6 +205,12 @@ class RCLConsensus
         validationDelay()
         {
             return validationDelay_;
+        }
+
+        std::unique_ptr<std::chrono::milliseconds>&
+        timerDelay()
+        {
+            return timerDelay_;
         }
 
         std::size_t
@@ -563,9 +571,11 @@ public:
         return adaptor_.parms();
     }
 
-    // Since Consensus does not provide intrinsic thread-safety, this mutex
-    // guards all calls to consensus_. adaptor_ uses atomics internally
-    // to allow concurrent access of its data members that have getters.
+    std::unique_ptr<std::chrono::milliseconds>&
+    timerDelay()
+    {
+        return adaptor_.timerDelay();
+    }
 
 private:
     Adaptor adaptor_;
