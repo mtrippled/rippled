@@ -360,8 +360,7 @@ public:
         Ledger_t prevLedger,
         hash_set<NodeID_t> const& nowUntrusted,
         bool proposing,
-        bool fromEndConsensus,
-        std::unique_lock<std::recursive_mutex>& lock);
+        bool fromEndConsensus);
 
     /** A peer has proposed a new position, adjust our tracking.
 
@@ -379,8 +378,7 @@ public:
         @param now The network adjusted time
     */
     std::size_t
-    timerEntry(NetClock::time_point const& now,
-               std::unique_lock<std::recursive_mutex>& lock);
+    timerEntry(NetClock::time_point const& now);
 
     /** Process a transaction set acquired from the network
 
@@ -449,13 +447,11 @@ private:
         NetClock::time_point const& now,
         typename Ledger_t::ID const& prevLedgerID,
         Ledger_t const& prevLedger,
-        ConsensusMode mode,
-        std::unique_lock<std::recursive_mutex>& lock);
+        ConsensusMode mode);
 
     // Change our view of the previous ledger
     void
-    handleWrongLedger(typename Ledger_t::ID const& lgrId,
-                      std::unique_lock<std::recursive_mutex>& lock);
+    handleWrongLedger(typename Ledger_t::ID const& lgrId);
 
     /** Check if our previous ledger matches the network's.
 
@@ -463,7 +459,7 @@ private:
         the network and need to bow out/switch modes.
     */
     void
-    checkLedger(std::unique_lock<std::recursive_mutex>& lock);
+    checkLedger();
 
     /** If we radically changed our consensus context for some reason,
         we need to replay recent proposals so that they're not lost.
@@ -487,7 +483,7 @@ private:
         switch to the establish phase and start the consensus process.
     */
     std::size_t
-    phaseOpen(std::unique_lock<std::recursive_mutex>& lock);
+    phaseOpen();
 
     /** Handle establish phase.
 
@@ -498,7 +494,7 @@ private:
         If we have consensus, move to the accepted phase.
     */
     std::size_t
-    phaseEstablish(std::unique_lock<std::recursive_mutex>& lock);
+    phaseEstablish();
 
     /** Evaluate whether pausing increases likelihood of validation.
      *
@@ -527,7 +523,7 @@ private:
 
     // Close the open ledger and establish initial position.
     std::size_t
-    closeLedger(std::unique_lock<std::recursive_mutex>& lock);
+    closeLedger();
 
     // Adjust our positions to try to agree with other validators.
     void
@@ -649,8 +645,7 @@ Consensus<Adaptor>::startRound(
     Ledger_t prevLedger,
     hash_set<NodeID_t> const& nowUntrusted,
     bool proposing,
-    bool fromEndConsensus,
-    std::unique_lock<std::recursive_mutex>& lock)
+    bool fromEndConsensus)
 {
     if (firstRound_)
     {
@@ -711,7 +706,7 @@ Consensus<Adaptor>::startRound(
         }
     }
 
-    startRoundInternal(now, prevLedgerID, prevLedger, startMode, lock);
+    startRoundInternal(now, prevLedgerID, prevLedger, startMode);
 }
 template <class Adaptor>
 void
@@ -719,8 +714,7 @@ Consensus<Adaptor>::startRoundInternal(
     NetClock::time_point const& now,
     typename Ledger_t::ID const& prevLedgerID,
     Ledger_t const& prevLedger,
-    ConsensusMode mode,
-    std::unique_lock<std::recursive_mutex>& lock)
+    ConsensusMode mode)
 {
     phase_ = ConsensusPhase::open;
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::open";
@@ -754,7 +748,7 @@ Consensus<Adaptor>::startRoundInternal(
     {
         // We may be falling behind, don't wait for the timer
         // consider closing the ledger immediately
-        phaseOpen(lock);
+        phaseOpen();
     }
 }
 
@@ -817,7 +811,6 @@ Consensus<Adaptor>::peerProposalInternal(
     std::uint32_t proposeSeq = newPeerProp.proposeSeq();
     auto proposeLedgerSeq = newPeerProp.ledgerSeq();
     // This is because we might be doing this during phase accept.
-    std::lock_guard<std::recursive_mutex> _(adaptor_.mutex_);
     JLOG(j_.debug()) << "got peerid proposal " << peerID << ' '
         << newPeerProp.position() << " seq,ledgerseq,myprevseq: "
         << proposeSeq << ','
@@ -976,8 +969,7 @@ Consensus<Adaptor>::peerProposalInternal(
 
 template <class Adaptor>
 std::size_t
-Consensus<Adaptor>::timerEntry(NetClock::time_point const& now,
-                               std::unique_lock<std::recursive_mutex>& lock)
+Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
 {
     std::size_t ret = 1000;
     // Nothing to do if we are currently working on a ledger
@@ -991,19 +983,19 @@ Consensus<Adaptor>::timerEntry(NetClock::time_point const& now,
     now_ = now;
 
     // Check we are on the proper ledger (this may change phase_)
-    checkLedger(lock);
+    checkLedger();
 
     if (phase_ == ConsensusPhase::open)
     {
         JLOG(j_.debug()) << "timerEntry txCount " << adaptor_.txCount()
                          << " open";
-        ret = phaseOpen(lock);
+        ret = phaseOpen();
     }
     else if (phase_ == ConsensusPhase::establish)
     {
         JLOG(j_.debug()) << "timerEntry txCount " << adaptor_.txCount()
                          << " establish";
-        ret = phaseEstablish(lock);
+        ret = phaseEstablish();
     }
     else
     {
@@ -1096,8 +1088,7 @@ Consensus<Adaptor>::simulate(
     using namespace std::chrono_literals;
     JLOG(j_.info()) << "Simulating consensus";
     now_ = now;
-    std::unique_lock<std::recursive_mutex> lock(adaptor_.mutex_);
-    closeLedger(lock);
+    closeLedger();
     result_->roundTime.tick(consensusDelay.value_or(100ms));
     result_->proposers = prevProposers_ = currPeerPositions_.size();
     prevRoundTime_ = result_->roundTime.read();
@@ -1212,8 +1203,7 @@ Consensus<Adaptor>::getJson(bool full) const
 // Handle a change in the prior ledger during a consensus round
 template <class Adaptor>
 void
-Consensus<Adaptor>::handleWrongLedger(typename Ledger_t::ID const& lgrId,
-                                      std::unique_lock<std::recursive_mutex>& lock)
+Consensus<Adaptor>::handleWrongLedger(typename Ledger_t::ID const& lgrId)
 {
     assert(lgrId != prevLedgerID_ || previousLedger_.id() != lgrId);
 
@@ -1248,7 +1238,7 @@ Consensus<Adaptor>::handleWrongLedger(typename Ledger_t::ID const& lgrId,
     {
         JLOG(j_.info()) << "Have the consensus ledger " << prevLedgerID_;
         startRoundInternal(
-            now_, lgrId, *newLedger, ConsensusMode::switchedLedger, lock);
+            now_, lgrId, *newLedger, ConsensusMode::switchedLedger);
     }
     else
     {
@@ -1258,7 +1248,7 @@ Consensus<Adaptor>::handleWrongLedger(typename Ledger_t::ID const& lgrId,
 
 template <class Adaptor>
 void
-Consensus<Adaptor>::checkLedger(std::unique_lock<std::recursive_mutex>& lock)
+Consensus<Adaptor>::checkLedger()
 {
     auto netLgr =
         adaptor_.getPrevLedger(prevLedgerID_, previousLedger_, mode_.get());
@@ -1273,10 +1263,10 @@ Consensus<Adaptor>::checkLedger(std::unique_lock<std::recursive_mutex>& lock)
         JLOG(j_.warn()) << Json::Compact{previousLedger_.getJson()};
         JLOG(j_.debug()) << "State on consensus change "
                          << Json::Compact{getJson(true)};
-        handleWrongLedger(netLgr, lock);
+        handleWrongLedger(netLgr);
     }
     else if (previousLedger_.id() != prevLedgerID_)
-        handleWrongLedger(netLgr, lock);
+        handleWrongLedger(netLgr);
 }
 
 template <class Adaptor>
@@ -1348,7 +1338,7 @@ Consensus<Adaptor>::playbackProposals()
 
 template <class Adaptor>
 std::size_t
-Consensus<Adaptor>::phaseOpen(std::unique_lock<std::recursive_mutex>& lock)
+Consensus<Adaptor>::phaseOpen()
 {
     using namespace std::chrono;
 
@@ -1396,7 +1386,7 @@ Consensus<Adaptor>::phaseOpen(std::unique_lock<std::recursive_mutex>& lock)
             j_))
     {
         JLOG(j_.debug()) << "closing with txCount " << adaptor_.txCount();
-        return closeLedger(lock);
+        return closeLedger();
     }
     else
     {
@@ -1521,7 +1511,7 @@ Consensus<Adaptor>::shouldPause() const
 
 template <class Adaptor>
 std::size_t
-Consensus<Adaptor>::phaseEstablish(std::unique_lock<std::recursive_mutex>& lock)
+Consensus<Adaptor>::phaseEstablish()
 {
     // can only establish consensus if we already took a stance
     assert(result_);
@@ -1687,6 +1677,7 @@ Consensus<Adaptor>::phaseEstablish(std::unique_lock<std::recursive_mutex>& lock)
 //    CanonicalTXSet retriableTxs{result_->txns.map_->getHash().as_uint256()};
 //    while (std::chrono::duration_cast<std::chrono::seconds>(
 //        std::chrono::steady_clock::now() - startTime).count() < 5)
+    std::unique_lock<std::recursive_mutex> lock(adaptor_.peekMutex());
     do
     {
         if (txsBuilt)
@@ -1780,7 +1771,7 @@ Consensus<Adaptor>::phaseEstablish(std::unique_lock<std::recursive_mutex>& lock)
 
 template <class Adaptor>
 std::size_t
-Consensus<Adaptor>::closeLedger(std::unique_lock<std::recursive_mutex>& lock)
+Consensus<Adaptor>::closeLedger()
 {
     // We should not be closing if we already have a position
     assert(!result_);
@@ -1849,7 +1840,7 @@ Consensus<Adaptor>::closeLedger(std::unique_lock<std::recursive_mutex>& lock)
             createDisputes(it->second);
         }
     }
-    std::size_t ret = phaseEstablish(lock);
+    std::size_t ret = phaseEstablish();
     return ret;
 }
 

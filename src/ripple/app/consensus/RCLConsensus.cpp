@@ -68,7 +68,6 @@ RCLConsensus::RCLConsensus(
           journal)
     , consensus_(clock, adaptor_, journal)
     , j_(journal)
-    , mutex_(adaptor_.mutex_)
 {
 }
 
@@ -948,7 +947,7 @@ RCLConsensus::getJson(bool full) const
 {
     Json::Value ret;
     {
-        std::lock_guard _{mutex_};
+        std::lock_guard _{adaptor_.peekMutex()};
         ret = consensus_.getJson(full);
     }
     ret["validating"] = adaptor_.validating();
@@ -960,8 +959,8 @@ RCLConsensus::timerEntry(NetClock::time_point const& now)
 {
     try
     {
-        std::unique_lock<std::recursive_mutex> lock(mutex_);
-        return consensus_.timerEntry(now, lock);
+        std::lock_guard _{adaptor_.peekMutex()};
+        return consensus_.timerEntry(now);
     }
     catch (SHAMapMissingNode const& mn)
     {
@@ -976,7 +975,7 @@ RCLConsensus::gotTxSet(NetClock::time_point const& now, RCLTxSet const& txSet)
 {
     try
     {
-        std::lock_guard _{mutex_};
+        std::lock_guard _{adaptor_.peekMutex()};
         consensus_.gotTxSet(now, txSet);
     }
     catch (SHAMapMissingNode const& mn)
@@ -994,7 +993,7 @@ RCLConsensus::simulate(
     NetClock::time_point const& now,
     std::optional<std::chrono::milliseconds> consensusDelay)
 {
-    std::lock_guard _{mutex_};
+    std::lock_guard _{adaptor_.peekMutex()};
     consensus_.simulate(now, consensusDelay);
 }
 
@@ -1003,7 +1002,7 @@ RCLConsensus::peerProposal(
     NetClock::time_point const& now,
     RCLCxPeerPos const& newProposal)
 {
-    std::lock_guard _{mutex_};
+    std::lock_guard _{adaptor_.peekMutex()};
     return consensus_.peerProposal(now, newProposal);
 }
 
@@ -1106,15 +1105,14 @@ RCLConsensus::startRound(
     hash_set<NodeID> const& nowTrusted,
     bool fromEndConsensus)
 {
-    std::unique_lock<std::recursive_mutex> lock{mutex_};
+    std::lock_guard _{adaptor_.peekMutex()};
     consensus_.startRound(
         now,
         prevLgrId,
         prevLgr,
         nowUntrusted,
         adaptor_.preStartRound(prevLgr, nowTrusted),
-        fromEndConsensus,
-        lock);
+        fromEndConsensus);
 }
 
 }  // namespace ripple

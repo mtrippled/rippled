@@ -66,7 +66,6 @@ class RCLConsensus
     public:
 
         LedgerMaster& ledgerMaster_;
-        mutable std::recursive_mutex mutex_;
     private:
         LocalTxs& localTxs_;
         InboundTransactions& inboundTransactions_;
@@ -94,6 +93,10 @@ class RCLConsensus
 
         RCLCensorshipDetector<TxID, LedgerIndex> censorshipDetector_;
         NegativeUNLVote nUnlVote_;
+
+        // Since Consensus does not provide intrinsic thread-safety, this mutex
+        // guards all calls to consensus_.
+        mutable std::recursive_mutex mutex_;
 
     public:
         std::atomic<bool> validating_{false};
@@ -186,6 +189,12 @@ class RCLConsensus
         parms() const
         {
             return parms_;
+        }
+
+        std::recursive_mutex&
+        peekMutex() const
+        {
+            return mutex_;
         }
 
         std::size_t
@@ -524,7 +533,7 @@ public:
     RCLCxLedger::ID
     prevLedgerID() const
     {
-        std::lock_guard _{mutex_};
+        std::lock_guard _{adaptor_.peekMutex()};
         return consensus_.prevLedgerID();
     }
 
@@ -554,10 +563,6 @@ private:
     Adaptor adaptor_;
     Consensus<Adaptor> consensus_;
     beast::Journal const j_;
-
-public:
-    std::recursive_mutex& mutex_;
-
 };
 }  // namespace ripple
 
