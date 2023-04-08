@@ -538,7 +538,7 @@ public:
      }
 
     //! @see Consensus::timerEntry
-    std::size_t
+    void
     timerEntry(NetClock::time_point const& now);
 
     //! @see Consensus::gotTxSet
