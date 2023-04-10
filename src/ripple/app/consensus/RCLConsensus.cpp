@@ -942,6 +942,24 @@ RCLConsensus::Adaptor::getNeededValidations() const
     return ledgerMaster_.getNeededValidations();
 }
 
+bool
+RCLConsensus::Adaptor::retryAccept(Ledger_t const& newLedger,
+    std::optional<std::chrono::time_point<std::chrono::steady_clock>>& start) const
+{
+    static bool const standalone = ledgerMaster_.standalone();
+    auto const& validLedger = ledgerMaster_.getValidatedLedger();
+
+    return (!standalone &&
+            (validLedger &&
+             (newLedger.id() != validLedger->info().hash) &&
+             (newLedger.seq() >= validLedger->info().seq))) &&
+           (!start ||
+            std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::steady_clock::now() - *start).count() < 5);
+}
+
+//-----------------------------------------------------------------------------
+
 Json::Value
 RCLConsensus::getJson(bool full) const
 {

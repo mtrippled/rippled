@@ -201,6 +201,22 @@ class RCLConsensus
             return mutex_;
         }
 
+        LedgerMaster&
+        getLedgerMaster() const
+        {
+            return ledgerMaster_;
+        }
+
+        void
+        clearValidating()
+        {
+            validating_ = false;
+        }
+
+        bool
+        retryAccept(Ledger_t const& newLedger,
+            std::optional<std::chrono::time_point<std::chrono::steady_clock>>& start) const;
+
         std::unique_ptr<std::chrono::milliseconds>&
         validationDelay()
         {
