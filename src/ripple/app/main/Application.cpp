@@ -262,8 +262,8 @@ public:
         if ((cores == 1) || ((config.NODE_SIZE == 0) && (cores == 2)))
             return 1;
 
-        // Otherwise, prefer three threads. Consensus can consume much of one.
-        return 3;
+        // Otherwise, prefer two threads.
+        return 2;
 #endif
     }
 
