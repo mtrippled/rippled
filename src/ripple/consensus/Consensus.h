@@ -528,7 +528,7 @@ private:
 
     // Adjust our positions to try to agree with other validators.
     void
-    updateOurPositions(bool share = true);
+    updateOurPositions(bool share);
 
     bool
     haveConsensus();
@@ -1588,25 +1588,7 @@ Consensus<Adaptor>::phaseEstablish()
         }
     }
 
-    {
-        updateOurPositions();
-        /*
-        if (f)
-        {
-            JLOG(j_.debug()) << "phaseEstablish 1 setting result_ to consensus "
-                                "position "
-                             << f->proposal().position();
-            auto posPair = acquired_.find(f->proposal().position());
-            result_.emplace(Result(std::move(posPair->second),
-                                   std::move(f->proposalMutable())));
-            haveCloseTimeConsensus_ = true;
-        }
-        else
-        {
-            updateOurPositions();
-        }
-         */
-    }
+    updateOurPositions(true);
 
     // Nothing to do if too many laggards or we don't have consensus.
     if (shouldPause() || !haveConsensus())
