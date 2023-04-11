@@ -67,15 +67,10 @@ shouldCloseLedger(
     if (!anyTransactions)
     {
         // Only close at the end of the idle interval
-        return timeSincePrevClose >= idleInterval;  // normal idle
+        bool ret = timeSincePrevClose >= idleInterval;  // normal idle
+        JLOG(j.debug()) << "shouldCloseLedger closing at end of idle interval: " << ret;
+        return ret;
 
-    }
-
-    if (validationDelay)
-    {
-        openTime += *validationDelay;
-        JLOG(j.debug()) << "shouldCloseLedger previous round validation delay "
-                           "of " << validationDelay->count() << "ms.";
     }
 
     // Preserve minimum ledger open time
