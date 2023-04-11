@@ -21,11 +21,14 @@
 
 #include <ripple/basics/base_uint.h>
 #include <ripple/basics/chrono.h>
+#include <ripple/beast/clock/abstract_clock.h>
+#include <ripple/consensus/ConsensusTypes.h>
 #include <ripple/json/json_value.h>
 #include <ripple/protocol/HashPrefix.h>
 #include <ripple/protocol/jss.h>
+#include <ripple/protocol/Protocol.h>
+#include <chrono>
 #include <cstdint>
-#include <iostream>
 #include <optional>
 
 namespace ripple {
@@ -52,11 +55,14 @@ namespace ripple {
     @tparam Position_t Type used to represent the position taken on transactions
                        under consideration during this round of consensus
  */
-template <class NodeID_t, class LedgerID_t, class Position_t>
+template <class NodeID_t, class LedgerID_t, class Position_t, class Seq>
 class ConsensusProposal
 {
 public:
     using NodeID = NodeID_t;
+
+    //! Clock type for measuring time within the consensus code
+    using clock_type = beast::abstract_clock<std::chrono::steady_clock>;
 
     //< Sequence value when a peer initially joins consensus
     static std::uint32_t const seqJoin = 0;
@@ -80,7 +86,8 @@ public:
         NetClock::time_point closeTime,
         NetClock::time_point now,
         NodeID_t const& nodeID,
-        std::optional<std::uint32_t> ledgerSeq = std::nullopt)
+        Seq const& ledgerSeq,
+        clock_type const& clock)
         : previousLedger_(prevLedger)
         , position_(position)
         , closeTime_(closeTime)
@@ -89,10 +96,7 @@ public:
         , nodeID_(nodeID)
         , ledgerSeq_(ledgerSeq)
     {
-        if (ledgerSeq.has_value())
-            std::cerr << "ledgerSeq " << *ledgerSeq_ << '\n';
-        else
-            std::cerr << "ledgerSeq null\n";
+        arrivalTime_.reset(clock.now());
     }
 
     //! Identifying which peer took this position.
@@ -127,12 +131,6 @@ public:
     proposeSeq() const
     {
         return proposeSeq_;
-    }
-
-    std::optional<std::uint32_t>
-    ledgerSeq() const
-    {
-        return ledgerSeq_;
     }
 
     //! The current position on the consensus close time.
@@ -245,6 +243,18 @@ public:
         return signingHash_.value();
     }
 
+    Seq
+    ledgerSeq() const
+    {
+        return ledgerSeq_;
+    }
+
+    ConsensusTimer&
+    arrivalTime() const
+    {
+        return arrivalTime_;
+    }
+
 private:
     //! Unique identifier of prior ledger this proposal is based on
     LedgerID_t previousLedger_;
@@ -264,17 +274,21 @@ private:
     //! The identifier of the node taking this position
     NodeID_t nodeID_;
 
-    std::optional<std::uint32_t> ledgerSeq_;
+    Seq ledgerSeq_;
 
     //! The signing hash for this proposal
     mutable std::optional<uint256> signingHash_;
+
+    mutable ConsensusTimer arrivalTime_;
+//    std::chrono::steady_clock::time_point arrivalTime_{
+//        std::chrono::steady_clock::now()};
 };
 
-template <class NodeID_t, class LedgerID_t, class Position_t>
+template <class NodeID_t, class LedgerID_t, class Position_t, class Seq>
 bool
 operator==(
-    ConsensusProposal<NodeID_t, LedgerID_t, Position_t> const& a,
-    ConsensusProposal<NodeID_t, LedgerID_t, Position_t> const& b)
+    ConsensusProposal<NodeID_t, LedgerID_t, Position_t, Seq> const& a,
+    ConsensusProposal<NodeID_t, LedgerID_t, Position_t, Seq> const& b)
 {
     return a.nodeID() == b.nodeID() && a.proposeSeq() == b.proposeSeq() &&
         a.prevLedger() == b.prevLedger() && a.position() == b.position() &&

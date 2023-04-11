@@ -26,6 +26,7 @@
 #include <ripple/app/consensus/RCLCxTx.h>
 #include <ripple/app/misc/FeeVote.h>
 #include <ripple/app/misc/NegativeUNLVote.h>
+#include <ripple/basics/chrono.h>
 #include <ripple/basics/CountedObject.h>
 #include <ripple/basics/Log.h>
 #include <ripple/beast/utility/Journal.h>
@@ -112,6 +113,7 @@ class RCLConsensus
         using PeerPosition_t = RCLCxPeerPos;
 
         using Result = ConsensusResult<Adaptor>;
+        using clock_type = Stopwatch;
 
         Adaptor(
             Application& app,
@@ -288,9 +290,6 @@ class RCLConsensus
         bool
         hasOpenTransactions() const;
 
-        std::size_t
-        txCount() const;
-
         /** Number of proposers that have validated the given ledger
 
             @param h The hash of the ledger of interest
@@ -360,7 +359,8 @@ class RCLConsensus
         onClose(
             RCLCxLedger const& ledger,
             NetClock::time_point const& closeTime,
-            ConsensusMode mode);
+            ConsensusMode mode,
+            clock_type& clock);
 
         /** Process the accepted ledger.
 
@@ -481,7 +481,7 @@ public:
         LedgerMaster& ledgerMaster,
         LocalTxs& localTxs,
         InboundTransactions& inboundTransactions,
-        Consensus<Adaptor>::clock_type const& clock,
+        Consensus<Adaptor>::clock_type& clock,
         ValidatorKeys const& validatorKeys,
         beast::Journal journal);
 
@@ -544,14 +544,7 @@ public:
         RCLCxLedger::ID const& prevLgrId,
         RCLCxLedger const& prevLgr,
         hash_set<NodeID> const& nowUntrusted,
-        hash_set<NodeID> const& nowTrusted,
-        bool fromEndConsensus);
-
-     std::optional<RCLCxPeerPos>
-     fastConsensus()
-     {
-         return consensus_.fastConsensus();
-     }
+        hash_set<NodeID> const& nowTrusted);
 
     //! @see Consensus::timerEntry
     void

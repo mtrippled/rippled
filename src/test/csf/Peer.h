@@ -19,13 +19,15 @@
 #ifndef RIPPLE_TEST_CSF_PEER_H_INCLUDED
 #define RIPPLE_TEST_CSF_PEER_H_INCLUDED
 
+#include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/basics/chrono.h>
 #include <ripple/beast/utility/WrappedSink.h>
+#include <ripple/beast/unit_test.h>
 #include <ripple/consensus/Consensus.h>
 #include <ripple/consensus/Validations.h>
 #include <ripple/protocol/PublicKey.h>
 #include <boost/container/flat_map.hpp>
 #include <boost/container/flat_set.hpp>
-#include <algorithm>
 #include <test/csf/CollectorRef.h>
 #include <test/csf/Scheduler.h>
 #include <test/csf/TrustGraph.h>
@@ -33,6 +35,12 @@
 #include <test/csf/Validation.h>
 #include <test/csf/events.h>
 #include <test/csf/ledgers.h>
+#include <test/jtx.h>
+#include <algorithm>
+#include <chrono>
+#include <memory>
+#include <mutex>
+#include <optional>
 
 namespace ripple {
 namespace test {
@@ -77,7 +85,7 @@ struct Peer
             return proposal_.getJson();
         }
 
-    private:
+        private:
         Proposal proposal_;
     };
 
@@ -158,9 +166,13 @@ struct Peer
     using NodeID_t = PeerID;
     using NodeKey_t = PeerKey;
     using TxSet_t = TxSet;
+    using CanonicalTxSet_t = TxSet;
     using PeerPosition_t = Position;
     using Result = ConsensusResult<Peer>;
     using NodeKey = Validation::NodeKey;
+
+    //! Clock type for measuring time within the consensus code
+    using clock_type = Stopwatch;
 
     //! Logging support that prefixes messages with the peer ID
     beast::WrappedSink sink;
@@ -249,6 +261,16 @@ struct Peer
 
     //! The collectors to report events to
     CollectorRefs& collectors;
+
+    mutable std::recursive_mutex mtx;
+
+    std::unique_ptr<std::chrono::milliseconds> delay{
+        std::make_unique<std::chrono::milliseconds>(0)};
+
+    struct Null_test : public beast::unit_test::suite
+    {
+        void run() override {};
+    };
 
     /** Constructor
 
@@ -481,12 +503,6 @@ struct Peer
     }
 
     std::size_t
-    txCount() const
-    {
-        return openTxs.size();
-    }
-
-    std::size_t
     proposersValidated(Ledger::ID const& prevLedger)
     {
         return validations.numTrustedForLedger(prevLedger);
@@ -502,7 +518,8 @@ struct Peer
     onClose(
         Ledger const& prevLedger,
         NetClock::time_point closeTime,
-        ConsensusMode mode)
+        ConsensusMode mode,
+        clock_type& clock)
     {
         issue(CloseLedger{prevLedger, openTxs});
 
@@ -514,7 +531,9 @@ struct Peer
                 TxSet::calcID(openTxs),
                 closeTime,
                 now(),
-                id));
+                id,
+                prevLedger.seq() + typename Ledger_t::Seq{1},
+                scheduler.clock()));
     }
 
     void
@@ -526,6 +545,17 @@ struct Peer
         ConsensusMode const& mode,
         Json::Value&& consensusJson)
     {
+        auto txsBuilt = buildAndValidate(result,
+            prevLedger,
+            closeResolution,
+            mode,
+            std::move(consensusJson));
+        prepareOpenLedger(std::move(txsBuilt),
+            result,
+            rawCloseTimes,
+            mode);
+
+        /*
         onAccept(
             result,
             prevLedger,
@@ -533,6 +563,7 @@ struct Peer
             rawCloseTimes,
             mode,
             std::move(consensusJson));
+            */
     }
 
     void
@@ -542,7 +573,8 @@ struct Peer
         NetClock::duration const& closeResolution,
         ConsensusCloseTimes const& rawCloseTimes,
         ConsensusMode const& mode,
-        Json::Value&& consensusJson)
+        Json::Value&& consensusJson,
+        std::pair<CanonicalTxSet_t, Ledger_t>&& txsBuilt)
     {
         schedule(delays.ledgerAccept, [=, this]() {
             const bool proposing = mode == ConsensusMode::proposing;
@@ -607,6 +639,89 @@ struct Peer
         });
     }
 
+    std::pair<CanonicalTxSet_t, Ledger_t>
+    buildAndValidate(
+        Result const& result,
+        Ledger_t const& prevLedger,
+        NetClock::duration const& closeResolution,
+        ConsensusMode const& mode,
+        Json::Value&& consensusJson)
+    {
+        schedule(delays.ledgerAccept, [=, this]() {
+            const bool proposing = mode == ConsensusMode::proposing;
+            const bool consensusFail = result.state == ConsensusState::MovedOn;
+
+            TxSet const acceptedTxs = injectTxs(prevLedger, result.txns);
+            Ledger const newLedger = oracle.accept(
+                prevLedger,
+                acceptedTxs.txs(),
+                closeResolution,
+                result.position.closeTime());
+            ledgers[newLedger.id()] = newLedger;
+
+            issue(AcceptLedger{newLedger, lastClosedLedger});
+            prevProposers = result.proposers;
+            prevRoundTime = result.roundTime.read();
+            lastClosedLedger = newLedger;
+
+            auto const it = std::remove_if(
+                openTxs.begin(), openTxs.end(), [&](Tx const& tx) {
+                    return acceptedTxs.exists(tx.id());
+                });
+            openTxs.erase(it, openTxs.end());
+
+            // Only send validation if the new ledger is compatible with our
+            // fully validated ledger
+            bool const isCompatible =
+                newLedger.isAncestor(fullyValidatedLedger);
+
+            // Can only send one validated ledger per seq
+            if (runAsValidator && isCompatible && !consensusFail &&
+                validations.canValidateSeq(newLedger.seq()))
+            {
+                bool isFull = proposing;
+
+                Validation v{
+                    newLedger.id(),
+                    newLedger.seq(),
+                    now(),
+                    now(),
+                    key,
+                    id,
+                    isFull};
+                // share the new validation; it is trusted by the receiver
+                share(v);
+                // we trust ourselves
+                addTrustedValidation(v);
+            }
+
+            checkFullyValidated(newLedger);
+
+            // kick off the next round...
+            // in the actual implementation, this passes back through
+            // network ops
+            ++completedLedgers;
+            // startRound sets the LCL state, so we need to call it once after
+            // the last requested round completes
+            if (completedLedgers <= targetLedgers)
+            {
+                startRound();
+            }
+        });
+
+        return {};
+    }
+
+    void
+    prepareOpenLedger(
+        std::pair<CanonicalTxSet_t, Ledger_t>&& txsBuilt,
+        Result const& result,
+        ConsensusCloseTimes const& rawCloseTimes,
+        ConsensusMode const& mode)
+    {
+
+    }
+
     // Earliest allowed sequence number when checking for ledgers with more
     // validations than our current ledger
     Ledger::Seq
@@ -647,12 +762,6 @@ struct Peer
     parms() const
     {
         return consensusParms;
-    }
-
-    std::size_t
-    getNeededValidations() const
-    {
-        return 0;
     }
 
     // Not interested in tracking consensus mode changes for now
@@ -807,8 +916,7 @@ struct Peer
         dest.push_back(p);
 
         // Rely on consensus to decide whether to relay
-//        return consensus.peerProposal(now(), Position{p});
-        return true;
+        return consensus.peerProposal(now(), Position{p});
     }
 
     bool
@@ -816,8 +924,8 @@ struct Peer
     {
         bool const inserted =
             txSets.insert(std::make_pair(txs.id(), txs)).second;
-//        if (inserted)
-//            consensus.gotTxSet(now(), txs);
+        if (inserted)
+            consensus.gotTxSet(now(), txs);
         // relay only if new
         return inserted;
     }
@@ -900,7 +1008,7 @@ struct Peer
     void
     timerEntry()
     {
-//        consensus.timerEntry(now());
+        consensus.timerEntry(now());
         // only reschedule if not completed
         if (completedLedgers < targetLedgers)
             scheduler.in(parms().ledgerGRANULARITY, [this]() { timerEntry(); });
@@ -922,8 +1030,8 @@ struct Peer
 
         // Not yet modeling dynamic UNL.
         hash_set<PeerID> nowUntrusted;
-//        consensus.startRound(
-//            now(), bestLCL, lastClosedLedger, nowUntrusted, runAsValidator);
+        consensus.startRound(
+            now(), bestLCL, lastClosedLedger, nowUntrusted, runAsValidator);
     }
 
     // Start the consensus process assuming it is not yet running
@@ -985,6 +1093,54 @@ struct Peer
         res.insert(it->second);
 
         return TxSet{res};
+    }
+
+    LedgerMaster&
+    getLedgerMaster() const
+    {
+        Null_test test;
+        jtx::Env env(test);
+
+        return env.app().getLedgerMaster();
+    }
+
+    void
+    clearValidating()
+    {}
+
+    bool
+    retryAccept(Ledger_t const& newLedger,
+        std::optional<std::chrono::time_point<std::chrono::steady_clock>>& start) const
+    {
+        return false;
+    }
+
+    std::recursive_mutex&
+    peekMutex() const
+    {
+        return mtx;
+    }
+
+    void
+    endConsensus() const
+    {}
+
+    bool
+    validating() const
+    {
+        return false;
+    }
+
+    std::unique_ptr<std::chrono::milliseconds>&
+    validationDelay()
+    {
+        return delay;
+    }
+
+    std::unique_ptr<std::chrono::milliseconds>&
+    timerDelay()
+    {
+        return delay;
     }
 };
 
