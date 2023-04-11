@@ -465,7 +465,8 @@ private:
     void
     playbackProposals();
 
-    using PeerPositionWithArrival = std::pair<PeerPosition_t, std::chrono::steady_clock::time_point>;
+//    using PeerPositionWithArrival = std::pair<PeerPosition_t, std::chrono::steady_clock::time_point>;
+    using PeerPositionWithArrival = std::pair<PeerPosition_t, ConsensusTimer>;
     /** Handle a replayed or a new peer proposal.
      */
     bool
@@ -592,7 +593,7 @@ private:
     hash_map<typename TxSet_t::ID, TxSet_t> acquired_;
 
 //    std::pair<std::optional<const TxSet_t>, std::chrono::steady_clock::time_point> pp_;
-    using OptTXSetWithArrival = std::pair<std::optional<const TxSet_t>, std::chrono::steady_clock::time_point>;
+    using OptTXSetWithArrival = std::pair<std::optional<const TxSet_t>, ConsensusTimer>;
     hash_map<typename TxSet_t::ID, OptTXSetWithArrival> futureAcquired_;
 //    hash_map<typename TxSet_t::ID, std::optional<const TxSet_t>> futureAcquired_;
 
@@ -608,10 +609,7 @@ private:
 
     // Recently received peer positions, available when transitioning between
     // ledgers or rounds
-    hash_map<NodeID_t, std::deque<PeerPositionWithArrival>> recentPeerPositions_;
-//    hash_map<NodeID_t, std::deque<PeerPosition_t>> recentPeerPositions_;
-//    std::map<std::uint32_t, hash_map<NodeID_t, std::deque<PeerPositionWithArrival>>> recentPeerPositionsWithLedgerSeq_;
-    std::map<typename Ledger_t::Seq, hash_map<NodeID_t, PeerPositionWithArrival>> recentPeerPositionsWithLedgerSeq_;
+    std::map<typename Ledger_t::Seq, hash_map<NodeID_t, PeerPosition_t>> recentPeerPositions_;
 
     // The number of proposers who participated in the last consensus round
     std::size_t prevProposers_ = 0;
@@ -654,16 +652,15 @@ Consensus<Adaptor>::startRound(
         prevCloseTime_ = rawCloseTimes_.self;
     }
 
-    for (NodeID_t const& n : nowUntrusted)
-        recentPeerPositions_.erase(n);
-
-    auto rit = recentPeerPositionsWithLedgerSeq_.begin();
-    while (rit != recentPeerPositionsWithLedgerSeq_.end())
+    auto it = recentPeerPositions_.begin();
+    while (it != recentPeerPositions_.end() && it->first <= prevLedger.seq())
+        it = recentPeerPositions_.erase(it);
+    auto currentPositions = recentPeerPositions_.find(prevLedger.seq() +
+                                                      typename Ledger_t::Seq{1});
+    if (currentPositions != recentPeerPositions_.end())
     {
-        if (rit->first <= prevLedger.seq())
-            rit = recentPeerPositionsWithLedgerSeq_.erase(rit);
-        else
-            break;
+        for (NodeID_t const& n : nowUntrusted)
+            currentPositions->second.erase(n);
     }
 
     ConsensusMode startMode =
@@ -737,33 +734,34 @@ Consensus<Adaptor>::peerProposal(
     NetClock::time_point const& now,
     PeerPosition_t const& newPeerPos)
 {
+    typename Ledger_t::Seq const& propLedgerSeq = newPeerPos.proposal().ledgerSeq();
+    if (propLedgerSeq <= previousLedger_.seq())
+        return false;
+
     auto const& peerID = newPeerPos.proposal().nodeID();
     auto const currentTimeStamp = std::chrono::steady_clock::now();
-    // Always need to store recent positions
+    auto& bySeq = recentPeerPositions_[propLedgerSeq];
     {
-        if (newPeerPos.proposal().ledgerSeq() >= previousLedger_.seq() +
-            typename Ledger_t::Seq{1})
+        auto peerProp = bySeq.find(peerID);
+        if (peerProp == bySeq.end())
         {
-            auto& m = recentPeerPositionsWithLedgerSeq_[newPeerPos.proposal().ledgerSeq()];
-//            auto& props = m[peerID];
-            JLOG(j_.debug()) << "peerProposal received "
-                             << newPeerPos.proposal().position()
-                             << ',' << newPeerPos.proposal().ledgerSeq();
-            auto found = m.find(peerID);
-            if (found != m.end())
-            {
-                if (newPeerPos.proposal().proposeSeq() <= found->second.first.proposal().proposeSeq())
-                    return false;
-                found->second = {newPeerPos, currentTimeStamp};
-            }
-            else
-            {
-                m.emplace(peerID, std::make_pair(newPeerPos, currentTimeStamp));
-            }
-//            props.push_back({newPeerPos, currentTimeStamp});
+            bySeq.emplace(peerID, newPeerPos);
         }
-        return peerProposalInternal(now, {newPeerPos, currentTimeStamp});
+        else
+        {
+            // Only store if it's the latest proposal from this peer for the
+            // consensus round in the proposal.
+            if (newPeerPos.proposal().proposeSeq() <=
+                peerProp->second.proposal().proposeSeq())
+            {
+                return false;
+            }
+            peerProp->second = newPeerPos;
+        }
     }
+
+    return peerProposalInternal(now, std::make_pair(newPeerPos,
+        newPeerPos.proposal().arrivalTime()));
 }
 
 template <class Adaptor>
@@ -1219,46 +1217,19 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::playbackProposals()
 {
-    std::stringstream ss;
-    ss << "playbackProposals " << (previousLedger_.seq() + typename Ledger_t::Seq{1});
-    JLOG(j_.debug()) << " playbackProposals " << previousLedger_.seq() +
-        typename Ledger_t::Seq{1};
-    auto found = recentPeerPositionsWithLedgerSeq_.find(previousLedger_.seq() +
-            typename Ledger_t::Seq{1});
-    if (found != recentPeerPositionsWithLedgerSeq_.end())
+    auto const currentPositions = recentPeerPositions_.find(
+        previousLedger_.seq() + typename Ledger_t::Seq{1});
     {
-        ss << " already found: ";
- //       bool first = true;
-        for (auto const& it : found->second)
+        if (currentPositions != recentPeerPositions_.end())
         {
-//            for (auto const& pos : it.second)
-//            {
-//                if (first)
-//                    first = false;
-//                else
-//                    ss << ',';
-//                ss << pos.first.proposal().position();
-//                ss << pos.proposal().position();
-//                if (peerProposalInternal(now_, pos))
-//                    adaptor_.share(pos.first);
-//            }
-            auto const& peer = it.first;
-            auto const& pos = it.second;
-            ss << "peer: " << peer << " proposal: " << pos.first.proposal().position();
-            if (peerProposalInternal(now_, pos))
-                adaptor_.share(pos.first);
-        }
-    }
-    JLOG(j_.debug()) << ss.str();
-
-    for (auto const& it : recentPeerPositions_)
-    {
-        for (auto const& pos : it.second)
-        {
-            if (pos.first.proposal().prevLedger() == prevLedgerID_)
+            for (auto const& [peerID, pos] : currentPositions->second)
             {
-                if (peerProposalInternal(now_, pos))
-                    adaptor_.share(pos.first);
+                if (pos.proposal().prevLedger() == prevLedgerID_ &&
+//                    peerProposalInternal(now_, pos))
+                    peerProposalInternal(now_, std::make_pair(pos, pos.proposal().arrivalTime())))
+                {
+                    adaptor_.share(pos);
+                }
             }
         }
     }
@@ -1473,66 +1444,40 @@ Consensus<Adaptor>::phaseEstablish()
         << "ms, ledgerMIN_CONSENSUS: " << parms.ledgerMIN_CONSENSUS.count()
         << "ms, seq: " << previousLedger_.seq() + typename Ledger_t::Seq{1};
 
-    // Give everyone a chance to take an initial position unless enough
-    // have already submitted theirs--because that means we're already behind.
-    std::multiset<std::chrono::steady_clock::time_point> arrivals;
-    for (auto const& pos : currPeerPositions_)
-        arrivals.insert(pos.second.second);
-    auto [quorum, trustedKeys] = adaptor_.getQuorumKeys();
-    std::size_t const& numKeys = trustedKeys.size();
-    std::size_t const thresh = numKeys - quorum + 1;
-    auto const now = std::chrono::steady_clock::now();
-    auto const cutoff = now - parms.ledgerMIN_CONSENSUS;
-    auto lb = arrivals.lower_bound(cutoff);
-    std::stringstream ss;
-    ss << "phaseEstablish numKeys=" << numKeys <<
-        " quorum=" << quorum << " thresh=" << thresh << " MIN_CONSENSUSms="
-       << parms.ledgerMIN_CONSENSUS.count() << " cutoff=" << cutoff.time_since_epoch().count()
-       << "| current peer position received ms ago: ";
-    bool first = true;
-    for (auto const ts : arrivals)
     {
-        if (first)
-            first = false;
-        else
-            ss << ',';
-        ss << std::chrono::duration_cast<std::chrono::milliseconds>(now - ts).count();
-    }
-    if (lb != arrivals.end() && lb != arrivals.begin())
-    {
-        ss << " earlier than threshold ms ago,distance from begin: "
-           << std::chrono::duration_cast<std::chrono::milliseconds>(now - *lb).count()
-           << ',' << std::distance(arrivals.begin(), --lb);
-    }
-    JLOG(j_.debug()) << ss.str();
-    if (lb != arrivals.end() && std::distance(arrivals.begin(), lb) >= thresh)
-//    if ((result_->proposers * 100) / adaptor_.getNeededValidations() >=
-//            parms.minCONSENSUS_PCT)
-    {
-        JLOG(j_.debug()) << "phaseEstablish not checking to pause because "
-                            "enough proposals";
-    }
-    else
-    {
-        // now calculate how much time to sleep
-//        auto nowDiff = parms.ledgerMIN_CONSENSUS - result_->roundTime.read();
-        std::chrono::milliseconds latest = result_->roundTime.read();
-        if (arrivals.size() >= thresh)
+        // Give everyone a chance to take an initial position unless enough
+        // have already submitted theirs a long enough time ago
+        // --because that means we're already
+        // behind. Optimize pause duration if pausing. Pause until exactly
+        // the number of ms after roundTime.read().
+        // how many byzantine nodes on the UNL can we tolerate, plus 1?
+        auto const [quorum, _] = adaptor_.getQuorumKeys();
+        std::size_t const discard = static_cast<std::size_t>(
+                                        quorum / parms.minCONSENSUS_FACTOR) - quorum;
+
+        std::chrono::milliseconds beginning;
+        if (currPeerPositions_.size() > discard)
         {
-            auto cutoffIt = arrivals.begin();
-            std::advance(cutoffIt, thresh - 1);
-            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - *cutoffIt) > latest)
-                latest = std::chrono::duration_cast<std::chrono::milliseconds>(now - *cutoffIt);
+            std::multiset<std::chrono::milliseconds> arrivals;
+            for (auto& pos : currPeerPositions_)
+            {
+                pos.second.first.proposal().arrivalTime().tick(clock_.now());
+                arrivals.insert(pos.second.first.proposal().arrivalTime().read());
+            }
+            auto it = arrivals.rbegin();
+            std::advance(it, discard);
+            beginning = *it;
+        }
+        else
+        {
+            beginning = result_->roundTime.read();
         }
 
-//        if (result_->roundTime.read() < parms.ledgerMIN_CONSENSUS)
-        if (latest < parms.ledgerMIN_CONSENSUS)
+        // Give everyone a chance to take an initial position
+        if (beginning < parms.ledgerMIN_CONSENSUS)
         {
-            std::size_t pauseFor = (parms.ledgerMIN_CONSENSUS - latest).count() + 1;
-            JLOG(j_.debug()) << "phaseEstablish not enough time passed "
-                                    "pausing for " << pauseFor << "ms";
             adaptor_.timerDelay() = std::make_unique<std::chrono::milliseconds>(
-                std::chrono::milliseconds(pauseFor));
+                parms.ledgerMIN_CONSENSUS - beginning);
             return;
         }
     }
