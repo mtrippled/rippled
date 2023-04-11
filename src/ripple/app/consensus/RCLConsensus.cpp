@@ -55,7 +55,7 @@ RCLConsensus::RCLConsensus(
     LedgerMaster& ledgerMaster,
     LocalTxs& localTxs,
     InboundTransactions& inboundTransactions,
-    Consensus<Adaptor>::clock_type const& clock,
+    Consensus<Adaptor>::clock_type& clock,
     ValidatorKeys const& validatorKeys,
     beast::Journal journal)
     : adaptor_(
@@ -172,16 +172,6 @@ RCLConsensus::Adaptor::share(RCLCxPeerPos const& peerPos)
     auto const sig = peerPos.signature();
     prop.set_signature(sig.data(), sig.size());
 
-    if (proposal.ledgerSeq().has_value())
-    {
-        prop.set_ledgerseq(*proposal.ledgerSeq());
-        JLOG(j_.debug()) << "share setting ledgerSeq " << prop.ledgerseq();
-    }
-    else
-    {
-        JLOG(j_.debug()) << "share not setting previousSeq";
-    }
-
     app_.overlay().relay(prop, peerPos.suppressionID(), peerPos.publicKey());
 }
 
@@ -225,18 +215,7 @@ RCLConsensus::Adaptor::propose(RCLCxPeerPos::Proposal const& proposal)
     prop.set_closetime(proposal.closeTime().time_since_epoch().count());
     prop.set_nodepubkey(
         validatorKeys_.publicKey.data(), validatorKeys_.publicKey.size());
-    if (proposal.ledgerSeq().has_value())
-    {
-        prop.set_ledgerseq(*proposal.ledgerSeq());
-        JLOG(j_.debug()) << "propose setting ledgerSeq " << prop.ledgerseq();
-    }
-    else
-    {
-        JLOG(j_.debug()) << "propose not setting ledgerSeq";
-    }
-
-
-
+    prop.set_ledgerseq(proposal.ledgerSeq());
 
     auto sig = signDigest(
         validatorKeys_.publicKey,
@@ -330,7 +309,8 @@ auto
 RCLConsensus::Adaptor::onClose(
     RCLCxLedger const& ledger,
     NetClock::time_point const& closeTime,
-    ConsensusMode mode) -> Result
+    ConsensusMode mode,
+    clock_type& clock) -> Result
 {
     const bool wrongLCL = mode == ConsensusMode::wrongLedger;
     const bool proposing = mode == ConsensusMode::proposing;
@@ -423,7 +403,8 @@ RCLConsensus::Adaptor::onClose(
             closeTime,
             app_.timeKeeper().closeTime(),
             validatorKeys_.nodeID,
-            initialLedger->info().seq}};
+            initialLedger->info().seq,
+            clock}};
 }
 
 void
@@ -1120,8 +1101,7 @@ RCLConsensus::startRound(
     RCLCxLedger::ID const& prevLgrId,
     RCLCxLedger const& prevLgr,
     hash_set<NodeID> const& nowUntrusted,
-    hash_set<NodeID> const& nowTrusted,
-    bool fromEndConsensus)
+    hash_set<NodeID> const& nowTrusted)
 {
     std::lock_guard _{adaptor_.peekMutex()};
     consensus_.startRound(
@@ -1129,8 +1109,7 @@ RCLConsensus::startRound(
         prevLgrId,
         prevLgr,
         nowUntrusted,
-        adaptor_.preStartRound(prevLgr, nowTrusted),
-        fromEndConsensus);
+        adaptor_.preStartRound(prevLgr, nowTrusted));
 }
 
 }  // namespace ripple

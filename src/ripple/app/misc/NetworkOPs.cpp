@@ -374,7 +374,7 @@ private:
 
 public:
     bool
-    beginConsensus(uint256 const& networkClosed, bool fromEndConsensus) override;
+    beginConsensus(uint256 const& networkClosed) override;
     void
     endConsensus() override;
     void
@@ -1929,8 +1929,7 @@ NetworkOPsImp::switchLastClosedLedger(
 }
 
 bool
-NetworkOPsImp::beginConsensus(uint256 const& networkClosed,
-                              bool fromEndConsensus)
+NetworkOPsImp::beginConsensus(uint256 const& networkClosed)
 {
     assert(networkClosed.isNonZero());
 
@@ -1975,8 +1974,7 @@ NetworkOPsImp::beginConsensus(uint256 const& networkClosed,
         networkClosed,
         prevLedger,
         changes.removed,
-        changes.added,
-        fromEndConsensus);
+        changes.added);
 
     const ConsensusPhase currPhase = mConsensus.phase();
     if (mLastConsensusPhase != currPhase)
@@ -2068,7 +2066,7 @@ NetworkOPsImp::endConsensus()
         }
     }
 
-    beginConsensus(networkClosed, true);
+    beginConsensus(networkClosed);
 }
 
 void
@@ -4025,7 +4023,7 @@ NetworkOPsImp::acceptLedger(
 
     // FIXME Could we improve on this and remove the need for a specialized
     // API in Consensus?
-    beginConsensus(m_ledgerMaster.getClosedLedger()->info().hash, false);
+    beginConsensus(m_ledgerMaster.getClosedLedger()->info().hash);
     mConsensus.simulate(app_.timeKeeper().closeTime(), consensusDelay);
     return m_ledgerMaster.getCurrentLedger()->info().seq;
 }

@@ -113,6 +113,8 @@ class RCLConsensus
 
         using Result = ConsensusResult<Adaptor>;
 
+        using clock_type = Stopwatch;
+
         Adaptor(
             Application& app,
             std::unique_ptr<FeeVote>&& feeVote,
@@ -360,7 +362,8 @@ class RCLConsensus
         onClose(
             RCLCxLedger const& ledger,
             NetClock::time_point const& closeTime,
-            ConsensusMode mode);
+            ConsensusMode mode,
+            clock_type& clock);
 
         /** Process the accepted ledger.
 
@@ -481,7 +484,7 @@ public:
         LedgerMaster& ledgerMaster,
         LocalTxs& localTxs,
         InboundTransactions& inboundTransactions,
-        Consensus<Adaptor>::clock_type const& clock,
+        Consensus<Adaptor>::clock_type& clock,
         ValidatorKeys const& validatorKeys,
         beast::Journal journal);
 
@@ -544,14 +547,7 @@ public:
         RCLCxLedger::ID const& prevLgrId,
         RCLCxLedger const& prevLgr,
         hash_set<NodeID> const& nowUntrusted,
-        hash_set<NodeID> const& nowTrusted,
-        bool fromEndConsensus);
-
-     std::optional<RCLCxPeerPos>
-     fastConsensus()
-     {
-         return consensus_.fastConsensus();
-     }
+        hash_set<NodeID> const& nowTrusted);
 
     //! @see Consensus::timerEntry
     void

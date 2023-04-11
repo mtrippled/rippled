@@ -24,6 +24,7 @@
 #include <ripple/app/misc/CanonicalTXSet.h>
 #include <ripple/basics/Log.h>
 #include <ripple/basics/chrono.h>
+#include <ripple/beast/container/aged_unordered_map.h>
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/consensus/ConsensusParms.h>
 #include <ripple/consensus/ConsensusProposal.h>
@@ -299,7 +300,8 @@ class Consensus
     using Proposal_t = ConsensusProposal<
         NodeID_t,
         typename Ledger_t::ID,
-        typename TxSet_t::ID>;
+        typename TxSet_t::ID,
+        typename Ledger_t::Seq>;
 
     using Result = ConsensusResult<Adaptor>;
 
@@ -329,7 +331,7 @@ class Consensus
 
 public:
     //! Clock type for measuring time within the consensus code
-    using clock_type = beast::abstract_clock<std::chrono::steady_clock>;
+    using clock_type = Stopwatch;
 
     Consensus(Consensus&&) noexcept = default;
 
@@ -339,7 +341,7 @@ public:
         @param adaptor The instance of the adaptor class
         @param j The journal to log debug output
     */
-    Consensus(clock_type const& clock, Adaptor& adaptor, beast::Journal j);
+    Consensus(clock_type& clock, Adaptor& adaptor, beast::Journal j);
 
     /** Kick-off the next round of consensus.
 
@@ -360,8 +362,7 @@ public:
         typename Ledger_t::ID const& prevLedgerID,
         Ledger_t prevLedger,
         hash_set<NodeID_t> const& nowUntrusted,
-        bool proposing,
-        bool fromEndConsensus);
+        bool proposing);
 
     /** A peer has proposed a new position, adjust our tracking.
 
@@ -439,9 +440,6 @@ public:
     Json::Value
     getJson(bool full) const;
 
-    std::optional<PeerPosition_t>
-    fastConsensus();
-
 private:
     void
     startRoundInternal(
@@ -468,14 +466,12 @@ private:
     void
     playbackProposals();
 
-    using PeerPositionWithArrival = std::pair<PeerPosition_t, std::chrono::steady_clock::time_point>;
     /** Handle a replayed or a new peer proposal.
      */
     bool
     peerProposalInternal(
         NetClock::time_point const& now,
-        PeerPositionWithArrival const& newPosPair);
-//        PeerPosition_t const& newProposal);
+        PeerPosition_t const& newProposal);
 
     /** Handle pre-close phase.
 
@@ -551,7 +547,9 @@ private:
     NetClock::time_point
     asCloseTime(NetClock::time_point raw) const;
 
-private:
+    void
+    clearPositions();
+
     Adaptor& adaptor_;
 
     ConsensusPhase phase_{ConsensusPhase::accepted};
@@ -559,7 +557,7 @@ private:
     bool firstRound_ = true;
     bool haveCloseTimeConsensus_ = false;
 
-    clock_type const& clock_;
+    clock_type& clock_;
 
     // How long the consensus convergence has taken, expressed as
     // a percentage of the time that we expected it to take.
@@ -589,17 +587,13 @@ private:
     // Last validated ledger seen by consensus
     Ledger_t previousLedger_;
 
-    std::uint32_t previousSeq_ {0};
-
     // Transaction Sets, indexed by hash of transaction tree
-//    using TxSetWithArrival = std::pair<const TxSet_t, std::chrono::steady_clock::time_point>;
-//    hash_map<typename TxSet_t::ID, TxSetWithArrival> acquired_;
-    hash_map<typename TxSet_t::ID, TxSet_t> acquired_;
-
-//    std::pair<std::optional<const TxSet_t>, std::chrono::steady_clock::time_point> pp_;
-    using OptTXSetWithArrival = std::pair<std::optional<const TxSet_t>, std::chrono::steady_clock::time_point>;
-    hash_map<typename TxSet_t::ID, OptTXSetWithArrival> futureAcquired_;
-//    hash_map<typename TxSet_t::ID, std::optional<const TxSet_t>> futureAcquired_;
+    beast::aged_unordered_map<
+        typename TxSet_t::ID,
+        const TxSet_t,
+        clock_type::clock_type,
+        beast::uhash<>>
+        acquired_;
 
     std::optional<Result> result_;
     ConsensusCloseTimes rawCloseTimes_;
@@ -608,15 +602,11 @@ private:
     // Peer related consensus data
 
     // Peer proposed positions for the current round
-    hash_map<NodeID_t, PeerPositionWithArrival> currPeerPositions_;
-//    hash_map<NodeID_t, PeerPosition_t> currPeerPositions_;
+    hash_map<NodeID_t, PeerPosition_t> currPeerPositions_;
 
     // Recently received peer positions, available when transitioning between
     // ledgers or rounds
-    hash_map<NodeID_t, std::deque<PeerPositionWithArrival>> recentPeerPositions_;
-//    hash_map<NodeID_t, std::deque<PeerPosition_t>> recentPeerPositions_;
-//    std::map<std::uint32_t, hash_map<NodeID_t, std::deque<PeerPositionWithArrival>>> recentPeerPositionsWithLedgerSeq_;
-    std::map<std::uint32_t, hash_map<NodeID_t, PeerPositionWithArrival>> recentPeerPositionsWithLedgerSeq_;
+    std::map<typename Ledger_t::Seq, hash_map<NodeID_t, PeerPosition_t>> recentPeerPositions_;
 
     // The number of proposers who participated in the last consensus round
     std::size_t prevProposers_ = 0;
@@ -630,10 +620,10 @@ private:
 
 template <class Adaptor>
 Consensus<Adaptor>::Consensus(
-    clock_type const& clock,
+    clock_type& clock,
     Adaptor& adaptor,
     beast::Journal journal)
-    : adaptor_(adaptor), clock_(clock), j_{journal}
+    : adaptor_(adaptor), clock_(clock), acquired_(clock), j_{journal}
 {
     JLOG(j_.debug()) << "Creating consensus object";
 }
@@ -645,8 +635,7 @@ Consensus<Adaptor>::startRound(
     typename Ledger_t::ID const& prevLedgerID,
     Ledger_t prevLedger,
     hash_set<NodeID_t> const& nowUntrusted,
-    bool proposing,
-    bool fromEndConsensus)
+    bool proposing)
 {
     if (firstRound_)
     {
@@ -660,31 +649,15 @@ Consensus<Adaptor>::startRound(
         prevCloseTime_ = rawCloseTimes_.self;
     }
 
-    if (fromEndConsensus)
+    auto it = recentPeerPositions_.begin();
+    while (it != recentPeerPositions_.end() && it->first <= prevLedger.seq())
+        it = recentPeerPositions_.erase(it);
+    auto currentPositions = recentPeerPositions_.find(prevLedger.seq() +
+                                                      typename Ledger_t::Seq{1});
+    if (currentPositions != recentPeerPositions_.end())
     {
-        // logic here for catching up, also change the function parameters as
-        // necessary
-    }
-
-
-    for (NodeID_t const& n : nowUntrusted)
-        recentPeerPositions_.erase(n);
-
-    auto rit = recentPeerPositionsWithLedgerSeq_.begin();
-    while (rit != recentPeerPositionsWithLedgerSeq_.end())
-    {
-        if (rit->first <= previousSeq_)
-        {
-            JLOG(j_.debug()) << "startRound " << (previousSeq_ + 1)
-                             << " deleting positions for " << rit->first;
-            rit = recentPeerPositionsWithLedgerSeq_.erase(rit);
-        }
-        else
-        {
-            break;
-            JLOG(j_.debug()) << "startRound " << (previousSeq_ + 1)
-                << " not deleting >= " << rit->first;
-        }
+        for (NodeID_t const& n : nowUntrusted)
+            currentPositions->second.erase(n);
     }
 
     ConsensusMode startMode =
@@ -723,13 +696,12 @@ Consensus<Adaptor>::startRoundInternal(
     now_ = now;
     prevLedgerID_ = prevLedgerID;
     previousLedger_ = prevLedger;
-    previousSeq_ = previousLedger_.seq();
     result_.reset();
     convergePercent_ = 0;
     haveCloseTimeConsensus_ = false;
     openTime_.reset(clock_.now());
-    currPeerPositions_.clear();
-    acquired_.clear();
+    clearPositions();
+    beast::expire(acquired_, std::chrono::minutes(30));
     rawCloseTimes_.peers.clear();
     rawCloseTimes_.self = {};
     deadNodes_.clear();
@@ -739,17 +711,11 @@ Consensus<Adaptor>::startRoundInternal(
         previousLedger_.closeAgree(),
         previousLedger_.seq() + typename Ledger_t::Seq{1});
 
-    playbackProposals();
-    if (futureAcquired_.size() > 1000)
-    {
-        JLOG(j_.debug()) << "clearing futureAcquired";
-        futureAcquired_.clear();
-    }
     if (currPeerPositions_.size() > (prevProposers_ / 2))
     {
         // We may be falling behind, don't wait for the timer
         // consider closing the ledger immediately
-        phaseOpen();
+        timerEntry(now_);
     }
 }
 
@@ -759,121 +725,68 @@ Consensus<Adaptor>::peerProposal(
     NetClock::time_point const& now,
     PeerPosition_t const& newPeerPos)
 {
-    auto const& peerID = newPeerPos.proposal().nodeID();
-    auto const currentTimeStamp = std::chrono::steady_clock::now();
-    // Always need to store recent positions
-    if (newPeerPos.proposal().ledgerSeq().has_value())
-    {
-        if (*newPeerPos.proposal().ledgerSeq() >= previousSeq_ + 1)
-        {
-            auto& m = recentPeerPositionsWithLedgerSeq_[*newPeerPos.proposal().ledgerSeq()];
-//            auto& props = m[peerID];
-            JLOG(j_.debug()) << "peerProposal received "
-                             << newPeerPos.proposal().position()
-                             << ',' << *newPeerPos.proposal().ledgerSeq();
-            auto found = m.find(peerID);
-            if (found != m.end())
-            {
-                if (newPeerPos.proposal().proposeSeq() <= found->second.first.proposal().proposeSeq())
-                    return false;
-                found->second = {newPeerPos, currentTimeStamp};
-            }
-            else
-            {
-                m.emplace(peerID, std::make_pair(newPeerPos, currentTimeStamp));
-            }
-//            props.push_back({newPeerPos, currentTimeStamp});
-        }
-        return peerProposalInternal(now, {newPeerPos, currentTimeStamp});
-    }
-    else
-    {
-        auto& props = recentPeerPositions_[peerID];
-        if (props.size() >= 10)
-            props.pop_front();
-        JLOG(j_.debug()) << "peerProposal peer,prop: " << peerID << ','
-                         << newPeerPos.proposal().position();
-        props.push_back({newPeerPos, currentTimeStamp});
+    typename Ledger_t::Seq const& propLedgerSeq = newPeerPos.proposal().ledgerSeq();
+    if (propLedgerSeq <= previousLedger_.seq())
+        return false;
 
-        return peerProposalInternal(now, props.back());
+    // Store all positions from current and future ledgers.
+    auto const& peerID = newPeerPos.proposal().nodeID();
+    auto& bySeq = recentPeerPositions_[propLedgerSeq];
+    {
+        auto peerProp = bySeq.find(peerID);
+        if (peerProp == bySeq.end())
+        {
+            bySeq.emplace(peerID, newPeerPos);
+        }
+        else
+        {
+            // Only store if it's the latest proposal from this peer for the
+            // consensus round in the proposal.
+            if (newPeerPos.proposal().proposeSeq() <=
+                peerProp->second.proposal().proposeSeq())
+            {
+                return false;
+            }
+            peerProp->second = newPeerPos;
+        }
     }
+    return peerProposalInternal(now, newPeerPos);
 }
 
 template <class Adaptor>
 bool
 Consensus<Adaptor>::peerProposalInternal(
     NetClock::time_point const& now,
-    PeerPositionWithArrival const& newPeerPosPair)
-//    PeerPosition_t const& newPeerPos)
+    PeerPosition_t const& newPeerPos)
 {
-    auto const& newPeerPos = newPeerPosPair.first;
-    auto const& newPeerProp = newPeerPos.proposal();
-    auto const& peerID = newPeerProp.nodeID();
-    std::uint32_t proposeSeq = newPeerProp.proposeSeq();
-    auto proposeLedgerSeq = newPeerProp.ledgerSeq();
-    // This is because we might be doing this during phase accept.
-    JLOG(j_.debug()) << "got peerid proposal " << peerID << ' '
-        << newPeerProp.position() << " seq,ledgerseq,myprevseq: "
-        << proposeSeq << ','
-        << (proposeLedgerSeq.has_value() ? std::to_string(*proposeLedgerSeq) : "none")
-        << ',' << previousSeq_;
-
-    // Nothing to do for now if we are currently working on a ledger
-//    if (phase_ == ConsensusPhase::accepted &&
-//        newPeerProp.prevLedger() == prevLedgerID_)
-//    {
-//        return false;
-//    }
-
     now_ = now;
 
-    if (!newPeerProp.ledgerSeq().has_value() &&
-        newPeerProp.prevLedger() != prevLedgerID_)
-    {
-        JLOG(j_.debug()) << "Got proposal for " << newPeerProp.prevLedger()
-                         << " but we are on " << prevLedgerID_ << ' '
-                         << newPeerPos.proposal().position();
-        if (futureAcquired_.emplace(newPeerProp.position(),
-                    OptTXSetWithArrival{std::nullopt, newPeerPosPair.second}).second)
-        {
-            JLOG(j_.debug()) << "peerProposalInternal need to acquire 1 "
-                             << newPeerPos.proposal().position();
-            if (auto set = adaptor_.acquireTxSet(newPeerProp.position()))
-                gotTxSet(now_, *set);
-            else
-                JLOG(j_.debug()) << "future proposal Don't have tx set for peer 1";
-        }
-        return false;
-    }
-    else if (newPeerProp.ledgerSeq().has_value() &&
-             *newPeerProp.ledgerSeq() > previousSeq_ + 1)
-    {
-        JLOG(j_.debug()) << "Got proposal for " << newPeerProp.prevLedger()
-                         << " but we are on " << prevLedgerID_ << ' '
-                         << newPeerPos.proposal().position()
-                         << " working seq,proposal ledger seq: "
-                         << previousSeq_
-                         << ',' << *newPeerPos.proposal().ledgerSeq();
+    auto const& newPeerProp = newPeerPos.proposal();
 
-        if (futureAcquired_.emplace(newPeerProp.position(),
-                                    OptTXSetWithArrival{std::nullopt, newPeerPosPair.second}).second)
+    if (newPeerProp.prevLedger() != prevLedgerID_)
+    {
+        JLOG(j_.debug()) << "Got proposal for " << newPeerProp.prevLedger()
+                         << " but we are on " << prevLedgerID_;
+
+        if (!acquired_.count(newPeerProp.position()))
         {
-            JLOG(j_.debug()) << "peerProposalInternal need to acquire 2 "
-                << newPeerPos.proposal().position();
+            // acquireTxSet will return the set if it is available, or
+            // spawn a request for it and return nullopt/nullptr.  It will call
+            // gotTxSet once it arrives
             if (auto set = adaptor_.acquireTxSet(newPeerProp.position()))
                 gotTxSet(now_, *set);
             else
-                JLOG(j_.debug()) << "future proposal Don't have tx set for peer 2";
+            JLOG(j_.debug()) << "Do not have tx set for peer";
         }
 
         return false;
     }
+
+    auto const& peerID = newPeerProp.nodeID();
 
     if (deadNodes_.find(peerID) != deadNodes_.end())
     {
-        JLOG(j_.info()) << "Position from dead node: " << peerID << ' '
-                        << newPeerPos.proposal().position()
-                        << ',' << *newPeerPos.proposal().ledgerSeq();
+        JLOG(j_.info()) << "Position from dead node: " << peerID;
         return false;
     }
 
@@ -884,84 +797,81 @@ Consensus<Adaptor>::peerProposalInternal(
         if (peerPosIt != currPeerPositions_.end())
         {
             if (newPeerProp.proposeSeq() <=
-                peerPosIt->second.first.proposal().proposeSeq())
+                peerPosIt->second.proposal().proposeSeq())
             {
-                JLOG(j_.debug()) << "Position for old proposal sequence "
-                    << " peerid current prop:seq,new prop:seq. "
-                    << peerID << ' '
-                    << peerPosIt->second.first.proposal().position() << ':'
-                    << peerPosIt->second.first.proposal().proposeSeq() << ','
-                    << newPeerPos.proposal().position() << ':'
-                    << newPeerPos.proposal().proposeSeq();
                 return false;
             }
         }
 
         if (newPeerProp.isBowOut())
         {
-            JLOG(j_.info()) << "Peer " << peerID << " bows out" << ' '
-                            << newPeerPos.proposal().position()
-                            << ',' << *newPeerPos.proposal().ledgerSeq();
+            JLOG(j_.info()) << "Peer " << peerID << " bows out";
             if (result_)
             {
                 for (auto& it : result_->disputes)
                     it.second.unVote(peerID);
             }
             if (peerPosIt != currPeerPositions_.end())
+            {
+                // Remove from acquired_ or else it will consume space for awhile.
+                // beast::aged_unordered_map::erase by key is broken and
+                // is not used anywhere in the existing codebase.
+                if (auto found = acquired_.find(peerPosIt->second.proposal().position());
+                    found != acquired_.end())
+                {
+                    acquired_.erase(found);
+                }
                 currPeerPositions_.erase(peerID);
+            }
             deadNodes_.insert(peerID);
 
             return true;
         }
 
-        JLOG(j_.debug()) << "peerProposalInternal position for ledger seq,"
-                            "peerid,position: "
-                            << previousSeq_ + 1 << ',' << peerID
-                            << ',' << newPeerPos.proposal().position();
         if (peerPosIt != currPeerPositions_.end())
-            peerPosIt->second.first = newPeerPos;
+        {
+            // Remove from acquired_ or else it will consume space for awhile.
+            // beast::aged_unordered_container::erase by key is broken and
+            // is not used anywhere in the existing codebase.
+            if (auto found = acquired_.find(newPeerPos.proposal().position());
+                found != acquired_.end())
+            {
+                acquired_.erase(found);
+            }
+            peerPosIt->second = newPeerPos;
+        }
         else
-            currPeerPositions_.emplace(peerID, newPeerPosPair);
+        {
+            currPeerPositions_.emplace(peerID, newPeerPos);
+        }
     }
 
     if (newPeerProp.isInitial())
     {
         // Record the close time estimate
-        JLOG(j_.debug()) << "Peer reports close time as "
-                         << newPeerProp.closeTime().time_since_epoch().count() << ' '
-                         << newPeerPos.proposal().position()
-                         << ',' << *newPeerPos.proposal().ledgerSeq();
+        JLOG(j_.trace()) << "Peer reports close time as "
+                         << newPeerProp.closeTime().time_since_epoch().count();
         ++rawCloseTimes_.peers[newPeerProp.closeTime()];
     }
 
-    JLOG(j_.debug()) << "Processing peer proposal " << newPeerProp.proposeSeq()
+    JLOG(j_.trace()) << "Processing peer proposal " << newPeerProp.proposeSeq()
                      << "/" << newPeerProp.position();
 
     {
         auto const ait = acquired_.find(newPeerProp.position());
         if (ait == acquired_.end())
         {
-            JLOG(j_.debug()) << "not yet acquired or acquiring tx set 2 "
-                             << newPeerPos.proposal().position()
-                             << ',' << *newPeerPos.proposal().ledgerSeq();
             // acquireTxSet will return the set if it is available, or
             // spawn a request for it and return nullopt/nullptr.  It will call
             // gotTxSet once it arrives
             if (auto set = adaptor_.acquireTxSet(newPeerProp.position()))
                 gotTxSet(now_, *set);
             else
-                JLOG(j_.debug()) << "Don't have tx set for peer, requesting I "
-                                    "think 2 " << newPeerProp.position();
+            JLOG(j_.debug()) << "Don't have tx set for peer";
         }
         else if (result_)
         {
             updateDisputes(newPeerProp.nodeID(), ait->second);
-        }
-        else
-        {
-            JLOG(j_.debug()) << "already acquired or acquiring tx set "
-                             << newPeerPos.proposal().position()
-                             << ',' << *newPeerPos.proposal().ledgerSeq();
         }
     }
 
@@ -982,22 +892,9 @@ Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
     checkLedger();
 
     if (phase_ == ConsensusPhase::open)
-    {
-        JLOG(j_.debug()) << "timerEntry txCount " << adaptor_.txCount()
-                         << " open";
         phaseOpen();
-    }
     else if (phase_ == ConsensusPhase::establish)
-    {
-        JLOG(j_.debug()) << "timerEntry txCount " << adaptor_.txCount()
-                         << " establish";
         phaseEstablish();
-    }
-    else
-    {
-        JLOG(j_.debug()) << "timerEntry txCount " << adaptor_.txCount()
-                         << " or else accepted";
-    }
 }
 
 template <class Adaptor>
@@ -1006,45 +903,14 @@ Consensus<Adaptor>::gotTxSet(
     NetClock::time_point const& now,
     TxSet_t const& txSet)
 {
-    auto id = txSet.id();
-
-    bool current = false;
-    for (auto const& [nodeId, peerPos] : currPeerPositions_)
-    {
-        if (peerPos.first.proposal().position() == id)
-        {
-            current = true;
-            break;
-        }
-    }
-
-//    if (acquired_.count(id))
-    if (!current)
-    {
-        auto foundFuture = futureAcquired_.find(id);
-        if (foundFuture != futureAcquired_.end())
-        {
-            JLOG(j_.debug()) << "future gotTxSet " << id;
-            if (foundFuture->second.first == std::nullopt)
-            {
-                JLOG(j_.debug()) << "future gotTxSet inserting " << id;
-                foundFuture->second.first.emplace(txSet);
-            }
-            return;
-        }
-    }
-
-    // Nothing to do if we've finished work on a ledger
-//    if (phase_ == ConsensusPhase::accepted)
-//        return;
-
     now_ = now;
+
+    auto id = txSet.id();
 
     // If we've already processed this transaction set since requesting
     // it from the network, there is nothing to do now
     if (!acquired_.emplace(id, txSet).second)
         return;
-    JLOG(j_.debug()) << "gotTxSet " << id;
 
     if (!result_)
     {
@@ -1058,7 +924,7 @@ Consensus<Adaptor>::gotTxSet(
         bool any = false;
         for (auto const& [nodeId, peerPos] : currPeerPositions_)
         {
-            if (peerPos.first.proposal().position() == id)
+            if (peerPos.proposal().position() == id)
             {
                 updateDisputes(nodeId, txSet);
                 any = true;
@@ -1144,7 +1010,7 @@ Consensus<Adaptor>::getJson(bool full) const
 
             for (auto const& [nodeId, peerPos] : currPeerPositions_)
             {
-                ppj[to_string(nodeId)] = peerPos.first.getJson();
+                ppj[to_string(nodeId)] = peerPos.getJson();
             }
             ret["peer_positions"] = std::move(ppj);
         }
@@ -1216,7 +1082,7 @@ Consensus<Adaptor>::handleWrongLedger(typename Ledger_t::ID const& lgrId)
             result_->compares.clear();
         }
 
-        currPeerPositions_.clear();
+        clearPositions();
         rawCloseTimes_.peers.clear();
         deadNodes_.clear();
 
@@ -1267,65 +1133,19 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::playbackProposals()
 {
-    std::stringstream ss;
-    ss << "playbackProposals " << previousSeq_ + 1;
-    JLOG(j_.debug()) << " playbackProposals " << previousSeq_ + 1;
-    auto found = recentPeerPositionsWithLedgerSeq_.find(previousSeq_ + 1);
-    if (found != recentPeerPositionsWithLedgerSeq_.end())
+    auto const currentPositions = recentPeerPositions_.find(
+        previousLedger_.seq() + typename Ledger_t::Seq{1});
     {
-        ss << " already found: ";
- //       bool first = true;
-        for (auto const& it : found->second)
+        if (currentPositions != recentPeerPositions_.end())
         {
-//            for (auto const& pos : it.second)
-//            {
-//                if (first)
-//                    first = false;
-//                else
-//                    ss << ',';
-//                ss << pos.first.proposal().position();
-//                ss << pos.proposal().position();
-//                if (peerProposalInternal(now_, pos))
-//                    adaptor_.share(pos.first);
-//            }
-            auto const& peer = it.first;
-            auto const& pos = it.second;
-            ss << "peer: " << peer << " proposal: " << pos.first.proposal().position();
-            if (peerProposalInternal(now_, pos))
-                adaptor_.share(pos.first);
-        }
-    }
-    JLOG(j_.debug()) << ss.str();
-
-    for (auto const& it : recentPeerPositions_)
-    {
-        for (auto const& pos : it.second)
-        {
-            if (pos.first.proposal().prevLedger() == prevLedgerID_)
+            for (auto const& [peerID, pos] : currentPositions->second)
             {
-                if (peerProposalInternal(now_, pos))
-                    adaptor_.share(pos.first);
+                if (pos.proposal().prevLedger() == prevLedgerID_ &&
+                    peerProposalInternal(now_, pos))
+                {
+                    adaptor_.share(pos);
+                }
             }
-        }
-    }
-
-    for (auto currentIt = futureAcquired_.begin();
-         currentIt != futureAcquired_.end()
-         ;)
-    {
-        auto found = futureAcquired_.find(currentIt->first);
-        if (found != futureAcquired_.end() &&
-            found->second.first != std::nullopt &&
-            !acquired_.count(currentIt->first))
-        {
-            JLOG(j_.debug()) << "playback already received tx set " <<
-                currentIt->first;
-            acquired_.emplace(currentIt->first, std::move(*found->second.first));
-            currentIt = futureAcquired_.erase(found);
-        }
-        else
-        {
-            ++currentIt;
         }
     }
 }
@@ -1380,12 +1200,7 @@ Consensus<Adaptor>::phaseOpen()
             adaptor_.parms(),
             j_))
     {
-        JLOG(j_.debug()) << "closing with txCount " << adaptor_.txCount();
         closeLedger();
-    }
-    else
-    {
-        JLOG(j_.debug()) << "not closing with txCount " << adaptor_.txCount();
     }
 }
 
@@ -1517,73 +1332,42 @@ Consensus<Adaptor>::phaseEstablish()
     result_->proposers = currPeerPositions_.size();
 
     convergePercent_ = result_->roundTime.read() * 100 /
-        std::max<milliseconds>(prevRoundTime_, parms.avMIN_CONSENSUS_TIME);
+                       std::max<milliseconds>(prevRoundTime_, parms.avMIN_CONSENSUS_TIME);
 
-    JLOG(j_.debug()) << "phaseEstablish positions " << result_->proposers
-        << " roundTime: " << result_->roundTime.read().count()
-        << "ms, ledgerMIN_CONSENSUS: " << parms.ledgerMIN_CONSENSUS.count()
-        << "ms, seq: " << previousSeq_ + 1;
+    {
+        // Give everyone a chance to take an initial position unless enough
+        // have already submitted theirs a long enough time ago
+        // --because that means we're already
+        // behind. Optimize pause duration if pausing. Pause until exactly
+        // the number of ms after roundTime.read().
+        // how many byzantine nodes on the UNL can we tolerate, plus 1?
+        auto const [quorum, _] = adaptor_.getQuorumKeys();
+        std::size_t const discard = static_cast<std::size_t>(
+            quorum / parms.minCONSENSUS_FACTOR) - quorum;
 
-    // Give everyone a chance to take an initial position unless enough
-    // have already submitted theirs--because that means we're already behind.
-    std::multiset<std::chrono::steady_clock::time_point> arrivals;
-    for (auto const& pos : currPeerPositions_)
-        arrivals.insert(pos.second.second);
-    auto [quorum, trustedKeys] = adaptor_.getQuorumKeys();
-    std::size_t const& numKeys = trustedKeys.size();
-    std::size_t const thresh = numKeys - quorum + 1;
-    auto const now = std::chrono::steady_clock::now();
-    auto const cutoff = now - parms.ledgerMIN_CONSENSUS;
-    auto lb = arrivals.lower_bound(cutoff);
-    std::stringstream ss;
-    ss << "phaseEstablish numKeys=" << numKeys <<
-        " quorum=" << quorum << " thresh=" << thresh << " MIN_CONSENSUSms="
-       << parms.ledgerMIN_CONSENSUS.count() << " cutoff=" << cutoff.time_since_epoch().count()
-       << "| current peer position received ms ago: ";
-    bool first = true;
-    for (auto const ts : arrivals)
-    {
-        if (first)
-            first = false;
-        else
-            ss << ',';
-        ss << std::chrono::duration_cast<std::chrono::milliseconds>(now - ts).count();
-    }
-    if (lb != arrivals.end() && lb != arrivals.begin())
-    {
-        ss << " earlier than threshold ms ago,distance from begin: "
-           << std::chrono::duration_cast<std::chrono::milliseconds>(now - *lb).count()
-           << ',' << std::distance(arrivals.begin(), --lb);
-    }
-    JLOG(j_.debug()) << ss.str();
-    if (lb != arrivals.end() && std::distance(arrivals.begin(), lb) >= thresh)
-//    if ((result_->proposers * 100) / adaptor_.getNeededValidations() >=
-//            parms.minCONSENSUS_PCT)
-    {
-        JLOG(j_.debug()) << "phaseEstablish not checking to pause because "
-                            "enough proposals";
-    }
-    else
-    {
-        // now calculate how much time to sleep
-//        auto nowDiff = parms.ledgerMIN_CONSENSUS - result_->roundTime.read();
-        std::chrono::milliseconds latest = result_->roundTime.read();
-        if (arrivals.size() >= thresh)
+        std::chrono::milliseconds beginning;
+        if (currPeerPositions_.size() > discard)
         {
-            auto cutoffIt = arrivals.begin();
-            std::advance(cutoffIt, thresh - 1);
-            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - *cutoffIt) > latest)
-                latest = std::chrono::duration_cast<std::chrono::milliseconds>(now - *cutoffIt);
+            std::multiset<std::chrono::milliseconds> arrivals;
+            for (auto& pos : currPeerPositions_)
+            {
+                pos.second.proposal().arrivalTime().tick(clock_.now());
+                arrivals.insert(pos.second.proposal().arrivalTime().read());
+            }
+            auto it = arrivals.rbegin();
+            std::advance(it, discard);
+            beginning = *it;
+        }
+        else
+        {
+            beginning = result_->roundTime.read();
         }
 
-//        if (result_->roundTime.read() < parms.ledgerMIN_CONSENSUS)
-        if (latest < parms.ledgerMIN_CONSENSUS)
+        // Give everyone a chance to take an initial position
+        if (beginning < parms.ledgerMIN_CONSENSUS)
         {
-            std::size_t pauseFor = (parms.ledgerMIN_CONSENSUS - latest).count() + 1;
-            JLOG(j_.debug()) << "phaseEstablish not enough time passed "
-                                    "pausing for " << pauseFor << "ms";
             adaptor_.timerDelay() = std::make_unique<std::chrono::milliseconds>(
-                std::chrono::milliseconds(pauseFor));
+                parms.ledgerMIN_CONSENSUS - beginning);
             return;
         }
     }
@@ -1592,18 +1376,15 @@ Consensus<Adaptor>::phaseEstablish()
 
     // Nothing to do if too many laggards or we don't have consensus.
     if (shouldPause() || !haveConsensus())
-    {
-        JLOG(j_.debug()) << "phaseEstablish laggards or no consensus";
         return;
-    }
 
     if (!haveCloseTimeConsensus_)
     {
-        JLOG(j_.info()) << "phaseEstablish We have TX consensus but not CT consensus";
+        JLOG(j_.info()) << "We have TX consensus but not CT consensus";
         return;
     }
 
-    JLOG(j_.info()) << "phaseEstablish Converge cutoff (" << currPeerPositions_.size()
+    JLOG(j_.info()) << "Converge cutoff (" << currPeerPositions_.size()
                     << " participants)";
     adaptor_.updateOperatingMode(currPeerPositions_.size());
     prevProposers_ = currPeerPositions_.size();
@@ -1688,50 +1469,12 @@ Consensus<Adaptor>::closeLedger()
 
     adaptor_.validationDelay().reset();
 
-    result_.emplace(adaptor_.onClose(previousLedger_, now_, mode_.get()));
+    result_.emplace(adaptor_.onClose(previousLedger_, now_, mode_.get(), clock_));
     result_->roundTime.reset(clock_.now());
-
-    {
-        std::map<uint256, std::size_t> positions;
-        for (auto const& [nodeId, peerPos] : currPeerPositions_)
-        {
-            Proposal_t const& peerProp = peerPos.first.proposal();
-            ++positions[peerProp.position()];
-        }
-        uint256 most;
-        std::size_t mostCount = 0;
-        for (auto const& [pos, count] : positions)
-        {
-            if (count > mostCount)
-            {
-                most = pos;
-                mostCount = count;
-            }
-        }
-        auto [quorum, trustedKeys] = adaptor_.getQuorumKeys();
-        JLOG(j_.debug())
-            << "closeLedger most popular peer position,"
-               "count,validators "
-            << most << ',' << mostCount << ',' << trustedKeys.size();
-//        auto found = acquired_.find(most);
-//        if (found != acquired_.end() &&
-//            ((mostCount + 0.0) / trustedKeys.size() > 0.5))
-//        {
-//            JLOG(j_.debug()) << logLost(found->second).str();
-//        }
-    }
-
     // Share the newly created transaction set if we haven't already
     // received it from a peer
     if (acquired_.emplace(result_->txns.id(), result_->txns).second)
-    {
-        JLOG(j_.debug()) << "closeLedger sharing proposal";
         adaptor_.share(result_->txns);
-    }
-    else
-    {
-        JLOG(j_.debug()) << "closeLedger not sharing proposal";
-    }
 
     if (mode_.get() == ConsensusMode::proposing)
         adaptor_.propose(result_->position);
@@ -1739,16 +1482,11 @@ Consensus<Adaptor>::closeLedger()
     // Create disputes with any peer positions we have transactions for
     for (auto const& pit : currPeerPositions_)
     {
-        auto const& pos = pit.second.first.proposal().position();
+        auto const& pos = pit.second.proposal().position();
         auto const it = acquired_.find(pos);
-        JLOG(j_.debug()) << "closeLedger positions peer: " << pit.first
-            << ',' << pos;
         if (it != acquired_.end())
-        {
             createDisputes(it->second);
-        }
     }
-    phaseEstablish();
 }
 
 /** How many of the participants must agree to reach a given threshold?
@@ -1779,29 +1517,6 @@ Consensus<Adaptor>::updateOurPositions(bool share)
     assert(result_);
     ConsensusParms const& parms = adaptor_.parms();
 
-    {
-        std::map<uint256, std::size_t> positions;
-        for (auto const& [nodeId, peerPos] : currPeerPositions_)
-        {
-            Proposal_t const& peerProp = peerPos.first.proposal();
-            ++positions[peerProp.position()];
-        }
-        uint256 most;
-        std::size_t mostCount = 0;
-        for (auto const& [pos, count] : positions)
-        {
-            if (count > mostCount)
-            {
-                most = pos;
-                mostCount = count;
-            }
-        }
-        auto [quorum, trustedKeys] = adaptor_.getQuorumKeys();
-        JLOG(j_.debug()) << "updateOurPositions most popular peer position,"
-                            "count,validators " << most << ',' << mostCount
-            << ',' << trustedKeys.size();
-    }
-
     // Compute a cutoff time
     auto const peerCutoff = now_ - parms.proposeFRESHNESS;
     auto const ourCutoff = now_ - parms.proposeINTERVAL;
@@ -1812,7 +1527,7 @@ Consensus<Adaptor>::updateOurPositions(bool share)
         auto it = currPeerPositions_.begin();
         while (it != currPeerPositions_.end())
         {
-            Proposal_t const& peerProp = it->second.first.proposal();
+            Proposal_t const& peerProp = it->second.proposal();
             if (peerProp.isStale(peerCutoff))
             {
                 // peer's proposal is stale, so remove it
@@ -1820,7 +1535,17 @@ Consensus<Adaptor>::updateOurPositions(bool share)
                 JLOG(j_.warn()) << "Removing stale proposal from " << peerID;
                 for (auto& dt : result_->disputes)
                     dt.second.unVote(peerID);
-                it = currPeerPositions_.erase(it);
+                {
+                    // Remove from acquired_ or else it will consume space for awhile.
+                    // beast::aged_unordered_map::erase by key is broken and
+                    // is not used anywhere in the existing codebase.
+                    if (auto found = acquired_.find(peerProp.position());
+                        found != acquired_.end())
+                    {
+                        acquired_.erase(found);
+                    }
+                    it = currPeerPositions_.erase(it);
+                }
             }
             else
             {
@@ -1842,9 +1567,9 @@ Consensus<Adaptor>::updateOurPositions(bool share)
             // Because the threshold for inclusion increases,
             //  time can change our position on a dispute
             if (dispute.updateVote(
-                    convergePercent_,
-                    mode_.get() == ConsensusMode::proposing,
-                    parms))
+                convergePercent_,
+                mode_.get() == ConsensusMode::proposing,
+                parms))
             {
                 if (!mutableSet)
                     mutableSet.emplace(result_->txns);
@@ -1906,23 +1631,45 @@ Consensus<Adaptor>::updateOurPositions(bool share)
                         << " nw:" << neededWeight << " thrV:" << threshVote
                         << " thrC:" << threshConsensus;
 
-        for (auto const& [t, v] : closeTimeVotes)
+        // An impasse is possible unless a validator pretends to change
+        // its close time vote. Imagine 5 validators. 3 have positions
+        // for close time t1, and 2 with t2. That's an impasse because
+        // 75% will never be met. However, if one of the validators voting
+        // for t2 switches to t1, then that will be 80% and sufficient
+        // to break the impasse. It's also OK for those agreeing
+        // with the 3 to pretend to vote for the one with 2, because
+        // that will never exceed the threshold of 75%, even with as
+        // few as 3 validators. The most it can achieve is 2/3.
+        for (auto& [t, v] : closeTimeVotes)
         {
+            if (adaptor_.validating() && t != asCloseTime(
+                result_->position.closeTime()))
+            {
+                JLOG(j_.debug()) << "Others have voted for a close time "
+                                    "different than ours. Adding our vote "
+                                    "to this one in case it is necessary "
+                                    "to break an impasse.";
+                ++v;
+            }
             JLOG(j_.debug())
                 << "CCTime: seq "
                 << static_cast<std::uint32_t>(previousLedger_.seq()) + 1 << ": "
                 << t.time_since_epoch().count() << " has " << v << ", "
                 << threshVote << " required";
 
-
-            if (v + static_cast<int>(adaptor_.validating()) >= threshVote)
+            if (v >= threshVote)
             {
                 // A close time has enough votes for us to try to agree
                 consensusCloseTime = t;
-                threshVote = v + static_cast<int>(adaptor_.validating());
+                threshVote = v;
 
                 if (threshVote >= threshConsensus)
+                {
                     haveCloseTimeConsensus_ = true;
+                    // Make sure that the winning close time is the one
+                    // that propagates to the rest of the function.
+                    break;
+                }
             }
         }
 
@@ -1958,25 +1705,45 @@ Consensus<Adaptor>::updateOurPositions(bool share)
         result_->position.changePosition(newID, consensusCloseTime, now_);
 
         // Share our new transaction set and update disputes
-        // if we haven't already received it
-        if (acquired_.emplace(newID, result_->txns).second)
+        // if we haven't already received it. Unless we have already
+        // accepted a position, but are recalculating because it didn't
+        // validate.
+        if (acquired_.emplace(newID, result_->txns).second && share)
         {
-            if (!result_->position.isBowOut() && share)
+            if (!result_->position.isBowOut())
                 adaptor_.share(result_->txns);
 
             for (auto const& [nodeId, peerPos] : currPeerPositions_)
             {
-                Proposal_t const& p = peerPos.first.proposal();
+                Proposal_t const& p = peerPos.proposal();
                 if (p.position() == newID)
                     updateDisputes(nodeId, result_->txns);
             }
         }
 
-        // Share our new position if we are still participating this round
-        if (!result_->position.isBowOut() &&
-            (mode_.get() == ConsensusMode::proposing) &&
-            share)
+        // Share our new position if we are still participating this round,
+        // unless we have already accepted a position but are recalculating
+        // because it didn't validate.
+        if (share && !result_->position.isBowOut() &&
+            (mode_.get() == ConsensusMode::proposing))
             adaptor_.propose(result_->position);
+    }
+}
+
+template <class Adaptor>
+void
+Consensus<Adaptor>::leaveConsensus()
+{
+    if (mode_.get() == ConsensusMode::proposing)
+    {
+        if (result_ && !result_->position.isBowOut())
+        {
+            result_->position.bowOut(now_);
+            adaptor_.propose(result_->position);
+        }
+
+        mode_.set(ConsensusMode::observing, adaptor_);
+        JLOG(j_.info()) << "Bowing out of consensus";
     }
 }
 
@@ -1995,21 +1762,21 @@ Consensus<Adaptor>::haveConsensus()
     // Count number of agreements/disagreements with our position
     for (auto const& [nodeId, peerPos] : currPeerPositions_)
     {
-        Proposal_t const& peerProp = peerPos.first.proposal();
+        Proposal_t const& peerProp = peerPos.proposal();
         if (peerProp.position() == ourPosition)
         {
             ++agree;
         }
         else
         {
-            JLOG(j_.debug()) << "haveConsensus " <<  nodeId << " has " << peerProp.position();
+            JLOG(j_.debug()) << nodeId << " has " << peerProp.position();
             ++disagree;
         }
     }
     auto currentFinished =
         adaptor_.proposersFinished(previousLedger_, prevLedgerID_);
 
-    JLOG(j_.debug()) << "haveConsensus Checking for TX consensus: agree=" << agree
+    JLOG(j_.debug()) << "Checking for TX consensus: agree=" << agree
                      << ", disagree=" << disagree;
 
     // Determine if we actually have consensus or not
@@ -2031,29 +1798,11 @@ Consensus<Adaptor>::haveConsensus()
     // without us.
     if (result_->state == ConsensusState::MovedOn)
     {
-        JLOG(j_.error()) << "haveConsensus MovedOn Unable to reach consensus "
-            << Json::Compact{getJson(true)};
+        JLOG(j_.error()) << "Unable to reach consensus";
+        JLOG(j_.error()) << Json::Compact{getJson(true)};
     }
 
-    JLOG(j_.debug()) << "haveConsensus true";
     return true;
-}
-
-template <class Adaptor>
-void
-Consensus<Adaptor>::leaveConsensus()
-{
-    if (mode_.get() == ConsensusMode::proposing)
-    {
-        if (result_ && !result_->position.isBowOut())
-        {
-            result_->position.bowOut(now_);
-            adaptor_.propose(result_->position);
-        }
-
-        mode_.set(ConsensusMode::observing, adaptor_);
-        JLOG(j_.info()) << "Bowing out of consensus";
-    }
 }
 
 template <class Adaptor>
@@ -2103,7 +1852,7 @@ Consensus<Adaptor>::createDisputes(TxSet_t const& o)
         // Update all of the available peer's votes on the disputed transaction
         for (auto const& [nodeId, peerPos] : currPeerPositions_)
         {
-            Proposal_t const& peerProp = peerPos.first.proposal();
+            Proposal_t const& peerProp = peerPos.proposal();
             auto const cit = acquired_.find(peerProp.position());
             if (cit != acquired_.end())
                 dtx.setVote(nodeId, cit->second.exists(txID));
@@ -2142,77 +1891,20 @@ Consensus<Adaptor>::asCloseTime(NetClock::time_point raw) const
 }
 
 template <class Adaptor>
-std::optional<typename Adaptor::PeerPosition_t>
-Consensus<Adaptor>::fastConsensus()
+void
+Consensus<Adaptor>::clearPositions()
 {
-    std::uint32_t workingSeq = previousSeq_ + 1;
-    JLOG(j_.debug()) << "fastConsensus working on " << workingSeq;
-    auto positionsWorkingSeq = recentPeerPositionsWithLedgerSeq_.find(
-        workingSeq);
-    if (positionsWorkingSeq == recentPeerPositionsWithLedgerSeq_.end())
+    for (auto it = currPeerPositions_.begin(); it != currPeerPositions_.end();)
     {
-        JLOG(j_.debug()) << "fastConsensus false do not have positions for "
-            << workingSeq;
-        return std::nullopt;
-    }
-
-    std::map<PeerPosition_t, std::size_t> posCounts;
-    for (auto const& posMap : positionsWorkingSeq->second)
-    {
-        std::optional<PeerPosition_t> peerPos;
-        peerPos = posMap.second.first;
-        /*
-        for (auto const& [pos, _] : posMap.second)
+        // beast::aged_unordered_map::erase by key is broken and
+        // is not used anywhere in the existing codebase.
+        if (auto found = acquired_.find(it->second.proposal().position());
+            found != acquired_.end())
         {
-            if (!peerPos)
-            {
-                peerPos = pos;
-                continue;
-            }
-            if (pos.proposal().proposeSeq() > peerPos->proposal().proposeSeq())
-                peerPos = pos;
+            acquired_.erase(found);
         }
-         */
-        if (peerPos)
-            ++posCounts[*peerPos];
+        it = currPeerPositions_.erase(it);
     }
-
-    std::optional<PeerPosition_t> ret;
-    std::size_t most = 0;
-    for (auto const& [pos, count] : posCounts)
-    {
-        if (count > most)
-        {
-            most = count;
-            ret.emplace(std::move(pos));
-        }
-    }
-    if (!ret)
-    {
-        JLOG(j_.debug()) << "fastConsensus false no peer positions";
-        return std::nullopt;
-    }
-
-    if (!acquired_.contains(ret->proposal().position()))
-    {
-        JLOG(j_.debug()) << "fastConsensus false has not acquired "
-            << ret->proposal().position();
-        return std::nullopt;
-    }
-
-    auto const minVal = adaptor_.ledgerMaster_.getNeededValidations();
-    if ((most + 0.0) / minVal > 0.5)
-    {
-        JLOG(j_.debug()) << "fastConsensus true position,agree,validators "
-                         << ret->proposal().position() << ',' << most
-                         << ',' << minVal;
-        return ret;
-    }
-
-    JLOG(j_.debug()) << "fastConsensus false not enough agreement "
-                        "position, agree, validators "
-        << ret->proposal().position() << ',' << most << ',' << minVal;
-    return std::nullopt;
 }
 
 }  // namespace ripple

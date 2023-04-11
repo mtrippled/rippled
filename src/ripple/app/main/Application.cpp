@@ -1359,7 +1359,7 @@ ApplicationImp::setup(boost::program_options::variables_map const& cmdline)
     // start first consensus round
     if (!config_->reporting() &&
         !m_networkOPs->beginConsensus(
-            m_ledgerMaster->getClosedLedger()->info().hash, false))
+            m_ledgerMaster->getClosedLedger()->info().hash))
     {
         JLOG(m_journal.fatal()) << "Unable to start consensus";
         return false;
