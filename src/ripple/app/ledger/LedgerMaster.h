@@ -37,9 +37,9 @@
 #include <ripple/protocol/RippleLedgerHash.h>
 #include <ripple/protocol/STValidation.h>
 #include <ripple/protocol/messages.h>
-#include <condition_variable>
-#include <mutex>
 #include <optional>
+
+#include <mutex>
 
 namespace ripple {
 
@@ -321,11 +321,8 @@ private:
     std::optional<LedgerHash>
     getLedgerHashForHistory(LedgerIndex index, InboundLedger::Reason reason);
 
-public:
     std::size_t
     getNeededValidations();
-
-private:
     void
     fetchForHistory(
         std::uint32_t missing,
@@ -358,9 +355,6 @@ private:
 
     // The highest-sequence ledger we have fully accepted.
     LedgerHolder mValidLedger;
-
-    std::mutex validMutex_;
-    std::condition_variable validCond_;
 
     // The last ledger we have published.
     std::shared_ptr<Ledger const> mPubLedger;
@@ -428,7 +422,9 @@ private:
     // Time that the previous upgrade warning was issued.
     TimeKeeper::time_point upgradeWarningPrevTime_{};
 
-private:
+    std::mutex validMutex_;
+    std::condition_variable validCond_;
+
     struct Stats
     {
         template <class Handler>
@@ -450,7 +446,6 @@ private:
 
     Stats m_stats;
 
-private:
     void
     collect_metrics()
     {

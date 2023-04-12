@@ -143,6 +143,9 @@ public:
         bool bLocal,
         FailHard failType) = 0;
 
+    virtual bool
+    transactionBatch(bool const drain) = 0;
+
     //--------------------------------------------------------------------------
     //
     // Owner functions

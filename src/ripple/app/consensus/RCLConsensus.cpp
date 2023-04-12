@@ -913,12 +913,6 @@ RCLConsensus::Adaptor::onModeChange(ConsensusMode before, ConsensusMode after)
     mode_ = after;
 }
 
-std::size_t
-RCLConsensus::Adaptor::getNeededValidations() const
-{
-    return ledgerMaster_.getNeededValidations();
-}
-
 bool
 RCLConsensus::Adaptor::retryAccept(Ledger_t const& newLedger,
     std::optional<std::chrono::time_point<std::chrono::steady_clock>>& start) const

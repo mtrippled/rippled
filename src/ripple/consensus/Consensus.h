@@ -861,7 +861,7 @@ Consensus<Adaptor>::peerProposalInternal(
         ++rawCloseTimes_.peers[newPeerProp.closeTime()];
     }
 
-    JLOG(j_.trace()) << "Processing peer proposal "
+    JLOG(j_.debug()) << "Processing peer proposal "
                      << newPeerProp.proposeSeq()
                      << "/" << newPeerProp.position();
 

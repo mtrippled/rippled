@@ -231,9 +231,6 @@ class RCLConsensus
             return timerDelay_;
         }
 
-        std::size_t
-        getNeededValidations() const;
-
     private:
         //---------------------------------------------------------------------
         // The following members implement the generic Consensus requirements

@@ -33,6 +33,7 @@
 #include <ripple/basics/base64.h>
 #include <ripple/basics/random.h>
 #include <ripple/basics/safe_cast.h>
+#include <ripple/beast/clock/abstract_clock.h>
 #include <ripple/beast/core/LexicalCast.h>
 #include <ripple/beast/core/SemanticVersion.h>
 #include <ripple/nodestore/DatabaseShard.h>
@@ -41,6 +42,7 @@
 #include <ripple/overlay/impl/Tuning.h>
 #include <ripple/overlay/predicates.h>
 #include <ripple/protocol/digest.h>
+#include <ripple/protocol/Protocol.h>
 #include <ripple/rpc/impl/RPCHelpers.h>
 
 #include <boost/algorithm/string.hpp>
@@ -48,10 +50,10 @@
 #include <boost/beast/core/ostream.hpp>
 
 #include <algorithm>
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <numeric>
-#include <optional>
 #include <sstream>
 
 using namespace std::chrono_literals;
@@ -322,8 +324,8 @@ PeerImp::addTxQueue(uint256 const& hash)
 
     if (txQueue_.size() == reduce_relay::MAX_TX_QUEUE_SIZE)
     {
-        sendTxQueue();
         JLOG(p_journal_.warn()) << "addTxQueue exceeds the cap";
+        sendTxQueue();
     }
 
     txQueue_.insert(hash);
@@ -1823,14 +1825,6 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMLedgerData> const& m)
     // Verify ledger hash
     if (!stringIsUint256Sized(m->ledgerhash()))
         return badData("Invalid ledger hash");
-
-    if (m->type() == protocol::liTX_NODE ||
-        m->type() == protocol::liTS_CANDIDATE)
-    {
-        JLOG(p_journal_.debug()) << "TMLedgerData  " <<
-            (m->type() == protocol::liTX_NODE ? "liTX_NODE " : "liTS_CANDIDATE ")
-            << m->ledgerhash();
-    }
 
     // Verify ledger sequence
     {

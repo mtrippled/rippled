@@ -1069,18 +1069,6 @@ public:
         return res;
     }
 
-    std::vector<WrappedValidationType>
-    getTrustedForSeq(Seq const seq)
-    {
-        std::vector<WrappedValidationType> ret;
-        auto const vals = bySequence_.find(seq);
-        if (vals == bySequence_.end())
-            return ret;
-        for (auto const& v : vals->second)
-            ret.push_back(v.second.unwrap());
-        return ret;
-    }
-
     /** Returns fees reported by trusted full validators in the given ledger
 
         @param ledgerID The identifier of ledger of interest
