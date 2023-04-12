@@ -1452,7 +1452,6 @@ Consensus<Adaptor>::phaseEstablish()
 
     lock.unlock();
 
-    /*
     if (startDelay)
     {
         adaptor_.validationDelay() =
@@ -1460,7 +1459,6 @@ Consensus<Adaptor>::phaseEstablish()
                 std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::steady_clock::now() - *startDelay));
     }
-    */
 
     adaptor_.onAccept(
         *result_,

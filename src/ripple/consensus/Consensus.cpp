@@ -64,6 +64,13 @@ shouldCloseLedger(
         return true;
     }
 
+    if (validationDelay)
+    {
+        openTime += *validationDelay;
+        JLOG(j.debug()) << "shouldCloseLedger previous round validation delay "
+                           "of " << validationDelay->count() << "ms.";
+    }
+
     if (!anyTransactions)
     {
         // Only close at the end of the idle interval
