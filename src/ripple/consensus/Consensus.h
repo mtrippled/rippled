@@ -1453,8 +1453,6 @@ Consensus<Adaptor>::phaseEstablish()
     }
     while (adaptor_.retryAccept(txsBuilt->second, startDelay));
 
-    lock.unlock();
-
     if (startDelay)
     {
         auto const delay = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -1464,6 +1462,8 @@ Consensus<Adaptor>::phaseEstablish()
         adaptor_.validationDelay() =
             std::make_unique<std::chrono::milliseconds>(delay);
     }
+
+    lock.unlock();
 
     adaptor_.onAccept(
         *result_,
