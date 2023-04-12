@@ -832,51 +832,54 @@ Consensus<Adaptor>::peerProposalInternal(
             deadNodes_.insert(peerID);
 
             return true;
-
-            if (peerPosIt != currPeerPositions_.end())
-            {
-                // Remove from acquired_ or else it will consume space for awhile.
-                // beast::aged_unordered_container::erase by key is broken and
-                // is not used anywhere in the existing codebase.
-                if (auto found = acquired_.find(
-                        newPeerPos.proposal().position());
-                    found != acquired_.end())
-                {
-                    acquired_.erase(found);
-                }
-                peerPosIt->second = newPeerPos;
-            } else
-            {
-                currPeerPositions_.emplace(peerID, newPeerPos);
-            }
         }
 
-        if (newPeerProp.isInitial())
+        if (peerPosIt != currPeerPositions_.end())
         {
-            // Record the close time estimate
-            JLOG(j_.trace()) << "Peer reports close time as "
-                             << newPeerProp.closeTime().time_since_epoch().count();
-            ++rawCloseTimes_.peers[newPeerProp.closeTime()];
-        }
-
-        JLOG(j_.trace()) << "Processing peer proposal "
-                         << newPeerProp.proposeSeq()
-                         << "/" << newPeerProp.position();
-
-        {
-            auto const ait = acquired_.find(newPeerProp.position());
-            if (ait == acquired_.end())
+            // Remove from acquired_ or else it will consume space for awhile.
+            // beast::aged_unordered_container::erase by key is broken and
+            // is not used anywhere in the existing codebase.
+            if (auto found = acquired_.find(
+                    newPeerPos.proposal().position());
+                found != acquired_.end())
             {
-                // acquireTxSet will return the set if it is available, or
-                // spawn a request for it and return nullopt/nullptr.  It will call
-                // gotTxSet once it arrives
-                if (auto set = adaptor_.acquireTxSet(newPeerProp.position()))
-                    gotTxSet(now_, *set);
-                else JLOG(j_.debug()) << "Don't have tx set for peer";
-            } else if (result_)
-            {
-                updateDisputes(newPeerProp.nodeID(), ait->second);
+                acquired_.erase(found);
             }
+            peerPosIt->second = newPeerPos;
+        }
+        else
+        {
+            currPeerPositions_.emplace(peerID, newPeerPos);
+        }
+    }
+
+    if (newPeerProp.isInitial())
+    {
+        // Record the close time estimate
+        JLOG(j_.trace()) << "Peer reports close time as "
+                         << newPeerProp.closeTime().time_since_epoch().count();
+        ++rawCloseTimes_.peers[newPeerProp.closeTime()];
+    }
+
+    JLOG(j_.trace()) << "Processing peer proposal "
+                     << newPeerProp.proposeSeq()
+                     << "/" << newPeerProp.position();
+
+    {
+        auto const ait = acquired_.find(newPeerProp.position());
+        if (ait == acquired_.end())
+        {
+            // acquireTxSet will return the set if it is available, or
+            // spawn a request for it and return nullopt/nullptr.  It will call
+            // gotTxSet once it arrives
+            if (auto set = adaptor_.acquireTxSet(newPeerProp.position()))
+                gotTxSet(now_, *set);
+            else
+                JLOG(j_.debug()) << "Don't have tx set for peer";
+        }
+        else if (result_)
+        {
+            updateDisputes(newPeerProp.nodeID(), ait->second);
         }
     }
 
