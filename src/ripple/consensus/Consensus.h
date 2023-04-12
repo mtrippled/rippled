@@ -24,6 +24,7 @@
 #include <ripple/app/misc/CanonicalTXSet.h>
 #include <ripple/basics/Log.h>
 #include <ripple/basics/chrono.h>
+#include <ripple/beast/container/aged_unordered_map.h>
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/consensus/ConsensusParms.h>
 #include <ripple/consensus/ConsensusProposal.h>
@@ -549,7 +550,9 @@ private:
     NetClock::time_point
     asCloseTime(NetClock::time_point raw) const;
 
-private:
+    void
+    clearPositions();
+
     Adaptor& adaptor_;
 
     ConsensusPhase phase_{ConsensusPhase::accepted};
@@ -588,14 +591,12 @@ private:
     Ledger_t previousLedger_;
 
     // Transaction Sets, indexed by hash of transaction tree
-//    using TxSetWithArrival = std::pair<const TxSet_t, std::chrono::steady_clock::time_point>;
-//    hash_map<typename TxSet_t::ID, TxSetWithArrival> acquired_;
-    hash_map<typename TxSet_t::ID, TxSet_t> acquired_;
-
-//    std::pair<std::optional<const TxSet_t>, std::chrono::steady_clock::time_point> pp_;
-    using OptTXSetWithArrival = std::pair<std::optional<const TxSet_t>, ConsensusTimer>;
-    hash_map<typename TxSet_t::ID, OptTXSetWithArrival> futureAcquired_;
-//    hash_map<typename TxSet_t::ID, std::optional<const TxSet_t>> futureAcquired_;
+    beast::aged_unordered_map<
+        typename TxSet_t::ID,
+        const TxSet_t,
+        clock_type::clock_type,
+        beast::uhash<>>
+        acquired_;
 
     std::optional<Result> result_;
     ConsensusCloseTimes rawCloseTimes_;
@@ -625,7 +626,7 @@ Consensus<Adaptor>::Consensus(
     clock_type& clock,
     Adaptor& adaptor,
     beast::Journal journal)
-    : adaptor_(adaptor), clock_(clock), j_{journal}
+    : adaptor_(adaptor), clock_(clock), acquired_(clock), j_{journal}
 {
     JLOG(j_.debug()) << "Creating consensus object";
 }
@@ -702,8 +703,8 @@ Consensus<Adaptor>::startRoundInternal(
     convergePercent_ = 0;
     haveCloseTimeConsensus_ = false;
     openTime_.reset(clock_.now());
-    currPeerPositions_.clear();
-    acquired_.clear();
+    clearPositions();
+    beast::expire(acquired_, std::chrono::minutes(30));
     rawCloseTimes_.peers.clear();
     rawCloseTimes_.self = {};
     deadNodes_.clear();
@@ -714,11 +715,6 @@ Consensus<Adaptor>::startRoundInternal(
         previousLedger_.seq() + typename Ledger_t::Seq{1});
 
     playbackProposals();
-    if (futureAcquired_.size() > 1000)
-    {
-        JLOG(j_.debug()) << "clearing futureAcquired";
-        futureAcquired_.clear();
-    }
     if (currPeerPositions_.size() > (prevProposers_ / 2))
     {
         // We may be falling behind, don't wait for the timer
@@ -766,76 +762,36 @@ template <class Adaptor>
 bool
 Consensus<Adaptor>::peerProposalInternal(
     NetClock::time_point const& now,
-//    PeerPositionWithArrival const& newPeerPosPair)
     PeerPosition_t const& newPeerPos)
 {
-//    auto const& newPeerPos = newPeerPosPair.first;
-    auto& when = newPeerPos.proposal().arrivalTime();
-    auto const& newPeerProp = newPeerPos.proposal();
-    auto const& peerID = newPeerProp.nodeID();
-    std::uint32_t proposeSeq = newPeerProp.proposeSeq();
-    auto proposeLedgerSeq = newPeerProp.ledgerSeq();
-    // This is because we might be doing this during phase accept.
-    JLOG(j_.debug()) << "got peerid proposal " << peerID << ' '
-        << newPeerProp.position() << " seq,ledgerseq,myprevseq: "
-        << proposeSeq << ','
-        << proposeLedgerSeq
-        << ',' << previousLedger_.seq();
-
-    // Nothing to do for now if we are currently working on a ledger
-//    if (phase_ == ConsensusPhase::accepted &&
-//        newPeerProp.prevLedger() == prevLedgerID_)
-//    {
-//        return false;
-//    }
-
     now_ = now;
+
+    auto const& newPeerProp = newPeerPos.proposal();
 
     if (newPeerProp.prevLedger() != prevLedgerID_)
     {
         JLOG(j_.debug()) << "Got proposal for " << newPeerProp.prevLedger()
-                         << " but we are on " << prevLedgerID_ << ' '
-                         << newPeerPos.proposal().position();
-        if (futureAcquired_.emplace(newPeerProp.position(),
-                    OptTXSetWithArrival{std::nullopt, when}).second)
-        {
-            JLOG(j_.debug()) << "peerProposalInternal need to acquire 1 "
-                             << newPeerPos.proposal().position();
-            if (auto set = adaptor_.acquireTxSet(newPeerProp.position()))
-                gotTxSet(now_, *set);
-            else
-                JLOG(j_.debug()) << "future proposal Don't have tx set for peer 1";
-        }
-        return false;
-    }
-    else if (newPeerProp.ledgerSeq() > previousLedger_.seq() + typename Ledger_t::Seq{1})
-    {
-        JLOG(j_.debug()) << "Got proposal for " << newPeerProp.prevLedger()
-                         << " but we are on " << prevLedgerID_ << ' '
-                         << newPeerPos.proposal().position()
-                         << " working seq,proposal ledger seq: "
-                         << previousLedger_.seq()
-                         << ',' << newPeerPos.proposal().ledgerSeq();
+                         << " but we are on " << prevLedgerID_;
 
-        if (futureAcquired_.emplace(newPeerProp.position(),
-                                    OptTXSetWithArrival{std::nullopt, when}).second)
+        if (!acquired_.count(newPeerProp.position()))
         {
-            JLOG(j_.debug()) << "peerProposalInternal need to acquire 2 "
-                << newPeerPos.proposal().position();
+            // acquireTxSet will return the set if it is available, or
+            // spawn a request for it and return nullopt/nullptr.  It will call
+            // gotTxSet once it arrives
             if (auto set = adaptor_.acquireTxSet(newPeerProp.position()))
                 gotTxSet(now_, *set);
             else
-                JLOG(j_.debug()) << "future proposal Don't have tx set for peer 2";
+            JLOG(j_.debug()) << "Do not have tx set for peer";
         }
 
         return false;
     }
+
+    auto const& peerID = newPeerProp.nodeID();
 
     if (deadNodes_.find(peerID) != deadNodes_.end())
     {
-        JLOG(j_.info()) << "Position from dead node: " << peerID << ' '
-                        << newPeerPos.proposal().position()
-                        << ',' << newPeerPos.proposal().ledgerSeq();
+        JLOG(j_.info()) << "Position from dead node: " << peerID;
         return false;
     }
 
@@ -848,84 +804,79 @@ Consensus<Adaptor>::peerProposalInternal(
             if (newPeerProp.proposeSeq() <=
                 peerPosIt->second.proposal().proposeSeq())
             {
-                JLOG(j_.debug()) << "Position for old proposal sequence "
-                    << " peerid current prop:seq,new prop:seq. "
-                    << peerID << ' '
-                    << peerPosIt->second.proposal().position() << ':'
-                    << peerPosIt->second.proposal().proposeSeq() << ','
-                    << newPeerPos.proposal().position() << ':'
-                    << newPeerPos.proposal().proposeSeq();
                 return false;
             }
         }
 
         if (newPeerProp.isBowOut())
         {
-            JLOG(j_.info()) << "Peer " << peerID << " bows out" << ' '
-                            << newPeerPos.proposal().position()
-                            << ',' << newPeerPos.proposal().ledgerSeq();
+            JLOG(j_.info()) << "Peer " << peerID << " bows out";
             if (result_)
             {
-                for (auto& it : result_->disputes)
+                for (auto &it: result_->disputes)
                     it.second.unVote(peerID);
             }
             if (peerPosIt != currPeerPositions_.end())
+            {
+                // Remove from acquired_ or else it will consume space for awhile.
+                // beast::aged_unordered_map::erase by key is broken and
+                // is not used anywhere in the existing codebase.
+                if (auto found = acquired_.find(
+                        peerPosIt->second.proposal().position());
+                    found != acquired_.end())
+                {
+                    acquired_.erase(found);
+                }
                 currPeerPositions_.erase(peerID);
+            }
             deadNodes_.insert(peerID);
 
             return true;
+
+            if (peerPosIt != currPeerPositions_.end())
+            {
+                // Remove from acquired_ or else it will consume space for awhile.
+                // beast::aged_unordered_container::erase by key is broken and
+                // is not used anywhere in the existing codebase.
+                if (auto found = acquired_.find(
+                        newPeerPos.proposal().position());
+                    found != acquired_.end())
+                {
+                    acquired_.erase(found);
+                }
+                peerPosIt->second = newPeerPos;
+            } else
+            {
+                currPeerPositions_.emplace(peerID, newPeerPos);
+            }
         }
 
-        JLOG(j_.debug()) << "peerProposalInternal position for ledger seq,"
-                            "peerid,position: "
-                            << previousLedger_.seq() + typename Ledger_t::Seq{1} << ',' << peerID
-                            << ',' << newPeerPos.proposal().position();
-        if (peerPosIt != currPeerPositions_.end())
-            peerPosIt->second = newPeerPos;
-        else
+        if (newPeerProp.isInitial())
         {
-            currPeerPositions_.emplace(peerID, newPeerPos);
+            // Record the close time estimate
+            JLOG(j_.trace()) << "Peer reports close time as "
+                             << newPeerProp.closeTime().time_since_epoch().count();
+            ++rawCloseTimes_.peers[newPeerProp.closeTime()];
         }
-    }
 
-    if (newPeerProp.isInitial())
-    {
-        // Record the close time estimate
-        JLOG(j_.debug()) << "Peer reports close time as "
-                         << newPeerProp.closeTime().time_since_epoch().count() << ' '
-                         << newPeerPos.proposal().position()
-                         << ',' << newPeerPos.proposal().ledgerSeq();
-        ++rawCloseTimes_.peers[newPeerProp.closeTime()];
-    }
+        JLOG(j_.trace()) << "Processing peer proposal "
+                         << newPeerProp.proposeSeq()
+                         << "/" << newPeerProp.position();
 
-    JLOG(j_.debug()) << "Processing peer proposal " << newPeerProp.proposeSeq()
-                     << "/" << newPeerProp.position();
-
-    {
-        auto const ait = acquired_.find(newPeerProp.position());
-        if (ait == acquired_.end())
         {
-            JLOG(j_.debug()) << "not yet acquired or acquiring tx set 2 "
-                             << newPeerPos.proposal().position()
-                             << ',' << newPeerPos.proposal().ledgerSeq();
-            // acquireTxSet will return the set if it is available, or
-            // spawn a request for it and return nullopt/nullptr.  It will call
-            // gotTxSet once it arrives
-            if (auto set = adaptor_.acquireTxSet(newPeerProp.position()))
-                gotTxSet(now_, *set);
-            else
-                JLOG(j_.debug()) << "Don't have tx set for peer, requesting I "
-                                    "think 2 " << newPeerProp.position();
-        }
-        else if (result_)
-        {
-            updateDisputes(newPeerProp.nodeID(), ait->second);
-        }
-        else
-        {
-            JLOG(j_.debug()) << "already acquired or acquiring tx set "
-                             << newPeerPos.proposal().position()
-                             << ',' << newPeerPos.proposal().ledgerSeq();
+            auto const ait = acquired_.find(newPeerProp.position());
+            if (ait == acquired_.end())
+            {
+                // acquireTxSet will return the set if it is available, or
+                // spawn a request for it and return nullopt/nullptr.  It will call
+                // gotTxSet once it arrives
+                if (auto set = adaptor_.acquireTxSet(newPeerProp.position()))
+                    gotTxSet(now_, *set);
+                else JLOG(j_.debug()) << "Don't have tx set for peer";
+            } else if (result_)
+            {
+                updateDisputes(newPeerProp.nodeID(), ait->second);
+            }
         }
     }
 
@@ -957,45 +908,14 @@ Consensus<Adaptor>::gotTxSet(
     NetClock::time_point const& now,
     TxSet_t const& txSet)
 {
-    auto id = txSet.id();
-
-    bool current = false;
-    for (auto const& [nodeId, peerPos] : currPeerPositions_)
-    {
-        if (peerPos.proposal().position() == id)
-        {
-            current = true;
-            break;
-        }
-    }
-
-//    if (acquired_.count(id))
-    if (!current)
-    {
-        auto foundFuture = futureAcquired_.find(id);
-        if (foundFuture != futureAcquired_.end())
-        {
-            JLOG(j_.debug()) << "future gotTxSet " << id;
-            if (foundFuture->second.first == std::nullopt)
-            {
-                JLOG(j_.debug()) << "future gotTxSet inserting " << id;
-                foundFuture->second.first.emplace(txSet);
-            }
-            return;
-        }
-    }
-
-    // Nothing to do if we've finished work on a ledger
-//    if (phase_ == ConsensusPhase::accepted)
-//        return;
-
     now_ = now;
+
+    auto id = txSet.id();
 
     // If we've already processed this transaction set since requesting
     // it from the network, there is nothing to do now
     if (!acquired_.emplace(id, txSet).second)
         return;
-    JLOG(j_.debug()) << "gotTxSet " << id;
 
     if (!result_)
     {
@@ -1227,31 +1147,10 @@ Consensus<Adaptor>::playbackProposals()
             {
                 if (pos.proposal().prevLedger() == prevLedgerID_ &&
                     peerProposalInternal(now_, pos))
-//                    peerProposalInternal(now_, std::make_pair(pos, pos.proposal().arrivalTime())))
                 {
                     adaptor_.share(pos);
                 }
             }
-        }
-    }
-
-    for (auto currentIt = futureAcquired_.begin();
-         currentIt != futureAcquired_.end()
-         ;)
-    {
-        auto found = futureAcquired_.find(currentIt->first);
-        if (found != futureAcquired_.end() &&
-            found->second.first != std::nullopt &&
-            !acquired_.count(currentIt->first))
-        {
-            JLOG(j_.debug()) << "playback already received tx set " <<
-                currentIt->first;
-            acquired_.emplace(currentIt->first, std::move(*found->second.first));
-            currentIt = futureAcquired_.erase(found);
-        }
-        else
-        {
-            ++currentIt;
         }
     }
 }
@@ -1585,18 +1484,10 @@ Consensus<Adaptor>::closeLedger()
 
     result_.emplace(adaptor_.onClose(previousLedger_, now_, mode_.get(), clock_));
     result_->roundTime.reset(clock_.now());
-
     // Share the newly created transaction set if we haven't already
     // received it from a peer
     if (acquired_.emplace(result_->txns.id(), result_->txns).second)
-    {
-        JLOG(j_.debug()) << "closeLedger sharing proposal";
         adaptor_.share(result_->txns);
-    }
-    else
-    {
-        JLOG(j_.debug()) << "closeLedger not sharing proposal";
-    }
 
     if (mode_.get() == ConsensusMode::proposing)
         adaptor_.propose(result_->position);
@@ -1606,12 +1497,8 @@ Consensus<Adaptor>::closeLedger()
     {
         auto const& pos = pit.second.proposal().position();
         auto const it = acquired_.find(pos);
-        JLOG(j_.debug()) << "closeLedger positions peer: " << pit.first
-            << ',' << pos;
         if (it != acquired_.end())
-        {
             createDisputes(it->second);
-        }
     }
     phaseEstablish();
 }
@@ -1662,6 +1549,14 @@ Consensus<Adaptor>::updateOurPositions(bool share)
                 JLOG(j_.warn()) << "Removing stale proposal from " << peerID;
                 for (auto& dt : result_->disputes)
                     dt.second.unVote(peerID);
+                // Remove from acquired_ or else it will consume space for awhile.
+                // beast::aged_unordered_map::erase by key is broken and
+                // is not used anywhere in the existing codebase.
+                if (auto found = acquired_.find(peerProp.position());
+                    found != acquired_.end())
+                {
+                    acquired_.erase(found);
+                }
                 it = currPeerPositions_.erase(it);
             }
             else
@@ -1800,10 +1695,12 @@ Consensus<Adaptor>::updateOurPositions(bool share)
         result_->position.changePosition(newID, consensusCloseTime, now_);
 
         // Share our new transaction set and update disputes
-        // if we haven't already received it
-        if (acquired_.emplace(newID, result_->txns).second)
+        // if we haven't already received it. Unless we have already
+        // accepted a position, but are recalculating because it didn't
+        // validate.
+        if (acquired_.emplace(newID, result_->txns).second && share)
         {
-            if (!result_->position.isBowOut() && share)
+            if (!result_->position.isBowOut())
                 adaptor_.share(result_->txns);
 
             for (auto const& [nodeId, peerPos] : currPeerPositions_)
@@ -1981,6 +1878,23 @@ NetClock::time_point
 Consensus<Adaptor>::asCloseTime(NetClock::time_point raw) const
 {
     return roundCloseTime(raw, closeResolution_);
+}
+
+template <class Adaptor>
+void
+Consensus<Adaptor>::clearPositions()
+{
+    for (auto it = currPeerPositions_.begin(); it != currPeerPositions_.end();)
+    {
+        // beast::aged_unordered_map::erase by key is broken and
+        // is not used anywhere in the existing codebase.
+        if (auto found = acquired_.find(it->second.proposal().position());
+            found != acquired_.end())
+        {
+            acquired_.erase(found);
+        }
+        it = currPeerPositions_.erase(it);
+    }
 }
 
 }  // namespace ripple
