@@ -70,7 +70,7 @@ shouldCloseLedger(
     std::chrono::milliseconds prevRoundTime,
     std::chrono::milliseconds timeSincePrevClose,
     std::chrono::milliseconds openTime,
-    std::unique_ptr<std::chrono::milliseconds> const& validationDelay,
+    std::unique_ptr<std::chrono::milliseconds>& validationDelay,
     std::chrono::milliseconds idleInterval,
     ConsensusParms const& parms,
     beast::Journal j);
@@ -1428,8 +1428,11 @@ Consensus<Adaptor>::phaseEstablish()
             if (prevProposal == result_->position)
             {
                 JLOG(j_.debug()) << "phaseEstablish old and new positions "
-                                    "match, pausing "
-                                 << prevProposal.position();
+                                    "match: "
+                                 << prevProposal.position() << " delay so far "
+                                 << std::chrono::duration_cast<std::chrono::milliseconds>(
+                                     std::chrono::steady_clock::now() - *startDelay).count()
+                                 << "ms. pausing ";
                 adaptor_.getLedgerMaster().waitForValidated(
                     std::chrono::milliseconds(100));
                 continue;
@@ -1454,10 +1457,12 @@ Consensus<Adaptor>::phaseEstablish()
 
     if (startDelay)
     {
+        auto const delay = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - *startDelay);
+        JLOG(j_.debug()) << "validating ledger delayed " << delay.count()
+            << "ms";
         adaptor_.validationDelay() =
-            std::make_unique<std::chrono::milliseconds>(
-                std::chrono::duration_cast<std::chrono::milliseconds>(
-                    std::chrono::steady_clock::now() - *startDelay));
+            std::make_unique<std::chrono::milliseconds>(delay);
     }
 
     adaptor_.onAccept(
@@ -1480,8 +1485,6 @@ Consensus<Adaptor>::closeLedger()
     phase_ = ConsensusPhase::establish;
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::establish";
     rawCloseTimes_.self = now_;
-
-    adaptor_.validationDelay().reset();
 
     result_.emplace(adaptor_.onClose(previousLedger_, now_, mode_.get(), clock_));
     result_->roundTime.reset(clock_.now());

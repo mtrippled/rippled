@@ -32,7 +32,7 @@ shouldCloseLedger(
     std::chrono::milliseconds
         timeSincePrevClose,              // Time since last ledger's close time
     std::chrono::milliseconds openTime,  // Time waiting to close this ledger
-    std::unique_ptr<std::chrono::milliseconds> const& validationDelay,
+    std::unique_ptr<std::chrono::milliseconds>& validationDelay,
     std::chrono::milliseconds idleInterval,
     ConsensusParms const& parms,
     beast::Journal j)
@@ -69,6 +69,7 @@ shouldCloseLedger(
         openTime += *validationDelay;
         JLOG(j.debug()) << "shouldCloseLedger previous round validation delay "
                            "of " << validationDelay->count() << "ms.";
+        validationDelay.reset();
     }
 
     if (!anyTransactions)
