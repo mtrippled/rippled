@@ -472,8 +472,8 @@ private:
     bool
     peerProposalInternal(
         NetClock::time_point const& now,
-        PeerPositionWithArrival const& newPosPair);
-//        PeerPosition_t const& newProposal);
+//        PeerPositionWithArrival const& newPosPair);
+        PeerPosition_t const& newProposal);
 
     /** Handle pre-close phase.
 
@@ -760,18 +760,18 @@ Consensus<Adaptor>::peerProposal(
         }
     }
 
-    return peerProposalInternal(now, std::make_pair(newPeerPos,
-        newPeerPos.proposal().arrivalTime()));
+    return peerProposalInternal(now, newPeerPos);
 }
 
 template <class Adaptor>
 bool
 Consensus<Adaptor>::peerProposalInternal(
     NetClock::time_point const& now,
-    PeerPositionWithArrival const& newPeerPosPair)
-//    PeerPosition_t const& newPeerPos)
+//    PeerPositionWithArrival const& newPeerPosPair)
+    PeerPosition_t const& newPeerPos)
 {
-    auto const& newPeerPos = newPeerPosPair.first;
+//    auto const& newPeerPos = newPeerPosPair.first;
+    auto& when = newPeerPos.proposal().arrivalTime();
     auto const& newPeerProp = newPeerPos.proposal();
     auto const& peerID = newPeerProp.nodeID();
     std::uint32_t proposeSeq = newPeerProp.proposeSeq();
@@ -798,7 +798,7 @@ Consensus<Adaptor>::peerProposalInternal(
                          << " but we are on " << prevLedgerID_ << ' '
                          << newPeerPos.proposal().position();
         if (futureAcquired_.emplace(newPeerProp.position(),
-                    OptTXSetWithArrival{std::nullopt, newPeerPosPair.second}).second)
+                    OptTXSetWithArrival{std::nullopt, when}).second)
         {
             JLOG(j_.debug()) << "peerProposalInternal need to acquire 1 "
                              << newPeerPos.proposal().position();
@@ -819,7 +819,7 @@ Consensus<Adaptor>::peerProposalInternal(
                          << ',' << newPeerPos.proposal().ledgerSeq();
 
         if (futureAcquired_.emplace(newPeerProp.position(),
-                                    OptTXSetWithArrival{std::nullopt, newPeerPosPair.second}).second)
+                                    OptTXSetWithArrival{std::nullopt, when}).second)
         {
             JLOG(j_.debug()) << "peerProposalInternal need to acquire 2 "
                 << newPeerPos.proposal().position();
@@ -884,7 +884,9 @@ Consensus<Adaptor>::peerProposalInternal(
         if (peerPosIt != currPeerPositions_.end())
             peerPosIt->second.first = newPeerPos;
         else
-            currPeerPositions_.emplace(peerID, newPeerPosPair);
+        {
+            currPeerPositions_.emplace(peerID, std::make_pair(newPeerPos, when));
+        }
     }
 
     if (newPeerProp.isInitial())
@@ -1225,8 +1227,8 @@ Consensus<Adaptor>::playbackProposals()
             for (auto const& [peerID, pos] : currentPositions->second)
             {
                 if (pos.proposal().prevLedger() == prevLedgerID_ &&
-//                    peerProposalInternal(now_, pos))
-                    peerProposalInternal(now_, std::make_pair(pos, pos.proposal().arrivalTime())))
+                    peerProposalInternal(now_, pos))
+//                    peerProposalInternal(now_, std::make_pair(pos, pos.proposal().arrivalTime())))
                 {
                     adaptor_.share(pos);
                 }
