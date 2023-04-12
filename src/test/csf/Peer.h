@@ -576,67 +576,6 @@ struct Peer
         Json::Value&& consensusJson,
         std::pair<CanonicalTxSet_t, Ledger_t>&& txsBuilt)
     {
-        schedule(delays.ledgerAccept, [=, this]() {
-            const bool proposing = mode == ConsensusMode::proposing;
-            const bool consensusFail = result.state == ConsensusState::MovedOn;
-
-            TxSet const acceptedTxs = injectTxs(prevLedger, result.txns);
-            Ledger const newLedger = oracle.accept(
-                prevLedger,
-                acceptedTxs.txs(),
-                closeResolution,
-                result.position.closeTime());
-            ledgers[newLedger.id()] = newLedger;
-
-            issue(AcceptLedger{newLedger, lastClosedLedger});
-            prevProposers = result.proposers;
-            prevRoundTime = result.roundTime.read();
-            lastClosedLedger = newLedger;
-
-            auto const it = std::remove_if(
-                openTxs.begin(), openTxs.end(), [&](Tx const& tx) {
-                    return acceptedTxs.exists(tx.id());
-                });
-            openTxs.erase(it, openTxs.end());
-
-            // Only send validation if the new ledger is compatible with our
-            // fully validated ledger
-            bool const isCompatible =
-                newLedger.isAncestor(fullyValidatedLedger);
-
-            // Can only send one validated ledger per seq
-            if (runAsValidator && isCompatible && !consensusFail &&
-                validations.canValidateSeq(newLedger.seq()))
-            {
-                bool isFull = proposing;
-
-                Validation v{
-                    newLedger.id(),
-                    newLedger.seq(),
-                    now(),
-                    now(),
-                    key,
-                    id,
-                    isFull};
-                // share the new validation; it is trusted by the receiver
-                share(v);
-                // we trust ourselves
-                addTrustedValidation(v);
-            }
-
-            checkFullyValidated(newLedger);
-
-            // kick off the next round...
-            // in the actual implementation, this passes back through
-            // network ops
-            ++completedLedgers;
-            // startRound sets the LCL state, so we need to call it once after
-            // the last requested round completes
-            if (completedLedgers <= targetLedgers)
-            {
-                startRound();
-            }
-        });
     }
 
     std::pair<CanonicalTxSet_t, Ledger_t>
