@@ -1377,7 +1377,9 @@ Consensus<Adaptor>::phaseEstablish()
         }
 
         // Give everyone a chance to take an initial position
-        if (std::min(result_->roundTime.read(), beginning) < parms.ledgerMIN_CONSENSUS)
+        std::chrono::milliseconds const earliest = std::min(
+            result_->roundTime.read(), beginning);
+        if (earliest < parms.ledgerMIN_CONSENSUS)
         {
             std::chrono::milliseconds  const delay = parms.ledgerMIN_CONSENSUS -
                 beginning;
