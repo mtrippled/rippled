@@ -1358,14 +1358,22 @@ Consensus<Adaptor>::phaseEstablish()
         std::size_t const discard = static_cast<std::size_t>(
                                         quorum / parms.minCONSENSUS_FACTOR) - quorum;
 
+        std::stringstream ss;
+        ss << "phaseEstablish positions. each position ms: ";
         std::chrono::milliseconds beginning;
         if (currPeerPositions_.size() > discard)
         {
             std::multiset<std::chrono::milliseconds> arrivals;
+            bool first = true;
             for (auto& pos : currPeerPositions_)
             {
                 pos.second.proposal().arrivalTime().tick(clock_.now());
                 arrivals.insert(pos.second.proposal().arrivalTime().read());
+                if (first)
+                    first = false;
+                else
+                    ss << ',';
+                ss << pos.second.proposal().arrivalTime().read().count();
             }
             auto it = arrivals.rbegin();
             std::advance(it, discard);
@@ -1376,6 +1384,9 @@ Consensus<Adaptor>::phaseEstablish()
             beginning = result_->roundTime.read();
         }
 
+        ss << ". beginning ms: " << beginning.count() << "result_->roundTime.read(): "
+            << result_->roundTime.read().count();
+
         // Give everyone a chance to take an initial position
         std::chrono::milliseconds const earliest = std::max(
             result_->roundTime.read(), beginning);
@@ -1383,8 +1394,8 @@ Consensus<Adaptor>::phaseEstablish()
         {
             std::chrono::milliseconds  const delay = parms.ledgerMIN_CONSENSUS -
                 beginning;
-            JLOG(j_.debug()) << "delay to allow everybody to take an initial"
-                                "position: " << delay.count() << "ms";
+            JLOG(j_.debug()) << "phaseEsablish delay to allow everybody to take an initial"
+                                " position: " << delay.count() << "ms";
             adaptor_.timerDelay() = std::make_unique<std::chrono::milliseconds>(
                 delay);
             return;
