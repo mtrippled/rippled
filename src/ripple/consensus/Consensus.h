@@ -1359,7 +1359,7 @@ Consensus<Adaptor>::phaseEstablish()
                                         quorum / parms.minCONSENSUS_FACTOR) - quorum;
 
         std::stringstream ss;
-        ss << "phaseEstablish positions. each position ms: ";
+        ss << "phaseEstablish timerDelay positions. each position ms: ";
         std::chrono::milliseconds beginning;
         if (currPeerPositions_.size() > discard)
         {
@@ -1390,11 +1390,13 @@ Consensus<Adaptor>::phaseEstablish()
         // Give everyone a chance to take an initial position
         std::chrono::milliseconds const earliest = std::max(
             result_->roundTime.read(), beginning);
+        ss << " so, earliest is " << earliest.count() << "ms.";
+        JLOG(j_.debug()) << ss.str();
         if (earliest < parms.ledgerMIN_CONSENSUS)
         {
             std::chrono::milliseconds  const delay = parms.ledgerMIN_CONSENSUS -
                 beginning;
-            JLOG(j_.debug()) << "phaseEsablish delay to allow everybody to take an initial"
+            JLOG(j_.debug()) << "phaseEsablish timerDelay to allow everybody to take an initial"
                                 " position: " << delay.count() << "ms";
             adaptor_.timerDelay() = std::make_unique<std::chrono::milliseconds>(
                 delay);

@@ -986,7 +986,7 @@ NetworkOPsImp::setHeartbeatTimer()
         timerDelay = mConsensus.parms().ledgerGRANULARITY;
     }
 
-    JLOG(m_journal.debug()) << "setHeartbeatTimer " << timerDelay.count() << "ms";
+    JLOG(m_journal.debug()) << "setHeartbeatTimer (maybe timerDelay) " << timerDelay.count() << "ms";
     setTimer(
         heartbeatTimer_,
         timerDelay,
