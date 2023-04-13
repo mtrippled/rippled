@@ -222,12 +222,14 @@ class RCLConsensus
         std::unique_ptr<std::chrono::milliseconds>&
         validationDelay()
         {
+            JLOG(j_.debug()) << "this Adaptor getting validationDelay: " << this;
             return validationDelay_;
         }
 
         std::unique_ptr<std::chrono::milliseconds>&
         timerDelay()
         {
+            JLOG(j_.debug()) << "this Adaptor getting timerDelay: " << this;
             return timerDelay_;
         }
 

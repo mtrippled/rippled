@@ -1379,8 +1379,12 @@ Consensus<Adaptor>::phaseEstablish()
         // Give everyone a chance to take an initial position
         if (beginning < parms.ledgerMIN_CONSENSUS)
         {
+            std::chrono::milliseconds  const delay = parms.ledgerMIN_CONSENSUS -
+                beginning;
+            JLOG(j_.debug()) << "delay to allow everybody to take an initial"
+                                "position: " << delay.count() << "ms";
             adaptor_.timerDelay() = std::make_unique<std::chrono::milliseconds>(
-                parms.ledgerMIN_CONSENSUS - beginning);
+                delay);
             return;
         }
     }
