@@ -250,9 +250,15 @@ public:
     }
 
     ConsensusTimer&
-    arrivalTime() const
+    getArrivalTime() const
     {
         return arrivalTime_;
+    }
+
+    void
+    setArrivalTime(ConsensusTimer& arrivalTime) const
+    {
+        arrivalTime_ = arrivalTime;
     }
 
 private:
@@ -280,8 +286,6 @@ private:
     mutable std::optional<uint256> signingHash_;
 
     mutable ConsensusTimer arrivalTime_;
-//    std::chrono::steady_clock::time_point arrivalTime_{
-//        std::chrono::steady_clock::now()};
 };
 
 template <class NodeID_t, class LedgerID_t, class Position_t, class Seq>

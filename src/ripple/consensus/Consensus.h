@@ -845,6 +845,8 @@ Consensus<Adaptor>::peerProposalInternal(
             {
                 acquired_.erase(found);
             }
+            newPeerPos.proposal().setArrivalTime(
+                peerPosIt->second.proposal().getArrivalTime());
             peerPosIt->second = newPeerPos;
         }
         else
@@ -1367,13 +1369,13 @@ Consensus<Adaptor>::phaseEstablish()
             bool first = true;
             for (auto& pos : currPeerPositions_)
             {
-                pos.second.proposal().arrivalTime().tick(clock_.now());
-                arrivals.insert(pos.second.proposal().arrivalTime().read());
+                pos.second.proposal().getArrivalTime().tick(clock_.now());
+                arrivals.insert(pos.second.proposal().getArrivalTime().read());
                 if (first)
                     first = false;
                 else
                     ss << ',';
-                ss << pos.second.proposal().arrivalTime().read().count();
+                ss << pos.second.proposal().getArrivalTime().read().count();
             }
             auto it = arrivals.rbegin();
             std::advance(it, discard);
