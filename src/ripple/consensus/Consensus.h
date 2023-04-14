@@ -1194,6 +1194,13 @@ Consensus<Adaptor>::phaseOpen()
         adaptor_.parms().ledgerIDLE_INTERVAL,
         2 * previousLedger_.closeTimeResolution());
 
+    std::stringstream ss;
+    ss << "validationDelay before shouldCloseLedger: ";
+    if (adaptor_.validationDelay().get())
+        ss << adaptor_.validationDelay()->count() << "ms";
+    else
+        ss << "(null)";
+    JLOG(j_.debug()) << ss.str();
     // Decide if we should close the ledger
     if (shouldCloseLedger(
             anyTransactions,
@@ -1457,7 +1464,7 @@ Consensus<Adaptor>::phaseEstablish()
     {
         auto const delay = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - *startDelay);
-        JLOG(j_.debug()) << "validating ledger delayed " << delay.count()
+        JLOG(j_.debug()) << "validationDelay will be " << delay.count()
             << "ms";
         adaptor_.validationDelay() =
             std::make_unique<std::chrono::milliseconds>(delay);

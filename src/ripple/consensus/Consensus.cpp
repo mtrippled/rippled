@@ -64,10 +64,11 @@ shouldCloseLedger(
         return true;
     }
 
+    JLOG(j.debug()) << "validationDelay set? " << (bool)validationDelay << '\n';
     if (validationDelay)
     {
         openTime += *validationDelay;
-        JLOG(j.debug()) << "shouldCloseLedger previous round validation delay "
+        JLOG(j.debug()) << "shouldCloseLedger previous round validatioDelay "
                            "of " << validationDelay->count() << "ms.";
         validationDelay.reset();
     }
