@@ -921,7 +921,8 @@ RCLConsensus::Adaptor::retryAccept(Ledger_t const& newLedger,
     auto const& validLedger = ledgerMaster_.getValidatedLedger();
 
     std::stringstream ss;
-    ss << "retryAccept standalone,validLedger: " << standalone << ',' <<
+    ss << "retryAccept isFull,standalone,validLedger: " << app_.getOPs().isFull() << ','
+        standalone << ',' <<
         (bool)validLedger;
     if (validLedger)
     {
@@ -931,7 +932,8 @@ RCLConsensus::Adaptor::retryAccept(Ledger_t const& newLedger,
     }
     JLOG(j_.debug()) << ss.str();
 
-    return (!standalone &&
+    return (!app_.getOPs().isFull() &&
+            !standalone &&
             (validLedger &&
              (newLedger.id() != validLedger->info().hash) &&
              (newLedger.seq() >= validLedger->info().seq))) &&
