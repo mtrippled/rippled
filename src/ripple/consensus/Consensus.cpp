@@ -70,7 +70,6 @@ shouldCloseLedger(
         openTime += *validationDelay;
         JLOG(j.debug()) << "shouldCloseLedger previous round validationDelay "
                            "of " << validationDelay->count() << "ms.";
-        validationDelay.reset();
     }
 
     if (!anyTransactions)

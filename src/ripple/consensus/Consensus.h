@@ -1216,6 +1216,8 @@ Consensus<Adaptor>::phaseOpen()
             j_))
     {
         closeLedger();
+        adaptor_.validationDelay().reset();
+
     }
 }
 
