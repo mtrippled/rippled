@@ -915,14 +915,15 @@ RCLConsensus::Adaptor::onModeChange(ConsensusMode before, ConsensusMode after)
 
 bool
 RCLConsensus::Adaptor::retryAccept(Ledger_t const& newLedger,
-    std::optional<std::chrono::time_point<std::chrono::steady_clock>>& start) const
+    std::optional<std::chrono::time_point<std::chrono::steady_clock>>& start,
+    bool const haveSynced) const
 {
     static bool const standalone = ledgerMaster_.standalone();
     auto const& validLedger = ledgerMaster_.getValidatedLedger();
 
     std::stringstream ss;
-    ss << "retryAccept standalone,validLedger: " << standalone << ',' <<
-        (bool)validLedger;
+    ss << "retryAccept haveSynced,standalone,validLedger: " << haveSynced <<
+        standalone << ',' << (bool)validLedger;
     if (validLedger)
     {
         ss << " new hash:seq,valid hash:seq:" << newLedger.id() << ':' <<
@@ -931,7 +932,8 @@ RCLConsensus::Adaptor::retryAccept(Ledger_t const& newLedger,
     }
     JLOG(j_.debug()) << ss.str();
 
-    return (!standalone &&
+    return (haveSynced &&
+            !standalone &&
             (validLedger &&
              (newLedger.id() != validLedger->info().hash) &&
              (newLedger.seq() >= validLedger->info().seq))) &&

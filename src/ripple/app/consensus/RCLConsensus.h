@@ -217,7 +217,8 @@ class RCLConsensus
 
         bool
         retryAccept(Ledger_t const& newLedger,
-            std::optional<std::chrono::time_point<std::chrono::steady_clock>>& start) const;
+            std::optional<std::chrono::time_point<std::chrono::steady_clock>>& start,
+            bool const haveSynced) const;
 
         std::unique_ptr<std::chrono::milliseconds>&
         validationDelay()
