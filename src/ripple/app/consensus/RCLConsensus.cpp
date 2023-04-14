@@ -920,6 +920,17 @@ RCLConsensus::Adaptor::retryAccept(Ledger_t const& newLedger,
     static bool const standalone = ledgerMaster_.standalone();
     auto const& validLedger = ledgerMaster_.getValidatedLedger();
 
+    std::stringstream ss;
+    ss << "retryAccept standalone,validLedger: " << standalone << ',' <<
+        (bool)validLedger;
+    if (validLedger)
+    {
+        ss << " new hash:seq,valid hash:seq:" << newLedger.id() << ':' <<
+            newLedger.seq() << ',' << validLedger->info().hash << ':' <<
+            validLedger->info().seq;
+    }
+    JLOG(j_.debug()) << ss.str();
+
     return (!standalone &&
             (validLedger &&
              (newLedger.id() != validLedger->info().hash) &&
