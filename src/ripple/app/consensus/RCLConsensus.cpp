@@ -922,7 +922,7 @@ RCLConsensus::Adaptor::retryAccept(Ledger_t const& newLedger,
 
     std::stringstream ss;
     ss << "retryAccept isFull,standalone,validLedger: " << app_.getOPs().isFull() << ','
-        standalone << ',' <<
+        << standalone << ',' <<
         (bool)validLedger;
     if (validLedger)
     {
