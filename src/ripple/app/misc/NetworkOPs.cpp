@@ -978,7 +978,7 @@ NetworkOPsImp::setHeartbeatTimer()
     std::chrono::milliseconds timerDelay;
     if (mConsensus.timerDelay())
     {
-        timerDelay = *mConsensus.timerDelay();
+        timerDelay = std::min(*mConsensus.timerDelay(), mConsensus.parms().ledgerGRANULARITY);
         mConsensus.timerDelay().reset();
     }
     else
