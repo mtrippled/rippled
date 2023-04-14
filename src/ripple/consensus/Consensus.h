@@ -1420,7 +1420,6 @@ Consensus<Adaptor>::phaseEstablish()
     std::optional<std::pair<typename Adaptor::CanonicalTxSet_t,
         typename Adaptor::Ledger_t>> txsBuilt;
     std::optional<std::chrono::time_point<std::chrono::steady_clock>> startDelay;
-    static bool haveSynced = false;
 
     std::unique_lock<std::recursive_mutex> lock(adaptor_.peekMutex());
     do
@@ -1461,8 +1460,7 @@ Consensus<Adaptor>::phaseEstablish()
 
         lock.lock();
     }
-    while (adaptor_.retryAccept(txsBuilt->second, startDelay, haveSynced));
-    haveSynced = true;
+    while (adaptor_.retryAccept(txsBuilt->second, startDelay));
 
     if (startDelay)
     {
