@@ -932,7 +932,7 @@ RCLConsensus::Adaptor::retryAccept(Ledger_t const& newLedger,
     }
     JLOG(j_.debug()) << ss.str();
 
-    return (!app_.getOPs().isFull() &&
+    return (app_.getOPs().isFull() &&
             !standalone &&
             (validLedger &&
              (newLedger.id() != validLedger->info().hash) &&
