@@ -305,8 +305,7 @@ auto
 RCLConsensus::Adaptor::onClose(
     RCLCxLedger const& ledger,
     NetClock::time_point const& closeTime,
-    ConsensusMode mode,
-    clock_type& clock) -> Result
+    ConsensusMode mode) -> Result
 {
     const bool wrongLCL = mode == ConsensusMode::wrongLedger;
     const bool proposing = mode == ConsensusMode::proposing;
@@ -399,8 +398,7 @@ RCLConsensus::Adaptor::onClose(
             closeTime,
             app_.timeKeeper().closeTime(),
             validatorKeys_.nodeID,
-            initialLedger->info().seq,
-            clock}};
+            initialLedger->info().seq}};
 }
 
 void

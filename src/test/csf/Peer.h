@@ -518,8 +518,7 @@ struct Peer
     onClose(
         Ledger const& prevLedger,
         NetClock::time_point closeTime,
-        ConsensusMode mode,
-        clock_type& clock)
+        ConsensusMode mode)
     {
         issue(CloseLedger{prevLedger, openTxs});
 
@@ -532,8 +531,7 @@ struct Peer
                 closeTime,
                 now(),
                 id,
-                prevLedger.seq() + typename Ledger_t::Seq{1},
-                scheduler.clock()));
+                prevLedger.seq() + typename Ledger_t::Seq{1}));
     }
 
     void

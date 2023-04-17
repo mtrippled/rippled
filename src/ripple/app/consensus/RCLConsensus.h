@@ -356,8 +356,7 @@ class RCLConsensus
         onClose(
             RCLCxLedger const& ledger,
             NetClock::time_point const& closeTime,
-            ConsensusMode mode,
-            clock_type& clock);
+            ConsensusMode mode);
 
         /** Process the accepted ledger.
 

@@ -2019,8 +2019,7 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMProposeSet> const& m)
             closeTime,
             app_.timeKeeper().closeTime(),
             calcNodeID(app_.validatorManifests().getMasterKey(publicKey)),
-            ledgerSeq,
-            beast::get_abstract_clock<std::chrono::steady_clock>()});
+            ledgerSeq});
 
     std::weak_ptr<PeerImp> weak = shared_from_this();
     app_.getJobQueue().addJob(

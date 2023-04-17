@@ -1351,48 +1351,9 @@ Consensus<Adaptor>::phaseEstablish()
     convergePercent_ = result_->roundTime.read() * 100 /
         std::max<milliseconds>(prevRoundTime_, parms.avMIN_CONSENSUS_TIME);
 
-    JLOG(j_.debug()) << "phaseEstablish positions " << result_->proposers
-        << " roundTime: " << result_->roundTime.read().count()
-        << "ms, ledgerMIN_CONSENSUS: " << parms.ledgerMIN_CONSENSUS.count()
-        << "ms, seq: " << previousLedger_.seq() + typename Ledger_t::Seq{1};
-
-    {
-        // Give everyone a chance to take an initial position unless enough
-        // have already submitted theirs a long enough time ago
-        // --because that means we're already
-        // behind. Optimize pause duration if pausing. Pause until exactly
-        // the number of ms after roundTime.read().
-        // how many byzantine nodes on the UNL can we tolerate, plus 1?
-        auto const [quorum, _] = adaptor_.getQuorumKeys();
-        std::size_t const discard = static_cast<std::size_t>(
-                                        quorum / parms.minCONSENSUS_FACTOR) - quorum;
-
-        std::chrono::milliseconds beginning;
-        if (currPeerPositions_.size() > discard)
-        {
-            std::multiset<std::chrono::milliseconds> arrivals;
-            for (auto& pos : currPeerPositions_)
-            {
-                pos.second.proposal().arrivalTime().tick(clock_.now());
-                arrivals.insert(pos.second.proposal().arrivalTime().read());
-            }
-            auto it = arrivals.rbegin();
-            std::advance(it, discard);
-            beginning = *it;
-        }
-        else
-        {
-            beginning = result_->roundTime.read();
-        }
-
-        // Give everyone a chance to take an initial position
-        if (beginning < parms.ledgerMIN_CONSENSUS)
-        {
-            adaptor_.timerDelay() = std::make_unique<std::chrono::milliseconds>(
-                parms.ledgerMIN_CONSENSUS - beginning);
-            return;
-        }
-    }
+    // Give everyone a chance to take an initial position
+    if (result_->roundTime.read() < parms.ledgerMIN_CONSENSUS)
+        return;
 
     updateOurPositions(true);
 
@@ -1495,7 +1456,7 @@ Consensus<Adaptor>::closeLedger()
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::establish";
     rawCloseTimes_.self = now_;
 
-    result_.emplace(adaptor_.onClose(previousLedger_, now_, mode_.get(), clock_));
+    result_.emplace(adaptor_.onClose(previousLedger_, now_, mode_.get()));
     result_->roundTime.reset(clock_.now());
     // Share the newly created transaction set if we haven't already
     // received it from a peer

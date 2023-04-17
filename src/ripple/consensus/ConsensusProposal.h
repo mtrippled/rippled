@@ -21,7 +21,6 @@
 
 #include <ripple/basics/base_uint.h>
 #include <ripple/basics/chrono.h>
-#include <ripple/beast/clock/abstract_clock.h>
 #include <ripple/consensus/ConsensusTypes.h>
 #include <ripple/json/json_value.h>
 #include <ripple/protocol/HashPrefix.h>
@@ -61,9 +60,6 @@ class ConsensusProposal
 public:
     using NodeID = NodeID_t;
 
-    //! Clock type for measuring time within the consensus code
-    using clock_type = beast::abstract_clock<std::chrono::steady_clock>;
-
     //< Sequence value when a peer initially joins consensus
     static std::uint32_t const seqJoin = 0;
 
@@ -86,8 +82,7 @@ public:
         NetClock::time_point closeTime,
         NetClock::time_point now,
         NodeID_t const& nodeID,
-        Seq const& ledgerSeq,
-        clock_type const& clock)
+        Seq const& ledgerSeq)
         : previousLedger_(prevLedger)
         , position_(position)
         , closeTime_(closeTime)
@@ -96,7 +91,6 @@ public:
         , nodeID_(nodeID)
         , ledgerSeq_(ledgerSeq)
     {
-        arrivalTime_.reset(clock.now());
     }
 
     //! Identifying which peer took this position.
@@ -249,12 +243,6 @@ public:
         return ledgerSeq_;
     }
 
-    ConsensusTimer&
-    arrivalTime() const
-    {
-        return arrivalTime_;
-    }
-
 private:
     //! Unique identifier of prior ledger this proposal is based on
     LedgerID_t previousLedger_;
@@ -278,10 +266,6 @@ private:
 
     //! The signing hash for this proposal
     mutable std::optional<uint256> signingHash_;
-
-    mutable ConsensusTimer arrivalTime_;
-//    std::chrono::steady_clock::time_point arrivalTime_{
-//        std::chrono::steady_clock::now()};
 };
 
 template <class NodeID_t, class LedgerID_t, class Position_t, class Seq>
