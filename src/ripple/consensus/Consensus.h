@@ -1730,7 +1730,9 @@ Consensus<Adaptor>::updateOurPositions(bool const share)
             }
         }
 
-        // Share our new position if we are still participating this round
+        // Share our new position if we are still participating this round,
+        // unless we have already accepted a position but are recalculating
+        // because it didn't validate.
         if (!result_->position.isBowOut() &&
             (mode_.get() == ConsensusMode::proposing) &&
             share)
@@ -1755,19 +1757,14 @@ Consensus<Adaptor>::haveConsensus()
     {
         Proposal_t const& peerProp = peerPos.proposal();
         if (peerProp.position() == ourPosition)
-        {
             ++agree;
-        }
         else
-        {
-            JLOG(j_.debug()) << "haveConsensus " <<  nodeId << " has " << peerProp.position();
             ++disagree;
-        }
     }
     auto currentFinished =
         adaptor_.proposersFinished(previousLedger_, prevLedgerID_);
 
-    JLOG(j_.debug()) << "haveConsensus Checking for TX consensus: agree=" << agree
+    JLOG(j_.debug()) << "Checking for TX consensus: agree=" << agree
                      << ", disagree=" << disagree;
 
     // Determine if we actually have consensus or not
@@ -1789,11 +1786,10 @@ Consensus<Adaptor>::haveConsensus()
     // without us.
     if (result_->state == ConsensusState::MovedOn)
     {
-        JLOG(j_.error()) << "haveConsensus MovedOn Unable to reach consensus "
+        JLOG(j_.error()) << "Unable to reach consensus MovedOn: "
             << Json::Compact{getJson(true)};
     }
 
-    JLOG(j_.debug()) << "haveConsensus true";
     return true;
 }
 
@@ -1870,7 +1866,7 @@ Consensus<Adaptor>::createDisputes(TxSet_t const& o)
 
         result_->disputes.emplace(txID, std::move(dtx));
     }
-    JLOG(j_.debug()) << dc << " differences found";
+    JLOG(j_.trace()) << dc << " differences found";
 }
 
 template <class Adaptor>
