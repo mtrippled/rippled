@@ -64,9 +64,8 @@ class RCLConsensus
     public:
         Application& app_;
         std::unique_ptr<FeeVote> feeVote_;
-    public:
-
         LedgerMaster& ledgerMaster_;
+
     private:
         LocalTxs& localTxs_;
         InboundTransactions& inboundTransactions_;
@@ -373,8 +372,6 @@ class RCLConsensus
         void
         onAccept(
             Result const& result,
-            RCLCxLedger const& prevLedger,
-            NetClock::duration const& closeResolution,
             ConsensusCloseTimes const& rawCloseTimes,
             ConsensusMode const& mode,
             Json::Value&& consensusJson,

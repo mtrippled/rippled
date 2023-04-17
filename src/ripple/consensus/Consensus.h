@@ -466,14 +466,12 @@ private:
     void
     playbackProposals();
 
-//    using PeerPositionWithArrival = std::pair<PeerPosition_t, std::chrono::steady_clock::time_point>;
     using PeerPositionWithArrival = std::pair<PeerPosition_t, ConsensusTimer>;
     /** Handle a replayed or a new peer proposal.
      */
     bool
     peerProposalInternal(
         NetClock::time_point const& now,
-//        PeerPositionWithArrival const& newPosPair);
         PeerPosition_t const& newProposal);
 
     /** Handle pre-close phase.
@@ -527,7 +525,7 @@ private:
 
     // Adjust our positions to try to agree with other validators.
     void
-    updateOurPositions(bool share);
+    updateOurPositions(bool const share);
 
     bool
     haveConsensus();
@@ -719,7 +717,7 @@ Consensus<Adaptor>::startRoundInternal(
     {
         // We may be falling behind, don't wait for the timer
         // consider closing the ledger immediately
-        phaseOpen();
+        timerEntry(now_);
     }
 }
 
@@ -734,7 +732,6 @@ Consensus<Adaptor>::peerProposal(
         return false;
 
     auto const& peerID = newPeerPos.proposal().nodeID();
-    auto const currentTimeStamp = std::chrono::steady_clock::now();
     auto& bySeq = recentPeerPositions_[propLedgerSeq];
     {
         auto peerProp = bySeq.find(peerID);
@@ -781,7 +778,7 @@ Consensus<Adaptor>::peerProposalInternal(
             if (auto set = adaptor_.acquireTxSet(newPeerProp.position()))
                 gotTxSet(now_, *set);
             else
-            JLOG(j_.debug()) << "Do not have tx set for peer";
+                JLOG(j_.debug()) << "Do not have tx set for peer";
         }
 
         return false;
@@ -813,7 +810,7 @@ Consensus<Adaptor>::peerProposalInternal(
             JLOG(j_.info()) << "Peer " << peerID << " bows out";
             if (result_)
             {
-                for (auto &it: result_->disputes)
+                for (auto& it: result_->disputes)
                     it.second.unVote(peerID);
             }
             if (peerPosIt != currPeerPositions_.end())
@@ -861,8 +858,7 @@ Consensus<Adaptor>::peerProposalInternal(
         ++rawCloseTimes_.peers[newPeerProp.closeTime()];
     }
 
-    JLOG(j_.debug()) << "Processing peer proposal "
-                     << newPeerProp.proposeSeq()
+    JLOG(j_.trace()) << "Processing peer proposal " << newPeerProp.proposeSeq()
                      << "/" << newPeerProp.position();
 
     {
@@ -1090,7 +1086,7 @@ Consensus<Adaptor>::handleWrongLedger(typename Ledger_t::ID const& lgrId)
             result_->compares.clear();
         }
 
-        currPeerPositions_.clear();
+        clearPositions();
         rawCloseTimes_.peers.clear();
         deadNodes_.clear();
 
@@ -1194,13 +1190,6 @@ Consensus<Adaptor>::phaseOpen()
         adaptor_.parms().ledgerIDLE_INTERVAL,
         2 * previousLedger_.closeTimeResolution());
 
-    std::stringstream ss;
-    ss << "validationDelay before shouldCloseLedger: ";
-    if (adaptor_.validationDelay().get())
-        ss << adaptor_.validationDelay()->count() << "ms";
-    else
-        ss << "(null)";
-    JLOG(j_.debug()) << ss.str();
     // Decide if we should close the ledger
     if (shouldCloseLedger(
             anyTransactions,
@@ -1359,10 +1348,7 @@ Consensus<Adaptor>::phaseEstablish()
 
     // Nothing to do if too many laggards or we don't have consensus.
     if (shouldPause() || !haveConsensus())
-    {
-        JLOG(j_.debug()) << "phaseEstablish laggards or no consensus";
         return;
-    }
 
     if (!haveCloseTimeConsensus_)
     {
@@ -1370,7 +1356,7 @@ Consensus<Adaptor>::phaseEstablish()
         return;
     }
 
-    JLOG(j_.info()) << "phaseEstablish Converge cutoff (" << currPeerPositions_.size()
+    JLOG(j_.info()) << "Converge cutoff (" << currPeerPositions_.size()
                     << " participants)";
     adaptor_.updateOperatingMode(currPeerPositions_.size());
     prevProposers_ = currPeerPositions_.size();
@@ -1397,17 +1383,17 @@ Consensus<Adaptor>::phaseEstablish()
 
             if (prevProposal == result_->position)
             {
-                JLOG(j_.debug()) << "phaseEstablish old and new positions "
+                JLOG(j_.debug()) << "old and new positions "
                                     "match: "
                                  << prevProposal.position() << " delay so far "
                                  << std::chrono::duration_cast<std::chrono::milliseconds>(
                                      std::chrono::steady_clock::now() - *startDelay).count()
-                                 << "ms. pausing ";
+                                 << "ms. pausing";
                 adaptor_.getLedgerMaster().waitForValidated(
                     std::chrono::milliseconds(100));
                 continue;
             }
-            JLOG(j_.debug()) << "phaseEstablish retrying buildAndValidate with "
+            JLOG(j_.debug()) << "retrying buildAndValidate with "
                                 "new position: " << result_->position.position();
         }
         lock.unlock();
@@ -1437,8 +1423,6 @@ Consensus<Adaptor>::phaseEstablish()
 
     adaptor_.onAccept(
         *result_,
-        previousLedger_,
-        closeResolution_,
         rawCloseTimes_,
         mode_.get(),
         getJson(true),
@@ -1474,7 +1458,7 @@ Consensus<Adaptor>::closeLedger()
         if (it != acquired_.end())
             createDisputes(it->second);
     }
-    phaseEstablish();
+    timerEntry(now_);
 }
 
 /** How many of the participants must agree to reach a given threshold?
@@ -1499,7 +1483,7 @@ participantsNeeded(int participants, int percent)
 
 template <class Adaptor>
 void
-Consensus<Adaptor>::updateOurPositions(bool share)
+Consensus<Adaptor>::updateOurPositions(bool const share)
 {
     // We must have a position if we are updating it
     assert(result_);
@@ -1617,23 +1601,45 @@ Consensus<Adaptor>::updateOurPositions(bool share)
                         << " nw:" << neededWeight << " thrV:" << threshVote
                         << " thrC:" << threshConsensus;
 
-        for (auto const& [t, v] : closeTimeVotes)
+        // An impasse is possible unless a validator pretends to change
+        // its close time vote. Imagine 5 validators. 3 have positions
+        // for close time t1, and 2 with t2. That's an impasse because
+        // 75% will never be met. However, if one of the validators voting
+        // for t2 switches to t1, then that will be 80% and sufficient
+        // to break the impasse. It's also OK for those agreeing
+        // with the 3 to pretend to vote for the one with 2, because
+        // that will never exceed the threshold of 75%, even with as
+        // few as 3 validators. The most it can achieve is 2/3.
+        for (auto& [t, v] : closeTimeVotes)
         {
+            if (adaptor_.validating() && t != asCloseTime(
+                result_->position.closeTime()))
+            {
+                JLOG(j_.debug()) << "Others have voted for a close time "
+                                    "different than ours. Adding our vote "
+                                    "to this one in case it is necessary "
+                                    "to break an impasse.";
+                ++v;
+            }
             JLOG(j_.debug())
                 << "CCTime: seq "
                 << static_cast<std::uint32_t>(previousLedger_.seq()) + 1 << ": "
                 << t.time_since_epoch().count() << " has " << v << ", "
                 << threshVote << " required";
 
-
-            if (v + static_cast<int>(adaptor_.validating()) >= threshVote)
+            if (v >= threshVote)
             {
                 // A close time has enough votes for us to try to agree
                 consensusCloseTime = t;
-                threshVote = v + static_cast<int>(adaptor_.validating());
+                threshVote = v;
 
                 if (threshVote >= threshConsensus)
+                {
                     haveCloseTimeConsensus_ = true;
+                    // Make sure that the winning close time is the one
+                    // that propagates to the rest of the function.
+                    break;
+                }
             }
         }
 

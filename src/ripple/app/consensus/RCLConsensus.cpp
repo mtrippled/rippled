@@ -153,7 +153,6 @@ RCLConsensus::Adaptor::acquireLedger(LedgerHash const& hash)
 void
 RCLConsensus::Adaptor::share(RCLCxPeerPos const& peerPos)
 {
-    JLOG(j_.debug()) << "sharing proposal RCLCxPeerPos";
     protocol::TMProposeSet prop;
 
     auto const& proposal = peerPos.proposal();
@@ -180,8 +179,6 @@ RCLConsensus::Adaptor::share(RCLCxPeerPos const& peerPos)
 void
 RCLConsensus::Adaptor::share(RCLCxTx const& tx)
 {
-//    JLOG(j_.debug()) << "sharing proposal RCLCxTx";
-
     // If we didn't relay this transaction recently, relay it to all peers
     if (app_.getHashRouter().shouldRelay(tx.id()))
     {
@@ -242,8 +239,6 @@ RCLConsensus::Adaptor::propose(RCLCxPeerPos::Proposal const& proposal)
 void
 RCLConsensus::Adaptor::share(RCLTxSet const& txns)
 {
-    JLOG(j_.debug()) << "sharing proposal RCLTxSet";
-
     inboundTransactions_.giveSet(txns.id(), txns.map_, false);
 }
 
@@ -386,8 +381,6 @@ RCLConsensus::Adaptor::onClose(
 
     // Needed because of the move below.
     auto const setHash = initialSet->getHash().as_uint256();
-
-    JLOG(j_.debug()) << "onClose Result previousSeq I think should be " <<
         initialLedger->info().seq;
     return Result{
         std::move(initialSet),
@@ -424,8 +417,6 @@ RCLConsensus::Adaptor::onForceAccept(
 void
 RCLConsensus::Adaptor::onAccept(
     Result const& result,
-    RCLCxLedger const& prevLedger,
-    NetClock::duration const& closeResolution,
     ConsensusCloseTimes const& rawCloseTimes,
     ConsensusMode const& mode,
     Json::Value&& consensusJson,
@@ -450,7 +441,7 @@ RCLConsensus::Adaptor::onAccept(
 }
 
 std::pair<RCLConsensus::Adaptor::CanonicalTxSet_t,
-    RCLConsensus::Adaptor::Ledger_t>
+        RCLConsensus::Adaptor::Ledger_t>
 RCLConsensus::Adaptor::buildAndValidate(
     Result const& result,
     Ledger_t const& prevLedger,
@@ -917,18 +908,6 @@ RCLConsensus::Adaptor::retryAccept(Ledger_t const& newLedger,
 {
     static bool const standalone = ledgerMaster_.standalone();
     auto const& validLedger = ledgerMaster_.getValidatedLedger();
-
-    std::stringstream ss;
-    ss << "retryAccept isFull,standalone,validLedger: " << app_.getOPs().isFull() << ','
-        << standalone << ',' <<
-        (bool)validLedger;
-    if (validLedger)
-    {
-        ss << " new hash:seq,valid hash:seq:" << newLedger.id() << ':' <<
-            newLedger.seq() << ',' << validLedger->info().hash << ':' <<
-            validLedger->info().seq;
-    }
-    JLOG(j_.debug()) << ss.str();
 
     return (app_.getOPs().isFull() &&
             !standalone &&

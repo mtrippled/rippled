@@ -552,23 +552,11 @@ struct Peer
             result,
             rawCloseTimes,
             mode);
-
-        /*
-        onAccept(
-            result,
-            prevLedger,
-            closeResolution,
-            rawCloseTimes,
-            mode,
-            std::move(consensusJson));
-            */
     }
 
     void
     onAccept(
         Result const& result,
-        Ledger const& prevLedger,
-        NetClock::duration const& closeResolution,
         ConsensusCloseTimes const& rawCloseTimes,
         ConsensusMode const& mode,
         Json::Value&& consensusJson,
