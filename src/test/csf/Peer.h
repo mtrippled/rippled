@@ -20,6 +20,7 @@
 #define RIPPLE_TEST_CSF_PEER_H_INCLUDED
 
 #include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/basics/chrono.h>
 #include <ripple/beast/utility/WrappedSink.h>
 #include <ripple/beast/unit_test.h>
 #include <ripple/consensus/Consensus.h>
@@ -169,6 +170,8 @@ struct Peer
     using PeerPosition_t = Position;
     using Result = ConsensusResult<Peer>;
     using NodeKey = Validation::NodeKey;
+
+    using clock_type = Stopwatch;
 
     //! Logging support that prefixes messages with the peer ID
     beast::WrappedSink sink;
