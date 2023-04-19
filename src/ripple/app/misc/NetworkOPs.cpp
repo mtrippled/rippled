@@ -1379,7 +1379,6 @@ NetworkOPsImp::transactionBatch(bool const drain)
 {
     {
         std::unique_lock<std::mutex> lock(mMutex);
-        JLOG(m_journal.debug()) << "transactionBatch size " << mTransactions.size();
         if (mDispatchState == DispatchState::running || mTransactions.empty())
             return false;
 
@@ -1439,11 +1438,6 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
         auto newOL = app_.openLedger().current();
         for (TransactionStatus& e : transactions)
         {
-            std::string sToken;
-            std::string sHuman;
-            transResultInfo(e.result, sToken, sHuman);
-            JLOG(m_journal.debug()) << "apply " << e.transaction->getID() <<
-                " result " << sToken << ',' << sHuman;
             e.transaction->clearSubmitResult();
 
             if (e.applied)
