@@ -277,6 +277,24 @@ public:
     void
     submitTransaction(std::shared_ptr<STTx const> const&) override;
 
+    /** Process a transaction.
+     *
+     * The transaction has been submitted either from the peer network or
+     * from a client. For client submissions, there are 3 behaviors:
+     *   1) sync (default): process transactions in a batch immediately,
+     *       and return only once the transaction has been processed.
+     *   2) async: Put transaction into the batch for the next processing
+     *       interval and return immediately.
+     *   3) wait: Put transaction into the batch for the next processing
+     *       interval and return only after it is processed.     *
+     *
+     * @param transaction Transaction provided to us to us.
+     * @param bUnlimited Whether transaction should be rate limited based on
+     *     source, such as an admin IP.
+     * @param sync Client submission synchronous behavior requested.
+     * @param bLocal Whether submitted by client (local) or peer.
+     * @param failType Whether to fail hard or not.
+     */
     void
     processTransaction(
         std::shared_ptr<Transaction>& transaction,
@@ -285,37 +303,12 @@ public:
         bool bLocal,
         FailHard failType) override;
 
-    /**
-     * For transactions submitted directly by a client, apply batch of
-     * transactions and wait for this transaction to complete.
+    /** Apply transactions in batches.
      *
-     * @param transaction Transaction object.
-     * @param bUnliimited Whether a privileged client connection submitted it.
-     * @param failType fail_hard setting from transaction submission.
-     */
-    void
-    doTransactionSync(
-        std::shared_ptr<Transaction> transaction,
-        bool bUnlimited,
-        FailHard failType);
-
-    /**
-     * For transactions not submitted by a locally connected client, fire and
-     * forget. Add to batch and trigger it to be processed if there's no batch
-     * currently being applied.
+     * Only a single batch unless drain is set.
      *
-     * @param transaction Transaction object
-     * @param bUnlimited Whether a privileged client connection submitted it.
-     * @param failType fail_hard setting from transaction submission.
-     */
-    void
-    doTransactionAsync(
-        std::shared_ptr<Transaction> transaction,
-        bool bUnlimited,
-        FailHard failtype);
-
-    /**
-     * Apply transactions in batches. Continue until none are queued.
+     * @param drain Whether to process batches until none remain.
+     * @return Whether any transactions were processed.
      */
     bool
     transactionBatch(bool const drain) override;
@@ -740,6 +733,7 @@ private:
     boost::asio::steady_timer heartbeatTimer_;
     boost::asio::steady_timer clusterTimer_;
     boost::asio::steady_timer accountHistoryTxTimer_;
+    //! This timer is for for applying transaction batches.
     boost::asio::steady_timer batchApplyTimer_;
 
     RCLConsensus mConsensus;
@@ -975,6 +969,7 @@ NetworkOPsImp::setTimer(
 void
 NetworkOPsImp::setHeartbeatTimer()
 {
+    // timerDelay is to optimize the timer interval
     std::chrono::milliseconds timerDelay;
     if (mConsensus.timerDelay())
     {
@@ -1029,13 +1024,16 @@ NetworkOPsImp::setAccountHistoryJobTimer(SubAccountHistoryInfoWeak subInfo)
 void
 NetworkOPsImp::setBatchApplyTimer()
 {
-    JLOG(m_journal.debug()) << "setting batch apply timer";
     using namespace std::chrono_literals;
+    static auto const batchInterval = 100ms;
+
     setTimer(
         batchApplyTimer_,
-        100ms,
+        batchInterval,
         [this]() {
             std::unique_lock lock(mMutex);
+            // Only do the job if there's work to do and it's not currently
+            // being done.
             if (mTransactions.size() && mDispatchState == DispatchState::none)
             {
                 if (m_job_queue.addJob(
@@ -1297,25 +1295,15 @@ NetworkOPsImp::processTransaction(
                 }
                 else
                 {
+                    // Apply a batch of transactions.
                     apply(lock);
-
-                    if (mTransactions.size())
-                    {
-                        // More transactions need to be applied, but by another job.
-                        if (m_job_queue.addJob(jtBATCH, "transactionBatch", [this]() {
-                            transactionBatch(false);
-                        }))
-                        {
-                            mDispatchState = DispatchState::scheduled;
-                        }
-                    }
                 }
             } while (transaction->getApplying());
             break;
 
         case RPC::SubmitSync::async:
-            // Ensure that the tx object doesn't get processed before being
-            // returned to client, so the client can expect the terSUBMITTED
+            // Ensure that the tx object is returned only after being
+            // processed, so the client can expect the terSUBMITTED
             // result in all cases.
             transaction = std::make_shared<Transaction>(*transaction);
             transaction->setResult(terSUBMITTED);
@@ -1328,49 +1316,6 @@ NetworkOPsImp::processTransaction(
 
         default:
             assert(false);
-    }
-}
-
-void
-NetworkOPsImp::doTransactionAsync(
-    std::shared_ptr<Transaction> transaction,
-    bool bUnlimited,
-    FailHard failType)
-{
-    std::lock_guard lock(mMutex);
-
-    if (transaction->getApplying())
-        return;
-
-    mTransactions.push_back(
-        TransactionStatus(transaction, bUnlimited, false, failType));
-    transaction->setApplying();
-
-    /*
-    if (mDispatchState == DispatchState::none)
-    {
-        if (m_job_queue.addJob(
-                jtBATCH, "transactionBatch", [this]() { transactionBatch(); }))
-        {
-            mDispatchState = DispatchState::scheduled;
-        }
-    }
-     */
-}
-
-void
-NetworkOPsImp::doTransactionSync(
-    std::shared_ptr<Transaction> transaction,
-    bool bUnlimited,
-    FailHard failType)
-{
-    std::unique_lock<std::mutex> lock(mMutex);
-
-    if (!transaction->getApplying())
-    {
-        mTransactions.push_back(
-            TransactionStatus(transaction, bUnlimited, true, failType));
-        transaction->setApplying();
     }
 }
 

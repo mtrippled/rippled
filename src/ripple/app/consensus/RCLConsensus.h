@@ -41,7 +41,6 @@
 #include <mutex>
 #include <optional>
 #include <set>
-#include <string>
 
 namespace ripple {
 
@@ -95,7 +94,7 @@ class RCLConsensus
         NegativeUNLVote nUnlVote_;
 
         // Since Consensus does not provide intrinsic thread-safety, this mutex
-        // guards all calls to consensus_.
+        // needs to guard all calls to consensus_.
         mutable std::recursive_mutex mutex_;
 
         std::unique_ptr<std::chrono::milliseconds> validationDelay_;
@@ -214,16 +213,41 @@ class RCLConsensus
             validating_ = false;
         }
 
+        /** Whether to try building another ledger to validate.
+         *
+         * This should be called when a newly-created ledger hasn't been
+         * validated to avoid us forking to an invalid ledger.
+         *
+         * Retry only if all of the below are true:
+         *   * We are synced to the network.
+         *   * Not in standalone mode.
+         *   * We have validated a ledger.
+         *   * The latest validated ledger and the new ledger are different.
+         *   * The new ledger sequence is >= the validated ledger.
+         *   * Less than 5 seconds have elapsed retrying.
+         *
+         * @param newLedger The new ledger which we have created.
+         * @param start When we started possibly retrying ledgers.
+         * @return Whether to retry.
+         */
         bool
         retryAccept(Ledger_t const& newLedger,
             std::optional<std::chrono::time_point<std::chrono::steady_clock>>& start) const;
 
+        /** Amount of time delayed waiting to confirm validation.
+         *
+         * @return Time in milliseconds.
+         */
         std::unique_ptr<std::chrono::milliseconds>&
         validationDelay()
         {
             return validationDelay_;
         }
 
+        /** Amount of time to wait for next heartbeat interval.
+         *
+         * @return Time in milliseconds.
+         */
         std::unique_ptr<std::chrono::milliseconds>&
         timerDelay()
         {
@@ -349,6 +373,7 @@ class RCLConsensus
            @param ledger the ledger we are changing to
            @param closeTime When consensus closed the ledger
            @param mode Current consensus mode
+           @param clock Clock used for Consensus and testing.
            @return Tentative consensus result
         */
         Result
@@ -361,14 +386,13 @@ class RCLConsensus
         /** Process the accepted ledger.
 
             @param result The result of consensus
-            @param prevLedger The closed ledger consensus worked from
-            @param closeResolution The resolution used in agreeing on an
-                                   effective closeTime
             @param rawCloseTimes The unrounded closetimes of ourself and our
                                  peers
             @param mode Our participating mode at the time consensus was
                         declared
             @param consensusJson Json representation of consensus state
+            @param txsBuilt The consensus transaction set and new ledger built
+                            around it
         */
         void
         onAccept(
@@ -404,6 +428,17 @@ class RCLConsensus
             RCLCxLedger const& ledger,
             bool haveCorrectLCL);
 
+        /** Build and attempt to validate a new ledger.
+         *
+         * @param result The result of consensus.
+         * @param prevLedger The closed ledger from which this is to be based.
+         * @param closeResolution The resolution used in agreeing on an
+                                   effective closeTime.
+         * @param mode Our participating mode at the time consensus was
+                       declared.
+         * @param consensusJson Json representation of consensus state.
+         * @return The consensus transaction set and resulting ledger.
+         */
         std::pair<CanonicalTxSet_t, Ledger_t>
         buildAndValidate(
             Result const& result,
@@ -412,6 +447,15 @@ class RCLConsensus
             ConsensusMode const& mode,
             Json::Value&& consensusJson);
 
+        /** Prepare the next open ledger.
+         *
+         * @param txsBuilt The consensus transaction set and resulting ledger.
+         * @param result The result of consensus.
+         * @param rawCloseTimes The unrounded closetimes of our peers and
+         *                      ourself.
+         * @param mode Our participating mode at the time consensus was
+                       declared.
+         */
         void
         prepareOpenLedger(
             std::pair<CanonicalTxSet_t, Ledger_t>&& txsBuilt,

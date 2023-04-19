@@ -578,7 +578,7 @@ RCLConsensus::Adaptor::buildAndValidate(
         JLOG(j_.info()) << "CNF Val " << newLCLHash;
     }
     else
-    JLOG(j_.info()) << "CNF buildLCL " << newLCLHash;
+        JLOG(j_.info()) << "CNF buildLCL " << newLCLHash;
 
     // See if we can accept a ledger as fully-validated
     ledgerMaster_.consensusBuilt(
@@ -687,9 +687,10 @@ RCLConsensus::Adaptor::prepareOpenLedger(
     // we entered the round with the network,
     // see how close our close time is to other node's
     //  close time reports, and update our clock.
+    const bool consensusFail = result.state == ConsensusState::MovedOn;
     if ((mode == ConsensusMode::proposing ||
          mode == ConsensusMode::observing) &&
-        result.state != ConsensusState::MovedOn)
+        !consensusFail)
     {
         auto closeTime = rawCloseTimes.self;
 

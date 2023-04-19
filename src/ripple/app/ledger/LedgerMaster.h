@@ -292,12 +292,19 @@ public:
     std::optional<LedgerIndex>
     minSqlSeq();
 
+    //! Whether we are in standalone mode.
     bool
     standalone() const
     {
         return standalone_;
     }
 
+    /** Wait up to a specified duration for the next validated ledger.
+     *
+     * @tparam Rep std::chrono duration Rep.
+     * @tparam Period std::chrono duration Period.
+     * @param dur Duration to wait.
+     */
     template <class Rep, class Period>
     void
     waitForValidated(std::chrono::duration<Rep, Period> const& dur)
@@ -422,6 +429,7 @@ private:
     // Time that the previous upgrade warning was issued.
     TimeKeeper::time_point upgradeWarningPrevTime_{};
 
+    // mutex and condition variable for waiting for next validated ledger
     std::mutex validMutex_;
     std::condition_variable validCond_;
 

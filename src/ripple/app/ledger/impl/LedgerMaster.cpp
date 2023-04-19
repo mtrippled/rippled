@@ -367,6 +367,7 @@ LedgerMaster::setValidLedger(std::shared_ptr<Ledger const> const& l)
     }
 
     mValidLedger.set(l);
+    // In case we're waiting for a valid before proceeding with Consensus.
     validCond_.notify_one();
     mValidLedgerSign = signTime.time_since_epoch().count();
     assert(
