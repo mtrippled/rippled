@@ -829,11 +829,7 @@ transactionSubmit(
     // Finally, submit the transaction.
     try
     {
-        // FIXME: For performance, should use async interface
         processTransaction(txn.second, isUnlimited(role), sync, failType);
-        std::string sToken3;
-        std::string sHuman3;
-        transResultInfo(txn.second->getResult(), sToken3, sHuman3);
     }
     catch (std::exception&)
     {

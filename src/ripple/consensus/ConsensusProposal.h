@@ -78,6 +78,8 @@ public:
         @param closeTime Position of when this ledger closed.
         @param now Time when the proposal was taken.
         @param nodeID ID of node/peer taking this position.
+        @param ledgerSeq Ledger sequence of proposal.
+        @param clock Clock that works with real and test time.
     */
     ConsensusProposal(
         LedgerID_t const& prevLedger,
@@ -96,6 +98,8 @@ public:
         , nodeID_(nodeID)
         , ledgerSeq_(ledgerSeq)
     {
+        // Track the arrive time to know how long our peers have been
+        // sending proposals.
         arrivalTime_.reset(clock.now());
     }
 
@@ -280,8 +284,6 @@ private:
     mutable std::optional<uint256> signingHash_;
 
     mutable ConsensusTimer arrivalTime_;
-//    std::chrono::steady_clock::time_point arrivalTime_{
-//        std::chrono::steady_clock::now()};
 };
 
 template <class NodeID_t, class LedgerID_t, class Position_t, class Seq>

@@ -126,14 +126,22 @@ public:
     virtual void
     submitTransaction(std::shared_ptr<STTx const> const&) = 0;
 
-    /**
-     * Process transactions as they arrive from the network or which are
-     * submitted by clients. Process local transactions synchronously
+    /** Process a transaction.
      *
-     * @param transaction Transaction object
+     * The transaction has been submitted either from the peer network or
+     * from a client. For client submissions, there are 3 distinct behaviors:
+     *   1) sync (default): process transactions in a batch immediately,
+     *       and return only once the transaction has been processed.
+     *   2) async: Put transaction into the batch for the next processing
+     *       interval and return immediately.
+     *   3) wait: Put transaction into the batch for the next processing
+     *       interval and return only after it is processed.
+     *
+     * @param transaction Transaction object.
      * @param bUnlimited Whether a privileged client connection submitted it.
-     * @param bLocal Client submission.
-     * @param failType fail_hard setting from transaction submission.
+     * @param sync Client submission synchronous behavior type requested.
+     * @param bLocal Whether submitted by client (local) or peer.
+     * @param failType Whether to fail hard or not.
      */
     virtual void
     processTransaction(
@@ -143,6 +151,13 @@ public:
         bool bLocal,
         FailHard failType) = 0;
 
+    /** Apply transactions in batches.
+     *
+     * Only a single batch unless drain is set.
+     *
+     * @param drain Whether to process batches until none remain.
+     * @return Whether any transactions were processed.
+     */
     virtual bool
     transactionBatch(bool const drain) = 0;
 

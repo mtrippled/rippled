@@ -544,15 +544,11 @@ struct Peer
         ConsensusMode const& mode,
         Json::Value&& consensusJson)
     {
-        auto txsBuilt = buildAndValidate(result,
+        buildAndValidate(result,
             prevLedger,
             closeResolution,
             mode,
             std::move(consensusJson));
-        prepareOpenLedger(std::move(txsBuilt),
-            result,
-            rawCloseTimes,
-            mode);
     }
 
     void
@@ -636,16 +632,6 @@ struct Peer
         });
 
         return {};
-    }
-
-    void
-    prepareOpenLedger(
-        std::pair<CanonicalTxSet_t, Ledger_t>&& txsBuilt,
-        Result const& result,
-        ConsensusCloseTimes const& rawCloseTimes,
-        ConsensusMode const& mode)
-    {
-
     }
 
     // Earliest allowed sequence number when checking for ledgers with more

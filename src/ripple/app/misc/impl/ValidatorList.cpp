@@ -1758,8 +1758,6 @@ ValidatorList::calculateQuorum(
         std::ceil(effectiveUnlSize * parms.minCONSENSUS_FACTOR),
         std::ceil(unlSize * parms.negUNL_MIN_CONSENSUS_FACTOR)));
 
-
-
     // Use lower quorum specified via command line if the normal quorum
     // appears unreachable based on the number of recently received
     // validations.

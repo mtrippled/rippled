@@ -34,7 +34,6 @@
 #include <ripple/basics/random.h>
 #include <ripple/basics/safe_cast.h>
 #include <ripple/beast/clock/abstract_clock.h>
-#include <ripple/beast/core/LexicalCast.h>
 #include <ripple/beast/core/SemanticVersion.h>
 #include <ripple/nodestore/DatabaseShard.h>
 #include <ripple/overlay/Cluster.h>
@@ -45,7 +44,6 @@
 #include <ripple/protocol/Protocol.h>
 #include <ripple/rpc/impl/RPCHelpers.h>
 
-#include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/beast/core/ostream.hpp>
 

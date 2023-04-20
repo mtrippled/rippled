@@ -297,11 +297,12 @@ getLedgerByContext(RPC::JsonContext& context);
 /**
  * Possible values for defining synchronous behavior of the transaction
  * submission API.
- * sync: Execute transactioan batch ASAP and return response once transaction
- * has been processed.
- * async: Return before processing transaction.
- * wait: Wait until next batch interval to process transaction and then
- * return.
+ *   1) sync (default): process transactions in a batch immediately,
+ *       and return only once the transaction has been processed.
+ *   2) async: Put transaction into the batch for the next processing
+ *       interval and return immediately.
+ *   3) wait: Put transaction into the batch for the next processing
+ *       interval and return only after it is processed.
  */
 enum class SubmitSync {sync, async, wait};
 

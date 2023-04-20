@@ -552,7 +552,6 @@ JSS(started);
 JSS(state);                 // out: Logic.h, ServerState, LedgerData
 JSS(state_accounting);      // out: NetworkOPs
 JSS(state_now);             // in: Subscribe
-JSS(stats);
 JSS(status);                // error
 JSS(stop);                  // in: LedgerCleaner
 JSS(stop_history_tx_only);  // in: Unsubscribe, stop history tx stream

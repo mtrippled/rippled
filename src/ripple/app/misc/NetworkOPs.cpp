@@ -277,24 +277,6 @@ public:
     void
     submitTransaction(std::shared_ptr<STTx const> const&) override;
 
-    /** Process a transaction.
-     *
-     * The transaction has been submitted either from the peer network or
-     * from a client. For client submissions, there are 3 behaviors:
-     *   1) sync (default): process transactions in a batch immediately,
-     *       and return only once the transaction has been processed.
-     *   2) async: Put transaction into the batch for the next processing
-     *       interval and return immediately.
-     *   3) wait: Put transaction into the batch for the next processing
-     *       interval and return only after it is processed.     *
-     *
-     * @param transaction Transaction provided to us to us.
-     * @param bUnlimited Whether transaction should be rate limited based on
-     *     source, such as an admin IP.
-     * @param sync Client submission synchronous behavior requested.
-     * @param bLocal Whether submitted by client (local) or peer.
-     * @param failType Whether to fail hard or not.
-     */
     void
     processTransaction(
         std::shared_ptr<Transaction>& transaction,
@@ -303,13 +285,6 @@ public:
         bool bLocal,
         FailHard failType) override;
 
-    /** Apply transactions in batches.
-     *
-     * Only a single batch unless drain is set.
-     *
-     * @param drain Whether to process batches until none remain.
-     * @return Whether any transactions were processed.
-     */
     bool
     transactionBatch(bool const drain) override;
 
@@ -1288,16 +1263,12 @@ NetworkOPsImp::processTransaction(
         case RPC::SubmitSync::sync:
             do
             {
+                // If a batch is being processed, then wait. Otherwise,
+                // process a batch.
                 if (mDispatchState == DispatchState::running)
-                {
-                    // A batch processing job is already running, so wait.
                     mCond.wait(lock);
-                }
                 else
-                {
-                    // Apply a batch of transactions.
                     apply(lock);
-                }
             } while (transaction->getApplying());
             break;
 
@@ -1744,7 +1715,6 @@ NetworkOPsImp::checkLastClosedLedger(
     {
         // Don't switch to a ledger not on the validated chain
         // or with an invalid close time or sequence
-        JLOG(m_journal.debug()) << "setting to ourClosed->info().hash 2 " << ourClosed->info().hash;
         networkClosed = ourClosed->info().hash;
         return false;
     }
