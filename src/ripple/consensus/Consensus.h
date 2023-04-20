@@ -759,31 +759,37 @@ Consensus<Adaptor>::peerProposal(
     NetClock::time_point const& now,
     PeerPosition_t const& newPeerPos)
 {
-    // Ignore proposals from prior ledgers.
-    typename Ledger_t::Seq const& propLedgerSeq =
-        newPeerPos.proposal().ledgerSeq();
-    if (propLedgerSeq <= previousLedger_.seq())
-        return false;
-
-    auto const& peerID = newPeerPos.proposal().nodeID();
-    auto& bySeq = recentPeerPositions_[propLedgerSeq];
+    if (newPeerPos.proposal().ledgerSeq().has_value())
     {
-        auto peerProp = bySeq.find(peerID);
-        if (peerProp == bySeq.end())
+        // Ignore proposals from prior ledgers.
+        typename Ledger_t::Seq const &propLedgerSeq =
+            *newPeerPos.proposal().ledgerSeq();
+        if (propLedgerSeq <= previousLedger_.seq())
+            return false;
+
+        auto const &peerID = newPeerPos.proposal().nodeID();
+        auto &bySeq = recentPeerPositions_[propLedgerSeq];
         {
-            bySeq.emplace(peerID, newPeerPos);
-        }
-        else
-        {
-            // Only store if it's the latest proposal from this peer for the
-            // consensus round in the proposal.
-            if (newPeerPos.proposal().proposeSeq() <=
-                peerProp->second.proposal().proposeSeq())
+            auto peerProp = bySeq.find(peerID);
+            if (peerProp == bySeq.end())
             {
-                return false;
+                bySeq.emplace(peerID, newPeerPos);
+            } else
+            {
+                // Only store if it's the latest proposal from this peer for the
+                // consensus round in the proposal.
+                if (newPeerPos.proposal().proposeSeq() <=
+                    peerProp->second.proposal().proposeSeq())
+                {
+                    return false;
+                }
+                peerProp->second = newPeerPos;
             }
-            peerProp->second = newPeerPos;
         }
+    }
+    else
+    {
+        // legacy proposal
     }
 
     return peerProposalInternal(now, newPeerPos);

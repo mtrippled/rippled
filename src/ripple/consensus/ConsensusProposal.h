@@ -88,7 +88,7 @@ public:
         NetClock::time_point closeTime,
         NetClock::time_point now,
         NodeID_t const& nodeID,
-        Seq const& ledgerSeq,
+        std::optional<Seq> const& ledgerSeq,
         clock_type const& clock)
         : previousLedger_(prevLedger)
         , position_(position)
@@ -247,7 +247,7 @@ public:
         return signingHash_.value();
     }
 
-    Seq
+    std::optional<Seq> const&
     ledgerSeq() const
     {
         return ledgerSeq_;
@@ -278,7 +278,7 @@ private:
     //! The identifier of the node taking this position
     NodeID_t nodeID_;
 
-    Seq ledgerSeq_;
+    std::optional<Seq> ledgerSeq_;
 
     //! The signing hash for this proposal
     mutable std::optional<uint256> signingHash_;

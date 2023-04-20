@@ -1996,17 +1996,9 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMProposeSet> const& m)
     JLOG(p_journal_.trace())
         << "Proposal: " << (isTrusted ? "trusted" : "untrusted");
 
-    LedgerIndex ledgerSeq = 0;
+    std::optional<LedgerIndex> ledgerSeq;
     if (set.has_ledgerseq())
-    {
         ledgerSeq = set.ledgerseq();
-    }
-    else
-    {
-        auto const& current = app_.openLedger().current();
-        if (current)
-            ledgerSeq = current->info().seq;
-    }
 
     auto proposal = RCLCxPeerPos(
         publicKey,

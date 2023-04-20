@@ -171,7 +171,8 @@ RCLConsensus::Adaptor::share(RCLCxPeerPos const& peerPos)
     auto const sig = peerPos.signature();
     prop.set_signature(sig.data(), sig.size());
 
-    prop.set_ledgerseq(proposal.ledgerSeq());
+    if (proposal.ledgerSeq().has_value())
+        prop.set_ledgerseq(*proposal.ledgerSeq());
 
     app_.overlay().relay(prop, peerPos.suppressionID(), peerPos.publicKey());
 }
@@ -214,7 +215,7 @@ RCLConsensus::Adaptor::propose(RCLCxPeerPos::Proposal const& proposal)
     prop.set_closetime(proposal.closeTime().time_since_epoch().count());
     prop.set_nodepubkey(
         validatorKeys_.publicKey.data(), validatorKeys_.publicKey.size());
-    prop.set_ledgerseq(proposal.ledgerSeq());
+    prop.set_ledgerseq(*proposal.ledgerSeq());
 
     auto sig = signDigest(
         validatorKeys_.publicKey,
