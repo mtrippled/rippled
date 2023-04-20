@@ -1215,9 +1215,12 @@ public:
         beast::detail::aged_container_iterator<is_const, Iterator> first,
         beast::detail::aged_container_iterator<is_const, Iterator> last);
 
+    /*
+     * This is broken as of at least gcc 11.3.0
     template <class K>
     auto
     erase(K const& k) -> size_type;
+     */
 
     void
     swap(aged_unordered_container& other) noexcept;
@@ -3093,6 +3096,7 @@ aged_unordered_container<
         first.iterator());
 }
 
+/*
 template <
     bool IsMulti,
     bool IsMap,
@@ -3132,6 +3136,7 @@ aged_unordered_container<
     }
     return n;
 }
+*/
 
 template <
     bool IsMulti,
