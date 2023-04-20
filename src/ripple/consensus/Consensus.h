@@ -1426,7 +1426,7 @@ Consensus<Adaptor>::phaseEstablish()
 
     if (!haveCloseTimeConsensus_)
     {
-        JLOG(j_.info()) << "phaseEstablish We have TX consensus but not CT consensus";
+        JLOG(j_.info()) << "We have TX consensus but not CT consensus";
         return;
     }
 
@@ -1446,7 +1446,8 @@ Consensus<Adaptor>::phaseEstablish()
     static auto const validationWait = std::chrono::milliseconds(100);
 
     // Building the new ledger is time-consuming and safe to not lock, but
-    // the rest of the logic below needs to be locked.
+    // the rest of the logic below needs to be locked, until
+    // finishing (onAccept).
     std::unique_lock<std::recursive_mutex> lock(adaptor_.peekMutex());
     do
     {
