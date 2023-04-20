@@ -22,6 +22,7 @@
 #include <ripple/protocol/Feature.h>
 #include <ripple/resource/Fees.h>
 #include <ripple/rpc/Context.h>
+#include <ripple/rpc/impl/RPCHelpers.h>
 #include <ripple/rpc/impl/TransactionSign.h>
 
 namespace ripple {
@@ -37,13 +38,28 @@ doSubmitMultiSigned(RPC::JsonContext& context)
     auto const failHard = context.params[jss::fail_hard].asBool();
     auto const failType = NetworkOPs::doFailHard(failHard);
 
+    RPC::SubmitSync sync = RPC::SubmitSync::sync;
+    if (context.params.isMember(jss::sync))
+    {
+        if (context.params["sync"].asString() == "async")
+            sync = RPC::SubmitSync::async;
+        else if (context.params["sync"].asString() == "wait")
+            sync = RPC::SubmitSync::wait;
+        else if (context.params["sync"].asString() != "sync")
+            return RPC::make_error(
+                rpcINVALID_PARAMS,
+                "sync parameter must be one of \"sync\", \"async\", or "
+                "\"wait\".");
+    }
+
     return RPC::transactionSubmitMultiSigned(
         context.params,
         failType,
         context.role,
         context.ledgerMaster.getValidatedLedgerAge(),
         context.app,
-        RPC::getProcessTxnFn(context.netOps));
+        RPC::getProcessTxnFn(context.netOps),
+        sync);
 }
 
 }  // namespace ripple

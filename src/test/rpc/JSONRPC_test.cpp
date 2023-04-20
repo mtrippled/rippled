@@ -25,6 +25,7 @@
 #include <ripple/json/json_reader.h>
 #include <ripple/protocol/ErrorCodes.h>
 #include <ripple/protocol/Feature.h>
+#include <ripple/rpc/impl/RPCHelpers.h>
 #include <ripple/rpc/impl/TransactionSign.h>
 #include <test/jtx.h>
 #include <test/jtx/envconfig.h>
@@ -2384,7 +2385,7 @@ public:
     fakeProcessTransaction(
         std::shared_ptr<Transaction>&,
         bool,
-        bool,
+        SubmitSync,
         NetworkOPs::FailHard)
     {
         ;
@@ -2432,7 +2433,8 @@ public:
             Role role,
             std::chrono::seconds validatedLedgerAge,
             Application & app,
-            ProcessTransactionFn const& processTransaction);
+            ProcessTransactionFn const& processTransaction,
+            RPC::SubmitSync sync);
 
         using TestStuff =
             std::tuple<signFunc, submitFunc, char const*, unsigned int>;
@@ -2485,7 +2487,8 @@ public:
                             testRole,
                             1s,
                             env.app(),
-                            processTxn);
+                            processTxn,
+                            RPC::SubmitSync::sync);
                     }
 
                     std::string errStr;

@@ -48,6 +48,20 @@ doSubmit(RPC::JsonContext& context)
 {
     context.loadType = Resource::feeMediumBurdenRPC;
 
+    RPC::SubmitSync sync = RPC::SubmitSync::sync;
+    if (context.params.isMember(jss::sync))
+    {
+        if (context.params["sync"].asString() == "async")
+            sync = RPC::SubmitSync::async;
+        else if (context.params["sync"].asString() == "wait")
+            sync = RPC::SubmitSync::wait;
+        else if (context.params["sync"].asString() != "sync")
+            return RPC::make_error(
+                rpcINVALID_PARAMS,
+                "sync parameter must be one of \"sync\", \"async\", or "
+                "\"wait\".");
+    }
+
     if (!context.params.isMember(jss::tx_blob))
     {
         auto const failType = getFailHard(context);
@@ -62,7 +76,8 @@ doSubmit(RPC::JsonContext& context)
             context.role,
             context.ledgerMaster.getValidatedLedgerAge(),
             context.app,
-            RPC::getProcessTxnFn(context.netOps));
+            RPC::getProcessTxnFn(context.netOps),
+            sync);
 
         ret[jss::deprecated] =
             "Signing support in the 'submit' command has been "
@@ -131,7 +146,7 @@ doSubmit(RPC::JsonContext& context)
         auto const failType = getFailHard(context);
 
         context.netOps.processTransaction(
-            tpTrans, isUnlimited(context.role), true, failType);
+            tpTrans, isUnlimited(context.role), sync, true, failType);
     }
     catch (std::exception& e)
     {

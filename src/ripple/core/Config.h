@@ -227,10 +227,11 @@ public:
     // Enable the experimental Ledger Replay functionality
     bool LEDGER_REPLAY = false;
 
-    // Work queue limits
-    int MAX_TRANSACTIONS = 250;
-    static constexpr int MAX_JOB_QUEUE_TX = 1000;
-    static constexpr int MIN_JOB_QUEUE_TX = 100;
+    // Work queue limits. 10000 transactions is 2 full seconds of slowdown at
+    // 5000/s.
+    int MAX_TRANSACTIONS = 10000;
+    static constexpr int MAX_JOB_QUEUE_TX = 10000;
+    static constexpr int MIN_JOB_QUEUE_TX = 10000;
 
     // Amendment majority time
     std::chrono::seconds AMENDMENT_MAJORITY_TIME = defaultAmendmentMajorityTime;
