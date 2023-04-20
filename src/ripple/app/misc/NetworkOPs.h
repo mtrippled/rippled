@@ -27,6 +27,7 @@
 #include <ripple/net/InfoSub.h>
 #include <ripple/protocol/STValidation.h>
 #include <ripple/protocol/messages.h>
+#include <ripple/rpc/impl/RPCHelpers.h>
 #include <boost/asio.hpp>
 #include <deque>
 #include <memory>
@@ -70,6 +71,10 @@ enum class OperatingMode {
     TRACKING = 3,      //!< convinced we agree with the network
     FULL = 4           //!< we have the ledger and can even validate
 };
+
+namespace RPC {
+enum class SubmitSync;
+}
 
 /** Provides server functionality for clients.
 
@@ -123,21 +128,40 @@ public:
     virtual void
     submitTransaction(std::shared_ptr<STTx const> const&) = 0;
 
-    /**
-     * Process transactions as they arrive from the network or which are
-     * submitted by clients. Process local transactions synchronously
+    /** Process a transaction.
      *
-     * @param transaction Transaction object
+     * The transaction has been submitted either from the peer network or
+     * from a client. For client submissions, there are 3 distinct behaviors:
+     *   1) sync (default): process transactions in a batch immediately,
+     *       and return only once the transaction has been processed.
+     *   2) async: Put transaction into the batch for the next processing
+     *       interval and return immediately.
+     *   3) wait: Put transaction into the batch for the next processing
+     *       interval and return only after it is processed.
+     *
+     * @param transaction Transaction object.
      * @param bUnlimited Whether a privileged client connection submitted it.
-     * @param bLocal Client submission.
-     * @param failType fail_hard setting from transaction submission.
+     * @param sync Client submission synchronous behavior type requested.
+     * @param bLocal Whether submitted by client (local) or peer.
+     * @param failType Whether to fail hard or not.
      */
     virtual void
     processTransaction(
         std::shared_ptr<Transaction>& transaction,
         bool bUnlimited,
+        RPC::SubmitSync sync,
         bool bLocal,
         FailHard failType) = 0;
+
+    /** Apply transactions in batches.
+     *
+     * Only a single batch unless drain is set.
+     *
+     * @param drain Whether to process batches until none remain.
+     * @return Whether any transactions were processed.
+     */
+    virtual bool
+    transactionBatch(bool const drain) = 0;
 
     //--------------------------------------------------------------------------
     //
@@ -187,6 +211,8 @@ public:
     setStandAlone() = 0;
     virtual void
     setStateTimer() = 0;
+    virtual void
+    setBatchApplyTimer() = 0;
 
     virtual void
     setNeedNetworkLedger() = 0;
