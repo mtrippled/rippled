@@ -639,6 +639,11 @@ private:
     std::map<typename Ledger_t::Seq, hash_map<NodeID_t, PeerPosition_t>>
         recentPeerPositions_;
 
+    // These are for peers not using code that adds a ledger sequence
+    // to the proposal message. TODO This should be removed eventually when
+    // the network fully upgrades.
+    hash_map<NodeID_t, std::deque<PeerPosition_t>> recentPeerPositionsLegacy_;
+
     // The number of proposers who participated in the last consensus round
     std::size_t prevProposers_ = 0;
 
@@ -692,6 +697,9 @@ Consensus<Adaptor>::startRound(
         for (NodeID_t const& n : nowUntrusted)
             currentPositions->second.erase(n);
     }
+
+    for (NodeID_t const& n : nowUntrusted)
+        recentPeerPositionsLegacy_.erase(n);
 
     ConsensusMode startMode =
         proposing ? ConsensusMode::proposing : ConsensusMode::observing;
@@ -759,6 +767,9 @@ Consensus<Adaptor>::peerProposal(
     NetClock::time_point const& now,
     PeerPosition_t const& newPeerPos)
 {
+    auto const &peerID = newPeerPos.proposal().nodeID();
+
+    // Always need to store recent positions
     if (newPeerPos.proposal().ledgerSeq().has_value())
     {
         // Ignore proposals from prior ledgers.
@@ -767,7 +778,6 @@ Consensus<Adaptor>::peerProposal(
         if (propLedgerSeq <= previousLedger_.seq())
             return false;
 
-        auto const &peerID = newPeerPos.proposal().nodeID();
         auto &bySeq = recentPeerPositions_[propLedgerSeq];
         {
             auto peerProp = bySeq.find(peerID);
@@ -789,7 +799,13 @@ Consensus<Adaptor>::peerProposal(
     }
     else
     {
-        // legacy proposal
+        // legacy proposal with no ledger sequence
+        auto& props = recentPeerPositionsLegacy_[peerID];
+
+        if (props.size() >= 10)
+            props.pop_front();
+
+        props.push_back(newPeerPos);
     }
 
     return peerProposalInternal(now, newPeerPos);
@@ -1189,6 +1205,21 @@ Consensus<Adaptor>::playbackProposals()
                 peerProposalInternal(now_, pos))
             {
                 adaptor_.share(pos);
+            }
+        }
+    }
+
+    // It's safe to do this--if a proposal is based on the wrong ledger,
+    // then peerProposalInternal() will not replace it in currPeerPositions_.
+    // TODO remove this after the network upgrades.
+    for (auto const& it : recentPeerPositionsLegacy_)
+    {
+        for (auto const& pos : it.second)
+        {
+            if (pos.proposal().prevLedger() == prevLedgerID_)
+            {
+                if (peerProposalInternal(now_, pos))
+                    adaptor_.share(pos);
             }
         }
     }
