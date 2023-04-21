@@ -1398,6 +1398,7 @@ ApplicationImp::setup(boost::program_options::variables_map const& cmdline)
 
         // VFALCO NOTE the state timer resets the deadlock detector.
         //
+        JLOG(m_journal.debug()) << "consensuslog initial set heartbeat timer.";
         m_networkOPs->setStateTimer();
     }
     else
