@@ -962,6 +962,8 @@ NetworkOPsImp::setHeartbeatTimer()
         timerDelay = mConsensus.parms().ledgerGRANULARITY;
     }
 
+    JLOG(m_journal.debug()) << "consensuslog setting heartbeat timer with "
+                               "delay of " << timerDelay.count() << "ms";
     setTimer(
         heartbeatTimer_,
         timerDelay,
@@ -1057,14 +1059,17 @@ NetworkOPsImp::processHeartbeatTimer()
             {
                 setMode(OperatingMode::DISCONNECTED);
                 JLOG(m_journal.warn())
-                    << "Node count (" << numPeers << ") has fallen "
+                    << "consensuslog Node count (" << numPeers << ") has fallen "
                     << "below required minimum (" << minPeerCount_ << ").";
             }
 
-            // MasterMutex lock need not be held to call setHeartbeatTimer()
-            lock.unlock();
             // We do not call mConsensus.timerEntry until there are enough
             // peers providing meaningful inputs to consensus
+            JLOG(m_journal.debug()) << "consensuslog processHeartbeatTimer returning too "
+                                       "few connected peers " << numPeers
+                                    << " we need at least " << minPeerCount_;
+            // MasterMutex lock need not be held to call setHeartbeatTimer()
+            lock.unlock();
             setHeartbeatTimer();
             return;
         }
@@ -1073,7 +1078,9 @@ NetworkOPsImp::processHeartbeatTimer()
         {
             setMode(OperatingMode::CONNECTED);
             JLOG(m_journal.info())
-                << "Node count (" << numPeers << ") is sufficient.";
+                << "consensuslog Node count (" << numPeers << ") is sufficient."
+                   " at least " << minPeerCount_ << " required. Changing from "
+                   " disconnected to connected mode";
         }
 
         // Check if the last validated ledger forces a change between these
@@ -1817,7 +1824,7 @@ NetworkOPsImp::beginConsensus(uint256 const& networkClosed)
 
     auto closingInfo = m_ledgerMaster.getCurrentLedger()->info();
 
-    JLOG(m_journal.info()) << "Consensus time for #" << closingInfo.seq
+    JLOG(m_journal.info()) << "consensuslog Consensus time for #" << closingInfo.seq
                            << " with LCL " << closingInfo.parentHash;
 
     auto prevLedger = m_ledgerMaster.getLedgerByHash(closingInfo.parentHash);
@@ -1827,7 +1834,7 @@ NetworkOPsImp::beginConsensus(uint256 const& networkClosed)
         // this shouldn't happen unless we jump ledgers
         if (mMode == OperatingMode::FULL)
         {
-            JLOG(m_journal.warn()) << "Don't have LCL, going to tracking";
+            JLOG(m_journal.warn()) << "consensuslog Don't have LCL, going to tracking";
             setMode(OperatingMode::TRACKING);
         }
 
@@ -1865,7 +1872,7 @@ NetworkOPsImp::beginConsensus(uint256 const& networkClosed)
         mLastConsensusPhase = currPhase;
     }
 
-    JLOG(m_journal.debug()) << "Initiating consensus engine";
+    JLOG(m_journal.debug()) << "consensuslog Initiating consensus engine";
     return true;
 }
 
@@ -2257,6 +2264,7 @@ NetworkOPsImp::pubPeerStatus(std::function<Json::Value(void)> const& func)
 void
 NetworkOPsImp::setMode(OperatingMode om)
 {
+    OperatingMode const requestedOm = om;
     using namespace std::chrono_literals;
     if (om == OperatingMode::CONNECTED)
     {
@@ -2271,6 +2279,11 @@ NetworkOPsImp::setMode(OperatingMode om)
 
     if ((om > OperatingMode::CONNECTED) && isBlocked())
         om = OperatingMode::CONNECTED;
+
+    JLOG(m_journal.debug()) << "consensuslog current mode: " <<
+        strOperatingMode() << ", requested: "
+        << strOperatingMode(requestedOm, false) << ", setting to: " <<
+        strOperatingMode(om, false);
 
     if (mMode == om)
         return;

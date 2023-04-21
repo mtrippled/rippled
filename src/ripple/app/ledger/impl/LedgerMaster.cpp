@@ -1070,7 +1070,7 @@ LedgerMaster::checkAccept(std::shared_ptr<Ledger const> const& ledger)
         return;
     }
 
-    JLOG(m_journal.info()) << "Advancing accepted ledger to "
+    JLOG(m_journal.info()) << "consensuslog Advancing accepted ledger to "
                            << ledger->info().seq << " with >= " << minVal
                            << " validations";
 
