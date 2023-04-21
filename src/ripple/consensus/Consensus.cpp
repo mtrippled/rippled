@@ -39,11 +39,23 @@ shouldCloseLedger(
 {
     using namespace std::chrono_literals;
 
+    JLOG(j.debug()) << "consensuslog shouldCloseLedger parameters. "
+                       "anyTransactions:" << anyTransactions <<
+                       ",prevProposers:" << prevProposers <<
+                       ",proposersClosed:" << proposersClosed <<
+                       ",proposersValidated:" << proposersValidated <<
+                       ",prevRoundTime:" << prevRoundTime.count() << "ms" <<
+                       ",timeSincePrevClose:" << timeSincePrevClose.count() << "ms" <<
+                       ",openTime:" << openTime.count() << "ms" <<
+                       ",validationDelay:" << (validationDelay ? std::to_string(validationDelay->count()) : "none ") << "ms" <<
+                       ",idleInterval:" << idleInterval.count() << "ms. "
+                       "minimum ledger close time: " << parms.ledgerMIN_CLOSE.count() << "ms";
+
     if ((prevRoundTime < -1s) || (prevRoundTime > 10min) ||
         (timeSincePrevClose > 10min))
     {
         // These are unexpected cases, we just close the ledger
-        JLOG(j.warn()) << "Trans=" << (anyTransactions ? "yes" : "no")
+        JLOG(j.warn()) << "consensuslog closing based on unpexpected elapsed time. Trans=" << (anyTransactions ? "yes" : "no")
                        << " Prop: " << prevProposers << "/" << proposersClosed
                        << " Secs: " << timeSincePrevClose.count()
                        << " (last: " << prevRoundTime.count() << ")";
@@ -53,7 +65,7 @@ shouldCloseLedger(
     if ((proposersClosed + proposersValidated) > (prevProposers / 2))
     {
         // If more than half of the network has closed, we close
-        JLOG(j.trace()) << "Others have closed";
+        JLOG(j.debug()) << "consensuslog closing: Others have closed";
         return true;
     }
 
@@ -66,13 +78,16 @@ shouldCloseLedger(
     if (!anyTransactions)
     {
         // Only close at the end of the idle interval
-        return timeSincePrevClose >= idleInterval;  // normal idle
+        bool const ret = timeSincePrevClose >= idleInterval;  // normal idle
+        JLOG(j.debug()) << "consensuslog no transactions idle interval. closing? " <<
+            (ret ? "passed" : "not yet passed");
+        return ret;
     }
 
     // Preserve minimum ledger open time
     if (openTime < parms.ledgerMIN_CLOSE)
     {
-        JLOG(j.debug()) << "Must wait minimum time before closing";
+        JLOG(j.debug()) << "consensuslog not closing, must wait minimum time";
         return false;
     }
 
@@ -81,11 +96,12 @@ shouldCloseLedger(
     // the network
     if (openTime < (prevRoundTime / 2))
     {
-        JLOG(j.debug()) << "Ledger has not been open long enough";
+        JLOG(j.debug()) << "consensuslog not closing, Ledger has not been open long enough";
         return false;
     }
 
     // Close the ledger
+    JLOG(j.debug()) << "consensuslog closing: no reason no to";
     return true;
 }
 
@@ -136,7 +152,7 @@ checkConsensus(
     bool proposing,
     beast::Journal j)
 {
-    JLOG(j.trace()) << "checkConsensus: prop=" << currentProposers << "/"
+    JLOG(j.debug()) << "consensuslog checkConsensus: prop=" << currentProposers << "/"
                     << prevProposers << " agree=" << currentAgree
                     << " validated=" << currentFinished
                     << " time=" << currentAgreeTime.count() << "/"
@@ -153,7 +169,7 @@ checkConsensus(
         // rush: we may need more time.
         if (currentAgreeTime < (previousAgreeTime + parms.ledgerMIN_CONSENSUS))
         {
-            JLOG(j.trace()) << "too fast, not enough proposers";
+            JLOG(j.debug()) << "consensuslog too fast, not enough proposers, we don't have consensus";
             return ConsensusState::No;
         }
     }
@@ -164,7 +180,7 @@ checkConsensus(
             currentAgree, currentProposers, proposing, parms.minCONSENSUS_PCT,
             currentAgreeTime > parms.ledgerMAX_CONSENSUS))
     {
-        JLOG(j.debug()) << "normal consensus";
+        JLOG(j.debug()) << "consensuslog normal consensus reached";
         return ConsensusState::Yes;
     }
 
@@ -174,12 +190,12 @@ checkConsensus(
             currentFinished, currentProposers, false, parms.minCONSENSUS_PCT,
             currentAgreeTime > parms.ledgerMAX_CONSENSUS))
     {
-        JLOG(j.warn()) << "We see no consensus, but 80% of nodes have moved on";
+        JLOG(j.warn()) << "consensuslog We see no consensus, but 80% of nodes have moved on";
         return ConsensusState::MovedOn;
     }
 
     // no consensus yet
-    JLOG(j.trace()) << "checkConsensus no consensus";
+    JLOG(j.debug()) << "consensuslog checkConsensus no consensus";
     return ConsensusState::No;
 }
 

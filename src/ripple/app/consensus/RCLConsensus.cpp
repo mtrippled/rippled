@@ -47,6 +47,7 @@
 
 #include <algorithm>
 #include <mutex>
+#include <sstream>
 
 namespace ripple {
 
@@ -247,6 +248,7 @@ RCLConsensus::Adaptor::share(RCLTxSet const& txns)
 std::optional<RCLTxSet>
 RCLConsensus::Adaptor::acquireTxSet(RCLTxSet::ID const& setId)
 {
+    JLOG(j_.debug()) << "consensuslog acquireTxSet " << setId;
     if (auto txns = inboundTransactions_.getSet(setId, true))
     {
         return RCLTxSet{std::move(txns)};
@@ -305,6 +307,8 @@ RCLConsensus::Adaptor::onClose(
     ConsensusMode mode,
     clock_type& clock) -> Result
 {
+    auto const startTime = std::chrono::steady_clock::now();
+
     const bool wrongLCL = mode == ConsensusMode::wrongLedger;
     const bool proposing = mode == ConsensusMode::proposing;
 
@@ -385,6 +389,8 @@ RCLConsensus::Adaptor::onClose(
 
     // Needed because of the move below.
     auto const setHash = initialSet->getHash().as_uint256();
+    JLOG(j_.debug()) << "consensuslog onClose duration " <<
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - startTime).count() << "us";
     return Result{
         std::move(initialSet),
         RCLCxPeerPos::Proposal{
@@ -433,8 +439,21 @@ RCLConsensus::Adaptor::onAccept(
             // is accepted, the consensus results and capture by reference state
             // will not change until startRound is called (which happens via
             // endConsensus).
-            prepareOpenLedger(std::move(txsBuilt), result, rawCloseTimes, mode);
-            this->app_.getOPs().endConsensus();
+            {
+                auto const start = std::chrono::steady_clock::now();
+                prepareOpenLedger(std::move(txsBuilt), result, rawCloseTimes,
+                    mode);
+                JLOG(j_.debug()) << "consensuslog prepareOpenLedger took " <<
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - start).count() << "us";
+            }
+            {
+                auto const start = std::chrono::steady_clock::now();
+                this->app_.getOPs().endConsensus();
+                JLOG(j_.debug()) << "consensuslog endConsensus took " <<
+                                 std::chrono::duration_cast<std::chrono::microseconds>(
+                                     std::chrono::steady_clock::now() - start).count() << "us";
+            }
         });
     perf::END_TIMER(tracer_, timer);
 }
@@ -476,7 +495,7 @@ RCLConsensus::Adaptor::buildAndValidate(
         closeTimeCorrect = true;
     }
 
-    JLOG(j_.debug()) << "Report: Prop=" << (proposing ? "yes" : "no")
+    JLOG(j_.debug()) << "consensuslog buildAnd Validate Report: Prop=" << (proposing ? "yes" : "no")
                      << " val=" << (validating_ ? "yes" : "no")
                      << " corLCL=" << (haveCorrectLCL ? "yes" : "no")
                      << " fail=" << (consensusFail ? "yes" : "no");
@@ -492,22 +511,28 @@ RCLConsensus::Adaptor::buildAndValidate(
     // FIXME: Use a std::vector and a custom sorter instead of CanonicalTXSet?
     CanonicalTXSet retriableTxs{result.txns.map_->getHash().as_uint256()};
 
-    JLOG(j_.debug()) << "Building canonical tx set: " << retriableTxs.key();
+    JLOG(j_.debug()) << "consensuslog Building canonical tx set: " << retriableTxs.key();
 
-    for (auto const& item : *result.txns.map_)
     {
-        try
+        auto const start = std::chrono::steady_clock::now();
+        for (auto const &item: *result.txns.map_)
         {
-            retriableTxs.insert(
-                std::make_shared<STTx const>(SerialIter{item.slice()}));
-            JLOG(j_.trace()) << "    Tx: " << item.key();
+            try
+            {
+                retriableTxs.insert(
+                    std::make_shared<STTx const>(SerialIter{item.slice()}));
+                JLOG(j_.trace()) << "    Tx: " << item.key();
+            }
+            catch (std::exception const &ex)
+            {
+                failed.insert(item.key());
+                JLOG(j_.trace())
+                    << "    Tx: " << item.key() << " throws: " << ex.what();
+            }
         }
-        catch (std::exception const& ex)
-        {
-            failed.insert(item.key());
-            JLOG(j_.trace())
-                << "    Tx: " << item.key() << " throws: " << ex.what();
-        }
+        JLOG(j_.debug()) << "consensuslog built canonical tx set: " << retriableTxs.key() <<
+            " in " << std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - start).count() << "us";
     }
 
     auto buildLclTimer = perf::START_TIMER(tracer_);
@@ -522,7 +547,7 @@ RCLConsensus::Adaptor::buildAndValidate(
     perf::END_TIMER(tracer_, buildLclTimer);
 
     auto const newLCLHash = built.id();
-    JLOG(j_.debug()) << "Built ledger #" << built.seq() << ": " << newLCLHash;
+    JLOG(j_.debug()) << "consensuslog Built ledger #" << built.seq() << ": " << newLCLHash;
 
     // Tell directly connected peers that we have a new LCL
     notify(protocol::neACCEPTED_LEDGER, built, haveCorrectLCL);
@@ -532,6 +557,8 @@ RCLConsensus::Adaptor::buildAndValidate(
     // after a period of time.
     if (haveCorrectLCL && result.state == ConsensusState::Yes)
     {
+        auto const start = std::chrono::steady_clock::now();
+
         std::vector<TxID> accepted;
 
         result.txns.map_->visitLeaves(
@@ -565,6 +592,10 @@ RCLConsensus::Adaptor::buildAndValidate(
 
                 return false;
             });
+
+        JLOG(j_.debug()) << "consensuslog censorship detection took " <<
+                         std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - start).count() << "us";
     }
 
     if (validating_)
@@ -575,10 +606,10 @@ RCLConsensus::Adaptor::buildAndValidate(
         app_.getValidations().canValidateSeq(built.seq()))
     {
         validate(built, result.txns, proposing);
-        JLOG(j_.info()) << "CNF Val " << newLCLHash;
+        JLOG(j_.info()) << "consensuslog CNF Val " << newLCLHash;
     }
     else
-        JLOG(j_.info()) << "CNF buildLCL " << newLCLHash;
+        JLOG(j_.info()) << "consensuslog CNF buildLCL " << newLCLHash;
 
     // See if we can accept a ledger as fully-validated
     ledgerMaster_.consensusBuilt(
@@ -658,6 +689,7 @@ RCLConsensus::Adaptor::prepareOpenLedger(
             rules = makeRulesGivenLedger(*lastVal, app_.config().features);
         else
             rules.emplace(app_.config().features);
+        auto const start = std::chrono::steady_clock::now();
         app_.openLedger().accept(
             app_,
             *rules,
@@ -671,6 +703,9 @@ RCLConsensus::Adaptor::prepareOpenLedger(
                 // Stuff the ledger with transactions from the queue.
                 return app_.getTxQ().accept(app_, view);
             });
+        JLOG(j_.debug()) << "consensuslog building new ledger took " <<
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - start).count() << "us";
 
         // Signal a potential fee change to subscribers after the open ledger
         // is created
@@ -697,7 +732,7 @@ RCLConsensus::Adaptor::prepareOpenLedger(
     {
         auto closeTime = rawCloseTimes.self;
 
-        JLOG(j_.info()) << "We closed at "
+        JLOG(j_.info()) << "consensuslog We closed at "
                         << closeTime.time_since_epoch().count();
         using usec64_t = std::chrono::duration<std::uint64_t>;
         usec64_t closeTotal =
@@ -721,7 +756,7 @@ RCLConsensus::Adaptor::prepareOpenLedger(
         using time_point = std::chrono::time_point<NetClock, duration>;
         auto offset = time_point{closeTotal} -
             std::chrono::time_point_cast<duration>(closeTime);
-        JLOG(j_.info()) << "Our close offset is estimated at " << offset.count()
+        JLOG(j_.info()) << "consensuslog Our close offset is estimated at " << offset.count()
                         << " (" << closeCount << ")";
 
         app_.timeKeeper().adjustCloseTime(offset);
@@ -801,11 +836,11 @@ RCLConsensus::Adaptor::buildLCL(
 
     // And stash the ledger in the ledger master
     if (ledgerMaster_.storeLedger(built))
-        JLOG(j_.debug()) << "Consensus built ledger we already had";
+        JLOG(j_.debug()) << "consensuslog Consensus built ledger we already had";
     else if (app_.getInboundLedgers().find(built->info().hash))
-        JLOG(j_.debug()) << "Consensus built ledger we were acquiring";
+        JLOG(j_.debug()) << "consensuslog Consensus built ledger we were acquiring";
     else
-        JLOG(j_.debug()) << "Consensus built new ledger";
+        JLOG(j_.debug()) << "consensuslog Consensus built new ledger";
     return RCLCxLedger{std::move(built)};
 }
 

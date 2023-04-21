@@ -25,6 +25,7 @@
 #include <ripple/app/misc/CanonicalTXSet.h>
 #include <ripple/app/tx/apply.h>
 #include <ripple/protocol/Feature.h>
+#include <chrono>
 
 namespace ripple {
 
@@ -47,6 +48,8 @@ buildLedgerImpl(
     std::shared_ptr<perf::Tracer> const& tracer)
 {
     auto timerAll = perf::START_TIMER(tracer);
+    auto const start = std::chrono::steady_clock::now();
+
     auto built = std::make_shared<Ledger>(*parent, closeTime);
 
     if (built->isFlagLedger() && built->rules().enabled(featureNegativeUNL))
@@ -77,7 +80,7 @@ buildLedgerImpl(
         auto timer3 = perf::START_TIMER(tracer);
         int const tmf = built->txMap().flushDirty(hotTRANSACTION_NODE);
         perf::END_TIMER(tracer, timer3);
-        JLOG(j.debug()) << "Flushed " << asf << " accounts and " << tmf
+        JLOG(j.debug()) << "consensuslog Flushed " << asf << " accounts and " << tmf
                         << " transaction nodes";
     }
     built->unshare();
@@ -89,6 +92,9 @@ buildLedgerImpl(
     built->setAccepted(closeTime, closeResolution, closeTimeCorrect);
 
     perf::END_TIMER(tracer, timerAll);
+    JLOG(j.debug()) << "consensuslog built " << built->info().hash << " seq " <<
+        built->info().seq << " in " << std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - start).count() << "us";
     return built;
 }
 
@@ -117,7 +123,7 @@ applyTransactions(
     // Attempt to apply all of the retriable transactions
     for (int pass = 0; pass < LEDGER_TOTAL_PASSES; ++pass)
     {
-        JLOG(j.debug()) << (certainRetry ? "Pass: " : "Final pass: ") << pass
+        JLOG(j.debug()) << "consensuslog " << (certainRetry ? "Pass: " : "Final pass: ") << pass
                         << " begins (" << txns.size() << " transactions)";
         int changes = 0;
 
@@ -161,7 +167,7 @@ applyTransactions(
             }
         }
 
-        JLOG(j.debug()) << (certainRetry ? "Pass: " : "Final pass: ") << pass
+        JLOG(j.debug()) << "consensuslog " << (certainRetry ? "Pass: " : "Final pass: ") << pass
                         << " completed (" << changes << " changes)";
 
         // Accumulate changes.
@@ -195,7 +201,7 @@ buildLedger(
     beast::Journal j,
     std::shared_ptr<perf::Tracer> const& tracer)
 {
-    JLOG(j.debug()) << "Report: Transaction Set = " << txns.key() << ", close "
+    JLOG(j.debug()) << "consensuslog Report: Transaction Set = " << txns.key() << ", close "
                     << closeTime.time_since_epoch().count()
                     << (closeTimeCorrect ? "" : " (incorrect)");
 
@@ -208,17 +214,17 @@ buildLedger(
         j,
         [&](OpenView& accum, std::shared_ptr<Ledger> const& built) {
             JLOG(j.debug())
-                << "Attempting to apply " << txns.size() << " transactions";
+                << "consensuslog Attempting to apply " << txns.size() << " transactions";
 
             auto const applied =
                 applyTransactions(app, built, txns, failedTxns, accum, j);
 
             if (!txns.empty() || !failedTxns.empty())
-                JLOG(j.debug()) << "Applied " << applied << " transactions; "
+                JLOG(j.debug()) << "consensuslog Applied " << applied << " transactions; "
                                 << failedTxns.size() << " failed and "
                                 << txns.size() << " will be retried.";
             else
-                JLOG(j.debug()) << "Applied " << applied << " transactions.";
+                JLOG(j.debug()) << "consensuslog Applied " << applied << " transactions.";
         },
         tracer);
 }
