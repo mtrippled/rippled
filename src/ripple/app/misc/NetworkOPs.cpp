@@ -140,7 +140,8 @@ class NetworkOPsImp final : public NetworkOPs
 
         OperatingMode mode_ = OperatingMode::DISCONNECTED;
         std::array<Counters, 5> counters_;
-        mutable std::mutex mutex_;
+        mutable perf::mutex<std::mutex> mutex_{"TransactionBatchLock"};
+        //mutable std::mutex mutex_;
         std::chrono::steady_clock::time_point start_ =
             std::chrono::steady_clock::now();
         std::chrono::steady_clock::time_point const processStart_ = start_;
@@ -182,7 +183,8 @@ class NetworkOPsImp final : public NetworkOPs
         CounterData
         getCounterData() const
         {
-            std::lock_guard lock(mutex_);
+            perf::lock_guard lock(mutex_, FILE_LINE);
+            //std::lock_guard lock(mutex_);
             return {counters_, mode_, start_, initialSyncUs_};
         }
     };
@@ -1036,7 +1038,8 @@ void
 NetworkOPsImp::processHeartbeatTimer()
 {
     {
-        std::unique_lock lock{app_.getMasterMutex()};
+        //std::unique_lock lock{app_.getMasterMutex()};
+        perf::unique_lock lock(*app_.getMasterMutex(), FILE_LINE);
 
         // VFALCO NOTE This is for diagnosing a crash on exit
         LoadManager& mgr(app_.getLoadManager());
@@ -1328,12 +1331,17 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
     batchLock.unlock();
 
     {
-        std::unique_lock masterLock{app_.getMasterMutex(), std::defer_lock};
+        //std::unique_lock masterLock{app_.getMasterMutex(), std::defer_lock};
+        perf::unique_lock masterLock(*app_.getMasterMutex(), FILE_LINE, std::defer_lock);
         bool changed = false;
         {
-            std::unique_lock ledgerLock{
-                m_ledgerMaster.peekMutex(), std::defer_lock};
-            std::lock(masterLock, ledgerLock);
+//            std::unique_lock ledgerLock{
+//                m_ledgerMaster.peekMutex(), std::defer_lock};
+            perf::unique_lock ledgerLock(m_ledgerMaster.peekMutex(), FILE_LINE, std::defer_lock);
+//            std::lock(masterLock, ledgerLock);
+            masterLock.lock(FILE_LINE);
+            ledgerLock.lock(FILE_LINE);
+
 
             app_.openLedger().modify([&](OpenView& view, beast::Journal j) {
                 for (TransactionStatus& e : transactions)
@@ -4548,7 +4556,8 @@ NetworkOPsImp::StateAccounting::mode(OperatingMode om)
 {
     auto now = std::chrono::steady_clock::now();
 
-    std::lock_guard lock(mutex_);
+    perf::lock_guard lock(mutex_, FILE_LINE);
+    //std::lock_guard lock(mutex_);
     ++counters_[static_cast<std::size_t>(om)].transitions;
     if (om == OperatingMode::FULL &&
         counters_[static_cast<std::size_t>(om)].transitions == 1)

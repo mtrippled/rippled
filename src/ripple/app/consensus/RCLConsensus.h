@@ -95,7 +95,8 @@ class RCLConsensus
 
         // Since Consensus does not provide intrinsic thread-safety, this mutex
         // needs to guard all calls to consensus_.
-        mutable std::recursive_mutex mutex_;
+        mutable perf::mutex<std::recursive_mutex> mutex_{"ConsensusLock"};
+        //mutable std::recursive_mutex mutex_;
 
         std::unique_ptr<std::chrono::milliseconds> validationDelay_;
 
@@ -195,7 +196,8 @@ class RCLConsensus
             return parms_;
         }
 
-        std::recursive_mutex&
+        //std::recursive_mutex&
+        perf::mutex<std::recursive_mutex>&
         peekMutex() const
         {
             return mutex_;
