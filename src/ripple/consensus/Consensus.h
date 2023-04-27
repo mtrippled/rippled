@@ -1578,7 +1578,8 @@ Consensus<Adaptor>::phaseEstablish()
     // Building the new ledger is time-consuming and safe to not lock, but
     // the rest of the logic below needs to be locked, until
     // finishing (onAccept).
-    std::unique_lock<std::recursive_mutex> lock(adaptor_.peekMutex());
+    //std::unique_lock<std::recursive_mutex> lock(adaptor_.peekMutex());
+    perf::unique_lock lock(adaptor_.peekMutex(), FILE_LINE);
     do
     {
         if (txsBuilt)
@@ -1618,7 +1619,8 @@ Consensus<Adaptor>::phaseEstablish()
             closeResolution_,
             mode_.get(),
             getJson(true));
-        lock.lock();
+        lock.lock(FILE_LINE);
+        //lock.lock();
     } while (adaptor_.retryAccept(txsBuilt->second, startDelay));
 
     if (startDelay)

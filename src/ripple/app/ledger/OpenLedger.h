@@ -51,8 +51,10 @@ class OpenLedger
 private:
     beast::Journal const j_;
     CachedSLEs& cache_;
-    std::mutex mutable modify_mutex_;
-    std::mutex mutable current_mutex_;
+    perf::mutex<std::mutex> mutable modify_mutex_{"OpenLedgerModifyLock"};
+    //std::mutex mutable modify_mutex_;
+    perf::mutex<std::mutex> mutable current_mutex_{"OpenLedgerCurrentLock"};
+    //std::mutex mutable current_mutex_;
     std::shared_ptr<OpenView const> current_;
 
 public:
