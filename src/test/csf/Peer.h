@@ -262,7 +262,8 @@ struct Peer
     //! The collectors to report events to
     CollectorRefs& collectors;
 
-    mutable std::recursive_mutex mtx;
+    //mutable std::recursive_mutex mtx;
+    mutable perf::mutex<std::recursive_mutex> mtx{"TestConsensusLock"};
 
     std::unique_ptr<perf::PerfLog> perfLog;
 
@@ -1041,7 +1042,8 @@ struct Peer
         return false;
     }
 
-    std::recursive_mutex&
+    //std::recursive_mutex&
+    perf::mutex<std::recursive_mutex>&
     peekMutex() const
     {
         return mtx;
