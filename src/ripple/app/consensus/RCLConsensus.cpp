@@ -641,9 +641,11 @@ RCLConsensus::Adaptor::prepareOpenLedger(
         }
 
         // Build new open ledger
-        std::unique_lock lock{app_.getMasterMutex(), std::defer_lock};
-        std::unique_lock sl{ledgerMaster_.peekMutex(), std::defer_lock};
-        std::lock(lock, sl);
+        //std::unique_lock lock{app_.getMasterMutex(), std::defer_lock};
+        perf::unique_lock lock(*app_.getMasterMutex(), FILE_LINE);
+        //std::unique_lock sl{ledgerMaster_.peekMutex(), std::defer_lock};
+        perf::unique_lock sl(ledgerMaster_.peekMutex(), FILE_LINE);
+//        std::lock(lock, sl);
 
         auto const lastVal = ledgerMaster_.getValidatedLedger();
         std::optional<Rules> rules;
@@ -929,7 +931,8 @@ RCLConsensus::getJson(bool full) const
 {
     Json::Value ret;
     {
-        std::lock_guard _{adaptor_.peekMutex()};
+        perf::lock_guard _{adaptor_.peekMutex(), FILE_LINE};
+        //std::lock_guard _{adaptor_.peekMutex()};
         ret = consensus_.getJson(full);
     }
     ret["validating"] = adaptor_.validating();
@@ -941,7 +944,7 @@ RCLConsensus::timerEntry(NetClock::time_point const& now)
 {
     try
     {
-        std::lock_guard _{adaptor_.peekMutex()};
+        perf::lock_guard _{adaptor_.peekMutex(), FILE_LINE};
         //std::lock_guard _{adaptor_.peekMutex()};
         if (adaptor_.justOpened_ && perf::perfLog)
         {
@@ -965,7 +968,8 @@ RCLConsensus::gotTxSet(NetClock::time_point const& now, RCLTxSet const& txSet)
 {
     try
     {
-        std::lock_guard _{adaptor_.peekMutex()};
+        perf::lock_guard _{adaptor_.peekMutex(), FILE_LINE};
+        //std::lock_guard _{adaptor_.peekMutex()};
         consensus_.gotTxSet(now, txSet);
     }
     catch (SHAMapMissingNode const& mn)
@@ -983,7 +987,8 @@ RCLConsensus::simulate(
     NetClock::time_point const& now,
     std::optional<std::chrono::milliseconds> consensusDelay)
 {
-    std::lock_guard _{adaptor_.peekMutex()};
+    perf::lock_guard _{adaptor_.peekMutex(), FILE_LINE};
+    //std::lock_guard _{adaptor_.peekMutex()};
     consensus_.simulate(now, consensusDelay);
 }
 
@@ -992,7 +997,8 @@ RCLConsensus::peerProposal(
     NetClock::time_point const& now,
     RCLCxPeerPos const& newProposal)
 {
-    std::lock_guard _{adaptor_.peekMutex()};
+    perf::lock_guard _{adaptor_.peekMutex(), FILE_LINE};
+    //std::lock_guard _{adaptor_.peekMutex()};
     return consensus_.peerProposal(now, newProposal);
 }
 
@@ -1094,7 +1100,8 @@ RCLConsensus::startRound(
     hash_set<NodeID> const& nowUntrusted,
     hash_set<NodeID> const& nowTrusted)
 {
-    std::lock_guard _{adaptor_.peekMutex()};
+    perf::lock_guard _{adaptor_.peekMutex(), FILE_LINE};
+    //std::lock_guard _{adaptor_.peekMutex()};
     consensus_.startRound(
         now,
         prevLgrId,
