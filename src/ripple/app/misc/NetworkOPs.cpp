@@ -1371,8 +1371,9 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
             masterLock.lock(FILE_LINE);
             ledgerLock.lock(FILE_LINE);
 
-
+            auto tracer = perf::make_Tracer("modify_and_apply_to_open_ledger");
             app_.openLedger().modify([&](OpenView& view, beast::Journal j) {
+                auto timer = perf::startTimer(tracer, "apply_batch");
                 for (TransactionStatus& e : transactions)
                 {
                     // we check before adding to the batch
@@ -1398,6 +1399,7 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
                     }
                     changed = changed || result.second;
                 }
+                perf::END_TIMER(tracer, timer);
                 return changed;
             });
         }
