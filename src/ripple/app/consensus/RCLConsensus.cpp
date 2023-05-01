@@ -35,6 +35,7 @@
 #include <ripple/app/misc/ValidatorKeys.h>
 #include <ripple/app/misc/ValidatorList.h>
 #include <ripple/basics/random.h>
+#include <ripple/basics/PerfLog.h>
 #include <ripple/beast/core/LexicalCast.h>
 #include <ripple/consensus/LedgerTiming.h>
 #include <ripple/nodestore/DatabaseShard.h>
@@ -1006,6 +1007,13 @@ RCLConsensus::timerEntry(NetClock::time_point const& now)
     {
         perf::lock_guard _{adaptor_.peekMutex(), FILE_LINE};
         //std::lock_guard _{adaptor_.peekMutex()};
+        if (adaptor_.justOpened_ && perf::perfLog)
+        {
+            adaptor_.justOpened_ = false;
+            // Do this as soon as possible after ConsensusPhase::open happens and
+            // the corresponding lock had ended.
+            perf::perfLog->triggerReport();
+        }
         consensus_.timerEntry(now);
     }
     catch (SHAMapMissingNode const& mn)

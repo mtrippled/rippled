@@ -175,6 +175,9 @@ public:
 
     virtual void
     addEvent(Timers const& timers) = 0;
+
+    virtual void
+    triggerReport() = 0;
 };
 
 extern PerfLog* perfLog;

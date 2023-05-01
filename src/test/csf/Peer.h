@@ -270,6 +270,8 @@ struct Peer
     std::unique_ptr<std::chrono::milliseconds> delay{
         std::make_unique<std::chrono::milliseconds>(0)};
 
+    bool justOpened_{false};
+
     struct Null_test : public beast::unit_test::suite
     {
         void

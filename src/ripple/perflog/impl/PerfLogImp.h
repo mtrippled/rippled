@@ -212,6 +212,9 @@ public:
     addEvent(Timers const& timers) override;
 
     void
+    triggerReport() override;
+
+    void
     start() override;
 
     void

@@ -114,6 +114,8 @@ class RCLConsensus
         using Result = ConsensusResult<Adaptor>;
         using clock_type = Stopwatch;
 
+        bool justOpened_{false};
+
         Adaptor(
             Application& app,
             std::unique_ptr<FeeVote>&& feeVote,

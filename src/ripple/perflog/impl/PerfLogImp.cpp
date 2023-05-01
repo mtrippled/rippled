@@ -277,10 +277,20 @@ PerfLogImp::run()
     {
         {
             std::unique_lock<std::mutex> lock(mutex_);
-            if (cond_.wait_until(
-                    lock, lastLog_ + setup_.logInterval, [&] { return stop_; }))
+            if (setup_.logInterval.count() > 0)
             {
-                return;
+                if (cond_.wait_until(
+                    lock, lastLog_ + setup_.logInterval, [&]
+                    { return stop_; }))
+                {
+                    return;
+                }
+            }
+            else
+            {
+                cond_.wait(lock);
+                if (stop_)
+                    return;
             }
             if (rotate_)
             {
@@ -708,6 +718,13 @@ PerfLogImp::addEvent(Timers const& timers)
 {
     std::lock_guard<std::mutex> lock(eventsMutex_);
     events_.push_back(timers);
+}
+
+void
+PerfLogImp::triggerReport()
+{
+    if (setup_.logInterval.count() == 0)
+        cond_.notify_one();
 }
 
 //-----------------------------------------------------------------------------

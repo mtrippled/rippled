@@ -100,6 +100,11 @@ class PerfLogTest : public PerfLog
     addEvent(Timers const& timers) override
     {
     }
+
+    void
+    triggerReport() override
+    {
+    }
 };
 
 }  // namespace perf
