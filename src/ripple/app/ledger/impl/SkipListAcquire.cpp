@@ -109,7 +109,10 @@ SkipListAcquire::trigger(std::size_t limit, ScopedLockType& sl)
     }
 
     if (fallBack_)
+    {
+        JLOG(journal_.debug()) << "acquire SkipListAcquire::trigger";
         inboundLedgers_.acquire(hash_, 0, InboundLedger::Reason::GENERIC);
+    }
 }
 
 void

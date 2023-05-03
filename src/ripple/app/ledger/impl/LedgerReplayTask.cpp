@@ -154,6 +154,7 @@ LedgerReplayTask::trigger(ScopedLockType& sl)
         parent_ = app_.getLedgerMaster().getLedgerByHash(parameter_.startHash_);
         if (!parent_)
         {
+            JLOG(journal_.debug()) << "acquire LedgerReplayTask::trigger";
             parent_ = inboundLedgers_.acquire(
                 parameter_.startHash_,
                 parameter_.startSeq_,

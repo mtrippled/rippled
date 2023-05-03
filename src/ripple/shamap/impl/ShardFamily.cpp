@@ -190,6 +190,7 @@ ShardFamily::acquire(uint256 const& hash, std::uint32_t seq)
     {
         JLOG(j_.error()) << "Missing node in " << to_string(hash);
 
+        JLOG(j_.debug()) << "acquire ShardFamily::acquire";
         app_.getInboundLedgers().acquire(
             hash, seq, InboundLedger::Reason::SHARD);
     }

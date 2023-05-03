@@ -985,6 +985,7 @@ void
 LedgerMaster::failedSave(std::uint32_t seq, uint256 const& hash)
 {
     clearLedger(seq);
+    JLOG(m_journal.debug()) << "acquire LedgerMaster::failedSave";
     app_.getInboundLedgers().acquire(hash, seq, InboundLedger::Reason::GENERIC);
 }
 
@@ -1033,6 +1034,7 @@ LedgerMaster::checkAccept(uint256 const& hash, std::uint32_t seq)
 
         // FIXME: We may not want to fetch a ledger with just one
         // trusted validation
+        JLOG(m_journal.debug()) << "acquire LedgerMaster::checkAccept";
         ledger = app_.getInboundLedgers().acquire(
             hash, seq, InboundLedger::Reason::GENERIC);
     }
@@ -1408,8 +1410,11 @@ LedgerMaster::findNewLedgersToPublish(
             {
                 // Can we try to acquire the ledger we need?
                 if (!ledger && (++acqCount < ledger_fetch_size_))
+                {
+                    JLOG(m_journal.debug()) << "acquire findNewLedgersToPublish";
                     ledger = app_.getInboundLedgers().acquire(
                         *hash, seq, InboundLedger::Reason::GENERIC);
+                }
             }
 
             // Did we acquire the next ledger we need to publish?
@@ -1597,6 +1602,7 @@ LedgerMaster::updatePaths()
             if (lastLedger->open())
             {
                 // our parent is the problem
+                JLOG(m_journal.debug()) << "acquire updatePaths1";
                 app_.getInboundLedgers().acquire(
                     lastLedger->info().parentHash,
                     lastLedger->info().seq - 1,
@@ -1605,6 +1611,7 @@ LedgerMaster::updatePaths()
             else
             {
                 // this ledger is the problem
+                JLOG(m_journal.debug()) << "acquire updatePaths2";
                 app_.getInboundLedgers().acquire(
                     lastLedger->info().hash,
                     lastLedger->info().seq,
@@ -1831,6 +1838,7 @@ LedgerMaster::walkHashBySeq(
         // Try to acquire the complete ledger
         if (!ledger)
         {
+            JLOG(m_journal.debug()) << "acquire walkHashBySeq";
             if (auto const l = app_.getInboundLedgers().acquire(
                     *refHash, refIndex, reason))
             {
@@ -1954,6 +1962,7 @@ LedgerMaster::fetchForHistory(
         {
             if (!app_.getInboundLedgers().isFailure(*hash))
             {
+                JLOG(m_journal.debug()) << "acquire LedgerMaster::fetchForHistory1";
                 ledger =
                     app_.getInboundLedgers().acquire(*hash, missing, reason);
                 if (!ledger && missing != fetch_seq_ &&
@@ -2036,6 +2045,7 @@ LedgerMaster::fetchForHistory(
                     if (auto h = getLedgerHashForHistory(seq, reason))
                     {
                         assert(h->isNonZero());
+                        JLOG(m_journal.debug()) << "acquire LedgerMaster::fetchForHistory2";
                         app_.getInboundLedgers().acquire(*h, seq, reason);
                     }
                 }

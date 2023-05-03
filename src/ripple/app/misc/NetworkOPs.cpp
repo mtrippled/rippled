@@ -1764,8 +1764,11 @@ NetworkOPsImp::checkLastClosedLedger(
     auto consensus = m_ledgerMaster.getLedgerByHash(closedLedger);
 
     if (!consensus)
+    {
+        JLOG(m_journal.debug()) << "acquire NetworkOPsImp::checkLastClosedLedger";
         consensus = app_.getInboundLedgers().acquire(
             closedLedger, 0, InboundLedger::Reason::CONSENSUS);
+    }
 
     if (consensus &&
         (!m_ledgerMaster.canBeCurrent(consensus) ||

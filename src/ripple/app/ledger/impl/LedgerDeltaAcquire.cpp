@@ -109,8 +109,11 @@ LedgerDeltaAcquire::trigger(std::size_t limit, ScopedLockType& sl)
     }
 
     if (fallBack_)
+    {
+        JLOG(journal_.debug()) << "acquire LedgerDeltaAcquire::trigger";
         inboundLedgers_.acquire(
             hash_, ledgerSeq_, InboundLedger::Reason::GENERIC);
+    }
 }
 
 void

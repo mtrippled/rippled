@@ -250,6 +250,7 @@ private:
         {
             JLOG(j_.warn())
                 << "Ledger #" << ledger->info().seq << ": " << mn.what();
+            JLOG(j_.debug()) << "acquire LedgerCleaner getLedgerHash";
             app_.getInboundLedgers().acquire(
                 ledger->info().hash,
                 ledger->info().seq,
@@ -272,12 +273,14 @@ private:
         bool doNodes,
         bool doTxns)
     {
+        JLOG(j_.debug()) << "acquire LedgerCleaner doLedger1";
         auto nodeLedger = app_.getInboundLedgers().acquire(
             ledgerHash, ledgerIndex, InboundLedger::Reason::GENERIC);
         if (!nodeLedger)
         {
             JLOG(j_.debug()) << "Ledger " << ledgerIndex << " not available";
             app_.getLedgerMaster().clearLedger(ledgerIndex);
+            JLOG(j_.debug()) << "acquire LedgerCleaner doLedger2";
             app_.getInboundLedgers().acquire(
                 ledgerHash, ledgerIndex, InboundLedger::Reason::GENERIC);
             return false;
@@ -304,6 +307,7 @@ private:
         {
             JLOG(j_.debug()) << "Ledger " << ledgerIndex << " is missing nodes";
             app_.getLedgerMaster().clearLedger(ledgerIndex);
+            JLOG(j_.debug()) << "acquire LedgerCleaner doLedger3";
             app_.getInboundLedgers().acquire(
                 ledgerHash, ledgerIndex, InboundLedger::Reason::GENERIC);
             return false;
@@ -358,6 +362,7 @@ private:
                 {
                     // We found the hash and sequence of a better reference
                     // ledger.
+                    JLOG(j_.debug()) << "acquire LedgerCleaner getHash";
                     referenceLedger = app_.getInboundLedgers().acquire(
                         refHash, refIndex, InboundLedger::Reason::GENERIC);
                     if (referenceLedger)

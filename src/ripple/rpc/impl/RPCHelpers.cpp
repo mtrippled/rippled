@@ -1116,6 +1116,7 @@ getLedgerByContext(RPC::JsonContext& context)
                 // We don't have the ledger we need to figure out which ledger
                 // they want. Try to get it.
 
+                JLOG(context.app.journal("getLedgerByContext").debug()) << "getLedgerByContext1";
                 if (auto il = context.app.getInboundLedgers().acquire(
                         *refHash, refIndex, InboundLedger::Reason::GENERIC))
                 {
@@ -1148,6 +1149,7 @@ getLedgerByContext(RPC::JsonContext& context)
 
     // Try to get the desired ledger
     // Verify all nodes even if we think we have it
+    JLOG(context.app.journal("getLedgerByContext").debug()) << "getLedgerByContext2";
     auto ledger = context.app.getInboundLedgers().acquire(
         ledgerHash, ledgerIndex, InboundLedger::Reason::GENERIC);
 

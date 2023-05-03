@@ -98,7 +98,26 @@ InboundLedger::InboundLedger(
     , mReceiveDispatched(false)
     , mPeerSet(std::move(peerSet))
 {
-    JLOG(journal_.trace()) << "Acquiring ledger " << hash_;
+    char const* r;
+    switch (mReason)
+    {
+        case Reason::SHARD:
+            r = "SHARD";
+            break;
+        case Reason::HISTORY:
+            r = "HISTORY";
+            break;
+        case Reason::CONSENSUS:
+            r = "CONSENSUS";
+            break;
+        case Reason::GENERIC:
+            r = "GENERIC";
+            break;
+        default:
+            r="(shouldn't happen)";
+            assert(false);
+    }
+    JLOG(journal_.debug()) << "Acquiring ledger " << hash_ << ',' << mSeq << ' ' << r;
     touch();
 }
 
