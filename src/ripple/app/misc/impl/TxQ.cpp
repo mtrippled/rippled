@@ -762,9 +762,7 @@ TxQ::apply(
         return {terPRE_TICKET, false};
     }
 
-    JLOG(j_.debug()) << "TxQ lock2 locking";
     std::lock_guard lock(mutex_);
-    JLOG(j_.debug()) << "TxQ lock2 locked";
 
     // accountIter is not const because it may be updated further down.
     AccountMap::iterator accountIter = byAccount_.find(account);
@@ -828,7 +826,6 @@ TxQ::apply(
             JLOG(j_.trace())
                 << "Rejecting blocker transaction " << transactionID
                 << ".  Account has other queued transactions.";
-            JLOG(j_.debug()) << "TxQ lock2 unlocking1";
             return {telCAN_NOT_QUEUE_BLOCKS, false};
         }
         if (acctTxCount == 1 && (txSeqProx != txIter->first->first))
@@ -837,7 +834,6 @@ TxQ::apply(
             JLOG(j_.trace())
                 << "Rejecting blocker transaction " << transactionID
                 << ".  Blocker does not replace lone queued transaction.";
-            JLOG(j_.debug()) << "TxQ lock2 unlocking2";
             return {telCAN_NOT_QUEUE_BLOCKS, false};
         }
     }
@@ -876,7 +872,6 @@ TxQ::apply(
             txIter->first->second.consequences().isBlocker() &&
             (txIter->first->first != txSeqProx))
         {
-            JLOG(j_.debug()) << "TxQ lock2 unlocking3";
             return {telCAN_NOT_QUEUE_BLOCKED, false};
         }
 
@@ -913,7 +908,6 @@ TxQ::apply(
                 JLOG(j_.trace())
                     << "Ignoring transaction " << transactionID
                     << " in favor of queued " << existingIter->second.txID;
-                JLOG(j_.debug()) << "TxQ lock2 unlocking4";
                 return {telCAN_NOT_QUEUE_FEE, false};
             }
         }
@@ -940,15 +934,9 @@ TxQ::apply(
         if (txSeqProx.isSeq())
         {
             if (acctSeqProx > txSeqProx)
-            {
-                JLOG(j_.debug()) << "TxQ lock2 unlocking5";
                 return {tefPAST_SEQ, false};
-            }
             if (acctSeqProx < txSeqProx)
-            {
-                JLOG(j_.debug()) << "TxQ lock2 unlocking6";
                 return {terPRE_SEQ, false};
-            }
         }
     }
     else
@@ -959,10 +947,7 @@ TxQ::apply(
         TxQAccount const& txQAcct = accountIter->second;
 
         if (acctSeqProx > txSeqProx)
-        {
-            JLOG(j_.debug()) << "TxQ lock2 unlocking7";
             return {tefPAST_SEQ, false};
-        }
 
         // Determine if we need a multiTxn object.  Assuming the account
         // is in the queue, there are two situations where we need to
@@ -984,10 +969,7 @@ TxQ::apply(
                 replacedTxIter,
                 lock)};
             if (!isTesSuccess(ter))
-            {
-                JLOG(j_.debug()) << "TxQ lock2 unlocking8";
                 return {ter, false};
-            }
 
             requiresMultiTxn = true;
         }
@@ -1023,15 +1005,9 @@ TxQ::apply(
                 if (txSeqProx.isSeq())
                 {
                     if (txSeqProx < acctSeqProx)
-                    {
-                        JLOG(j_.debug()) << "TxQ lock2 unlocking9";
                         return {tefPAST_SEQ, false};
-                    }
                     else if (txSeqProx > acctSeqProx)
-                    {
-                        JLOG(j_.debug()) << "TxQ lock2 unlocking10";
                         return {terPRE_SEQ, false};
-                    }
                 }
             }
             else if (!replacedTxIter)
@@ -1043,10 +1019,7 @@ TxQ::apply(
                 // previous transaction or is a ticket.
                 if (txSeqProx.isSeq() &&
                     nextQueuableSeqImpl(sleAccount, lock) != txSeqProx)
-                {
-                    JLOG(j_.debug()) << "TxQ lock2 unlocking11";
                     return {telCAN_NOT_QUEUE, false};
-                }
             }
 
             // Sum fees and spending for all of the queued transactions
@@ -1130,7 +1103,6 @@ TxQ::apply(
                 // Drop the current transaction
                 JLOG(j_.trace()) << "Ignoring transaction " << transactionID
                                  << ". Total fees in flight too high.";
-                JLOG(j_.debug()) << "TxQ lock2 unlocking12";
                 return {telCAN_NOT_QUEUE_BALANCE, false};
             }
 
@@ -1139,10 +1111,7 @@ TxQ::apply(
 
             auto const sleBump = multiTxn->applyView.peek(accountKey);
             if (!sleBump)
-            {
-                JLOG(j_.debug()) << "TxQ lock2 unlocking13";
                 return {tefINTERNAL, false};
-            }
 
             // Subtract the fees and XRP spend from all of the other
             // transactions in the queue.  That prevents a transaction
@@ -1179,10 +1148,7 @@ TxQ::apply(
     auto const pcresult =
         preclaim(pfresult, app, multiTxn ? multiTxn->openView : view);
     if (!pcresult.likelyToClaimFee)
-    {
-        JLOG(j_.debug()) << "TxQ lock2 unlocking14";
         return {pcresult.ter, false};
-    }
 
     // Too low of a fee should get caught by preclaim
     assert(feeLevelPaid >= baseLevel);
@@ -1234,7 +1200,6 @@ TxQ::apply(
             /* Can't erase (*replacedTxIter) here because success
                 implies that it has already been deleted.
             */
-            JLOG(j_.debug()) << "TxQ lock2 unlocking15";
             return result;
         }
     }
@@ -1249,7 +1214,6 @@ TxQ::apply(
             // Bail, transaction cannot be held
             JLOG(j_.trace())
                 << "Transaction " << transactionID << " cannot be held";
-            JLOG(j_.debug()) << "TxQ lock2 unlocking16";
             return {ter, false};
         }
     }
@@ -1276,7 +1240,6 @@ TxQ::apply(
                 << "Queue is full, and transaction " << transactionID
                 << " would kick a transaction from the same account ("
                 << account << ") out of the queue.";
-            JLOG(j_.debug()) << "TxQ lock2 unlocking17";
             return {telCAN_NOT_QUEUE_FULL, false};
         }
         auto const& endAccount = byAccount_.at(lastRIter->account);
@@ -1326,7 +1289,6 @@ TxQ::apply(
             JLOG(j_.info())
                 << "Queue is full, and transaction " << transactionID
                 << " fee is lower than end item's account average fee";
-            JLOG(j_.debug()) << "TxQ lock2 unlocking18";
             return {telCAN_NOT_QUEUE_FULL, false};
         }
     }
@@ -1365,7 +1327,6 @@ TxQ::apply(
                      << candidate.account << " to queue."
                      << " Flags: " << flags;
 
-    JLOG(j_.debug()) << "TxQ lock2 unlocking19";
     return {terQUEUED, false};
 }
 
@@ -1384,9 +1345,7 @@ TxQ::apply(
 void
 TxQ::processClosedLedger(Application& app, ReadView const& view, bool timeLeap)
 {
-    JLOG(j_.debug()) << "TxQ lock8 locking";
     std::lock_guard lock(mutex_);
-    JLOG(j_.debug()) << "TxQ lock8 locked";
 
     feeMetrics_.update(app, view, timeLeap, setup_);
     auto const& snapshot = feeMetrics_.getSnapshot();
@@ -1421,8 +1380,6 @@ TxQ::processClosedLedger(Application& app, ReadView const& view, bool timeLeap)
         else
             ++txQAccountIter;
     }
-
-    JLOG(j_.debug()) << "TxQ lock8 unlocking";
 }
 
 /*
@@ -1465,9 +1422,7 @@ TxQ::accept(Application& app, OpenView& view)
 
     auto ledgerChanged = false;
 
-    JLOG(j_.debug()) << "TxQ lock1 locking";
     std::lock_guard lock(mutex_);
-    JLOG(j_.debug()) << "TxQ lock1 locked";
 
     auto const metricsSnapshot = feeMetrics_.getSnapshot();
 
@@ -1621,7 +1576,6 @@ TxQ::accept(Application& app, OpenView& view)
     }
     assert(byFee_.size() == startingSize);
 
-    JLOG(j_.debug()) << "TxQ lock1 unlocking";
     return ledgerChanged;
 }
 
@@ -1631,12 +1585,8 @@ TxQ::accept(Application& app, OpenView& view)
 SeqProxy
 TxQ::nextQueuableSeq(std::shared_ptr<SLE const> const& sleAccount) const
 {
-    JLOG(j_.debug()) << "TxQ lock7 locking";
     std::lock_guard<std::mutex> lock(mutex_);
-    JLOG(j_.debug()) << "TxQ lock6 locked";
-    auto ret = nextQueuableSeqImpl(sleAccount, lock);
-    JLOG(j_.debug()) << "TxQ lock6 unlocking";
-    return ret;
+    return nextQueuableSeqImpl(sleAccount, lock);
 }
 
 // The goal is to return a SeqProxy for a sequence that will fill the next
@@ -1726,13 +1676,9 @@ TxQ::tryDirectApply(
         return {};
 
     FeeLevel64 const requiredFeeLevel = [this, &view, flags]() {
-        JLOG(j_.debug()) << "TxQ lock9 locking";
         std::lock_guard lock(mutex_);
-        JLOG(j_.debug()) << "TxQ lock locked";
-        auto ret = getRequiredFeeLevel(
+        return getRequiredFeeLevel(
             view, flags, feeMetrics_.getSnapshot(), lock);
-        JLOG(j_.debug()) << "TxQ lock9 unlocking";
-        return ret;
     }();
 
     // If the transaction's fee is high enough we may be able to put the
@@ -1758,9 +1704,7 @@ TxQ::tryDirectApply(
         {
             // If the applied transaction replaced a transaction in the
             // queue then remove the replaced transaction.
-            JLOG(j_.debug()) << "TxQ lock10 locking";
             std::lock_guard lock(mutex_);
-            JLOG(j_.debug()) << "TxQ lock10 locked";
 
             AccountMap::iterator accountIter = byAccount_.find(account);
             if (accountIter != byAccount_.end())
@@ -1773,7 +1717,6 @@ TxQ::tryDirectApply(
                     removeFromByFee(existingIter, tx);
                 }
             }
-            JLOG(j_.debug()) << "TxQ lock10 unlocking";
         }
         return {std::pair(txnResult, didApply)};
     }
@@ -1805,9 +1748,7 @@ TxQ::getMetrics(OpenView const& view) const
 {
     Metrics result;
 
-    JLOG(j_.debug()) << "TxQ lock4 locking";
     std::lock_guard lock(mutex_);
-    JLOG(j_.debug()) << "TxQ lock4 locked";
 
     auto const snapshot = feeMetrics_.getSnapshot();
 
@@ -1821,7 +1762,6 @@ TxQ::getMetrics(OpenView const& view) const
     result.medFeeLevel = snapshot.escalationMultiplier;
     result.openLedgerFeeLevel = FeeMetrics::scaleFeeLevel(snapshot, view);
 
-    JLOG(j_.debug()) << "TxQ lock4 unlocking";
     return result;
 }
 
@@ -1832,9 +1772,7 @@ TxQ::getTxRequiredFeeAndSeq(
 {
     auto const account = (*tx)[sfAccount];
 
-    JLOG(j_.debug()) << "TxQ lock5 locking";
     std::lock_guard lock(mutex_);
-    JLOG(j_.debug()) << "TxQ lock5 locked";
 
     auto const snapshot = feeMetrics_.getSnapshot();
     auto const baseFee = calculateBaseFee(view, *tx);
@@ -1845,9 +1783,7 @@ TxQ::getTxRequiredFeeAndSeq(
     std::uint32_t const accountSeq = sle ? (*sle)[sfSequence] : 0;
     std::uint32_t const availableSeq = nextQueuableSeqImpl(sle, lock).value();
 
-    auto ret = FeeAndSeq{mulDiv(fee, baseFee, baseLevel).second, accountSeq, availableSeq};
-    JLOG(j_.debug()) << "TxQ lock5 unlocking";
-    return ret;
+    return {mulDiv(fee, baseFee, baseLevel).second, accountSeq, availableSeq};
 }
 
 std::vector<TxQ::TxDetails>
@@ -1855,25 +1791,19 @@ TxQ::getAccountTxs(AccountID const& account) const
 {
     std::vector<TxDetails> result;
 
-    JLOG(j_.debug()) << "TxQ lock3 locking";
     std::lock_guard lock(mutex_);
-    JLOG(j_.debug()) << "TxQ lock3 locked";
 
     AccountMap::const_iterator const accountIter{byAccount_.find(account)};
 
     if (accountIter == byAccount_.end() ||
         accountIter->second.transactions.empty())
-    {
-        JLOG(j_.debug()) << "TxQ lock3 unlocking1";
         return result;
-    }
 
     result.reserve(accountIter->second.transactions.size());
     for (auto const& tx : accountIter->second.transactions)
     {
         result.emplace_back(tx.second.getTxDetails());
     }
-    JLOG(j_.debug()) << "TxQ lock3 unlocking2";
     return result;
 }
 
@@ -1882,16 +1812,13 @@ TxQ::getTxs() const
 {
     std::vector<TxDetails> result;
 
-    JLOG(j_.debug()) << "TxQ lock6 locking";
     std::lock_guard lock(mutex_);
-    JLOG(j_.debug()) << "TxQ lock6 locked";
 
     result.reserve(byFee_.size());
 
     for (auto const& tx : byFee_)
         result.emplace_back(tx.getTxDetails());
 
-    JLOG(j_.debug()) << "TxQ lock6 unlocking";
     return result;
 }
 
