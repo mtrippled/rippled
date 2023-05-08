@@ -500,7 +500,8 @@ public:
     RCLCxLedger::ID
     prevLedgerID() const
     {
-        std::lock_guard _{mutex_};
+        //std::lock_guard _{mutex_};
+        perf::lock_guard _{mutex_, FILE_LINE};
         return consensus_.prevLedgerID();
     }
 
@@ -526,7 +527,8 @@ private:
     // Since Consensus does not provide intrinsic thread-safety, this mutex
     // guards all calls to consensus_. adaptor_ uses atomics internally
     // to allow concurrent access of its data members that have getters.
-    mutable std::recursive_mutex mutex_;
+//    mutable std::recursive_mutex mutex_;
+    mutable perf::mutex<std::recursive_mutex> mutex_{"ConsensusLock"};
 
     Adaptor adaptor_;
     Consensus<Adaptor> consensus_;

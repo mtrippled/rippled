@@ -255,6 +255,7 @@ struct Peer
     //! The collectors to report events to
     CollectorRefs& collectors;
 
+    mutable perf::mutex<std::recursive_mutex> mtx{"TestConsensusLock"};
     std::unique_ptr<perf::PerfLog> perfLog;
 
     std::unique_ptr<std::chrono::milliseconds> delay{
