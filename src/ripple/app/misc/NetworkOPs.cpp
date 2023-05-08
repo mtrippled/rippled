@@ -1363,6 +1363,7 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
             masterLock.lock(FILE_LINE);
             ledgerLock.lock(FILE_LINE);
 
+            auto tracer = perf::make_Tracer("modify_and_apply_to_open_ledger");
             app_.openLedger().modify([&](OpenView& view, beast::Journal j) {
                 for (TransactionStatus& e : transactions)
                 {
@@ -1374,8 +1375,10 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
                     if (e.failType == FailHard::yes)
                         flags |= tapFAIL_HARD;
 
+                    auto timer = perf::startTimer(tracer, "apply_transaction");
                     auto const result = app_.getTxQ().apply(
                         app_, view, e.transaction->getSTransaction(), flags, j);
+                    perf::END_TIMER(tracer, timer);
                     ++accounting_.txCounters.attempt;
                     if (e.local)
                         ++accounting_.txCounters.rpc_attempt;
