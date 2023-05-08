@@ -88,7 +88,7 @@ TransactionAcquire::done()
 }
 
 void
-TransactionAcquire::onTimer(bool progress, ScopedLockType& psl)
+TransactionAcquire::onTimer(bool progress, perf::unique_lock<perf::mutex<std::recursive_mutex>>& psl)
 {
     if (timeouts_ > MAX_TIMEOUTS)
     {
@@ -179,7 +179,8 @@ TransactionAcquire::takeNodes(
     std::vector<std::pair<SHAMapNodeID, Slice>> const& data,
     std::shared_ptr<Peer> const& peer)
 {
-    ScopedLockType sl(mtx_);
+    perf::unique_lock sl(mtx_, FILE_LINE);
+//    ScopedLockType sl(mtx_);
 
     if (complete_)
     {
@@ -248,7 +249,8 @@ TransactionAcquire::addPeers(std::size_t limit)
 void
 TransactionAcquire::init(int numPeers)
 {
-    ScopedLockType sl(mtx_);
+    perf::unique_lock sl(mtx_, FILE_LINE);
+//    ScopedLockType sl(mtx_);
 
     addPeers(numPeers);
 
@@ -258,7 +260,8 @@ TransactionAcquire::init(int numPeers)
 void
 TransactionAcquire::stillNeed()
 {
-    ScopedLockType sl(mtx_);
+    perf::unique_lock sl(mtx_, FILE_LINE);
+//    ScopedLockType sl(mtx_);
 
     if (timeouts_ > NORM_TIMEOUTS)
         timeouts_ = NORM_TIMEOUTS;

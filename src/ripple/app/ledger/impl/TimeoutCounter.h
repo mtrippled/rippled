@@ -98,15 +98,17 @@ protected:
 
     /** Schedule a call to queueJob() after mTimerInterval. */
     void
-    setTimer(ScopedLockType&);
+    setTimer(perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl);
+//    setTimer(ScopedLockType&);
 
     /** Queue a job to call invokeOnTimer(). */
     void
-    queueJob(ScopedLockType&);
+    queueJob(perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl);
+//    queueJob(ScopedLockType&);
 
     /** Hook called from invokeOnTimer(). */
     virtual void
-    onTimer(bool progress, ScopedLockType&) = 0;
+    onTimer(bool progress, perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl) = 0;
 
     /** Return a weak pointer to this. */
     virtual std::weak_ptr<TimeoutCounter>
@@ -122,7 +124,8 @@ protected:
     // ripple::Overlay. Used in subtypes for the kitchen sink.
     Application& app_;
     beast::Journal journal_;
-    mutable std::recursive_mutex mtx_;
+    mutable perf::mutex<std::recursive_mutex> mtx_{"TimeoutCounterLock"};
+//    mutable std::recursive_mutex mtx_;
 
     /** The hash of the object (in practice, always a ledger) we are trying to
      * fetch. */

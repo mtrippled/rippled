@@ -86,7 +86,8 @@ public:
             bool isNew = true;
             std::shared_ptr<InboundLedger> inbound;
             {
-                ScopedLockType sl(mLock);
+//                ScopedLockType sl(mLock);
+                perf::unique_lock sl(mLock, FILE_LINE);
                 if (stopping_)
                 {
                     return {};
@@ -189,7 +190,8 @@ public:
         std::shared_ptr<InboundLedger> ret;
 
         {
-            ScopedLockType sl(mLock);
+            perf::mutex<std::recursive_mutex> mLock{"InboundLedgersLock"};
+//            ScopedLockType sl(mLock);
 
             auto it = mLedgers.find(hash);
             if (it != mLedgers.end())
@@ -256,7 +258,8 @@ public:
     void
     logFailure(uint256 const& h, std::uint32_t seq) override
     {
-        ScopedLockType sl(mLock);
+        perf::mutex<std::recursive_mutex> mLock{"InboundLedgersLock"};
+//        ScopedLockType sl(mLock);
 
         mRecentFailures.emplace(h, seq);
     }
@@ -264,7 +267,8 @@ public:
     bool
     isFailure(uint256 const& h) override
     {
-        ScopedLockType sl(mLock);
+        perf::mutex<std::recursive_mutex> mLock{"InboundLedgersLock"};
+//        ScopedLockType sl(mLock);
 
         beast::expire(mRecentFailures, kReacquireInterval);
         return mRecentFailures.find(h) != mRecentFailures.end();
@@ -311,7 +315,8 @@ public:
     void
     clearFailures() override
     {
-        ScopedLockType sl(mLock);
+        perf::mutex<std::recursive_mutex> mLock{"InboundLedgersLock"};
+//        ScopedLockType sl(mLock);
 
         mRecentFailures.clear();
         mLedgers.clear();
@@ -341,7 +346,8 @@ public:
         std::vector<std::pair<uint256, std::shared_ptr<InboundLedger>>> acqs;
 
         {
-            ScopedLockType sl(mLock);
+            perf::mutex<std::recursive_mutex> mLock{"InboundLedgersLock"};
+//            ScopedLockType sl(mLock);
 
             acqs.reserve(mLedgers.size());
             for (auto const& it : mLedgers)
@@ -376,7 +382,8 @@ public:
     {
         std::vector<std::shared_ptr<InboundLedger>> acquires;
         {
-            ScopedLockType sl(mLock);
+            perf::mutex<std::recursive_mutex> mLock{"InboundLedgersLock"};
+//            ScopedLockType sl(mLock);
 
             acquires.reserve(mLedgers.size());
             for (auto const& it : mLedgers)
@@ -402,7 +409,8 @@ public:
         std::size_t total;
 
         {
-            ScopedLockType sl(mLock);
+            perf::mutex<std::recursive_mutex> mLock{"InboundLedgersLock"};
+//            ScopedLockType sl(mLock);
             MapType::iterator it(mLedgers.begin());
             total = mLedgers.size();
 
@@ -445,7 +453,8 @@ public:
     void
     stop() override
     {
-        ScopedLockType lock(mLock);
+        perf::mutex<std::recursive_mutex> mLock{"InboundLedgersLock"};
+//        ScopedLockType lock(mLock);
         stopping_ = true;
         mLedgers.clear();
         mRecentFailures.clear();
@@ -454,15 +463,17 @@ public:
     std::size_t
     cacheSize() override
     {
-        ScopedLockType lock(mLock);
+        perf::mutex<std::recursive_mutex> mLock{"InboundLedgersLock"};
+//        ScopedLockType lock(mLock);
         return mLedgers.size();
     }
 
 private:
     clock_type& m_clock;
 
-    using ScopedLockType = std::unique_lock<std::recursive_mutex>;
-    std::recursive_mutex mLock;
+//    using ScopedLockType = std::unique_lock<std::recursive_mutex>;
+//    std::recursive_mutex mLock;
+    perf::mutex<std::recursive_mutex> mLock{"InboundLedgersLock"};
 
     bool stopping_ = false;
     using MapType = hash_map<uint256, std::shared_ptr<InboundLedger>>;

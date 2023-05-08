@@ -113,7 +113,9 @@ public:
 
 private:
     void
-    onTimer(bool progress, ScopedLockType& peerSetLock) override;
+    onTimer(bool progress,
+        perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl) override;
+//    onTimer(bool progress, ScopedLockType& peerSetLock) override;
 
     std::weak_ptr<TimeoutCounter>
     pmDowncast() override;
@@ -124,7 +126,9 @@ private:
      * @param sl  lock. this function must be called with the lock
      */
     void
-    trigger(std::size_t limit, ScopedLockType& sl);
+    trigger(std::size_t limit,
+        perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl);
+//    trigger(std::size_t limit, ScopedLockType& sl);
 
     /**
      * Process a newly built ledger, such as store it.
@@ -136,7 +140,8 @@ private:
      */
     void
     onLedgerBuilt(
-        ScopedLockType& sl,
+        perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl,
+//        ScopedLockType& sl,
         std::optional<InboundLedger::Reason> reason = {});
 
     /**
@@ -144,7 +149,8 @@ private:
      * @param sl  lock. this function must be called with the lock
      */
     void
-    notify(ScopedLockType& sl);
+    notify(perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl);
+//    notify(ScopedLockType& sl);
 
     InboundLedgers& inboundLedgers_;
     std::uint32_t const ledgerSeq_;

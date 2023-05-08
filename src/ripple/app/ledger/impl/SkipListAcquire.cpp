@@ -53,7 +53,8 @@ SkipListAcquire::~SkipListAcquire()
 void
 SkipListAcquire::init(int numPeers)
 {
-    ScopedLockType sl(mtx_);
+    perf::unique_lock sl(mtx_, FILE_LINE);
+//    ScopedLockType sl(mtx_);
     if (!isDone())
     {
         trigger(numPeers, sl);
@@ -62,7 +63,7 @@ SkipListAcquire::init(int numPeers)
 }
 
 void
-SkipListAcquire::trigger(std::size_t limit, ScopedLockType& sl)
+SkipListAcquire::trigger(std::size_t limit, perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl)
 {
     if (auto const l = app_.getLedgerMaster().getLedgerByHash(hash_); l)
     {
@@ -113,7 +114,7 @@ SkipListAcquire::trigger(std::size_t limit, ScopedLockType& sl)
 }
 
 void
-SkipListAcquire::onTimer(bool progress, ScopedLockType& sl)
+SkipListAcquire::onTimer(bool progress, perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl)
 {
     JLOG(journal_.trace()) << "mTimeouts=" << timeouts_ << " for " << hash_;
     if (timeouts_ > LedgerReplayParameters::SUB_TASK_MAX_TIMEOUTS)
@@ -140,7 +141,8 @@ SkipListAcquire::processData(
     boost::intrusive_ptr<SHAMapItem const> const& item)
 {
     assert(ledgerSeq != 0 && item);
-    ScopedLockType sl(mtx_);
+    perf::unique_lock sl(mtx_, FILE_LINE);
+//    ScopedLockType sl(mtx_);
     if (isDone())
         return;
 
@@ -170,7 +172,8 @@ SkipListAcquire::processData(
 void
 SkipListAcquire::addDataCallback(OnSkipListDataCB&& cb)
 {
-    ScopedLockType sl(mtx_);
+    perf::unique_lock sl(mtx_, FILE_LINE);
+//    ScopedLockType sl(mtx_);
     dataReadyCallbacks_.emplace_back(std::move(cb));
     if (isDone())
     {
@@ -183,14 +186,15 @@ SkipListAcquire::addDataCallback(OnSkipListDataCB&& cb)
 std::shared_ptr<SkipListAcquire::SkipListData const>
 SkipListAcquire::getData() const
 {
-    ScopedLockType sl(mtx_);
+    perf::unique_lock sl(mtx_, FILE_LINE);
+//    ScopedLockType sl(mtx_);
     return data_;
 }
 
 void
 SkipListAcquire::retrieveSkipList(
     std::shared_ptr<Ledger const> const& ledger,
-    ScopedLockType& sl)
+    perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl)
 {
     if (auto const hashIndex = ledger->read(keylet::skip());
         hashIndex && hashIndex->isFieldPresent(sfHashes))
@@ -213,7 +217,7 @@ void
 SkipListAcquire::onSkipListAcquired(
     std::vector<uint256> const& skipList,
     std::uint32_t ledgerSeq,
-    ScopedLockType& sl)
+    perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl)
 {
     complete_ = true;
     data_ = std::make_shared<SkipListData>(ledgerSeq, skipList);
@@ -222,7 +226,7 @@ SkipListAcquire::onSkipListAcquired(
 }
 
 void
-SkipListAcquire::notify(ScopedLockType& sl)
+SkipListAcquire::notify(perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl)
 {
     assert(isDone());
     std::vector<OnSkipListDataCB> toCall;
@@ -235,7 +239,7 @@ SkipListAcquire::notify(ScopedLockType& sl)
         cb(good, hash_);
     }
 
-    sl.lock();
+    sl.lock(FILE_LINE);
 }
 
 }  // namespace ripple

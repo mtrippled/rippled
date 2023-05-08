@@ -276,6 +276,10 @@ namespace ripple {
 
         //------------------------------------------------------------------------------
 
+        /*
+         * This is buggy, not sure why. Doesn't seem to matter too much though
+         * to just lock manually (as long as order is maintained in each
+         * double-lock), such as with master lock and ledger master lock pairs.
         template <class PerfLock, class StdLock>
         void
         lock(PerfLock& p, StdLock& s, std::string_view const& label)
@@ -303,6 +307,7 @@ namespace ripple {
                 std::this_thread::yield();
             }
         }
+         */
 
         //------------------------------------------------------------------------------
 

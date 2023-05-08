@@ -57,7 +57,8 @@ LedgerDeltaAcquire::~LedgerDeltaAcquire()
 void
 LedgerDeltaAcquire::init(int numPeers)
 {
-    ScopedLockType sl(mtx_);
+    perf::unique_lock sl(mtx_, FILE_LINE);
+//    ScopedLockType sl(mtx_);
     if (!isDone())
     {
         trigger(numPeers, sl);
@@ -66,7 +67,9 @@ LedgerDeltaAcquire::init(int numPeers)
 }
 
 void
-LedgerDeltaAcquire::trigger(std::size_t limit, ScopedLockType& sl)
+LedgerDeltaAcquire::trigger(std::size_t limit,
+    perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl)
+//LedgerDeltaAcquire::trigger(std::size_t limit, ScopedLockType& sl)
 {
     fullLedger_ = app_.getLedgerMaster().getLedgerByHash(hash_);
     if (fullLedger_)
@@ -114,7 +117,9 @@ LedgerDeltaAcquire::trigger(std::size_t limit, ScopedLockType& sl)
 }
 
 void
-LedgerDeltaAcquire::onTimer(bool progress, ScopedLockType& sl)
+LedgerDeltaAcquire::onTimer(bool progress,
+    perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl)
+//LedgerDeltaAcquire::onTimer(bool progress, ScopedLockType& sl)
 {
     JLOG(journal_.trace()) << "mTimeouts=" << timeouts_ << " for " << hash_;
     if (timeouts_ > LedgerReplayParameters::SUB_TASK_MAX_TIMEOUTS)
@@ -140,7 +145,8 @@ LedgerDeltaAcquire::processData(
     LedgerInfo const& info,
     std::map<std::uint32_t, std::shared_ptr<STTx const>>&& orderedTxns)
 {
-    ScopedLockType sl(mtx_);
+    perf::unique_lock sl(mtx_, FILE_LINE);
+//    ScopedLockType sl(mtx_);
     JLOG(journal_.trace()) << "got data for " << hash_;
     if (isDone())
         return;
@@ -171,7 +177,8 @@ LedgerDeltaAcquire::addDataCallback(
     InboundLedger::Reason reason,
     OnDeltaDataCB&& cb)
 {
-    ScopedLockType sl(mtx_);
+    perf::unique_lock sl(mtx_, FILE_LINE);
+//    ScopedLockType sl(mtx_);
     dataReadyCallbacks_.emplace_back(std::move(cb));
     if (reasons_.count(reason) == 0)
     {
@@ -191,7 +198,8 @@ LedgerDeltaAcquire::addDataCallback(
 std::shared_ptr<Ledger const>
 LedgerDeltaAcquire::tryBuild(std::shared_ptr<Ledger const> const& parent)
 {
-    ScopedLockType sl(mtx_);
+    perf::unique_lock sl(mtx_, FILE_LINE);
+//    ScopedLockType sl(mtx_);
 
     if (fullLedger_)
         return fullLedger_;
@@ -222,7 +230,8 @@ LedgerDeltaAcquire::tryBuild(std::shared_ptr<Ledger const> const& parent)
 
 void
 LedgerDeltaAcquire::onLedgerBuilt(
-    ScopedLockType& sl,
+    perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl,
+//    ScopedLockType& sl,
     std::optional<InboundLedger::Reason> reason)
 {
     JLOG(journal_.debug()) << "onLedgerBuilt " << hash_
@@ -260,7 +269,8 @@ LedgerDeltaAcquire::onLedgerBuilt(
 }
 
 void
-LedgerDeltaAcquire::notify(ScopedLockType& sl)
+LedgerDeltaAcquire::notify(perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl)
+//LedgerDeltaAcquire::notify(ScopedLockType& sl)
 {
     assert(isDone());
     std::vector<OnDeltaDataCB> toCall;
@@ -273,7 +283,7 @@ LedgerDeltaAcquire::notify(ScopedLockType& sl)
         cb(good, hash_);
     }
 
-    sl.lock();
+    sl.lock(FILE_LINE);
 }
 
 }  // namespace ripple

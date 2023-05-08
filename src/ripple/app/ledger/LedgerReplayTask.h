@@ -131,7 +131,7 @@ public:
 
 private:
     void
-    onTimer(bool progress, ScopedLockType& sl) override;
+    onTimer(bool progress, perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl) override;
 
     std::weak_ptr<TimeoutCounter>
     pmDowncast() override;
@@ -160,14 +160,16 @@ private:
      * @param sl  lock. this function must be called with the lock
      */
     void
-    trigger(ScopedLockType& sl);
+    trigger(perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl);
+//    trigger(ScopedLockType& sl);
 
     /**
      * Try to build more ledgers
      * @param sl  lock. this function must be called with the lock
      */
     void
-    tryAdvance(ScopedLockType& sl);
+    tryAdvance(perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl);
+//    tryAdvance(ScopedLockType& sl);
 
     InboundLedgers& inboundLedgers_;
     LedgerReplayer& replayer_;

@@ -90,7 +90,8 @@ public:
     bool
     checkLocal();
     void
-    init(ScopedLockType& collectionLock);
+    init(perf::unique_lock<perf::mutex<std::recursive_mutex>>& collectionLock);
+//    init(ScopedLockType& collectionLock);
 
     bool
     gotData(
@@ -143,7 +144,7 @@ private:
     done();
 
     void
-    onTimer(bool progress, ScopedLockType& peerSetLock) override;
+    onTimer(bool progress, perf::unique_lock<perf::mutex<std::recursive_mutex>>& peerSetLock) override;
 
     std::size_t
     getPeerCount() const;
@@ -189,7 +190,8 @@ private:
     SHAMapAddNode mStats;
 
     // Data we have received from peers
-    std::mutex mReceivedDataLock;
+    perf::mutex<std::mutex> mReceivedDataLock{"InboundLedgerReceivedDataLock"};
+//    std::mutex mReceivedDataLock;
     std::vector<
         std::pair<std::weak_ptr<Peer>, std::shared_ptr<protocol::TMLedgerData>>>
         mReceivedData;

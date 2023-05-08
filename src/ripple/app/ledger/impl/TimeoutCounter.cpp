@@ -47,7 +47,8 @@ TimeoutCounter::TimeoutCounter(
 }
 
 void
-TimeoutCounter::setTimer(ScopedLockType& sl)
+TimeoutCounter::setTimer(perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl)
+//TimeoutCounter::setTimer(ScopedLockType& sl)
 {
     if (isDone())
         return;
@@ -59,14 +60,16 @@ TimeoutCounter::setTimer(ScopedLockType& sl)
 
             if (auto ptr = wptr.lock())
             {
-                ScopedLockType sl(ptr->mtx_);
+                perf::unique_lock sl(ptr->mtx_, FILE_LINE);
+//                ScopedLockType sl(ptr->mtx_);
                 ptr->queueJob(sl);
             }
         });
 }
 
 void
-TimeoutCounter::queueJob(ScopedLockType& sl)
+TimeoutCounter::queueJob(perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl)
+//TimeoutCounter::queueJob(ScopedLockType& sl)
 {
     if (isDone())
         return;
@@ -92,7 +95,8 @@ TimeoutCounter::queueJob(ScopedLockType& sl)
 void
 TimeoutCounter::invokeOnTimer()
 {
-    ScopedLockType sl(mtx_);
+    perf::unique_lock sl(mtx_, FILE_LINE);
+//    ScopedLockType sl(mtx_);
 
     if (isDone())
         return;
@@ -117,7 +121,8 @@ TimeoutCounter::invokeOnTimer()
 void
 TimeoutCounter::cancel()
 {
-    ScopedLockType sl(mtx_);
+    perf::unique_lock sl(mtx_, FILE_LINE);
+//    ScopedLockType sl(mtx_);
     if (!isDone())
     {
         failed_ = true;

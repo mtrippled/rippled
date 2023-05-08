@@ -111,7 +111,7 @@ public:
 
 private:
     void
-    onTimer(bool progress, ScopedLockType& peerSetLock) override;
+    onTimer(bool progress, perf::unique_lock<perf::mutex<std::recursive_mutex>>& peerSetLock) override;
 
     std::weak_ptr<TimeoutCounter>
     pmDowncast() override;
@@ -122,7 +122,7 @@ private:
      * @param sl  lock. this function must be called with the lock
      */
     void
-    trigger(std::size_t limit, ScopedLockType& sl);
+    trigger(std::size_t limit, perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl);
 
     /**
      * Retrieve the skip list from the ledger
@@ -132,7 +132,7 @@ private:
     void
     retrieveSkipList(
         std::shared_ptr<Ledger const> const& ledger,
-        ScopedLockType& sl);
+        perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl);
 
     /**
      * Process the skip list
@@ -144,14 +144,14 @@ private:
     onSkipListAcquired(
         std::vector<uint256> const& skipList,
         std::uint32_t ledgerSeq,
-        ScopedLockType& sl);
+        perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl);
 
     /**
      * Call the OnSkipListDataCB callbacks
      * @param sl  lock. this function must be called with the lock
      */
     void
-    notify(ScopedLockType& sl);
+    notify(perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl);
 
     InboundLedgers& inboundLedgers_;
     std::unique_ptr<PeerSet> peerSet_;

@@ -134,7 +134,8 @@ LedgerReplayTask::init()
         }
     });
 
-    ScopedLockType sl(mtx_);
+    perf::unique_lock sl(mtx_, FILE_LINE);
+//    ScopedLockType sl(mtx_);
     if (!isDone())
     {
         trigger(sl);
@@ -143,7 +144,8 @@ LedgerReplayTask::init()
 }
 
 void
-LedgerReplayTask::trigger(ScopedLockType& sl)
+LedgerReplayTask::trigger(perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl)
+//LedgerReplayTask::trigger(ScopedLockType& sl)
 {
     JLOG(journal_.trace()) << "trigger " << hash_;
     if (!parameter_.full_)
@@ -175,13 +177,15 @@ LedgerReplayTask::deltaReady(uint256 const& deltaHash)
 {
     JLOG(journal_.trace()) << "Delta " << deltaHash << " ready for task "
                            << hash_;
-    ScopedLockType sl(mtx_);
+    perf::unique_lock sl(mtx_, FILE_LINE);
+//    ScopedLockType sl(mtx_);
     if (!isDone())
         tryAdvance(sl);
 }
 
 void
-LedgerReplayTask::tryAdvance(ScopedLockType& sl)
+LedgerReplayTask::tryAdvance(perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl)
+//LedgerReplayTask::tryAdvance(ScopedLockType& sl)
 {
     JLOG(journal_.trace()) << "tryAdvance task " << hash_
                            << (parameter_.full_ ? ", full parameter"
@@ -229,7 +233,8 @@ LedgerReplayTask::updateSkipList(
     std::vector<uint256> const& sList)
 {
     {
-        ScopedLockType sl(mtx_);
+        perf::unique_lock sl(mtx_, FILE_LINE);
+//        ScopedLockType sl(mtx_);
         if (isDone())
             return;
         if (!parameter_.update(hash, seq, sList))
@@ -241,13 +246,15 @@ LedgerReplayTask::updateSkipList(
     }
 
     replayer_.createDeltas(shared_from_this());
-    ScopedLockType sl(mtx_);
+    perf::unique_lock sl(mtx_, FILE_LINE);
+//    ScopedLockType sl(mtx_);
     if (!isDone())
         trigger(sl);
 }
 
 void
-LedgerReplayTask::onTimer(bool progress, ScopedLockType& sl)
+LedgerReplayTask::onTimer(bool progress, perf::unique_lock<perf::mutex<std::recursive_mutex>>& sl)
+//LedgerReplayTask::onTimer(bool progress, ScopedLockType& sl)
 {
     JLOG(journal_.trace()) << "mTimeouts=" << timeouts_ << " for " << hash_;
     if (timeouts_ > maxTimeouts_)
@@ -283,7 +290,8 @@ LedgerReplayTask::addDelta(std::shared_ptr<LedgerDeltaAcquire> const& delta)
             }
         });
 
-    ScopedLockType sl(mtx_);
+    perf::unique_lock sl(mtx_, FILE_LINE);
+//    ScopedLockType sl(mtx_);
     if (!isDone())
     {
         JLOG(journal_.trace())
@@ -299,7 +307,8 @@ LedgerReplayTask::addDelta(std::shared_ptr<LedgerDeltaAcquire> const& delta)
 bool
 LedgerReplayTask::finished() const
 {
-    ScopedLockType sl(mtx_);
+    perf::unique_lock sl(mtx_, FILE_LINE);
+//    ScopedLockType sl(mtx_);
     return isDone();
 }
 

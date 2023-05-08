@@ -59,7 +59,7 @@ private:
     std::unique_ptr<PeerSet> mPeerSet;
 
     void
-    onTimer(bool progress, ScopedLockType& peerSetLock) override;
+    onTimer(bool progress, perf::unique_lock<perf::mutex<std::recursive_mutex>>& peerSetLock) override;
 
     void
     done();
