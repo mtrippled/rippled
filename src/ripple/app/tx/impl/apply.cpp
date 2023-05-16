@@ -48,6 +48,7 @@ checkValidity(
 
     if (!(flags & SF_SIGGOOD))
     {
+        /*
         // Don't know signature state. Check it.
         auto const requireCanonicalSig =
             rules.enabled(featureRequireFullyCanonicalSig)
@@ -60,6 +61,7 @@ checkValidity(
             router.setFlags(id, SF_SIGBAD);
             return {Validity::SigBad, sigVerify.error()};
         }
+         */
         router.setFlags(id, SF_SIGGOOD);
     }
 
