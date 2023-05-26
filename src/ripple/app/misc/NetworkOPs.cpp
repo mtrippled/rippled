@@ -1421,6 +1421,10 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
                     newOL, e.transaction->getSTransaction(), e.result);
                 e.transaction->setApplied();
             }
+            else
+            {
+                JLOG(m_journal.debug()) << "not applied " << transToken(e.result);
+            }
 
             e.transaction->setResult(e.result);
 
