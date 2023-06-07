@@ -79,7 +79,8 @@ HashRouter::shouldProcess(
     uint256 const& key,
     PeerShortID peer,
     int& flags,
-    std::chrono::seconds tx_interval)
+    std::chrono::seconds tx_interval,
+    std::optional<beast::Journal> j)
 {
     std::lock_guard lock(mutex_);
 
@@ -87,6 +88,14 @@ HashRouter::shouldProcess(
     auto& s = result.first;
     s.addPeer(peer);
     flags = s.getFlags();
+    if (j)
+    {
+        auto ss = std::make_shared<std::stringstream>();
+        *ss << "shouldProcess tx " << key << ". ";
+        bool ret = s.shouldProcess(suppressionMap_.clock().now(), tx_interval, ss);
+        j->debug() << ss->str();
+        return ret;
+    }
     return s.shouldProcess(suppressionMap_.clock().now(), tx_interval);
 }
 
@@ -115,7 +124,8 @@ HashRouter::setFlags(uint256 const& key, int flags)
 }
 
 auto
-HashRouter::shouldRelay(uint256 const& key)
+HashRouter::shouldRelay(uint256 const& key, bool applied,
+    std::optional<beast::Journal> j)
     -> std::optional<std::set<PeerShortID>>
 {
     std::lock_guard lock(mutex_);
@@ -124,6 +134,12 @@ HashRouter::shouldRelay(uint256 const& key)
 
     if (!s.shouldRelay(suppressionMap_.clock().now(), holdTime_))
         return {};
+
+    auto ss = std::make_shared<std::stringstream>();
+    *ss << "shouldRelay tx,applied " << key << ',' << applied << ". ";
+    s.shouldProcess(suppressionMap_.clock().now(), std::chrono::seconds(10), ss);
+    if (j)
+        j->debug() << ss->str();
 
     return s.releasePeerSet();
 }

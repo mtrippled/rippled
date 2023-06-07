@@ -1423,7 +1423,7 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
             }
             else
             {
-                JLOG(m_journal.debug()) << "not applied " << transToken(e.result);
+                JLOG(m_journal.debug()) << "not applied " << e.transaction->getID() << ',' << transToken(e.result);
             }
 
             e.transaction->setResult(e.result);
@@ -1521,6 +1521,7 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
             {
                 auto const toSkip =
                     app_.getHashRouter().shouldRelay(e.transaction->getID());
+                JLOG(m_journal.debug()) << "should suppress " << e.transaction->getID();
 
                 if (toSkip)
                 {
@@ -1549,6 +1550,14 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
             }
         }
     }
+
+    /*
+    for (TransactionStatus& e : transactions)
+    {
+        if (e.applied && e.local)
+            app_.getHashRouter().shouldRelay(e.transaction->getID(), true);
+    }
+     */
 
     batchLock.lock();
 
