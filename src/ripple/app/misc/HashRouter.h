@@ -28,10 +28,6 @@
 
 #include <optional>
 
-#include <memory>
-#include <sstream>
-#include <ripple/basics/Log.h>
-
 namespace ripple {
 
 // TODO convert these macros to int constants or an enum
@@ -121,23 +117,8 @@ private:
         }
 
         bool
-        shouldProcess(Stopwatch::time_point now, std::chrono::seconds interval,
-            std::shared_ptr<std::stringstream> const& ss = {})
+        shouldProcess(Stopwatch::time_point now, std::chrono::seconds interval)
         {
-            if (ss)
-            {
-                if (processed_)
-                {
-                    *ss << "processed_,interval,now "
-                        << processed_->time_since_epoch().count() << ','
-                        << interval.count() << ','
-                        << now.time_since_epoch().count();
-                }
-                else
-                {
-                    *ss << "no processed_";
-                }
-            }
             if (processed_ && ((*processed_ + interval) > now))
                 return false;
             processed_.emplace(now);
@@ -197,8 +178,7 @@ public:
         uint256 const& key,
         PeerShortID peer,
         int& flags,
-        std::chrono::seconds tx_interval,
-        std::optional<beast::Journal> j = std::nullopt);
+        std::chrono::seconds tx_interval);
 
     /** Set the flags on a hash.
 
@@ -223,8 +203,7 @@ public:
             _not_ be relayed.
     */
     std::optional<std::set<PeerShortID>>
-    shouldRelay(uint256 const& key, bool applied = false,
-        std::optional<beast::Journal> j = std::nullopt);
+    shouldRelay(uint256 const& key);
 
 private:
     // pair.second indicates whether the entry was created

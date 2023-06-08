@@ -1549,8 +1549,7 @@ PeerImp::handleTransaction(
         int flags;
         constexpr std::chrono::seconds tx_interval = 10s;
 
-        if (!app_.getHashRouter().shouldProcess(txID, id_, flags, tx_interval,
-            p_journal_))
+        if (!app_.getHashRouter().shouldProcess(txID, id_, flags, tx_interval))
         {
             // we have seen this transaction recently
             if (flags & SF_BAD)

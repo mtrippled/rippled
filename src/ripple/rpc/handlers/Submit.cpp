@@ -46,8 +46,6 @@ getFailHard(RPC::JsonContext const& context)
 Json::Value
 doSubmit(RPC::JsonContext& context)
 {
-    JLOG(context.app.journal("doSign").debug()) << "submitting transaction";
-
     context.loadType = Resource::feeMediumBurdenRPC;
 
     RPC::SubmitSync sync = RPC::SubmitSync::sync;
@@ -80,11 +78,6 @@ doSubmit(RPC::JsonContext& context)
             context.app,
             RPC::getProcessTxnFn(context.netOps),
             sync);
-
-        JLOG(context.app.journal("doSign").debug()) << "submitted hash,sender,sequence "
-            << ret[jss::tx_json][jss::hash].asString() << ','
-            << ret[jss::tx_json][jss::Account].asString() << ','
-            << ret[jss::tx_json][jss::Sequence].asUInt();
 
         ret[jss::deprecated] =
             "Signing support in the 'submit' command has been "
