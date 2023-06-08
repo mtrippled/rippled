@@ -1423,10 +1423,7 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
             }
             else
             {
-                JLOG(m_journal.debug()) << "not applied hash result local "
-                    << e.transaction->getID() << ' '
-                    << transToken(e.result) << ' '
-                    << e.local;
+                JLOG(m_journal.debug()) << "not applied " << transToken(e.result);
             }
 
             e.transaction->setResult(e.result);
