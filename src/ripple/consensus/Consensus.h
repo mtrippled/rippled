@@ -746,12 +746,18 @@ Consensus<Adaptor>::startRoundInternal(
     previousLedger_ = prevLedger;
     auto timer2 = perf::START_TIMER(adaptor_.tracer_);
     result_.reset();
+    perf::END_TIMER(adaptor_.tracer_, timer2);
     convergePercent_ = 0;
     haveCloseTimeConsensus_ = false;
+    auto timer2b = perf::START_TIMER(adaptor_.tracer_);
     openTime_.reset(clock_.now());
+    perf::END_TIMER(adaptor_.tracer_, timer2b);
+    auto timer2c = perf::START_TIMER(adaptor_.tracer_);
     clearPositions();
+    perf::END_TIMER(adaptor_.tracer_, timer2c);
+    auto timer2d = perf::START_TIMER(adaptor_.tracer_);
     beast::expire(acquired_, std::chrono::minutes(30));
-    perf::END_TIMER(adaptor_.tracer_, timer2);
+    perf::END_TIMER(adaptor_.tracer_, timer2d);
     rawCloseTimes_.peers.clear();
     rawCloseTimes_.self = {};
     deadNodes_.clear();
@@ -1566,6 +1572,7 @@ Consensus<Adaptor>::phaseEstablish()
 
     if (!haveCloseTimeConsensus_)
     {
+        JLOG(j_.info()) << "consensuslog phaseEstablish returning we have TX consensus but not CT consensus";
         JLOG(j_.info()) << "consensuslog phaseEstablish returning we have TX consensus but not CT consensus";
         return;
     }
