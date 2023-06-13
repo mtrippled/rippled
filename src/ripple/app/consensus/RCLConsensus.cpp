@@ -308,6 +308,7 @@ RCLConsensus::Adaptor::onClose(
     ConsensusMode mode,
     clock_type& clock) -> Result
 {
+    auto timer = perf::startTimer(tracer_, "onClose");
     auto const startTime = std::chrono::steady_clock::now();
 
     const bool wrongLCL = mode == ConsensusMode::wrongLedger;
@@ -317,7 +318,9 @@ RCLConsensus::Adaptor::onClose(
 
     auto const& prevLedger = ledger.ledger_;
 
+    auto timer2 = perf::START_TIMER(tracer_);
     ledgerMaster_.applyHeldTransactions();
+    perf::END_TIMER(tracer_, timer2);
     // Tell the ledger master not to acquire the ledger we're probably building
     ledgerMaster_.setBuildingLedger(prevLedger->info().seq + 1);
 
@@ -327,6 +330,7 @@ RCLConsensus::Adaptor::onClose(
         std::make_shared<SHAMap>(SHAMapType::TRANSACTION, app_.getNodeFamily());
     initialSet->setUnbacked();
 
+    auto timer3 = perf::START_TIMER(tracer_);
     // Build SHAMap containing all transactions in our open ledger
     for (auto const& tx : initialLedger->txs)
     {
@@ -338,6 +342,7 @@ RCLConsensus::Adaptor::onClose(
             SHAMapNodeType::tnTRANSACTION_NM,
             make_shamapitem(tx.first->getTransactionID(), s.slice()));
     }
+    perf::END_TIMER(tracer_, timer3);
 
     // Add pseudo-transactions to the set
     if (app_.config().standalone() || (proposing && !wrongLCL))
@@ -379,11 +384,13 @@ RCLConsensus::Adaptor::onClose(
         LedgerIndex const seq = prevLedger->info().seq + 1;
         RCLCensorshipDetector<TxID, LedgerIndex>::TxIDSeqVec proposed;
 
+        auto timer4 = perf::START_TIMER(tracer_);
         initialSet->visitLeaves(
             [&proposed,
              seq](boost::intrusive_ptr<SHAMapItem const> const& item) {
                 proposed.emplace_back(item->key(), seq);
             });
+        perf::END_TIMER(tracer_, timer4);
 
         censorshipDetector_.propose(std::move(proposed));
     }
@@ -393,6 +400,7 @@ RCLConsensus::Adaptor::onClose(
     initialLedger->info().seq;
     JLOG(j_.debug()) << "consensuslog onClose duration " <<
         std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - startTime).count() << "us";
+    perf::END_TIMER(tracer_, timer);
     return Result{
         std::move(initialSet),
         RCLCxPeerPos::Proposal{
@@ -450,7 +458,7 @@ RCLConsensus::Adaptor::onAccept(
             }
             {
                 auto const start = std::chrono::steady_clock::now();
-                this->app_.getOPs().endConsensus();
+                this->app_.getOPs().endConsensus(tracer_);
                 JLOG(j_.debug()) << "consensuslog endConsensus took " <<
                                  std::chrono::duration_cast<std::chrono::microseconds>(
                                      std::chrono::steady_clock::now() - start).count() << "us";
@@ -468,6 +476,7 @@ RCLConsensus::Adaptor::buildAndValidate(
     ConsensusMode const& mode,
     Json::Value&& consensusJson)
 {
+    auto timer = perf::startTimer(tracer_, "buildAndValidate");
     prevProposers_ = result.proposers;
     prevRoundTime_ = result.roundTime.read();
 
@@ -514,6 +523,7 @@ RCLConsensus::Adaptor::buildAndValidate(
 
     {
         auto const start = std::chrono::steady_clock::now();
+        auto canonTimer = perf::START_TIMER(tracer_);
         for (auto const &item: *result.txns.map_)
         {
             try
@@ -529,6 +539,7 @@ RCLConsensus::Adaptor::buildAndValidate(
                     << "    Tx: " << item.key() << " throws: " << ex.what();
             }
         }
+        perf::END_TIMER(tracer_, canonTimer);
         JLOG(j_.debug()) << "consensuslog built canonical tx set: " << retriableTxs.key() <<
             " in " << std::chrono::duration_cast<std::chrono::microseconds>(
                 std::chrono::steady_clock::now() - start).count() << "us";
@@ -612,6 +623,7 @@ RCLConsensus::Adaptor::buildAndValidate(
     ledgerMaster_.consensusBuilt(
         built.ledger_, result.txns.id(), std::move(consensusJson));
 
+    perf::END_TIMER(tracer_, timer);
     return {retriableTxs, built};
 }
 
@@ -622,6 +634,7 @@ RCLConsensus::Adaptor::prepareOpenLedger(
     ConsensusCloseTimes const& rawCloseTimes,
     ConsensusMode const& mode)
 {
+    auto timer = perf::startTimer(tracer_, "prepareOpenLedger");
     auto& retriableTxs = txsBuilt.first;
     auto const& built = txsBuilt.second;
 
@@ -639,6 +652,7 @@ RCLConsensus::Adaptor::prepareOpenLedger(
         // in the previous consensus round.
         //
         bool anyDisputes = false;
+        auto timer2 = perf::START_TIMER(tracer_);
         for (auto const& [_, dispute] : result.disputes)
         {
             (void)_;
@@ -671,12 +685,13 @@ RCLConsensus::Adaptor::prepareOpenLedger(
                 }
             }
         }
+        perf::END_TIMER(tracer_, timer2);
 
         // Build new open ledger
         //std::unique_lock lock{app_.getMasterMutex(), std::defer_lock};
-        perf::unique_lock lock(*app_.getMasterMutex(), FILE_LINE);
+        perf::unique_lock lock(*app_.getMasterMutex(), FILE_LINE, tracer_);
         //std::unique_lock sl{ledgerMaster_.peekMutex(), std::defer_lock};
-        perf::unique_lock sl(ledgerMaster_.peekMutex(), FILE_LINE);
+        perf::unique_lock sl(ledgerMaster_.peekMutex(), FILE_LINE, tracer_);
 //        std::lock(lock, sl);
 
         auto const lastVal = ledgerMaster_.getValidatedLedger();
@@ -698,7 +713,8 @@ RCLConsensus::Adaptor::prepareOpenLedger(
             [&](OpenView& view, beast::Journal j) {
                 // Stuff the ledger with transactions from the queue.
                 return app_.getTxQ().accept(app_, view);
-            });
+            },
+            tracer_);
         JLOG(j_.debug()) << "consensuslog building new ledger took " <<
             std::chrono::duration_cast<std::chrono::microseconds>(
                 std::chrono::steady_clock::now() - start).count() << "us";
@@ -757,6 +773,7 @@ RCLConsensus::Adaptor::prepareOpenLedger(
 
         app_.timeKeeper().adjustCloseTime(offset);
     }
+    perf::END_TIMER(tracer_, timer);
 }
 
 void
@@ -822,12 +839,15 @@ RCLConsensus::Adaptor::buildLCL(
             app_,
             retriableTxs,
             failedTxs,
-            j_);
+            j_,
+            tracer_);
     }();
 
     // Update fee computations based on accepted txs
     using namespace std::chrono_literals;
+    auto timer = perf::START_TIMER(tracer_);
     app_.getTxQ().processClosedLedger(app_, *built, roundTime > 5s);
+    perf::END_TIMER(tracer_, timer);
 
     // And stash the ledger in the ledger master
     if (ledgerMaster_.storeLedger(built))
@@ -993,7 +1013,7 @@ RCLConsensus::getJson(bool full) const
 {
     Json::Value ret;
     {
-        perf::lock_guard _{adaptor_.peekMutex(), FILE_LINE};
+        perf::lock_guard _{adaptor_.peekMutex(), "getJson", adaptor_.tracer_};
         //std::lock_guard _{adaptor_.peekMutex()};
         ret = consensus_.getJson(full);
     }
@@ -1006,8 +1026,9 @@ RCLConsensus::timerEntry(NetClock::time_point const& now)
 {
     try
     {
-        perf::lock_guard _{adaptor_.peekMutex(), FILE_LINE};
+        perf::lock_guard _{adaptor_.peekMutex(), "timerEntry", adaptor_.tracer_};
         //std::lock_guard _{adaptor_.peekMutex()};
+        consensus_.timerEntry(now);
         if (adaptor_.justOpened_ && perf::perfLog)
         {
             adaptor_.justOpened_ = false;
@@ -1015,7 +1036,6 @@ RCLConsensus::timerEntry(NetClock::time_point const& now)
             // the corresponding lock had ended.
             perf::perfLog->triggerReport();
         }
-        consensus_.timerEntry(now);
     }
     catch (SHAMapMissingNode const& mn)
     {
@@ -1030,7 +1050,7 @@ RCLConsensus::gotTxSet(NetClock::time_point const& now, RCLTxSet const& txSet)
 {
     try
     {
-        perf::lock_guard _{adaptor_.peekMutex(), FILE_LINE};
+        perf::lock_guard _{adaptor_.peekMutex(), "gotTxSet", adaptor_.tracer_};
         //std::lock_guard _{adaptor_.peekMutex()};
         consensus_.gotTxSet(now, txSet);
     }
@@ -1049,7 +1069,7 @@ RCLConsensus::simulate(
     NetClock::time_point const& now,
     std::optional<std::chrono::milliseconds> consensusDelay)
 {
-    perf::lock_guard _{adaptor_.peekMutex(), FILE_LINE};
+    perf::lock_guard _{adaptor_.peekMutex(), "simulate", adaptor_.tracer_};
     //std::lock_guard _{adaptor_.peekMutex()};
     consensus_.simulate(now, consensusDelay);
 }
@@ -1059,7 +1079,7 @@ RCLConsensus::peerProposal(
     NetClock::time_point const& now,
     RCLCxPeerPos const& newProposal)
 {
-    perf::lock_guard _{adaptor_.peekMutex(), FILE_LINE};
+    perf::lock_guard _{adaptor_.peekMutex(), "peerProposal", adaptor_.tracer_};
     //std::lock_guard _{adaptor_.peekMutex()};
     return consensus_.peerProposal(now, newProposal);
 }
@@ -1069,6 +1089,7 @@ RCLConsensus::Adaptor::preStartRound(
     RCLCxLedger const& prevLgr,
     hash_set<NodeID> const& nowTrusted)
 {
+    auto timer = perf::startTimer(tracer_, "preStartRound");
     // We have a key, we do not want out of sync validations after a restart
     // and are not amendment blocked.
     validating_ = validatorKeys_.publicKey.size() != 0 &&
@@ -1111,6 +1132,7 @@ RCLConsensus::Adaptor::preStartRound(
         !nowTrusted.empty())
         nUnlVote_.newValidators(prevLgr.seq() + 1, nowTrusted);
 
+    perf::END_TIMER(tracer_, timer);
     // propose only if we're in sync with the network (and validating)
     return validating_ && synced;
 }
@@ -1162,7 +1184,7 @@ RCLConsensus::startRound(
     hash_set<NodeID> const& nowUntrusted,
     hash_set<NodeID> const& nowTrusted)
 {
-    perf::lock_guard _{adaptor_.peekMutex(), FILE_LINE};
+    perf::lock_guard _{adaptor_.peekMutex(), "startRound", adaptor_.tracer_};
     //std::lock_guard _{adaptor_.peekMutex()};
     consensus_.startRound(
         now,

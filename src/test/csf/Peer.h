@@ -62,6 +62,9 @@ namespace bc = boost::container;
 */
 struct Peer
 {
+    std::shared_ptr<perf::Tracer> tracer_ {std::make_shared<perf::Tracer>("test_consensus")};
+    std::string phaseTraceLabel_;
+
     /** Basic wrapper of a proposed position taken by a peer.
 
         For real consensus, this would add additional data for serialization

@@ -204,9 +204,9 @@ public:
 
     // network state machine
     virtual bool
-    beginConsensus(uint256 const& netLCL) = 0;
+    beginConsensus(uint256 const& netLCL, std::shared_ptr<perf::Tracer> const& tracer = {}) = 0;
     virtual void
-    endConsensus() = 0;
+    endConsensus(std::shared_ptr<perf::Tracer> const& tracer = {}) = 0;
     virtual void
     setStandAlone() = 0;
     virtual void

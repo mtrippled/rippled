@@ -673,6 +673,7 @@ Consensus<Adaptor>::startRound(
     hash_set<NodeID_t> const& nowUntrusted,
     bool proposing)
 {
+    auto timer = perf::startTimer(adaptor_.tracer_, "startRound");
     if (firstRound_)
     {
         // take our initial view of closeTime_ from the seed ledger
@@ -721,6 +722,7 @@ Consensus<Adaptor>::startRound(
         }
     }
 
+    perf::END_TIMER(adaptor_.tracer_, timer);
     startRoundInternal(now, prevLedgerID, prevLedger, startMode);
 }
 template <class Adaptor>
@@ -732,18 +734,24 @@ Consensus<Adaptor>::startRoundInternal(
     ConsensusMode mode)
 {
     phase_ = ConsensusPhase::open;
+    perf::END_TIMER(adaptor_.tracer_, adaptor_.phaseTraceLabel_);
+    adaptor_.tracer_ = std::make_shared<perf::Tracer>("consensus");
+    adaptor_.phaseTraceLabel_ = perf::startTimer(adaptor_.tracer_, "open");
+    auto timer = perf::startTimer(adaptor_.tracer_, "startRoundInternal");
     JLOG(j_.debug()) << "consensuslog transitioned to ConsensusPhase::open";
     adaptor_.justOpened_ = true;
     mode_.set(mode, adaptor_);
     now_ = now;
     prevLedgerID_ = prevLedgerID;
     previousLedger_ = prevLedger;
+    auto timer2 = perf::START_TIMER(adaptor_.tracer_);
     result_.reset();
     convergePercent_ = 0;
     haveCloseTimeConsensus_ = false;
     openTime_.reset(clock_.now());
     clearPositions();
     beast::expire(acquired_, std::chrono::minutes(30));
+    perf::END_TIMER(adaptor_.tracer_, timer2);
     rawCloseTimes_.peers.clear();
     rawCloseTimes_.self = {};
     deadNodes_.clear();
@@ -763,6 +771,7 @@ Consensus<Adaptor>::startRoundInternal(
         // after the current lock has ended.
         adaptor_.timerDelay() = std::make_unique<std::chrono::milliseconds>(0);
     }
+    perf::END_TIMER(adaptor_.tracer_, timer);
 }
 
 template <class Adaptor>
@@ -1073,6 +1082,8 @@ Consensus<Adaptor>::simulate(
     result_->proposers = prevProposers_ = currPeerPositions_.size();
     prevRoundTime_ = result_->roundTime.read();
     phase_ = ConsensusPhase::accepted;
+    perf::END_TIMER(adaptor_.tracer_, adaptor_.phaseTraceLabel_);
+    adaptor_.phaseTraceLabel_ = perf::startTimer(adaptor_.tracer_, "accepted");
     adaptor_.onForceAccept(
         *result_,
         previousLedger_,
@@ -1259,6 +1270,7 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::playbackProposals()
 {
+    auto timer = perf::startTimer(adaptor_.tracer_, "playbackProposals");
     // Only use proposals for the ledger sequence we're currently working on.
     auto const currentPositions = recentPeerPositions_.find(
         previousLedger_.seq() + typename Ledger_t::Seq{1});
@@ -1288,6 +1300,7 @@ Consensus<Adaptor>::playbackProposals()
             }
         }
     }
+    perf::END_TIMER(adaptor_.tracer_, timer);
 }
 
 template <class Adaptor>
@@ -1579,7 +1592,7 @@ Consensus<Adaptor>::phaseEstablish()
     // the rest of the logic below needs to be locked, until
     // finishing (onAccept).
     //std::unique_lock<std::recursive_mutex> lock(adaptor_.peekMutex());
-    perf::unique_lock lock(adaptor_.peekMutex(), FILE_LINE);
+    perf::unique_lock lock(adaptor_.peekMutex(), "1st_build_and_validate", adaptor_.tracer_);
     do
     {
         if (txsBuilt)
@@ -1619,7 +1632,7 @@ Consensus<Adaptor>::phaseEstablish()
             closeResolution_,
             mode_.get(),
             getJson(true));
-        lock.lock(FILE_LINE);
+        lock.lock("before_check_retryAccept");
         //lock.lock();
     } while (adaptor_.retryAccept(txsBuilt->second, startDelay));
 
@@ -1651,6 +1664,8 @@ Consensus<Adaptor>::closeLedger()
     assert(!result_);
 
     phase_ = ConsensusPhase::establish;
+    perf::END_TIMER(adaptor_.tracer_, adaptor_.phaseTraceLabel_);
+    adaptor_.phaseTraceLabel_ = perf::startTimer(adaptor_.tracer_, "establish");
     JLOG(j_.debug()) << "consensuslog transitioned to ConsensusPhase::establish";
     rawCloseTimes_.self = now_;
 

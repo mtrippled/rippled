@@ -23,6 +23,7 @@
 #include <ripple/basics/chrono.h>
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/ledger/ApplyView.h>
+#include <ripple/perflog/Tracer.h>
 #include <chrono>
 #include <memory>
 
@@ -59,7 +60,8 @@ buildLedger(
     Application& app,
     CanonicalTXSet& txns,
     std::set<TxID>& failedTxs,
-    beast::Journal j);
+    beast::Journal j,
+    std::shared_ptr<perf::Tracer> tracer);
 
 /** Build a new ledger by replaying transactions
 

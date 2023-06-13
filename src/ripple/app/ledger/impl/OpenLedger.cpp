@@ -81,24 +81,31 @@ OpenLedger::accept(
     OrderedTxs& retries,
     ApplyFlags flags,
     std::string const& suffix,
-    modify_type const& f)
+    modify_type const& f,
+    std::shared_ptr<perf::Tracer> tracer)
 {
+    auto timer = perf::START_TIMER(tracer);
     JLOG(j_.trace()) << "accept ledger " << ledger->seq() << " " << suffix;
+    auto timer2 = perf::START_TIMER(tracer);
     auto next = create(rules, ledger);
+    perf::END_TIMER(tracer, timer2);
     if (retriesFirst)
     {
         // Handle disputed tx, outside lock
         using empty = std::vector<std::shared_ptr<STTx const>>;
+        auto timer3 = perf::START_TIMER(tracer);
         apply(app, *next, *ledger, empty{}, retries, flags, j_);
+        perf::END_TIMER(tracer, timer3);
     }
     // Block calls to modify, otherwise
     // new tx going into the open ledger
     // would get lost.
-    perf::lock_guard lock1(modify_mutex_, FILE_LINE);
+    perf::lock_guard lock1(modify_mutex_, FILE_LINE, tracer);
     //std::lock_guard lock1(modify_mutex_);
     // Apply tx from the current open view
     if (!current_->txs.empty())
     {
+        auto timer4 = perf::START_TIMER(tracer);
         apply(
             app,
             *next,
@@ -113,15 +120,24 @@ OpenLedger::accept(
             retries,
             flags,
             j_);
+        perf::END_TIMER(tracer, timer4);
     }
     // Call the modifier
     if (f)
+    {
+        auto timer5 = perf::START_TIMER(tracer);
         f(*next, j_);
+        perf::END_TIMER(tracer, timer5);
+    }
     // Apply local tx
+    auto timer6 = perf::START_TIMER(tracer);
     for (auto const& item : locals)
         app.getTxQ().apply(app, *next, item.second, flags, j_);
+    perf::END_TIMER(tracer, timer6);
 
     // If we didn't relay this transaction recently, relay it to all peers
+    // PERF NOTE: this looks like something that can be done asynchronously such as job queue
+    auto timer7 = perf::START_TIMER(tracer);
     for (auto const& txpair : next->txs)
     {
         auto const& tx = txpair.first;
@@ -140,11 +156,16 @@ OpenLedger::accept(
             app.overlay().relay(txId, msg, *toSkip);
         }
     }
+    perf::END_TIMER(tracer, timer7);
 
     // Switch to the new open view
     //std::lock_guard lock2(current_mutex_);
-    perf::lock_guard lock2(current_mutex_, FILE_LINE);
-    current_ = std::move(next);
+    {
+        perf::lock_guard lock2(current_mutex_, FILE_LINE, tracer);
+        current_ = std::move(next);
+    }
+
+    perf::END_TIMER(tracer, timer);
 }
 
 //------------------------------------------------------------------------------

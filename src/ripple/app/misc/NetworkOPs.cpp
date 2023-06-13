@@ -368,9 +368,9 @@ private:
 
 public:
     bool
-    beginConsensus(uint256 const& networkClosed) override;
+    beginConsensus(uint256 const& networkClosed, std::shared_ptr<perf::Tracer> const& tracer = {}) override;
     void
-    endConsensus() override;
+    endConsensus(std::shared_ptr<perf::Tracer> const& tracer = {}) override;
     void
     setStandAlone() override;
 
@@ -1860,8 +1860,10 @@ NetworkOPsImp::switchLastClosedLedger(
 }
 
 bool
-NetworkOPsImp::beginConsensus(uint256 const& networkClosed)
+NetworkOPsImp::beginConsensus(uint256 const& networkClosed,
+    std::shared_ptr<perf::Tracer> const& tracer)
 {
+    auto timer = perf::START_TIMER(tracer);
     assert(networkClosed.isNonZero());
 
     auto closingInfo = m_ledgerMaster.getCurrentLedger()->info();
@@ -1880,6 +1882,7 @@ NetworkOPsImp::beginConsensus(uint256 const& networkClosed)
             setMode(OperatingMode::TRACKING);
         }
 
+        perf::END_TIMER(tracer, timer);
         return false;
     }
 
@@ -1900,12 +1903,15 @@ NetworkOPsImp::beginConsensus(uint256 const& networkClosed)
     if (!changes.added.empty() || !changes.removed.empty())
         app_.getValidations().trustChanged(changes.added, changes.removed);
 
+    // tracer_ is reset in startRound()
+    perf::END_TIMER(tracer, timer);
     mConsensus.startRound(
         app_.timeKeeper().closeTime(),
         networkClosed,
         prevLedger,
         changes.removed,
         changes.added);
+    auto timer2 = perf::START_TIMER(tracer);
 
     const ConsensusPhase currPhase = mConsensus.phase();
     if (mLastConsensusPhase != currPhase)
@@ -1914,6 +1920,7 @@ NetworkOPsImp::beginConsensus(uint256 const& networkClosed)
         mLastConsensusPhase = currPhase;
     }
 
+    perf::END_TIMER(tracer, timer2);
     JLOG(m_journal.debug()) << "consensuslog Initiating consensus engine";
     return true;
 }
@@ -1944,8 +1951,9 @@ NetworkOPsImp::mapComplete(std::shared_ptr<SHAMap> const& map, bool fromAcquire)
 }
 
 void
-NetworkOPsImp::endConsensus()
+NetworkOPsImp::endConsensus(std::shared_ptr<perf::Tracer> const& tracer)
 {
+    auto timer = perf::START_TIMER(tracer);
     uint256 deadLedger = m_ledgerMaster.getClosedLedger()->info().parentHash;
 
     for (auto const& it : app_.overlay().getActivePeers())
@@ -1962,7 +1970,10 @@ NetworkOPsImp::endConsensus()
         checkLastClosedLedger(app_.overlay().getActivePeers(), networkClosed);
 
     if (networkClosed.isZero())
+    {
+        perf::END_TIMER(tracer, timer);
         return;
+    }
 
     // WRITEME: Unless we are in FULL and in the process of doing a consensus,
     // we must count how many nodes share our LCL, how many nodes disagree with
@@ -1996,7 +2007,8 @@ NetworkOPsImp::endConsensus()
         }
     }
 
-    beginConsensus(networkClosed);
+    perf::END_TIMER(tracer, timer);
+    beginConsensus(networkClosed, tracer);
 }
 
 void

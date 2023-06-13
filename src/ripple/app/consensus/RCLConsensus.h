@@ -115,6 +115,9 @@ class RCLConsensus
         using clock_type = Stopwatch;
 
         bool justOpened_{false};
+        std::shared_ptr<perf::Tracer> tracer_ {
+            std::make_shared<perf::Tracer>("consensus")};
+        std::string phaseTraceLabel_;
 
         Adaptor(
             Application& app,
@@ -602,7 +605,7 @@ public:
     RCLCxLedger::ID
     prevLedgerID() const
     {
-        std::lock_guard _{adaptor_.peekMutex()};
+        perf::lock_guard _{adaptor_.peekMutex(), "prevLedgerID", adaptor_.tracer_};
         return consensus_.prevLedgerID();
     }
 

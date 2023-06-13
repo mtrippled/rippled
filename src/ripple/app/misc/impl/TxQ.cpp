@@ -1412,8 +1412,10 @@ TxQ::processClosedLedger(Application& app, ReadView const& view, bool timeLeap)
         * the next tx in the queue, simply ordered by fee.
 */
 bool
-TxQ::accept(Application& app, OpenView& view)
+TxQ::accept(Application& app, OpenView& view,
+    std::shared_ptr<perf::Tracer> tracer)
 {
+    auto timer = perf::START_TIMER(tracer);
     /* Move transactions from the queue from largest fee level to smallest.
        As we add more transactions, the required fee level will increase.
        Stop when the transaction fee level gets lower than the required fee
@@ -1545,6 +1547,8 @@ TxQ::accept(Application& app, OpenView& view)
         }
     }
 
+    auto timer2 = perf::START_TIMER(tracer);
+
     // All transactions that can be moved out of the queue into the open
     // ledger have been. Rebuild the queue using the open ledger's
     // parent hash, so that transactions paying the same fee are
@@ -1576,6 +1580,8 @@ TxQ::accept(Application& app, OpenView& view)
     }
     assert(byFee_.size() == startingSize);
 
+    perf::END_TIMER(tracer, timer2);
+    perf::END_TIMER(tracer, timer);
     return ledgerChanged;
 }
 

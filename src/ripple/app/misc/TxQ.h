@@ -23,6 +23,7 @@
 #include <ripple/app/tx/applySteps.h>
 #include <ripple/ledger/ApplyView.h>
 #include <ripple/ledger/OpenView.h>
+#include <ripple/perflog/Tracer.h>
 #include <ripple/protocol/RippleLedgerHash.h>
 #include <ripple/protocol/STTx.h>
 #include <ripple/protocol/SeqProxy.h>
@@ -287,7 +288,8 @@ public:
         @return Whether any transactions were added to the `view`.
     */
     bool
-    accept(Application& app, OpenView& view);
+    accept(Application& app, OpenView& view,
+        std::shared_ptr<perf::Tracer> tracer = {});
 
     /**
         Update fee metrics and clean up the queue in preparation for

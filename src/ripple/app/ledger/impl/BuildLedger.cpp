@@ -44,8 +44,10 @@ buildLedgerImpl(
     NetClock::duration closeResolution,
     Application& app,
     beast::Journal j,
-    ApplyTxs&& applyTxs)
+    ApplyTxs&& applyTxs,
+    std::shared_ptr<perf::Tracer> tracer = {})
 {
+    auto timer = perf::startTimer(tracer, "buildLedgerImpl");
     auto const start = std::chrono::steady_clock::now();
 
     auto built = std::make_shared<Ledger>(*parent, closeTime);
@@ -59,10 +61,14 @@ buildLedgerImpl(
     //   perform updates, extract changes
 
     {
+        auto timer2 = perf::START_TIMER(tracer);
         OpenView accum(&*built);
+        perf::END_TIMER(tracer, timer2);
         assert(!accum.open());
         applyTxs(accum, built);
+        auto timer3 = perf::START_TIMER(tracer);
         accum.apply(*built);
+        perf::END_TIMER(tracer, timer3);
     }
 
     built->updateSkipList();
@@ -70,12 +76,18 @@ buildLedgerImpl(
         // Write the final version of all modified SHAMap
         // nodes to the node store to preserve the new LCL
 
+        auto timer4 = perf::startTimer(tracer, "flush_dirty_accounts");
         int const asf = built->stateMap().flushDirty(hotACCOUNT_NODE);
+        perf::END_TIMER(tracer, timer4);
+        auto timer5 = perf::startTimer(tracer, "flush_dirty_transactions");
         int const tmf = built->txMap().flushDirty(hotTRANSACTION_NODE);
+        perf::END_TIMER(tracer, timer5);
         JLOG(j.debug()) << "consensuslog Flushed " << asf << " accounts and " << tmf
                         << " transaction nodes";
     }
+    auto timer6 = perf::START_TIMER(tracer);
     built->unshare();
+    perf::END_TIMER(tracer, timer6);
 
     // Accept ledger
     assert(
@@ -86,6 +98,7 @@ buildLedgerImpl(
     JLOG(j.debug()) << "consensuslog built " << built->info().hash << " seq " <<
         built->info().seq << " in " << std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - start).count() << "us";
+    perf::END_TIMER(tracer, timer);
     return built;
 }
 
@@ -189,7 +202,8 @@ buildLedger(
     Application& app,
     CanonicalTXSet& txns,
     std::set<TxID>& failedTxns,
-    beast::Journal j)
+    beast::Journal j,
+    std::shared_ptr<perf::Tracer> tracer)
 {
     JLOG(j.debug()) << "consensuslog Report: Transaction Set = " << txns.key() << ", close "
                     << closeTime.time_since_epoch().count()
@@ -206,8 +220,10 @@ buildLedger(
             JLOG(j.debug())
                 << "consensuslog Attempting to apply " << txns.size() << " transactions";
 
+            auto timer = perf::START_TIMER(tracer);
             auto const applied =
                 applyTransactions(app, built, txns, failedTxns, accum, j);
+            perf::END_TIMER(tracer, timer);
 
             if (!txns.empty() || !failedTxns.empty())
                 JLOG(j.debug()) << "consensuslog Applied " << applied << " transactions; "
@@ -215,7 +231,8 @@ buildLedger(
                                 << txns.size() << " will be retried.";
             else
                 JLOG(j.debug()) << "consensuslog Applied " << applied << " transactions.";
-        });
+        },
+        tracer);
 }
 
 // Build a ledger by replaying

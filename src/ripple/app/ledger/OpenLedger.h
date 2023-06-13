@@ -170,7 +170,8 @@ public:
         OrderedTxs& retries,
         ApplyFlags flags,
         std::string const& suffix = "",
-        modify_type const& f = {});
+        modify_type const& f = {},
+        std::shared_ptr<perf::Tracer> tracer = {});
 
 private:
     /** Algorithm for applying transactions.
