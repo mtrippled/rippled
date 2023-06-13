@@ -117,7 +117,6 @@ class RCLConsensus
         bool justOpened_{false};
         std::shared_ptr<perf::Tracer> tracer_ {
             std::make_shared<perf::Tracer>("consensus")};
-        std::string phaseTraceLabel_;
 
         Adaptor(
             Application& app,

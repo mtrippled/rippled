@@ -734,9 +734,9 @@ Consensus<Adaptor>::startRoundInternal(
     ConsensusMode mode)
 {
     phase_ = ConsensusPhase::open;
-    perf::END_TIMER(adaptor_.tracer_, adaptor_.phaseTraceLabel_);
+    perf::END_TIMER(adaptor_.tracer_, "accepted");
     adaptor_.tracer_ = std::make_shared<perf::Tracer>("consensus");
-    adaptor_.phaseTraceLabel_ = perf::startTimer(adaptor_.tracer_, "open");
+    perf::startTimer(adaptor_.tracer_, "open");
     auto timer = perf::startTimer(adaptor_.tracer_, "startRoundInternal");
     JLOG(j_.debug()) << "consensuslog transitioned to ConsensusPhase::open";
     adaptor_.justOpened_ = true;
@@ -1082,8 +1082,8 @@ Consensus<Adaptor>::simulate(
     result_->proposers = prevProposers_ = currPeerPositions_.size();
     prevRoundTime_ = result_->roundTime.read();
     phase_ = ConsensusPhase::accepted;
-    perf::END_TIMER(adaptor_.tracer_, adaptor_.phaseTraceLabel_);
-    adaptor_.phaseTraceLabel_ = perf::startTimer(adaptor_.tracer_, "accepted");
+    perf::END_TIMER(adaptor_.tracer_, "establish");
+    perf::startTimer(adaptor_.tracer_, "accepted");
     adaptor_.onForceAccept(
         *result_,
         previousLedger_,
@@ -1576,6 +1576,8 @@ Consensus<Adaptor>::phaseEstablish()
     prevProposers_ = currPeerPositions_.size();
     prevRoundTime_ = result_->roundTime.read();
     phase_ = ConsensusPhase::accepted;
+    perf::END_TIMER(adaptor_.tracer_, "establish");
+    perf::startTimer(adaptor_.tracer_, "accepted");
     JLOG(j_.debug()) << "consensuslog transitioned to ConsensusPhase::accepted";
 
     std::optional<std::pair<
@@ -1664,8 +1666,8 @@ Consensus<Adaptor>::closeLedger()
     assert(!result_);
 
     phase_ = ConsensusPhase::establish;
-    perf::END_TIMER(adaptor_.tracer_, adaptor_.phaseTraceLabel_);
-    adaptor_.phaseTraceLabel_ = perf::startTimer(adaptor_.tracer_, "establish");
+    perf::END_TIMER(adaptor_.tracer_, "open");
+    perf::startTimer(adaptor_.tracer_, "establish");
     JLOG(j_.debug()) << "consensuslog transitioned to ConsensusPhase::establish";
     rawCloseTimes_.self = now_;
 
