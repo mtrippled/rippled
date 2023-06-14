@@ -755,9 +755,26 @@ Consensus<Adaptor>::startRoundInternal(
     auto timer2c = perf::START_TIMER(adaptor_.tracer_);
     clearPositions();
     perf::END_TIMER(adaptor_.tracer_, timer2c);
-    auto timer2d = perf::START_TIMER(adaptor_.tracer_);
-    beast::expire(acquired_, std::chrono::minutes(30));
-    perf::END_TIMER(adaptor_.tracer_, timer2d);
+//    beast::expire(acquired_, std::chrono::minutes(30));
+    {
+        auto timer2d = perf::START_TIMER(adaptor_.tracer_);
+        std::unique_ptr<std::vector<TxSet_t>> garbage =
+            std::make_unique<std::vector<TxSet_t>>();
+        auto const expired(std::chrono::steady_clock::now() - std::chrono::minutes(30));
+        JLOG(j_.debug()) << "consensuslog garbage collecting acquired_";
+        for (auto iter(acquired_.chronological.cbegin());
+            iter != acquired_.chronological.cend() && iter.when() <= expired;)
+        {
+            garbage->push_back(std::move(iter->second));
+            iter = acquired_.erase(iter);
+        }
+        JLOG(j_.debug()) << "consensuslog resetting acquired_ garbage item count " << garbage->size();
+        garbage.reset();
+        JLOG(j_.debug()) << "consensuslog finished reset acquired_garbage";
+        perf::END_TIMER(adaptor_.tracer_, timer2d);
+    }
+
+
     rawCloseTimes_.peers.clear();
     rawCloseTimes_.self = {};
     deadNodes_.clear();
