@@ -766,6 +766,7 @@ Consensus<Adaptor>::startRoundInternal(
         JLOG(j_.debug()) << "consensuslog disposing of acquired_ garbage item count " << garbage.size();
         if (garbage.size())
             adaptor_.dispose(std::move(garbage));
+        JLOG(j_.debug()) << "consensuslog garbage end";
         perf::END_TIMER(adaptor_.tracer_, timer2d);
     }
 

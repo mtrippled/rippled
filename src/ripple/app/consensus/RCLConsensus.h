@@ -267,8 +267,12 @@ class RCLConsensus
         void
         dispose(T&& garbage)
         {
+            JLOG(j_.debug()) << "consensuslog garbage1";
             app_.getJobQueue().addJob(jtGARBAGE, "garbage",
-                [g = std::move(garbage)]() {});
+                [&, g = std::move(garbage)]() {
+                JLOG(j_.debug()) << "consensuslog garbage2";
+            });
+            JLOG(j_.debug()) << "consensuslog garbage3";
         }
 
     private:
