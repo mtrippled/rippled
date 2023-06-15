@@ -40,6 +40,7 @@ enum JobType {
     // earlier jobs having lower priority than later jobs. If you wish to
     // insert a job at a specific priority, simply add it at the right location.
 
+    jtGARBAGE,            // Destroy object(s)
     jtPACK,               // Make a fetch pack for a peer
     jtPUBOLDLEDGER,       // An old ledger has been accepted
     jtCLIENT,             // A placeholder for the priority of all jtCLIENT jobs

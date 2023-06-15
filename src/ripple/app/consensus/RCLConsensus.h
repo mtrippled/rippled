@@ -32,6 +32,7 @@
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/consensus/Consensus.h>
 #include <ripple/core/JobQueue.h>
+#include <ripple/app/main/Application.h>
 #include <ripple/overlay/Message.h>
 #include <ripple/protocol/RippleLedgerHash.h>
 #include <ripple/protocol/STValidation.h>
@@ -260,6 +261,14 @@ class RCLConsensus
         timerDelay()
         {
             return timerDelay_;
+        }
+
+        template <class T>
+        void
+        dispose(T&& garbage)
+        {
+            app_.getJobQueue().addJob(jtGARBAGE, "garbage",
+                [g = std::move(garbage)]() {});
         }
 
     private:

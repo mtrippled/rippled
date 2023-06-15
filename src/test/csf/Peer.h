@@ -1076,6 +1076,12 @@ struct Peer
     {
         return delay;
     }
+
+    template <class T>
+    void
+    dispose(T&& garbage)
+    {
+    }
 };
 
 }  // namespace csf
