@@ -69,6 +69,7 @@ private:
         // clang-format off
         //                                                           avg     peak
         //  JobType               name                    limit    latency  latency
+        add(jtGARBAGE,           "disposeGarbage",       maxLimit,     0ms,     0ms);
         add(jtPACK,              "makeFetchPack",               1,     0ms,     0ms);
         add(jtPUBOLDLEDGER,      "publishAcqLedger",            2, 10000ms, 15000ms);
         add(jtVALIDATION_ut,     "untrustedValidation",  maxLimit,  2000ms,  5000ms);
