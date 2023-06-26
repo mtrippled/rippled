@@ -43,8 +43,10 @@ BatchWriter::store(std::shared_ptr<NodeObject> const& object)
 
     // If the batch has reached its limit, we wait
     // until the batch writer is finished
-    while (mWriteSet.size() >= batchWriteLimitSize)
-        mWriteCondition.wait(sl);
+// TODO: log when exceeds threshold. Maybe have a way bigger number for
+// upper threshold if somebody complains.
+//    while (mWriteSet.size() >= batchWriteLimitSize)
+//        mWriteCondition.wait(sl);
 
     mWriteSet.push_back(object);
 
