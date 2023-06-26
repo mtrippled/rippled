@@ -113,9 +113,13 @@ checkConsensusReached(
     std::size_t minConsensusPct,
     bool reachedMax)
 {
-    // If we are alone, we have a consensus
-    if (total == 0 && reachedMax)
-        return true;
+    // If we are alone for too long, we have a consensus
+    if (total == 0)
+    {
+        if (reachedMax)
+            return true;
+        return false;
+    }
 
     if (count_self)
     {
