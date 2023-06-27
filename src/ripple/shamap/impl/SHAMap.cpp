@@ -773,7 +773,8 @@ SHAMap::delItem(uint256 const& id)
 bool
 SHAMap::addGiveItem(
     SHAMapNodeType type,
-    boost::intrusive_ptr<SHAMapItem const> item)
+    boost::intrusive_ptr<SHAMapItem const> item,
+    std::shared_ptr<perf::Tracer> tracer)
 {
     assert(state_ != SHAMapState::Immutable);
     assert(type != SHAMapNodeType::tnINNER);
@@ -782,7 +783,9 @@ SHAMap::addGiveItem(
     uint256 tag = item->key();
 
     SharedPtrNodeStack stack;
+    perf::startTimer(tracer, "walkTowardsKey");
     walkTowardsKey(tag, &stack);
+    perf::endTimer(tracer, "walkTowardsKey");
 
     if (stack.empty())
         Throw<SHAMapMissingNode>(type_, tag);
@@ -843,9 +846,10 @@ SHAMap::addGiveItem(
 bool
 SHAMap::addItem(
     SHAMapNodeType type,
-    boost::intrusive_ptr<SHAMapItem const> item)
+    boost::intrusive_ptr<SHAMapItem const> item,
+    std::shared_ptr<perf::Tracer> tracer)
 {
-    return addGiveItem(type, std::move(item));
+    return addGiveItem(type, std::move(item), tracer);
 }
 
 SHAMapHash

@@ -343,7 +343,8 @@ RCLConsensus::Adaptor::onClose(
             tx.first->add(s);
             initialSet->addItem(
                 SHAMapNodeType::tnTRANSACTION_NM,
-                make_shamapitem(tx.first->getTransactionID(), s.slice()));
+                make_shamapitem(tx.first->getTransactionID(), s.slice()),
+                tracer_);
             ++txs;
         }
         auto const endTime2 = std::chrono::steady_clock::now();
@@ -354,7 +355,7 @@ RCLConsensus::Adaptor::onClose(
             << std::chrono::duration_cast<std::chrono::microseconds>(
                 endTime2 - startTime2).count() << "us"
             << ',' << ((std::chrono::duration_cast<std::chrono::nanoseconds>(
-                endTime2 - startTime2).count() + 0.0) / (txs + 0.0));
+                endTime2 - startTime2).count() + 0.0) / (txs + 0.0)) << "ns";
     }
 
     // Add pseudo-transactions to the set

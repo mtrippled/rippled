@@ -194,7 +194,8 @@ public:
     delItem(uint256 const& id);
 
     bool
-    addItem(SHAMapNodeType type, boost::intrusive_ptr<SHAMapItem const> item);
+    addItem(SHAMapNodeType type, boost::intrusive_ptr<SHAMapItem const> item,
+        std::shared_ptr<perf::Tracer> tracer = {});
 
     SHAMapHash
     getHash() const;
@@ -208,7 +209,8 @@ public:
     bool
     addGiveItem(
         SHAMapNodeType type,
-        boost::intrusive_ptr<SHAMapItem const> item);
+        boost::intrusive_ptr<SHAMapItem const> item,
+        std::shared_ptr<perf::Tracer> tracer = {});
 
     // Save a copy if you need to extend the life
     // of the SHAMapItem beyond this SHAMap
