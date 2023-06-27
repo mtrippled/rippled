@@ -330,19 +330,32 @@ RCLConsensus::Adaptor::onClose(
         std::make_shared<SHAMap>(SHAMapType::TRANSACTION, app_.getNodeFamily());
     initialSet->setUnbacked();
 
-    auto timer3 = perf::START_TIMER(tracer_);
-    // Build SHAMap containing all transactions in our open ledger
-    for (auto const& tx : initialLedger->txs)
     {
-        JLOG(j_.trace()) << "Adding open ledger TX "
-                         << tx.first->getTransactionID();
-        Serializer s(2048);
-        tx.first->add(s);
-        initialSet->addItem(
-            SHAMapNodeType::tnTRANSACTION_NM,
-            make_shamapitem(tx.first->getTransactionID(), s.slice()));
+        std::size_t txs = 0;
+        auto timer3 = perf::START_TIMER(tracer_);
+        auto const startTime2 = std::chrono::steady_clock::now();
+        // Build SHAMap containing all transactions in our open ledger
+        for (auto const &tx: initialLedger->txs)
+        {
+            JLOG(j_.trace()) << "Adding open ledger TX "
+                             << tx.first->getTransactionID();
+            Serializer s(2048);
+            tx.first->add(s);
+            initialSet->addItem(
+                SHAMapNodeType::tnTRANSACTION_NM,
+                make_shamapitem(tx.first->getTransactionID(), s.slice()));
+            ++txs;
+        }
+        auto const endTime2 = std::chrono::steady_clock::now();
+        perf::END_TIMER(tracer_, timer3);
+        JLOG(j_.debug())
+            << "consensuslog onClose adding open ledger txs,total,avg "
+            << txs << ','
+            << std::chrono::duration_cast<std::chrono::microseconds>(
+                endTime2 - startTime2).count() << "us"
+            << ',' << ((std::chrono::duration_cast<std::chrono::nanoseconds>(
+                endTime2 - startTime2).count() + 0.0) / (txs + 0.0));
     }
-    perf::END_TIMER(tracer_, timer3);
 
     // Add pseudo-transactions to the set
     if (app_.config().standalone() || (proposing && !wrongLCL))
