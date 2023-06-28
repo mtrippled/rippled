@@ -755,7 +755,7 @@ Consensus<Adaptor>::startRoundInternal(
     {
         auto timer2d = perf::START_TIMER(adaptor_.tracer_);
         std::vector<TxSet_t> garbage;
-        auto const expired(std::chrono::steady_clock::now() - std::chrono::minutes(30));
+        auto const expired(std::chrono::steady_clock::now() - std::chrono::minutes(15));
         for (auto iter(acquired_.chronological.cbegin());
             iter != acquired_.chronological.cend() && iter.when() <= expired;)
         {

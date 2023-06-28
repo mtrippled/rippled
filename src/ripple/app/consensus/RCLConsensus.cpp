@@ -332,26 +332,23 @@ RCLConsensus::Adaptor::onClose(
 
     {
         std::size_t txs = 0;
-        auto timer3 = perf::START_TIMER(tracer_);
+        perf::startTimer(tracer_, "add_txs");
         auto const startTime2 = std::chrono::steady_clock::now();
         // Build SHAMap containing all transactions in our open ledger
         for (auto const &tx: initialLedger->txs)
         {
-            perf::startTimer(tracer_, "inner_loop");
             JLOG(j_.trace()) << "Adding open ledger TX "
                              << tx.first->getTransactionID();
             Serializer s(2048);
             tx.first->add(s);
-            perf::startTimer(tracer_, "addItem");
             initialSet->addItem(
                 SHAMapNodeType::tnTRANSACTION_NM,
-                make_shamapitem(tx.first->getTransactionID(), s.slice()));
-            perf::endTimer(tracer_, "addItem");
+                make_shamapitem(tx.first->getTransactionID(), s.slice()),
+                tracer_);
             ++txs;
-            perf::endTimer(tracer_, "inner_loop");
         }
         auto const endTime2 = std::chrono::steady_clock::now();
-        perf::END_TIMER(tracer_, timer3);
+        perf::endTimer(tracer_, "add_txs");
         JLOG(j_.debug())
             << "consensuslog onClose adding open ledger txs,total,avg "
             << txs << ','

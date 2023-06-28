@@ -776,6 +776,7 @@ SHAMap::addGiveItem(
     boost::intrusive_ptr<SHAMapItem const> item,
     std::shared_ptr<perf::Tracer> tracer)
 {
+    perf::startTimer(tracer, "addGiveItem");
     assert(state_ != SHAMapState::Immutable);
     assert(type != SHAMapNodeType::tnINNER);
 
@@ -791,6 +792,7 @@ SHAMap::addGiveItem(
     auto [node, nodeID] = stack.top();
     stack.pop();
 
+    perf::startTimer(tracer, "addGiveIterm2");
     if (node->isLeaf())
     {
         auto leaf = std::static_pointer_cast<SHAMapLeafNode>(node);
@@ -836,8 +838,10 @@ SHAMap::addGiveItem(
         inner->setChild(b1, makeTypedLeaf(type, std::move(item), cowid_));
         inner->setChild(b2, makeTypedLeaf(type, std::move(otherItem), cowid_));
     }
+    perf::endTimer(tracer, "addGiveItem2");
 
     dirtyUp(stack, tag, node);
+    perf::endTimer(tracer, "addGiveItem");
     return true;
 }
 
