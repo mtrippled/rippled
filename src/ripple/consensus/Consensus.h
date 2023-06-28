@@ -956,6 +956,12 @@ Consensus<Adaptor>::peerProposalInternal(
             // should reflect the original's arrival time.
             newPeerPos.proposal().arrivalTime() =
                 peerPosIt->second.proposal().arrivalTime();
+            auto found = acquired_.find(peerPosIt->second.proposal().position());
+            if (found != acquired_.end())
+            {
+                garbage_.push(std::move(found->second));
+                acquired_.erase(found);
+            }
             peerPosIt->second = newPeerPos;
             ss << " updating position for peer and carrying over the previous position's arrival time as " <<
                 peerPosIt->second.proposal().arrivalTime().read().count() << "ms";
@@ -1682,6 +1688,16 @@ Consensus<Adaptor>::closeLedger()
     JLOG(j_.debug()) << "consensuslog transitioned to ConsensusPhase::establish";
     rawCloseTimes_.self = now_;
 
+    if (result_)
+    {
+        auto found = acquired_.find(result_->txns.id());
+        if (found != acquired_.end())
+        {
+            garbage_.push(std::move(found->second));
+            acquired_.erase(found);
+        }
+    }
+
     result_.emplace(
         adaptor_.onClose(previousLedger_, now_, mode_.get(), clock_));
     result_->roundTime.reset(clock_.now());
@@ -1904,6 +1920,13 @@ Consensus<Adaptor>::updateOurPositions(bool const share)
 
     if (ourNewSet)
     {
+        auto found = acquired_.find(result_->txns.id());
+        if (found != acquired_.end())
+        {
+            garbage_.push(std::move(found->second));
+            acquired_.erase(found);
+        }
+
         auto newID = ourNewSet->id();
 
         result_->txns = std::move(*ourNewSet);
