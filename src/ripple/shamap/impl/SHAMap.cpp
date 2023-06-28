@@ -783,9 +783,7 @@ SHAMap::addGiveItem(
     uint256 tag = item->key();
 
     SharedPtrNodeStack stack;
-    perf::startTimer(tracer, "walkTowardsKey");
     walkTowardsKey(tag, &stack);
-    perf::endTimer(tracer, "walkTowardsKey");
 
     if (stack.empty())
         Throw<SHAMapMissingNode>(type_, tag);
@@ -839,7 +837,9 @@ SHAMap::addGiveItem(
         inner->setChild(b2, makeTypedLeaf(type, std::move(otherItem), cowid_));
     }
 
+    perf::startTimer(tracer, "dirtyUp");
     dirtyUp(stack, tag, node);
+    perf::endTimer(tracer, "dirtyUp");
     return true;
 }
 
