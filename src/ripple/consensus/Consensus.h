@@ -766,10 +766,11 @@ Consensus<Adaptor>::startRoundInternal(
     perf::END_TIMER(adaptor_.tracer_, timer2c);
     {
         auto timer2d = perf::START_TIMER(adaptor_.tracer_);
-        auto const expired(std::chrono::steady_clock::now() - std::chrono::minutes(30));
+        auto const expired(std::chrono::steady_clock::now() - std::chrono::minutes(10));
         for (auto iter(acquired_.chronological.cbegin());
             iter != acquired_.chronological.cend() && iter.when() <= expired;)
         {
+            JLOG(j_.debug()) << "consensuslog garbage moving " << iter->first;
             garbage_.push(std::move(iter->second));
             iter = acquired_.erase(iter);
         }
