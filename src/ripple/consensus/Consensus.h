@@ -2134,7 +2134,7 @@ void
 Consensus<Adaptor>::clearPositions()
 {
     for (auto it = currPeerPositions_.begin(); it != currPeerPositions_.end();)
-        eraseAcquired(it);
+        it = eraseAcquired(it);
 }
 
 }  // namespace ripple
