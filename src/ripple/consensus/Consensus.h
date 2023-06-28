@@ -2117,12 +2117,16 @@ template <class Adaptor>
 Consensus<Adaptor>::CurrPeerPositionsType::iterator
 Consensus<Adaptor>::eraseAcquired(Consensus::CurrPeerPositionsType::iterator it)
 {
+    JLOG(j_.debug()) << "consensuslog garbage eraseAcquired " <<
+        it->second.proposal().position();
     // Remove from acquired_ or else it will consume space for
     // awhile. beast::aged_unordered_map::erase by key is broken and
     // is not used anywhere in the existing codebase.
     if (auto found = acquired_.find(it->second.proposal().position());
         found != acquired_.end())
     {
+        JLOG(j_.debug()) << "consensuslog garbage eraseAcquired " << it->second.proposal().position() << " found";
+                         it->second.proposal().position();
         garbage_.push(std::move(found->second));
         acquired_.erase(found);
     }
@@ -2133,8 +2137,12 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::clearPositions()
 {
+    JLOG(j_.debug()) << "consensuslog garbage clearPositions() pre sizes " <<
+        currPeerPositions_.size() << ',' << acquired_.size() << ',' << garbage_.size();
     for (auto it = currPeerPositions_.begin(); it != currPeerPositions_.end();)
         it = eraseAcquired(it);
+    JLOG(j_.debug()) << "consensuslog garbage clearPositions() post sizes " <<
+                     currPeerPositions_.size() << ',' << acquired_.size() << ',' << garbage_.size();
 }
 
 }  // namespace ripple
