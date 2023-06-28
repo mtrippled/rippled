@@ -572,6 +572,17 @@ private:
     NetClock::time_point
     asCloseTime(NetClock::time_point raw) const;
 
+    // Clear current peer positions and move corresponding tx sets for
+    // future destruction.
+    // Transaction Sets, indexed by hash of transaction tree.
+    using CurrPeerPositionsType = hash_map<NodeID_t, PeerPosition_t>;
+
+    CurrPeerPositionsType::iterator
+    eraseAcquired(CurrPeerPositionsType::iterator it);
+
+    void
+    clearPositions();
+
     Adaptor& adaptor_;
 
     ConsensusPhase phase_{ConsensusPhase::accepted};
@@ -609,13 +620,15 @@ private:
     // Last validated ledger seen by consensus
     Ledger_t previousLedger_;
 
-    // Transaction Sets, indexed by hash of transaction tree.
     beast::aged_unordered_map<
         typename TxSet_t::ID,
         const TxSet_t,
         clock_type::clock_type,
-        beast::uhash<>>
-        acquired_;
+        beast::uhash<>> acquired_;
+
+    // Large TxSets are time-consuming to destroy, so should be done outside of
+    // latency-sensitive code paths.
+    std::stack<TxSet_t> garbage_;
 
     std::optional<Result> result_;
     ConsensusCloseTimes rawCloseTimes_;
@@ -624,7 +637,7 @@ private:
     // Peer related consensus data
 
     // Peer proposed positions for the current round
-    hash_map<NodeID_t, PeerPosition_t> currPeerPositions_;
+    CurrPeerPositionsType currPeerPositions_;
 
     // Recently received peer positions, available when transitioning between
     // ledgers or rounds. Collected by ledger sequence. This allows us to
@@ -749,25 +762,23 @@ Consensus<Adaptor>::startRoundInternal(
     openTime_.reset(clock_.now());
     perf::END_TIMER(adaptor_.tracer_, timer2b);
     auto timer2c = perf::START_TIMER(adaptor_.tracer_);
-    currPeerPositions_.clear();
+    clearPositions();
     perf::END_TIMER(adaptor_.tracer_, timer2c);
-//    beast::expire(acquired_, std::chrono::minutes(30));
     {
         auto timer2d = perf::START_TIMER(adaptor_.tracer_);
-        std::vector<TxSet_t> garbage;
-        auto const expired(std::chrono::steady_clock::now() - std::chrono::minutes(15));
+        auto const expired(std::chrono::steady_clock::now() - std::chrono::minutes(30));
         for (auto iter(acquired_.chronological.cbegin());
             iter != acquired_.chronological.cend() && iter.when() <= expired;)
         {
-            garbage.push_back(std::move(iter->second));
+            garbage_.push(std::move(iter->second));
             iter = acquired_.erase(iter);
         }
-        JLOG(j_.debug()) << "consensuslog disposing of acquired_ garbage item count " << garbage.size();
-        if (garbage.size())
-            adaptor_.dispose(std::move(garbage));
+        JLOG(j_.debug()) << "consensuslog disposing of acquired_ garbage_ item count " << garbage_.size();
+        if (garbage_.size())
+            adaptor_.dispose(std::move(garbage_));
+        garbage_ = std::stack<TxSet_t>();
         perf::END_TIMER(adaptor_.tracer_, timer2d);
     }
-
 
     rawCloseTimes_.peers.clear();
     rawCloseTimes_.self = {};
@@ -930,7 +941,7 @@ Consensus<Adaptor>::peerProposalInternal(
                     it.second.unVote(peerID);
             }
             if (peerPosIt != currPeerPositions_.end())
-                currPeerPositions_.erase(peerID);
+                eraseAcquired(peerPosIt);
             deadNodes_.insert(peerID);
 
             JLOG(j_.info()) << ss.str();
@@ -1213,7 +1224,7 @@ Consensus<Adaptor>::handleWrongLedger(typename Ledger_t::ID const& lgrId)
             result_->compares.clear();
         }
 
-        currPeerPositions_.clear();
+        clearPositions();
         rawCloseTimes_.peers.clear();
         deadNodes_.clear();
 
@@ -1743,7 +1754,7 @@ Consensus<Adaptor>::updateOurPositions(bool const share)
                 JLOG(j_.warn()) << "Removing stale proposal from " << peerID;
                 for (auto& dt : result_->disputes)
                     dt.second.unVote(peerID);
-                it = currPeerPositions_.erase(it);
+                it = eraseAcquired(it);
             }
             else
             {
@@ -2100,6 +2111,30 @@ NetClock::time_point
 Consensus<Adaptor>::asCloseTime(NetClock::time_point raw) const
 {
     return roundCloseTime(raw, closeResolution_);
+}
+
+template <class Adaptor>
+Consensus<Adaptor>::CurrPeerPositionsType::iterator
+Consensus<Adaptor>::eraseAcquired(Consensus::CurrPeerPositionsType::iterator it)
+{
+    // Remove from acquired_ or else it will consume space for
+    // awhile. beast::aged_unordered_map::erase by key is broken and
+    // is not used anywhere in the existing codebase.
+    if (auto found = acquired_.find(it->second.proposal().position());
+        found != acquired_.end())
+    {
+        garbage_.push(std::move(found->second));
+        acquired_.erase(found);
+    }
+    return currPeerPositions_.erase(it);
+}
+
+template <class Adaptor>
+void
+Consensus<Adaptor>::clearPositions()
+{
+    for (auto it = currPeerPositions_.begin(); it != currPeerPositions_.end();)
+        eraseAcquired(it);
 }
 
 }  // namespace ripple
