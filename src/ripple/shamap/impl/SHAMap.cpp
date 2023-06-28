@@ -792,7 +792,7 @@ SHAMap::addGiveItem(
     auto [node, nodeID] = stack.top();
     stack.pop();
 
-    perf::startTimer(tracer, "addGiveIterm2");
+    perf::startTimer(tracer, "addGiveItem2");
     if (node->isLeaf())
     {
         auto leaf = std::static_pointer_cast<SHAMapLeafNode>(node);
