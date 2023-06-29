@@ -788,6 +788,7 @@ Consensus<Adaptor>::startRoundInternal(
             << ',' << acquired_.size();
         if (garbage.size())
             adaptor_.dispose(std::move(garbage));
+        acquiredGarbage_ = std::vector<typename TxSet_t::ID>();
         perf::END_TIMER(adaptor_.tracer_, timer2d);
     }
 
