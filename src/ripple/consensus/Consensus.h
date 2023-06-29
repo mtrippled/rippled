@@ -766,7 +766,7 @@ Consensus<Adaptor>::startRoundInternal(
     perf::END_TIMER(adaptor_.tracer_, timer2c);
     {
         auto timer2d = perf::START_TIMER(adaptor_.tracer_);
-        auto const expired(std::chrono::steady_clock::now() - std::chrono::minutes(10));
+        auto const expired(std::chrono::steady_clock::now() - std::chrono::minutes(30));
         for (auto iter(acquired_.chronological.cbegin());
             iter != acquired_.chronological.cend() && iter.when() <= expired;)
         {
