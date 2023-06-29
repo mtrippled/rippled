@@ -628,7 +628,7 @@ private:
 
     // Large TxSets are time-consuming to destroy, so should be done outside of
     // latency-sensitive code paths.
-    std::stack<TxSet_t> garbage_;
+    std::vector<typename TxSet_t::ID> acquiredGarbage_;
 
     std::optional<Result> result_;
     ConsensusCloseTimes rawCloseTimes_;
@@ -766,18 +766,28 @@ Consensus<Adaptor>::startRoundInternal(
     perf::END_TIMER(adaptor_.tracer_, timer2c);
     {
         auto timer2d = perf::START_TIMER(adaptor_.tracer_);
+        std::vector<TxSet_t> garbage;
         auto const expired(std::chrono::steady_clock::now() - std::chrono::minutes(30));
         for (auto iter(acquired_.chronological.cbegin());
             iter != acquired_.chronological.cend() && iter.when() <= expired;)
         {
             JLOG(j_.debug()) << "consensuslog garbage moving " << iter->first;
-            garbage_.push(std::move(iter->second));
+            garbage.push_back(std::move(iter->second));
             iter = acquired_.erase(iter);
         }
-        JLOG(j_.debug()) << "consensuslog disposing of acquired_ garbage_ item count " << garbage_.size();
-        if (garbage_.size())
-            adaptor_.dispose(std::move(garbage_));
-        garbage_ = std::stack<TxSet_t>();
+        for (auto const& k : acquiredGarbage_)
+        {
+            auto found = acquired_.find(k);
+            if (found != acquired_.end())
+            {
+                garbage.push_back(std::move(found->second));
+                acquired_.erase(found);
+            }
+        }
+        JLOG(j_.debug()) << "consensuslog disposing of acquired_ garbage item count,acquired_ size " << garbage.size()
+            << ',' << acquired_.size();
+        if (garbage.size())
+            adaptor_.dispose(std::move(garbage));
         perf::END_TIMER(adaptor_.tracer_, timer2d);
     }
 
@@ -958,10 +968,7 @@ Consensus<Adaptor>::peerProposalInternal(
                 peerPosIt->second.proposal().arrivalTime();
             auto found = acquired_.find(peerPosIt->second.proposal().position());
             if (found != acquired_.end())
-            {
-                garbage_.push(std::move(found->second));
-                acquired_.erase(found);
-            }
+                acquiredGarbage_.push_back(found->first);
             peerPosIt->second = newPeerPos;
             ss << " updating position for peer and carrying over the previous position's arrival time as " <<
                 peerPosIt->second.proposal().arrivalTime().read().count() << "ms";
@@ -1692,10 +1699,7 @@ Consensus<Adaptor>::closeLedger()
     {
         auto found = acquired_.find(result_->txns.id());
         if (found != acquired_.end())
-        {
-            garbage_.push(std::move(found->second));
-            acquired_.erase(found);
-        }
+            acquiredGarbage_.push_back(found->first);
     }
 
     result_.emplace(
@@ -1922,10 +1926,7 @@ Consensus<Adaptor>::updateOurPositions(bool const share)
     {
         auto found = acquired_.find(result_->txns.id());
         if (found != acquired_.end())
-        {
-            garbage_.push(std::move(found->second));
-            acquired_.erase(found);
-        }
+            acquiredGarbage_.push_back(found->first);
 
         auto newID = ourNewSet->id();
 
@@ -2151,8 +2152,7 @@ Consensus<Adaptor>::eraseAcquired(Consensus::CurrPeerPositionsType::iterator it)
     {
         JLOG(j_.debug()) << "consensuslog garbage eraseAcquired " << it->second.proposal().position() << " found";
                          it->second.proposal().position();
-        garbage_.push(std::move(found->second));
-        acquired_.erase(found);
+        acquiredGarbage_.push_back(found->first);
     }
     return currPeerPositions_.erase(it);
 }
@@ -2162,11 +2162,11 @@ void
 Consensus<Adaptor>::clearPositions()
 {
     JLOG(j_.debug()) << "consensuslog garbage clearPositions() pre sizes " <<
-        currPeerPositions_.size() << ',' << acquired_.size() << ',' << garbage_.size();
+        currPeerPositions_.size() << ',' << acquired_.size() << ',' << acquiredGarbage_.size();
     for (auto it = currPeerPositions_.begin(); it != currPeerPositions_.end();)
         it = eraseAcquired(it);
     JLOG(j_.debug()) << "consensuslog garbage clearPositions() post sizes " <<
-                     currPeerPositions_.size() << ',' << acquired_.size() << ',' << garbage_.size();
+                     currPeerPositions_.size() << ',' << acquired_.size() << ',' << acquiredGarbage_.size();
 }
 
 }  // namespace ripple
