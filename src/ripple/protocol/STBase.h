@@ -181,9 +181,10 @@ STBase::emplace(T&& val)
     STBase* ret = reinterpret_cast<STBase*>(globalSlabber.allocate(sizeof(U)));
     // If we can't grab memory from the slab allocators, we fall back to
     // the standard library and try to grab a precisely-sized memory block:
-    if (ret != nullptr)
-        return ret;
-    return new U(std::forward<T>(val));
+    if (ret == nullptr)
+        return new U(std::forward<T>(val));
+    new (ret) U(std::forward<T>(val));
+    return ret;
 }
 
 }  // namespace ripple

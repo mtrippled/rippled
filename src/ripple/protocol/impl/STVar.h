@@ -127,6 +127,8 @@ private:
         // the standard library and try to grab a precisely-sized memory block:
         if (p_ == nullptr)
             p_ = new T(std::forward<Args>(args)...);
+        else
+            new (p_) T(std::forward<Args>(args)...);
     }
 };
 
