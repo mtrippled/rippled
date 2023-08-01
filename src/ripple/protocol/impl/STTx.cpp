@@ -98,15 +98,15 @@ STTx::STTx(TxType type, std::function<void(STObject&)> assembler)
 }
 
 STBase*
-STTx::copy(std::size_t n, void* buf) const
+STTx::copy() const
 {
-    return emplace(n, buf, *this);
+    return emplace(*this);
 }
 
 STBase*
-STTx::move(std::size_t n, void* buf)
+STTx::move()
 {
-    return emplace(n, buf, std::move(*this));
+    return emplace(std::move(*this));
 }
 
 // STObject functions.

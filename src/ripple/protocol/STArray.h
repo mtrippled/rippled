@@ -159,9 +159,9 @@ public:
 
 private:
     STBase*
-    copy(std::size_t n, void* buf) const override;
+    copy() const override;
     STBase*
-    move(std::size_t n, void* buf) override;
+    move() override;
 
     friend class detail::STVar;
 };

@@ -93,15 +93,15 @@ STIssue::construct(SerialIter& sit, SField const& name)
 }
 
 STBase*
-STIssue::copy(std::size_t n, void* buf) const
+STIssue::copy() const
 {
-    return emplace(n, buf, *this);
+    return emplace(*this);
 }
 
 STBase*
-STIssue::move(std::size_t n, void* buf)
+STIssue::move()
 {
-    return emplace(n, buf, std::move(*this));
+    return emplace(std::move(*this));
 }
 
 STIssue

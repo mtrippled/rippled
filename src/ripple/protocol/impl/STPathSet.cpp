@@ -102,15 +102,15 @@ STPathSet::STPathSet(SerialIter& sit, SField const& name) : STBase(name)
 }
 
 STBase*
-STPathSet::copy(std::size_t n, void* buf) const
+STPathSet::copy() const
 {
-    return emplace(n, buf, *this);
+    return emplace(*this);
 }
 
 STBase*
-STPathSet::move(std::size_t n, void* buf)
+STPathSet::move()
 {
-    return emplace(n, buf, std::move(*this));
+    return emplace(std::move(*this));
 }
 
 bool

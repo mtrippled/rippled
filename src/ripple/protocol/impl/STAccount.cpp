@@ -60,15 +60,15 @@ STAccount::STAccount(SField const& n, AccountID const& v)
 }
 
 STBase*
-STAccount::copy(std::size_t n, void* buf) const
+STAccount::copy() const
 {
-    return emplace(n, buf, *this);
+    return emplace(*this);
 }
 
 STBase*
-STAccount::move(std::size_t n, void* buf)
+STAccount::move()
 {
-    return emplace(n, buf, std::move(*this));
+    return emplace(std::move(*this));
 }
 
 SerializedTypeID

@@ -89,15 +89,15 @@ STLedgerEntry::getFullText() const
 }
 
 STBase*
-STLedgerEntry::copy(std::size_t n, void* buf) const
+STLedgerEntry::copy() const
 {
-    return emplace(n, buf, *this);
+    return emplace(*this);
 }
 
 STBase*
-STLedgerEntry::move(std::size_t n, void* buf)
+STLedgerEntry::move()
 {
-    return emplace(n, buf, std::move(*this));
+    return emplace(std::move(*this));
 }
 
 SerializedTypeID

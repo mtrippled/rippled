@@ -68,9 +68,9 @@ public:
 
 private:
     STBase*
-    copy(std::size_t n, void* buf) const override;
+    copy() const override;
     STBase*
-    move(std::size_t n, void* buf) override;
+    move() override;
 
     friend class ripple::detail::STVar;
 };
@@ -93,16 +93,16 @@ inline STInteger<Integer>::STInteger(SField const& n, Integer v)
 
 template <typename Integer>
 inline STBase*
-STInteger<Integer>::copy(std::size_t n, void* buf) const
+STInteger<Integer>::copy() const
 {
-    return emplace(n, buf, *this);
+    return emplace(*this);
 }
 
 template <typename Integer>
 inline STBase*
-STInteger<Integer>::move(std::size_t n, void* buf)
+STInteger<Integer>::move()
 {
-    return emplace(n, buf, std::move(*this));
+    return emplace(std::move(*this));
 }
 
 template <typename Integer>

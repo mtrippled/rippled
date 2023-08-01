@@ -54,15 +54,15 @@ STBase::operator!=(const STBase& t) const
 }
 
 STBase*
-STBase::copy(std::size_t n, void* buf) const
+STBase::copy() const
 {
-    return emplace(n, buf, *this);
+    return emplace(*this);
 }
 
 STBase*
-STBase::move(std::size_t n, void* buf)
+STBase::move()
 {
-    return emplace(n, buf, std::move(*this));
+    return emplace(std::move(*this));
 }
 
 SerializedTypeID

@@ -90,15 +90,15 @@ STArray::STArray(SerialIter& sit, SField const& f, int depth) : STBase(f)
 }
 
 STBase*
-STArray::copy(std::size_t n, void* buf) const
+STArray::copy() const
 {
-    return emplace(n, buf, *this);
+    return emplace(*this);
 }
 
 STBase*
-STArray::move(std::size_t n, void* buf)
+STArray::move()
 {
-    return emplace(n, buf, std::move(*this));
+    return emplace(std::move(*this));
 }
 
 std::string

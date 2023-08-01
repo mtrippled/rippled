@@ -26,15 +26,15 @@
 namespace ripple {
 
 STBase*
-STValidation::copy(std::size_t n, void* buf) const
+STValidation::copy() const
 {
-    return emplace(n, buf, *this);
+    return emplace(*this);
 }
 
 STBase*
-STValidation::move(std::size_t n, void* buf)
+STValidation::move()
 {
-    return emplace(n, buf, std::move(*this));
+    return emplace(std::move(*this));
 }
 
 SOTemplate const&

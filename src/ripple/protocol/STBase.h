@@ -124,13 +124,13 @@ public:
 protected:
     template <class T>
     static STBase*
-    emplace(std::size_t n, void* buf, T&& val);
+    emplace(T&& val);
 
 private:
     virtual STBase*
-    copy(std::size_t n, void* buf) const;
+    copy() const;
     virtual STBase*
-    move(std::size_t n, void* buf);
+    move();
 
     friend class detail::STVar;
 };
@@ -160,6 +160,7 @@ STBase::downcast() const
     return *ptr;
 }
 
+/*
 template <class T>
 STBase*
 STBase::emplace(std::size_t n, void* buf, T&& val)
@@ -168,6 +169,15 @@ STBase::emplace(std::size_t n, void* buf, T&& val)
     if (sizeof(U) > n)
         return new U(std::forward<T>(val));
     return new (buf) U(std::forward<T>(val));
+}
+ */
+
+template <class T>
+STBase*
+STBase::emplace(T&& val)
+{
+    using U = std::decay_t<T>;
+    return new U(std::forward<T>(val));
 }
 
 }  // namespace ripple

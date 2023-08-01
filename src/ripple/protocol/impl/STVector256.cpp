@@ -42,15 +42,15 @@ STVector256::STVector256(SerialIter& sit, SField const& name) : STBase(name)
 }
 
 STBase*
-STVector256::copy(std::size_t n, void* buf) const
+STVector256::copy() const
 {
-    return emplace(n, buf, *this);
+    return emplace(*this);
 }
 
 STBase*
-STVector256::move(std::size_t n, void* buf)
+STVector256::move()
 {
-    return emplace(n, buf, std::move(*this));
+    return emplace(std::move(*this));
 }
 
 SerializedTypeID

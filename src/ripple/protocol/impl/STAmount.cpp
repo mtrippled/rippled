@@ -314,15 +314,15 @@ STAmount::construct(SerialIter& sit, SField const& name)
 }
 
 STBase*
-STAmount::copy(std::size_t n, void* buf) const
+STAmount::copy() const
 {
-    return emplace(n, buf, *this);
+    return emplace(*this);
 }
 
 STBase*
-STAmount::move(std::size_t n, void* buf)
+STAmount::move()
 {
-    return emplace(n, buf, std::move(*this));
+    return emplace(std::move(*this));
 }
 
 //------------------------------------------------------------------------------

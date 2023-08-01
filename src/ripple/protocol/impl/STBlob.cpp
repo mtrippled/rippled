@@ -28,15 +28,15 @@ STBlob::STBlob(SerialIter& st, SField const& name)
 }
 
 STBase*
-STBlob::copy(std::size_t n, void* buf) const
+STBlob::copy() const
 {
-    return emplace(n, buf, *this);
+    return emplace(*this);
 }
 
 STBase*
-STBlob::move(std::size_t n, void* buf)
+STBlob::move()
 {
-    return emplace(n, buf, std::move(*this));
+    return emplace(std::move(*this));
 }
 
 SerializedTypeID

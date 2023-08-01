@@ -58,15 +58,15 @@ STObject::STObject(SerialIter& sit, SField const& name, int depth) noexcept(
 }
 
 STBase*
-STObject::copy(std::size_t n, void* buf) const
+STObject::copy() const
 {
-    return emplace(n, buf, *this);
+    return emplace(*this);
 }
 
 STBase*
-STObject::move(std::size_t n, void* buf)
+STObject::move()
 {
-    return emplace(n, buf, std::move(*this));
+    return emplace(std::move(*this));
 }
 
 SerializedTypeID

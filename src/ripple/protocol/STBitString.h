@@ -74,9 +74,9 @@ public:
 
 private:
     STBase*
-    copy(std::size_t n, void* buf) const override;
+    copy() const override;
     STBase*
-    move(std::size_t n, void* buf) override;
+    move() override;
 
     friend class detail::STVar;
 };
@@ -109,16 +109,16 @@ inline STBitString<Bits>::STBitString(SerialIter& sit, SField const& name)
 
 template <int Bits>
 STBase*
-STBitString<Bits>::copy(std::size_t n, void* buf) const
+STBitString<Bits>::copy() const
 {
-    return emplace(n, buf, *this);
+    return emplace(*this);
 }
 
 template <int Bits>
 STBase*
-STBitString<Bits>::move(std::size_t n, void* buf)
+STBitString<Bits>::move()
 {
-    return emplace(n, buf, std::move(*this));
+    return emplace(std::move(*this));
 }
 
 template <>
