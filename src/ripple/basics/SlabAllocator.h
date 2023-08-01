@@ -46,7 +46,7 @@ class SlabAllocator
         sizeof(Type) >= sizeof(std::uint8_t*),
         "SlabAllocator: the requested object must be larger than a pointer.");
 
-    static_assert(alignof(Type) == 8 || alignof(Type) == 4);
+    static_assert(alignof(Type) == 16 || alignof(Type) == 8 || alignof(Type) == 4);
 
     /** A block of memory that is owned by a slab allocator */
     struct SlabBlock
@@ -426,6 +426,18 @@ public:
         return false;
     }
 };
+
+// clang-format off
+// The slab cutoffs and the number of megabytes per allocation are customized
+// based on the number of objects of each size we expect to need at any point
+// in time and with an eye to minimize the number of slack bytes in a block.
+inline SlabAllocatorSet<std::max_align_t> globalSlabber({
+    {  64, megabytes(std::size_t(2048)) },
+    {  128, megabytes(std::size_t(2048)) },
+    {  512, megabytes(std::size_t(2048)) },
+    {  1024, megabytes(std::size_t(2048)) },
+});
+// clang-format on
 
 }  // namespace ripple
 
