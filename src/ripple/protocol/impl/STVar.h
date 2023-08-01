@@ -20,6 +20,7 @@
 #ifndef RIPPLE_PROTOCOL_STVAR_H_INCLUDED
 #define RIPPLE_PROTOCOL_STVAR_H_INCLUDED
 
+#include <ripple/basics/SlabAllocator.h>
 #include <ripple/protocol/SField.h>
 #include <ripple/protocol/STBase.h>
 #include <ripple/protocol/Serializer.h>
@@ -121,7 +122,11 @@ private:
     void
     construct(Args&&... args)
     {
-        p_ = new T(std::forward<Args>(args)...);
+        p_ = reinterpret_cast<STBase*>(globalSlabber.allocate(sizeof(T)));
+        // If we can't grab memory from the slab allocators, we fall back to
+        // the standard library and try to grab a precisely-sized memory block:
+        if (p_ == nullptr)
+            p_ = new T(std::forward<Args>(args)...);
     }
 };
 

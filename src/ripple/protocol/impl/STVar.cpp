@@ -213,8 +213,10 @@ STVar::STVar(SerializedTypeID id, SField const& name)
 void
 STVar::destroy()
 {
-    delete p_;
-
+    // If the slabber doesn't claim this pointer, it was allocated
+    // manually, so we free it manually.
+    if (!globalSlabber.deallocate(reinterpret_cast<std::uint8_t*>(p_)))
+        delete p_;
     p_ = nullptr;
 }
 

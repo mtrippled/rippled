@@ -21,6 +21,7 @@
 #define RIPPLE_PROTOCOL_STBASE_H_INCLUDED
 
 #include <ripple/basics/contract.h>
+#include <ripple/basics/SlabAllocator.h>
 #include <ripple/protocol/SField.h>
 #include <ripple/protocol/Serializer.h>
 #include <memory>
@@ -177,6 +178,11 @@ STBase*
 STBase::emplace(T&& val)
 {
     using U = std::decay_t<T>;
+    STBase* ret = reinterpret_cast<STBase*>(globalSlabber.allocate(sizeof(U)));
+    // If we can't grab memory from the slab allocators, we fall back to
+    // the standard library and try to grab a precisely-sized memory block:
+    if (ret != nullptr)
+        return ret;
     return new U(std::forward<T>(val));
 }
 
