@@ -27,6 +27,8 @@
 #include <ripple/protocol/STLedgerEntry.h>
 
 #include <cstdint>
+#include <deque>
+#include <list>
 #include <optional>
 
 namespace ripple {
@@ -192,7 +194,7 @@ public:
     static std::optional<PathFindTrustLine>
     makeItem(AccountID const& accountID, std::shared_ptr<SLE const> const& sle);
 
-    static std::vector<PathFindTrustLine>
+    static std::list<PathFindTrustLine>
     getItems(
         AccountID const& accountID,
         ReadView const& view,
@@ -228,7 +230,7 @@ public:
     static std::optional<RPCTrustLine>
     makeItem(AccountID const& accountID, std::shared_ptr<SLE const> const& sle);
 
-    static std::vector<RPCTrustLine>
+    static std::list<RPCTrustLine>
     getItems(AccountID const& accountID, ReadView const& view);
 
 private:

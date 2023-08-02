@@ -95,7 +95,7 @@ compareAccountCandidate(
     return (first.priority ^ seq) < (second.priority ^ seq);
 }
 
-using AccountCandidates = std::vector<AccountCandidate>;
+using AccountCandidates = std::deque<AccountCandidate>;
 
 struct CostedPath
 {
@@ -103,7 +103,7 @@ struct CostedPath
     Pathfinder::PathType type;
 };
 
-using CostedPathList = std::vector<CostedPath>;
+using CostedPathList = std::deque<CostedPath>;
 
 using PathTable = std::map<Pathfinder::PaymentType, CostedPathList>;
 
@@ -112,7 +112,7 @@ struct PathCost
     int cost;
     char const* path;
 };
-using PathCostList = std::vector<PathCost>;
+using PathCostList = std::deque<PathCost>;
 
 static PathTable mPathTable;
 
@@ -489,13 +489,12 @@ void
 Pathfinder::rankPaths(
     int maxPaths,
     STPathSet const& paths,
-    std::vector<PathRank>& rankedPaths,
+    std::deque<PathRank>& rankedPaths,
     std::function<bool(void)> const& continueCallback)
 {
     JLOG(j_.trace()) << "rankPaths with " << paths.size() << " candidates, and "
                      << maxPaths << " maximum";
     rankedPaths.clear();
-    rankedPaths.reserve(paths.size());
 
     auto const saMinDstAmount = [&]() -> STAmount {
         if (!convert_all_)
@@ -581,7 +580,7 @@ Pathfinder::getBestPaths(
     const bool issuerIsSender =
         isXRP(mSrcCurrency) || (srcIssuer == mSrcAccount);
 
-    std::vector<PathRank> extraPathRanks;
+    std::deque<PathRank> extraPathRanks;
     rankPaths(maxPaths, extraPaths, extraPathRanks, continueCallback);
 
     STPathSet bestPaths;
@@ -989,7 +988,6 @@ Pathfinder::addLink(
                     auto& rippleLines = *lines;
 
                     AccountCandidates candidates;
-                    candidates.reserve(rippleLines.size());
 
                     for (auto const& rs : rippleLines)
                     {

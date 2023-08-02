@@ -26,9 +26,10 @@
 #include <ripple/basics/hardened_hash.h>
 
 #include <cstddef>
+#include <deque>
+#include <list>
 #include <memory>
 #include <mutex>
-#include <vector>
 
 namespace ripple {
 
@@ -59,7 +60,7 @@ public:
        @accountID's side.
        @return Returns a vector of the usable trust lines.
     */
-    std::shared_ptr<std::vector<PathFindTrustLine>>
+    std::shared_ptr<std::list<PathFindTrustLine>>
     getRippleLines(AccountID const& accountID, LineDirection direction);
 
 private:
@@ -121,7 +122,7 @@ private:
     // less memory usage overall.
     hash_map<
         AccountKey,
-        std::shared_ptr<std::vector<PathFindTrustLine>>,
+        std::shared_ptr<std::list<PathFindTrustLine>>,
         AccountKey::Hash>
         lines_;
     std::size_t totalLineCount_ = 0;

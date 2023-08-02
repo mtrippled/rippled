@@ -27,6 +27,7 @@
 #include <ripple/protocol/UintTypes.h>
 #include <cassert>
 #include <cstddef>
+#include <deque>
 #include <optional>
 
 namespace ripple {
@@ -117,14 +118,14 @@ private:
 
 class STPath final : public CountedObject<STPath>
 {
-    std::vector<STPathElement> mPath;
+    std::deque<STPathElement> mPath;
 
 public:
     STPath() = default;
 
-    STPath(std::vector<STPathElement> p);
+    STPath(std::deque<STPathElement> p);
 
-    std::vector<STPathElement>::size_type
+    std::deque<STPathElement>::size_type
     size() const;
 
     bool
@@ -145,19 +146,19 @@ public:
 
     Json::Value getJson(JsonOptions) const;
 
-    std::vector<STPathElement>::const_iterator
+    std::deque<STPathElement>::const_iterator
     begin() const;
 
-    std::vector<STPathElement>::const_iterator
+    std::deque<STPathElement>::const_iterator
     end() const;
 
     bool
     operator==(STPath const& t) const;
 
-    std::vector<STPathElement>::const_reference
+    std::deque<STPathElement>::const_reference
     back() const;
 
-    std::vector<STPathElement>::const_reference
+    std::deque<STPathElement>::const_reference
     front() const;
 
     STPathElement&
@@ -175,7 +176,7 @@ public:
 // A set of zero or more payment paths
 class STPathSet final : public STBase, public CountedObject<STPathSet>
 {
-    std::vector<STPath> value;
+    std::deque<STPath> value;
 
 public:
     STPathSet() = default;
@@ -201,19 +202,19 @@ public:
     isDefault() const override;
 
     // std::vector like interface:
-    std::vector<STPath>::const_reference
-    operator[](std::vector<STPath>::size_type n) const;
+    std::deque<STPath>::const_reference
+    operator[](std::deque<STPath>::size_type n) const;
 
-    std::vector<STPath>::reference
-    operator[](std::vector<STPath>::size_type n);
+    std::deque<STPath>::reference
+    operator[](std::deque<STPath>::size_type n);
 
-    std::vector<STPath>::const_iterator
+    std::deque<STPath>::const_iterator
     begin() const;
 
-    std::vector<STPath>::const_iterator
+    std::deque<STPath>::const_iterator
     end() const;
 
-    std::vector<STPath>::size_type
+    std::deque<STPath>::size_type
     size() const;
 
     bool
@@ -385,11 +386,11 @@ STPathElement::operator!=(const STPathElement& t) const
 
 // ------------ STPath ------------
 
-inline STPath::STPath(std::vector<STPathElement> p) : mPath(std::move(p))
+inline STPath::STPath(std::deque<STPathElement> p) : mPath(std::move(p))
 {
 }
 
-inline std::vector<STPathElement>::size_type
+inline std::deque<STPathElement>::size_type
 STPath::size() const
 {
     return mPath.size();
@@ -414,13 +415,13 @@ STPath::emplace_back(Args&&... args)
     mPath.emplace_back(std::forward<Args>(args)...);
 }
 
-inline std::vector<STPathElement>::const_iterator
+inline std::deque<STPathElement>::const_iterator
 STPath::begin() const
 {
     return mPath.begin();
 }
 
-inline std::vector<STPathElement>::const_iterator
+inline std::deque<STPathElement>::const_iterator
 STPath::end() const
 {
     return mPath.end();
@@ -432,13 +433,13 @@ STPath::operator==(STPath const& t) const
     return mPath == t.mPath;
 }
 
-inline std::vector<STPathElement>::const_reference
+inline std::deque<STPathElement>::const_reference
 STPath::back() const
 {
     return mPath.back();
 }
 
-inline std::vector<STPathElement>::const_reference
+inline std::deque<STPathElement>::const_reference
 STPath::front() const
 {
     return mPath.front();
@@ -459,7 +460,7 @@ STPath::operator[](int i) const
 inline void
 STPath::reserve(size_t s)
 {
-    mPath.reserve(s);
+//    mPath.reserve(s);
 }
 
 // ------------ STPathSet ------------
@@ -469,31 +470,31 @@ inline STPathSet::STPathSet(SField const& n) : STBase(n)
 }
 
 // std::vector like interface:
-inline std::vector<STPath>::const_reference
-STPathSet::operator[](std::vector<STPath>::size_type n) const
+inline std::deque<STPath>::const_reference
+STPathSet::operator[](std::deque<STPath>::size_type n) const
 {
     return value[n];
 }
 
-inline std::vector<STPath>::reference
-STPathSet::operator[](std::vector<STPath>::size_type n)
+inline std::deque<STPath>::reference
+STPathSet::operator[](std::deque<STPath>::size_type n)
 {
     return value[n];
 }
 
-inline std::vector<STPath>::const_iterator
+inline std::deque<STPath>::const_iterator
 STPathSet::begin() const
 {
     return value.begin();
 }
 
-inline std::vector<STPath>::const_iterator
+inline std::deque<STPath>::const_iterator
 STPathSet::end() const
 {
     return value.end();
 }
 
-inline std::vector<STPath>::size_type
+inline std::deque<STPath>::size_type
 STPathSet::size() const
 {
     return value.size();

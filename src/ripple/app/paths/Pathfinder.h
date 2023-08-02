@@ -26,6 +26,7 @@
 #include <ripple/core/LoadEvent.h>
 #include <ripple/protocol/STAmount.h>
 #include <ripple/protocol/STPathSet.h>
+#include <list>
 
 namespace ripple {
 
@@ -90,7 +91,7 @@ public:
     };
 
     // The PathType is a list of the NodeTypes for a path.
-    using PathType = std::vector<NodeType>;
+    using PathType = std::deque<NodeType>;
 
     // PaymentType represents the types of the source and destination currencies
     // in a path request.
@@ -190,7 +191,7 @@ private:
     rankPaths(
         int maxPaths,
         STPathSet const& paths,
-        std::vector<PathRank>& rankedPaths,
+        std::deque<PathRank>& rankedPaths,
         std::function<bool(void)> const& continueCallback);
 
     AccountID mSrcAccount;
@@ -211,7 +212,7 @@ private:
 
     STPathElement mSource;
     STPathSet mCompletePaths;
-    std::vector<PathRank> mPathRanks;
+    std::deque<PathRank> mPathRanks;
     std::map<PathType, STPathSet> mPaths;
 
     hash_map<Issue, int> mPathsOutCountMap;

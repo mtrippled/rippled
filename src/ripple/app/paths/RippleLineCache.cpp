@@ -38,7 +38,7 @@ RippleLineCache::~RippleLineCache()
                            << totalLineCount_ << " distinct trust lines.";
 }
 
-std::shared_ptr<std::vector<PathFindTrustLine>>
+std::shared_ptr<std::list<PathFindTrustLine>>
 RippleLineCache::getRippleLines(
     AccountID const& accountID,
     LineDirection direction)
@@ -104,7 +104,7 @@ RippleLineCache::getRippleLines(
             PathFindTrustLine::getItems(accountID, *ledger_, direction);
         if (lines.size())
         {
-            it->second = std::make_shared<std::vector<PathFindTrustLine>>(
+            it->second = std::make_shared<std::list<PathFindTrustLine>>(
                 std::move(lines));
             totalLineCount_ += it->second->size();
         }

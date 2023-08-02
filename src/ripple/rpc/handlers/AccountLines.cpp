@@ -27,6 +27,8 @@
 #include <ripple/rpc/Context.h>
 #include <ripple/rpc/impl/RPCHelpers.h>
 #include <ripple/rpc/impl/Tuning.h>
+#include <deque>
+#include <list>
 
 namespace ripple {
 
@@ -124,7 +126,7 @@ doAccountLines(RPC::JsonContext& context)
     Json::Value& jsonLines(result[jss::lines] = Json::arrayValue);
     struct VisitData
     {
-        std::vector<RPCTrustLine> items;
+        std::list<RPCTrustLine> items;
         AccountID const& accountID;
         std::optional<AccountID> const& raPeerAccount;
         bool ignoreDefault;

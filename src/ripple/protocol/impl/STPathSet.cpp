@@ -51,7 +51,7 @@ STPathElement::get_hash(STPathElement const& element)
 
 STPathSet::STPathSet(SerialIter& sit, SField const& name) : STBase(name)
 {
-    std::vector<STPathElement> path;
+    std::deque<STPathElement> path;
     for (;;)
     {
         int iType = sit.get8();
@@ -118,7 +118,7 @@ STPathSet::assembleAdd(STPath const& base, STPathElement const& tail)
 {  // assemble base+tail and add it to the set if it's not a duplicate
     value.push_back(base);
 
-    std::vector<STPath>::reverse_iterator it = value.rbegin();
+    std::deque<STPath>::reverse_iterator it = value.rbegin();
 
     STPath& newPath = *it;
     newPath.push_back(tail);
