@@ -21,6 +21,7 @@
 #define RIPPLE_APP_PATHS_RIPPLESTATE_H_INCLUDED
 
 #include <ripple/basics/CountedObject.h>
+#include <ripple/basics/SlabAllocator.h>
 #include <ripple/ledger/View.h>
 #include <ripple/protocol/Rate.h>
 #include <ripple/protocol/STAmount.h>
@@ -54,7 +55,7 @@ enum class LineDirection : bool { incoming = false, outgoing = true };
 */
 class TrustLineBase
 {
-protected:
+public:
     // This class should not be instantiated directly. Use one of the derived
     // classes.
     TrustLineBase(
@@ -183,13 +184,34 @@ protected:
 };
 
 // This wrapper is used for the path finder
-class PathFindTrustLine final : public TrustLineBase,
-                                public CountedObject<PathFindTrustLine>
+class PathFindTrustLine
 {
-    using TrustLineBase::TrustLineBase;
+    TrustLineBase* p_ = nullptr;
 
 public:
     PathFindTrustLine() = delete;
+
+    PathFindTrustLine(
+        std::shared_ptr<SLE const> const& sle,
+        AccountID const& viewAccount)
+    {
+        p_ = reinterpret_cast<TrustLineBase*>(
+            globalSlabber.allocate(sizeof(TrustLineBase)));
+        if (p_)
+            new (p_) TrustLineBase(sle, viewAccount);
+        else
+            p_ = new TrustLineBase(sle, viewAccount);
+    }
+
+    ~PathFindTrustLine()
+    {
+        if (p_ == nullptr)
+            return;
+        // If the slabber doesn't claim this pointer, it was allocated
+        // manually, so we free it manually.
+        if (!globalSlabber.deallocate(reinterpret_cast<std::uint8_t*>(p_)))
+            delete p_;
+    }
 
     static std::optional<PathFindTrustLine>
     makeItem(AccountID const& accountID, std::shared_ptr<SLE const> const& sle);
@@ -199,6 +221,109 @@ public:
         AccountID const& accountID,
         ReadView const& view,
         LineDirection direction);
+
+// from TrustLineBase
+    /** Returns the state map key for the ledger entry. */
+    uint256 const&
+    key() const
+    {
+        return p_->key();
+    }
+
+    // VFALCO Take off the "get" from each function name
+
+    AccountID const&
+    getAccountID() const
+    {
+        return p_->getAccountID();
+    }
+
+    AccountID const&
+    getAccountIDPeer() const
+    {
+        return p_->getAccountIDPeer();
+    }
+
+    // True, Provided auth to peer.
+    bool
+    getAuth() const
+    {
+        return p_->getAuth();
+    }
+
+    bool
+    getAuthPeer() const
+    {
+        return p_->getAuthPeer();
+    }
+
+    bool
+    getDefaultRipple() const
+    {
+        return p_->getDefaultRipple();
+    }
+
+    bool
+    getNoRipple() const
+    {
+        return p_->getNoRipple();
+    }
+
+    bool
+    getNoRipplePeer() const
+    {
+        return p_->getNoRipplePeer();
+    }
+
+    LineDirection
+    getDirection() const
+    {
+        return p_->getDirection();
+    }
+
+    LineDirection
+    getDirectionPeer() const
+    {
+        return p_->getDirectionPeer();
+    }
+
+    /** Have we set the freeze flag on our peer */
+    bool
+    getFreeze() const
+    {
+        return p_->getFreeze();
+    }
+
+    /** Has the peer set the freeze flag on us */
+    bool
+    getFreezePeer() const
+    {
+        return p_->getFreezePeer();
+    }
+
+    STAmount const&
+    getBalance() const
+    {
+        return p_->getBalance();
+    }
+
+    STAmount const&
+    getLimit() const
+    {
+        return p_->getLimit();
+    }
+
+    STAmount const&
+    getLimitPeer() const
+    {
+        return p_->getLimitPeer();
+    }
+
+    Json::Value
+    getJson(int)
+    {
+        return p_->getJson(0);
+    }
 };
 
 // This wrapper is used for the `AccountLines` command and includes the quality
