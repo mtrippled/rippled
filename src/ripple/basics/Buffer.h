@@ -20,6 +20,7 @@
 #ifndef RIPPLE_BASICS_BUFFER_H_INCLUDED
 #define RIPPLE_BASICS_BUFFER_H_INCLUDED
 
+#include <ripple/basics/SlabAllocator.h>
 #include <ripple/basics/Slice.h>
 #include <cassert>
 #include <cstdint>
@@ -35,7 +36,16 @@ namespace ripple {
 class Buffer
 {
 private:
-    std::unique_ptr<std::uint8_t[]> p_;
+    using buffer_type = std::unique_ptr<std::uint8_t[], void (*)(std::uint8_t*)>;
+    buffer_type p_ {nullptr, [](std::uint8_t* b) {
+        if (b == nullptr)
+            return;
+        // If the slabber doesn't claim this pointer, it was allocated
+        // manually, so we free it manually.
+        if (!globalSlabber.deallocate((b)))
+            delete b;
+    }};
+//    std::unique_ptr<std::uint8_t[]> p_;
     std::size_t size_ = 0;
 
 public:
@@ -45,8 +55,11 @@ public:
 
     /** Create an uninitialized buffer with the given size. */
     explicit Buffer(std::size_t size)
-        : p_(size ? new std::uint8_t[size] : nullptr), size_(size)
+        : size_(size)
+//        : p_(size ? new std::uint8_t[size] : nullptr), size_(size)
     {
+        if (size_)
+            p_.reset(new std::uint8_t[size]);
     }
 
     /** Create a buffer as a copy of existing memory.
