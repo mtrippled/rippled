@@ -101,7 +101,7 @@ RippleLineCache::getRippleLines(
     {
         assert(it->second == nullptr);
         auto lines =
-            PathFindTrustLine::getItems(accountID, *ledger_, direction);
+            PathFindTrustLineRaw::getItems(accountID, *ledger_, direction);
         if (lines.size())
         {
             it->second = std::make_shared<std::list<PathFindTrustLine>>(

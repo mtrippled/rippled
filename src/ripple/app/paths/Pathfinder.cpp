@@ -739,26 +739,26 @@ Pathfinder::getPathsOut(
         {
             for (auto const& rspEntry : *lines)
             {
-                if (currency != rspEntry.getLimit().getCurrency())
+                if (currency != rspEntry->getLimit().getCurrency())
                 {
                 }
                 else if (
-                    rspEntry.getBalance() <= beast::zero &&
-                    (!rspEntry.getLimitPeer() ||
-                     -rspEntry.getBalance() >= rspEntry.getLimitPeer() ||
-                     (bAuthRequired && !rspEntry.getAuth())))
+                    rspEntry->getBalance() <= beast::zero &&
+                    (!rspEntry->getLimitPeer() ||
+                     -rspEntry->getBalance() >= rspEntry->getLimitPeer() ||
+                     (bAuthRequired && !rspEntry->getAuth())))
                 {
                 }
                 else if (
-                    isDstCurrency && dstAccount == rspEntry.getAccountIDPeer())
+                    isDstCurrency && dstAccount == rspEntry->getAccountIDPeer())
                 {
                     count += 10000;  // count a path to the destination extra
                 }
-                else if (rspEntry.getNoRipplePeer())
+                else if (rspEntry->getNoRipplePeer())
                 {
                     // This probably isn't a useful path out
                 }
-                else if (rspEntry.getFreezePeer())
+                else if (rspEntry->getFreezePeer())
                 {
                     // Not a useful path out
                 }
@@ -993,8 +993,8 @@ Pathfinder::addLink(
                     {
                         if (continueCallback && !continueCallback())
                             return;
-                        auto const& acct = rs.getAccountIDPeer();
-                        LineDirection const direction = rs.getDirectionPeer();
+                        auto const& acct = rs->getAccountIDPeer();
+                        LineDirection const direction = rs->getDirectionPeer();
 
                         if (hasEffectiveDestination && (acct == mDstAccount))
                         {
@@ -1009,19 +1009,19 @@ Pathfinder::addLink(
                             continue;
                         }
 
-                        if ((uEndCurrency == rs.getLimit().getCurrency()) &&
+                        if ((uEndCurrency == rs->getLimit().getCurrency()) &&
                             !currentPath.hasSeen(acct, uEndCurrency, acct))
                         {
                             // path is for correct currency and has not been
                             // seen
-                            if (rs.getBalance() <= beast::zero &&
-                                (!rs.getLimitPeer() ||
-                                 -rs.getBalance() >= rs.getLimitPeer() ||
-                                 (bRequireAuth && !rs.getAuth())))
+                            if (rs->getBalance() <= beast::zero &&
+                                (!rs->getLimitPeer() ||
+                                 -rs->getBalance() >= rs->getLimitPeer() ||
+                                 (bRequireAuth && !rs->getAuth())))
                             {
                                 // path has no credit
                             }
-                            else if (bIsNoRippleOut && rs.getNoRipple())
+                            else if (bIsNoRippleOut && rs->getNoRipple())
                             {
                                 // Can't leave on this path
                             }
