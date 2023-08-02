@@ -38,15 +38,15 @@ accountSourceCurrencies(
     {
         for (auto const& rspEntry : *lines)
         {
-            auto& saBalance = rspEntry->getBalance();
+            auto& saBalance = rspEntry.getBalance();
 
             // Filter out non
             if (saBalance > beast::zero
                 // Have IOUs to send.
                 ||
-                (rspEntry->getLimitPeer()
+                (rspEntry.getLimitPeer()
                  // Peer extends credit.
-                 && ((-saBalance) < rspEntry->getLimitPeer())))  // Credit left.
+                 && ((-saBalance) < rspEntry.getLimitPeer())))  // Credit left.
             {
                 currencies.insert(saBalance.getCurrency());
             }
@@ -74,9 +74,9 @@ accountDestCurrencies(
     {
         for (auto const& rspEntry : *lines)
         {
-            auto& saBalance = rspEntry->getBalance();
+            auto& saBalance = rspEntry.getBalance();
 
-            if (saBalance < rspEntry->getLimit())  // Can take more
+            if (saBalance < rspEntry.getLimit())  // Can take more
                 currencies.insert(saBalance.getCurrency());
         }
     }

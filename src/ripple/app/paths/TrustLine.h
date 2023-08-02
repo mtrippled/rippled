@@ -183,31 +183,23 @@ protected:
 };
 
 // This wrapper is used for the path finder
-class PathFindTrustLineRaw final : public TrustLineBase,
-                                public CountedObject<PathFindTrustLineRaw>
+class PathFindTrustLine final : public TrustLineBase,
+                                public CountedObject<PathFindTrustLine>
 {
     using TrustLineBase::TrustLineBase;
 
 public:
-    PathFindTrustLineRaw() = delete;
+    PathFindTrustLine() = delete;
 
-    PathFindTrustLineRaw(
-        std::shared_ptr<SLE const> const& sle,
-    AccountID const& viewAccount)
-        : TrustLineBase(sle, viewAccount)
-    {}
-
-    static std::optional<std::unique_ptr<PathFindTrustLineRaw>>
+    static std::optional<PathFindTrustLine>
     makeItem(AccountID const& accountID, std::shared_ptr<SLE const> const& sle);
 
-    static std::list<std::unique_ptr<PathFindTrustLineRaw>>
+    static std::list<PathFindTrustLine>
     getItems(
         AccountID const& accountID,
         ReadView const& view,
         LineDirection direction);
 };
-
-using PathFindTrustLine = std::unique_ptr<PathFindTrustLineRaw>;
 
 // This wrapper is used for the `AccountLines` command and includes the quality
 // in and quality out values.

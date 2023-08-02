@@ -49,52 +49,32 @@ TrustLineBase::getJson(int)
 }
 
 std::optional<PathFindTrustLine>
-PathFindTrustLineRaw::makeItem(
+PathFindTrustLine::makeItem(
     AccountID const& accountID,
     std::shared_ptr<SLE const> const& sle)
 {
     if (!sle || sle->getType() != ltRIPPLE_STATE)
         return {};
-    return std::optional{std::make_unique<PathFindTrustLineRaw>(sle, accountID)};
+    return std::optional{PathFindTrustLine{sle, accountID}};
 }
 
 namespace detail {
-std::list<RPCTrustLine>
-getRPCTrustLineItems(
+template <class T>
+std::list<T>
+getTrustLineItems(
     AccountID const& accountID,
     ReadView const& view,
     LineDirection direction = LineDirection::outgoing)
 {
-    std::list<RPCTrustLine> items;
+    std::list<T> items;
     forEachItem(
         view,
         accountID,
         [&items, &accountID, &direction](
             std::shared_ptr<SLE const> const& sleCur) {
-            auto ret = RPCTrustLine::makeItem(accountID, sleCur);
+            auto ret = T::makeItem(accountID, sleCur);
             if (ret &&
                 (direction == LineDirection::outgoing || !ret->getNoRipple()))
-                items.push_back(std::move(*ret));
-        });
-
-    return items;
-}
-
-std::list<PathFindTrustLine>
-getPathTrustLineItems(
-    AccountID const& accountID,
-    ReadView const& view,
-    LineDirection direction = LineDirection::outgoing)
-{
-    std::list<PathFindTrustLine> items;
-    forEachItem(
-        view,
-        accountID,
-        [&items, &accountID, &direction](
-            std::shared_ptr<SLE const> const& sleCur) {
-            auto ret = PathFindTrustLineRaw::makeItem(accountID, sleCur);
-            if (ret &&
-                (direction == LineDirection::outgoing || !ret->get()->getNoRipple()))
                 items.push_back(std::move(*ret));
         });
 
@@ -103,12 +83,12 @@ getPathTrustLineItems(
 }  // namespace detail
 
 std::list<PathFindTrustLine>
-PathFindTrustLineRaw::getItems(
+PathFindTrustLine::getItems(
     AccountID const& accountID,
     ReadView const& view,
     LineDirection direction)
 {
-    return detail::getPathTrustLineItems(
+    return detail::getTrustLineItems<PathFindTrustLine>(
         accountID, view, direction);
 }
 
@@ -136,7 +116,7 @@ RPCTrustLine::makeItem(
 std::list<RPCTrustLine>
 RPCTrustLine::getItems(AccountID const& accountID, ReadView const& view)
 {
-    return detail::getRPCTrustLineItems(accountID, view);
+    return detail::getTrustLineItems<RPCTrustLine>(accountID, view);
 }
 
 }  // namespace ripple

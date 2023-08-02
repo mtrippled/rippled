@@ -130,16 +130,16 @@ doGatewayBalances(RPC::JsonContext& context)
     {
         forEachItem(
             *ledger, accountID, [&](std::shared_ptr<SLE const> const& sle) {
-                auto rs = PathFindTrustLineRaw::makeItem(accountID, sle);
+                auto rs = PathFindTrustLine::makeItem(accountID, sle);
 
                 if (!rs)
                     return;
 
-                int balSign = rs->get()->getBalance().signum();
+                int balSign = rs->getBalance().signum();
                 if (balSign == 0)
                     return;
 
-                auto const& peer = rs->get()->getAccountIDPeer();
+                auto const& peer = rs->getAccountIDPeer();
 
                 // Here, a negative balance means the cold wallet owes (normal)
                 // A positive balance means the cold wallet has an asset
@@ -148,32 +148,32 @@ doGatewayBalances(RPC::JsonContext& context)
                 if (hotWallets.count(peer) > 0)
                 {
                     // This is a specified hot wallet
-                    hotBalances[peer].push_back(-rs->get()->getBalance());
+                    hotBalances[peer].push_back(-rs->getBalance());
                 }
                 else if (balSign > 0)
                 {
                     // This is a gateway asset
-                    assets[peer].push_back(rs->get()->getBalance());
+                    assets[peer].push_back(rs->getBalance());
                 }
-                else if (rs->get()->getFreeze())
+                else if (rs->getFreeze())
                 {
                     // An obligation the gateway has frozen
-                    frozenBalances[peer].push_back(-rs->get()->getBalance());
+                    frozenBalances[peer].push_back(-rs->getBalance());
                 }
                 else
                 {
                     // normal negative balance, obligation to customer
-                    auto& bal = sums[rs->get()->getBalance().getCurrency()];
+                    auto& bal = sums[rs->getBalance().getCurrency()];
                     if (bal == beast::zero)
                     {
                         // This is needed to set the currency code correctly
-                        bal = -rs->get()->getBalance();
+                        bal = -rs->getBalance();
                     }
                     else
                     {
                         try
                         {
-                            bal -= rs->get()->getBalance();
+                            bal -= rs->getBalance();
                         }
                         catch (std::runtime_error const&)
                         {
