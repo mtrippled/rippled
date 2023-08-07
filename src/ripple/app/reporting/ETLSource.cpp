@@ -568,7 +568,7 @@ ETLSource::loadInitialLedger(
     bool ok = false;
 
     std::vector<AsyncCallData> calls;
-    std::vector<uint256> markers{getMarkers(etl_.getNumMarkers())};
+    std::vector<uint256, slab_allocator<uint256>> markers{getMarkers(etl_.getNumMarkers())};
 
     for (size_t i = 0; i < markers.size(); ++i)
     {

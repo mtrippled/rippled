@@ -970,7 +970,7 @@ class NFToken_test : public beast::unit_test::suite
 
         // List of tokens to delete is too long.
         {
-            std::vector<uint256> offers(
+            std::vector<uint256, slab_allocator<uint256>> offers(
                 maxTokenOfferCancelCount + 1, buyerOfferIndex);
 
             env(token::cancelOffer(buyer, offers), ter(temMALFORMED));
@@ -3789,7 +3789,7 @@ class NFToken_test : public beast::unit_test::suite
         env.close();
 
         std::string const uri(maxTokenURILength, '?');
-        std::vector<uint256> offerIndexes;
+        std::vector<uint256, slab_allocator<uint256>> offerIndexes;
         offerIndexes.reserve(maxTokenOfferCancelCount + 1);
         for (uint32_t i = 0; i < maxTokenOfferCancelCount + 1; ++i)
         {
@@ -6185,7 +6185,7 @@ class NFToken_test : public beast::unit_test::suite
             env.close();
 
             // minter mints 500 NFTs for alice
-            std::vector<uint256> nftIDs;
+            std::vector<uint256, slab_allocator<uint256>> nftIDs;
             nftIDs.reserve(500);
             for (int i = 0; i < 500; i++)
             {
@@ -6326,7 +6326,7 @@ class NFToken_test : public beast::unit_test::suite
             BEAST_EXPECT(ownerCount(env, alice) == 100);
 
             // alice mints 50 NFTs using tickets
-            std::vector<uint256> nftIDs;
+            std::vector<uint256, slab_allocator<uint256>> nftIDs;
             nftIDs.reserve(50);
             for (int i = 0; i < 50; i++)
             {
@@ -6480,7 +6480,7 @@ class NFToken_test : public beast::unit_test::suite
             BEAST_EXPECT(ownerCount(env, minter) == 100);
 
             // minter mints 50 NFTs for alice using tickets
-            std::vector<uint256> nftIDs;
+            std::vector<uint256, slab_allocator<uint256>> nftIDs;
             nftIDs.reserve(50);
             for (int i = 0; i < 50; i++)
             {
@@ -6618,7 +6618,7 @@ class NFToken_test : public beast::unit_test::suite
         // Verify `nftoken_ids` value equals to the NFTokenIDs that were
         // changed in the most recent NFTokenCancelOffer transaction
         auto verifyNFTokenIDsInCancelOffer =
-            [&](std::vector<uint256> actualNftIDs) {
+            [&](std::vector<uint256, slab_allocator<uint256>> actualNftIDs) {
                 // Get the hash for the most recent transaction.
                 std::string const txHash{
                     env.tx()->getJson(JsonOptions::none)[jss::hash].asString()};
@@ -6632,7 +6632,7 @@ class NFToken_test : public beast::unit_test::suite
                     return;
 
                 // Convert NFT IDs from Json::Value to uint256
-                std::vector<uint256> metaIDs;
+                std::vector<uint256, slab_allocator<uint256>> metaIDs;
                 std::transform(
                     meta[jss::nftoken_ids].begin(),
                     meta[jss::nftoken_ids].end(),

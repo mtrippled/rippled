@@ -39,7 +39,7 @@ bool
 LedgerReplayTask::TaskParameter::update(
     uint256 const& hash,
     std::uint32_t seq,
-    std::vector<uint256> const& sList)
+    std::vector<uint256, slab_allocator<uint256>> const& sList)
 {
     if (finishHash_ != hash || sList.size() + 1 < totalLedgers_ || full_)
         return false;
@@ -226,7 +226,7 @@ void
 LedgerReplayTask::updateSkipList(
     uint256 const& hash,
     std::uint32_t seq,
-    std::vector<uint256> const& sList)
+    std::vector<uint256, slab_allocator<uint256>> const& sList)
 {
     {
         ScopedLockType sl(mtx_);

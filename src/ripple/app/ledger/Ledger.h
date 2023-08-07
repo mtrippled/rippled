@@ -21,6 +21,7 @@
 #define RIPPLE_APP_LEDGER_LEDGER_H_INCLUDED
 
 #include <ripple/basics/CountedObject.h>
+#include <ripple/basics/SlabAllocator.h>
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/core/TimeKeeper.h>
 #include <ripple/ledger/CachedView.h>
@@ -104,7 +105,7 @@ public:
     Ledger(
         create_genesis_t,
         Config const& config,
-        std::vector<uint256> const& amendments,
+        std::vector<uint256, slab_allocator<uint256>> const& amendments,
         Family& family);
 
     Ledger(LedgerInfo const& info, Config const& config, Family& family);
@@ -478,7 +479,7 @@ flatFetchTransactions(ReadView const& ledger, Application& app);
 // @return vector of (transaction, metadata) pairs
 extern std::vector<
     std::pair<std::shared_ptr<STTx const>, std::shared_ptr<STObject const>>>
-flatFetchTransactions(Application& app, std::vector<uint256>& nodestoreHashes);
+flatFetchTransactions(Application& app, std::vector<uint256, slab_allocator<uint256>>& nodestoreHashes);
 
 /** Deserialize a SHAMapItem containing a single STTx
 

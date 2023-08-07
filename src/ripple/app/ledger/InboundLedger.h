@@ -166,10 +166,10 @@ private:
     bool
     takeAsRootNode(Slice const& data, SHAMapAddNode&);
 
-    std::vector<uint256>
+    std::vector<uint256, slab_allocator<uint256>>
     neededTxHashes(int max, SHAMapSyncFilter* filter) const;
 
-    std::vector<uint256>
+    std::vector<uint256, slab_allocator<uint256>>
     neededStateHashes(int max, SHAMapSyncFilter* filter) const;
 
     clock_type& m_clock;

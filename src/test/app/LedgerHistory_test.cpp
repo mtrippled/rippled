@@ -56,7 +56,7 @@ public:
             return std::make_shared<Ledger>(
                 create_genesis,
                 env.app().config(),
-                std::vector<uint256>{},
+                std::vector<uint256, slab_allocator<uint256>>{},
                 env.app().getNodeFamily());
         }
         auto res = std::make_shared<Ledger>(

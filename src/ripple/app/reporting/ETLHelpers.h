@@ -173,14 +173,14 @@ public:
 
 /// Parititions the uint256 keyspace into numMarkers partitions, each of equal
 /// size.
-inline std::vector<uint256>
+inline std::vector<uint256, slab_allocator<uint256>>
 getMarkers(size_t numMarkers)
 {
     assert(numMarkers <= 256);
 
     unsigned char incr = 256 / numMarkers;
 
-    std::vector<uint256> markers;
+    std::vector<uint256, slab_allocator<uint256>> markers;
     markers.reserve(numMarkers);
     uint256 base{0};
     for (size_t i = 0; i < numMarkers; ++i)

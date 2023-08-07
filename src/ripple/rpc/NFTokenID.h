@@ -52,7 +52,7 @@ canHaveNFTokenID(
 std::optional<uint256>
 getNFTokenIDFromPage(TxMeta const& transactionMeta);
 
-std::vector<uint256>
+std::vector<uint256, slab_allocator<uint256>>
 getNFTokenIDFromDeletedOffer(TxMeta const& transactionMeta);
 
 void

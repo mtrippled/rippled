@@ -118,7 +118,7 @@ public:
 
         std::vector<SHAMapNodeID> nodeIDs, gotNodeIDs;
         std::vector<Blob> gotNodes;
-        std::vector<uint256> hashes;
+        std::vector<uint256, slab_allocator<uint256>> hashes;
 
         destination.setSynching();
 

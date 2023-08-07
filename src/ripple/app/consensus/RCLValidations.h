@@ -21,6 +21,7 @@
 #define RIPPLE_APP_CONSENSUSS_VALIDATIONS_H_INCLUDED
 
 #include <ripple/app/ledger/Ledger.h>
+#include <ripple/basics/SlabAllocator.h>
 #include <ripple/consensus/Validations.h>
 #include <ripple/protocol/Protocol.h>
 #include <ripple/protocol/RippleLedgerHash.h>
@@ -193,7 +194,7 @@ public:
 private:
     ID ledgerID_;
     Seq ledgerSeq_;
-    std::vector<uint256> ancestors_;
+    std::vector<uint256, slab_allocator<uint256>> ancestors_;
     beast::Journal j_;
 };
 

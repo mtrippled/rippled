@@ -24,6 +24,7 @@
 #include <ripple/app/ledger/Ledger.h>
 #include <ripple/app/ledger/impl/TimeoutCounter.h>
 #include <ripple/app/main/Application.h>
+#include <ripple/basics/SlabAllocator.h>
 #include <ripple/shamap/SHAMap.h>
 #include <queue>
 
@@ -55,11 +56,11 @@ public:
     struct SkipListData
     {
         std::uint32_t const ledgerSeq;
-        std::vector<ripple::uint256> const skipList;
+        std::vector<uint256, slab_allocator<uint256>> const skipList;
 
         SkipListData(
             std::uint32_t const ledgerSeq,
-            std::vector<ripple::uint256> const& skipList)
+            std::vector<ripple::uint256, slab_allocator<uint256>> const& skipList)
             : ledgerSeq(ledgerSeq), skipList(skipList)
         {
         }
@@ -142,7 +143,7 @@ private:
      */
     void
     onSkipListAcquired(
-        std::vector<uint256> const& skipList,
+        std::vector<uint256, slab_allocator<uint256>> const& skipList,
         std::uint32_t ledgerSeq,
         ScopedLockType& sl);
 

@@ -106,7 +106,7 @@ class ReportingETL_test : public beast::unit_test::suite
 
         ledger = env.app().getLedgerMaster().getLedgerBySeq(4);
 
-        std::vector<uint256> hashes;
+        std::vector<uint256, slab_allocator<uint256>> hashes;
         std::vector<std::shared_ptr<const STTx>> transactions;
         std::vector<std::shared_ptr<const STObject>> metas;
         for (auto& [sttx, meta] : ledger->txs)

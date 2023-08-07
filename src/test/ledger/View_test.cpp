@@ -138,7 +138,7 @@ class View_test : public beast::unit_test::suite
         std::shared_ptr<Ledger const> const genesis = std::make_shared<Ledger>(
             create_genesis,
             config,
-            std::vector<uint256>{},
+            std::vector<uint256, slab_allocator<uint256>>{},
             env.app().getNodeFamily());
         auto const ledger = std::make_shared<Ledger>(
             *genesis, env.app().timeKeeper().closeTime());
@@ -377,10 +377,10 @@ class View_test : public beast::unit_test::suite
     }
 
     // Return a list of keys found via sles
-    static std::vector<uint256>
+    static std::vector<uint256, slab_allocator<uint256>>
     sles(ReadView const& ledger)
     {
-        std::vector<uint256> v;
+        std::vector<uint256, slab_allocator<uint256>> v;
         v.reserve(32);
         for (auto const& sle : ledger.sles)
             v.push_back(sle->key());
@@ -388,10 +388,10 @@ class View_test : public beast::unit_test::suite
     }
 
     template <class... Args>
-    static std::vector<uint256>
+    static std::vector<uint256, slab_allocator<uint256>>
     list(Args... args)
     {
-        return std::vector<uint256>({uint256(args)...});
+        return std::vector<uint256, slab_allocator<uint256>>({uint256(args)...});
     }
 
     void
@@ -405,7 +405,7 @@ class View_test : public beast::unit_test::suite
         std::shared_ptr<Ledger const> const genesis = std::make_shared<Ledger>(
             create_genesis,
             config,
-            std::vector<uint256>{},
+            std::vector<uint256, slab_allocator<uint256>>{},
             env.app().getNodeFamily());
         auto const ledger = std::make_shared<Ledger>(
             *genesis, env.app().timeKeeper().closeTime());
@@ -674,7 +674,7 @@ class View_test : public beast::unit_test::suite
         std::shared_ptr<Ledger const> const genesis = std::make_shared<Ledger>(
             create_genesis,
             config,
-            std::vector<uint256>{},
+            std::vector<uint256, slab_allocator<uint256>>{},
             env.app().getNodeFamily());
         auto const ledger = std::make_shared<Ledger>(
             *genesis, env.app().timeKeeper().closeTime());
@@ -1067,7 +1067,7 @@ class View_test : public beast::unit_test::suite
                 std::make_shared<Ledger>(
                     create_genesis,
                     config,
-                    std::vector<uint256>{},
+                    std::vector<uint256, slab_allocator<uint256>>{},
                     env.app().getNodeFamily());
             auto const ledger = std::make_shared<Ledger>(
                 *genesis, env.app().timeKeeper().closeTime());

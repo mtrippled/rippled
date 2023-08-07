@@ -294,10 +294,10 @@ public:
         std::set<uint256> const& enabled,
         majorityAmendments_t const& majority) override;
 
-    std::vector<uint256>
+    std::vector<uint256, slab_allocator<uint256>>
     doValidation(std::set<uint256> const& enabledAmendments) const override;
 
-    std::vector<uint256>
+    std::vector<uint256, slab_allocator<uint256>>
     getDesired() const override;
 
     std::map<uint256, std::uint32_t>
@@ -587,12 +587,12 @@ AmendmentTableImpl::firstUnsupportedExpected() const
     return firstUnsupportedExpected_;
 }
 
-std::vector<uint256>
+std::vector<uint256, slab_allocator<uint256>>
 AmendmentTableImpl::doValidation(std::set<uint256> const& enabled) const
 {
     // Get the list of amendments we support and do not
     // veto, but that are not already enabled
-    std::vector<uint256> amendments;
+    std::vector<uint256, slab_allocator<uint256>> amendments;
 
     {
         std::lock_guard lock(mutex_);
@@ -614,7 +614,7 @@ AmendmentTableImpl::doValidation(std::set<uint256> const& enabled) const
     return amendments;
 }
 
-std::vector<uint256>
+std::vector<uint256, slab_allocator<uint256>>
 AmendmentTableImpl::getDesired() const
 {
     // Get the list of amendments we support and do not veto

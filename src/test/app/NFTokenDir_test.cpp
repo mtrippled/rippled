@@ -121,7 +121,7 @@ class NFTokenDir_test : public beast::unit_test::suite
         // Mint 100 sequential NFTs.  Tweak the taxon so zero is always stored.
         // That's what makes them sequential.
         constexpr std::size_t nftCount = 100;
-        std::vector<uint256> nftIDs;
+        std::vector<uint256, slab_allocator<uint256>> nftIDs;
         nftIDs.reserve(nftCount);
         for (int i = 0; i < nftCount; ++i)
         {
@@ -135,7 +135,7 @@ class NFTokenDir_test : public beast::unit_test::suite
 
         // Create an offer for each of the NFTs.  This verifies that the ledger
         // can find all of the minted NFTs.
-        std::vector<uint256> offers;
+        std::vector<uint256, slab_allocator<uint256>> offers;
         for (uint256 const& nftID : nftIDs)
         {
             offers.emplace_back(keylet::nftoffer(issuer, env.seq(issuer)).key);
@@ -201,8 +201,8 @@ class NFTokenDir_test : public beast::unit_test::suite
 
                 // All of the accounts create one NFT and and offer that NFT to
                 // buyer.
-                std::vector<uint256> nftIDs;
-                std::vector<uint256> offers;
+                std::vector<uint256, slab_allocator<uint256>> nftIDs;
+                std::vector<uint256, slab_allocator<uint256>> offers;
                 offers.reserve(accounts.size());
                 for (Account const& account : accounts)
                 {
@@ -425,8 +425,8 @@ class NFTokenDir_test : public beast::unit_test::suite
 
                 // All of the accounts create one NFT and and offer that NFT to
                 // buyer.
-                std::vector<uint256> nftIDs;
-                std::vector<uint256> offers;
+                std::vector<uint256, slab_allocator<uint256>> nftIDs;
+                std::vector<uint256, slab_allocator<uint256>> offers;
                 offers.reserve(accounts.size());
                 for (Account const& account : accounts)
                 {
@@ -674,8 +674,8 @@ class NFTokenDir_test : public beast::unit_test::suite
         env.close();
 
         // All of the accounts create one NFT and and offer that NFT to buyer.
-        std::vector<uint256> nftIDs;
-        std::vector<uint256> offers;
+        std::vector<uint256, slab_allocator<uint256>> nftIDs;
+        std::vector<uint256, slab_allocator<uint256>> offers;
         offers.reserve(accounts.size());
         for (Account const& account : accounts)
         {
@@ -856,10 +856,10 @@ class NFTokenDir_test : public beast::unit_test::suite
 
         // All of the accounts create seven consecutive NFTs and and offer
         // those NFTs to buyer.
-        std::array<std::vector<uint256>, 7> nftIDsByPage;
+        std::array<std::vector<uint256, slab_allocator<uint256>>, 7> nftIDsByPage;
         for (auto& vec : nftIDsByPage)
             vec.reserve(accounts.size());
-        std::array<std::vector<uint256>, 7> offers;
+        std::array<std::vector<uint256, slab_allocator<uint256>>, 7> offers;
         for (auto& vec : offers)
             vec.reserve(accounts.size());
         for (std::size_t i = 0; i < nftIDsByPage.size(); ++i)
@@ -898,9 +898,9 @@ class NFTokenDir_test : public beast::unit_test::suite
 
         // Remove one NFT and offer from each of the vectors.  These offers
         // are the ones that will overflow the page.
-        std::vector<uint256> overflowNFTs;
+        std::vector<uint256, slab_allocator<uint256>> overflowNFTs;
         overflowNFTs.reserve(nftIDsByPage.size());
-        std::vector<uint256> overflowOffers;
+        std::vector<uint256, slab_allocator<uint256>> overflowOffers;
         overflowOffers.reserve(nftIDsByPage.size());
 
         for (std::size_t i = 0; i < nftIDsByPage.size(); ++i)
@@ -993,7 +993,7 @@ class NFTokenDir_test : public beast::unit_test::suite
 
             // Cancel all the offers.
             {
-                std::vector<uint256> cancelOffers;
+                std::vector<uint256, slab_allocator<uint256>> cancelOffers;
                 cancelOffers.reserve(ownedNftOffers.size());
 
                 for (auto const& offer : ownedNftOffers)

@@ -79,7 +79,7 @@ class RCLValidations_test : public beast::unit_test::suite
         auto prev = std::make_shared<Ledger const>(
             create_genesis,
             config,
-            std::vector<uint256>{},
+            std::vector<uint256, slab_allocator<uint256>>{},
             env.app().getNodeFamily());
         history.push_back(prev);
         for (auto i = 0; i < (2 * maxAncestors + 1); ++i)
@@ -243,7 +243,7 @@ class RCLValidations_test : public beast::unit_test::suite
         auto prev = std::make_shared<Ledger const>(
             create_genesis,
             config,
-            std::vector<uint256>{},
+            std::vector<uint256, slab_allocator<uint256>>{},
             env.app().getNodeFamily());
         history.push_back(prev);
         for (auto i = 0; i < (maxAncestors + 10); ++i)

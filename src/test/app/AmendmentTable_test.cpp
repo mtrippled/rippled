@@ -444,7 +444,7 @@ public:
             for (std::string const& a : vetoed_)
                 vetoed.insert(amendmentId(a));
 
-            std::vector<uint256> const desired = table->getDesired();
+            std::vector<uint256, slab_allocator<uint256>> const desired = table->getDesired();
             for (uint256 const& a : desired)
                 BEAST_EXPECT(vetoed.count(a) == 0);
 
@@ -460,7 +460,7 @@ public:
             uint256 const unvetoedID = amendmentId(vetoed_[0]);
             BEAST_EXPECT(table->unVeto(unvetoedID));
 
-            std::vector<uint256> const desired = table->getDesired();
+            std::vector<uint256, slab_allocator<uint256>> const desired = table->getDesired();
             BEAST_EXPECT(
                 std::find(desired.begin(), desired.end(), unvetoedID) !=
                 desired.end());
@@ -507,7 +507,7 @@ public:
         weeks week,
         std::vector<std::pair<PublicKey, SecretKey>> const& validators,
         std::vector<std::pair<uint256, int>> const& votes,
-        std::vector<uint256>& ourVotes,
+        std::vector<uint256, slab_allocator<uint256>>& ourVotes,
         std::set<uint256>& enabled,
         majorityAmendments_t& majority)
     {
@@ -532,7 +532,7 @@ public:
         for (auto const& [pub, sec] : validators)
         {
             ++i;
-            std::vector<uint256> field;
+            std::vector<uint256, slab_allocator<uint256>> field;
 
             for (auto const& [hash, nVotes] : votes)
             {
@@ -612,7 +612,7 @@ public:
             makeTable(env, weeks(2), emptyYes_, emptySection_, emptySection_);
 
         std::vector<std::pair<uint256, int>> votes;
-        std::vector<uint256> ourVotes;
+        std::vector<uint256, slab_allocator<uint256>> ourVotes;
         std::set<uint256> enabled;
         majorityAmendments_t majority;
 
@@ -679,7 +679,7 @@ public:
         auto const validators = makeValidators(10);
 
         std::vector<std::pair<uint256, int>> votes;
-        std::vector<uint256> ourVotes;
+        std::vector<uint256, slab_allocator<uint256>> ourVotes;
         std::set<uint256> enabled;
         majorityAmendments_t majority;
 
@@ -737,7 +737,7 @@ public:
 
         auto const validators = makeValidators(10);
         std::vector<std::pair<uint256, int>> votes;
-        std::vector<uint256> ourVotes;
+        std::vector<uint256, slab_allocator<uint256>> ourVotes;
         std::set<uint256> enabled;
         majorityAmendments_t majority;
 
@@ -827,7 +827,7 @@ public:
         for (int i = 0; i <= 17; ++i)
         {
             std::vector<std::pair<uint256, int>> votes;
-            std::vector<uint256> ourVotes;
+            std::vector<uint256, slab_allocator<uint256>> ourVotes;
 
             if ((i > 0) && (i < 17))
                 votes.emplace_back(testAmendment, i);
@@ -896,7 +896,7 @@ public:
         {
             // establish majority
             std::vector<std::pair<uint256, int>> votes;
-            std::vector<uint256> ourVotes;
+            std::vector<uint256, slab_allocator<uint256>> ourVotes;
 
             votes.emplace_back(testAmendment, validators.size());
 
@@ -917,7 +917,7 @@ public:
         for (int i = 1; i < 8; ++i)
         {
             std::vector<std::pair<uint256, int>> votes;
-            std::vector<uint256> ourVotes;
+            std::vector<uint256, slab_allocator<uint256>> ourVotes;
 
             // Gradually reduce support
             votes.emplace_back(testAmendment, validators.size() - i);

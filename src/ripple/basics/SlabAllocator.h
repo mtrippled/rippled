@@ -32,7 +32,10 @@
 #include <cassert>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <mutex>
+
+#include <iostream>
 
 #if BOOST_OS_LINUX
 #include <sys/mman.h>
@@ -83,6 +86,7 @@ class SlabAllocator
                 // (will optimize to equivalent code)
                 std::memcpy(data, &l_, sizeof(std::uint8_t*));
                 l_ = data;
+                std::cout << "2. l_ &l_ " << static_cast<void*>(l_) << ' ' << static_cast<void*>(&l_) << std::endl;
                 data += item;
             }
         }
@@ -110,7 +114,7 @@ class SlabAllocator
         }
 
         std::uint8_t*
-        allocate() noexcept
+        allocate(bool debug = false) noexcept
         {
             std::uint8_t* ret;
 
@@ -118,11 +122,15 @@ class SlabAllocator
                 std::lock_guard l(m_);
 
                 ret = l_;
+                std::cout << "1 ret,&ret,l_,&l_ " << static_cast<const void*>(ret) << ',' << static_cast<const void*>(&ret) << ',' << static_cast<const void*>(l_) << ',' << static_cast<const void*>(&l_) <<  std::endl;
 
                 if (ret)
                 {
                     // Use memcpy to avoid unaligned UB
                     // (will optimize to equivalent code)
+                    std::cout << "before" << std::endl;
+                    std::cout << "2 p_,size,&l_,l_,&ret,ret,size " << static_cast<const void*>(p_) << ',' << size_ << ',' << static_cast<const void*>(&l_) << ',' << static_cast<const void*>(l_) << ',' << static_cast<const void*>(&ret) << ',' << static_cast<const void*>(ret) << ',' << sizeof(std::uint8_t*) << std::endl;
+                    std::cout << "after" << std::endl;
                     std::memcpy(&l_, ret, sizeof(std::uint8_t*));
                 }
             }
@@ -150,6 +158,7 @@ class SlabAllocator
             // (will optimize to equivalent code)
             std::memcpy(ptr, &l_, sizeof(std::uint8_t*));
             l_ = ptr;
+            std::cout << "1. l_ &l_ " << static_cast<void*>(l_) << ' ' << static_cast<void*>(&l_) << std::endl;
         }
     };
 
@@ -254,8 +263,8 @@ public:
         // We need to carve out a bit of memory for the slab header
         // and then align the rest appropriately:
         auto slabData = reinterpret_cast<void*>(
-            reinterpret_cast<std::uint8_t*>(buf) + sizeof(SlabBlock));
-        auto slabSize = size - sizeof(SlabBlock);
+            reinterpret_cast<std::uint8_t*>(buf) + (8 * 1024));
+        auto slabSize = size - (4 * 1024);
 
         // This operation is essentially guaranteed not to fail but
         // let's be careful anyways.
@@ -271,6 +280,7 @@ public:
             reinterpret_cast<std::uint8_t*>(slabData),
             slabSize,
             itemSize_);
+        assert(slab);
 
         // Link the new slab
         while (!slabs_.compare_exchange_weak(
@@ -278,11 +288,14 @@ public:
             slab,
             std::memory_order_release,
             std::memory_order_relaxed))
+        while (!slabs_.compare_exchange_strong(
+            slab->next_,
+            slab))
         {
             ;  // Nothing to do
         }
 
-        return slab->allocate();
+        return slab->allocate(true);
     }
 
     /** Returns the memory block to the allocator.
@@ -440,6 +453,125 @@ inline SlabAllocatorSet<std::max_align_t> globalSlabber({
     {  8192, megabytes(std::size_t(100))  },
 });
 // clang-format on
+
+//-----------------------------------------------------------------------------
+
+template <class T>
+class slab_allocator
+{
+public:
+    using value_type    = T;
+
+//     using pointer       = value_type*;
+//     using const_pointer = typename std::pointer_traits<pointer>::template
+//                                                     rebind<value_type const>;
+//     using void_pointer       = typename std::pointer_traits<pointer>::template
+//                                                           rebind<void>;
+//     using const_void_pointer = typename std::pointer_traits<pointer>::template
+//                                                           rebind<const void>;
+
+//     using difference_type = typename std::pointer_traits<pointer>::difference_type;
+//     using size_type       = std::make_unsigned_t<difference_type>;
+
+//     template <class U> struct rebind {typedef allocator<U> other;};
+
+    slab_allocator() noexcept {}  // not required, unless used
+    template <class U> slab_allocator(slab_allocator<U> const&) noexcept {}
+
+    value_type*  // Use pointer if pointer is not a value_type*
+    allocate(std::size_t n)
+    {
+        std::size_t s = n * sizeof(value_type);
+        uint8_t* ret = globalSlabber.allocate(s);
+        std::cout << "allocate valuetypesize,n,ttl,ptr " << sizeof(value_type) << ',' << n << ',' << s << ',' << static_cast<void*>(ret) << std::endl;
+        if (ret != nullptr)
+            return reinterpret_cast<value_type*>(ret);
+        return new value_type[n];
+
+//            new static_cast<uint_8*>((ret) <uint8_t*>(s));
+//        return reinterpret_cast<value_type*>(ret);
+
+
+//        value_type* ret = reinterpret_cast<value_type*>(
+//            globalSlabber.allocate(n * sizeof(value_type)));
+        // If we can't grab memory from the slab allocators, we fall back to
+        // the standard library and try to grab a precisely-sized memory block:
+//        if (ret == nullptr)
+//            return new value_type[n];
+//        return new (ret) value_type[n];
+
+//            return static_cast<value_type*>(
+//                ::operator new (n * sizeof(value_type)));
+//        ::operator new (n, ret) sizeof(value_type));
+//        return ret;
+//        return ::operator new (ret) static_cast<value_type*>(n * sizeof(value_type));
+
+//        return static_cast<value_type*>(::operator new (n*sizeof(value_type)));
+    }
+
+    void
+    deallocate(value_type* p, std::size_t s) noexcept  // Use pointer if pointer is not a value_type*
+    {
+        if (p == nullptr)
+            return;
+        if (!globalSlabber.deallocate(reinterpret_cast<std::uint8_t*>(p)))
+            delete[] p;
+        std::cout << "deallocate size,ptr " << s << ',' << static_cast<void*>(p) << std::endl;
+//            delete p;
+//        ::operator delete(p);
+    }
+
+//     value_type*
+//     allocate(std::size_t n, const_void_pointer)
+//     {
+//         return allocate(n);
+//     }
+
+//     template <class U, class ...Args>
+//     void
+//     construct(U* p, Args&& ...args)
+//     {
+//         ::new(p) U(std::forward<Args>(args)...);
+//     }
+
+//     template <class U>
+//     void
+//     destroy(U* p) noexcept
+//     {
+//         p->~U();
+//     }
+
+//     std::size_t
+//     max_size() const noexcept
+//     {
+//         return std::numeric_limits<size_type>::max();
+//     }
+
+//     allocator
+//     select_on_container_copy_construction() const
+//     {
+//         return *this;
+//     }
+
+//     using propagate_on_container_copy_assignment = std::false_type;
+//     using propagate_on_container_move_assignment = std::false_type;
+//     using propagate_on_container_swap            = std::false_type;
+//     using is_always_equal                        = std::is_empty<allocator>;
+};
+
+template <class T, class U>
+bool
+operator==(slab_allocator<T> const&, slab_allocator<U> const&) noexcept
+{
+    return true;
+}
+
+template <class T, class U>
+bool
+operator!=(slab_allocator<T> const& x, slab_allocator<U> const& y) noexcept
+{
+    return !(x == y);
+}
 
 }  // namespace ripple
 

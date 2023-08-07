@@ -55,7 +55,7 @@ class NFTokenBurn_test : public beast::unit_test::suite
     createNftAndOffers(
         test::jtx::Env& env,
         test::jtx::Account const& owner,
-        std::vector<uint256>& offerIndexes,
+        std::vector<uint256, slab_allocator<uint256>>& offerIndexes,
         size_t const tokenCancelCount)
     {
         using namespace test::jtx;
@@ -94,7 +94,7 @@ class NFTokenBurn_test : public beast::unit_test::suite
         struct AcctStat
         {
             test::jtx::Account const acct;
-            std::vector<uint256> nfts;
+            std::vector<uint256, slab_allocator<uint256>> nfts;
 
             AcctStat(char const* name) : acct(name)
             {
@@ -365,7 +365,7 @@ class NFTokenBurn_test : public beast::unit_test::suite
 
         // A lambda that generates 96 nfts packed into three pages of 32 each.
         auto genPackedTokens = [this, &env, &alice](
-                                   std::vector<uint256>& nfts) {
+                                   std::vector<uint256, slab_allocator<uint256>>& nfts) {
             nfts.clear();
             nfts.reserve(96);
 
@@ -446,7 +446,7 @@ class NFTokenBurn_test : public beast::unit_test::suite
         // Generate three packed pages.  Then burn the tokens in order from
         // first to last.  This exercises specific cases where coalescing
         // pages is not possible.
-        std::vector<uint256> nfts;
+        std::vector<uint256, slab_allocator<uint256>> nfts;
         genPackedTokens(nfts);
         BEAST_EXPECT(nftCount(env, alice) == 96);
         BEAST_EXPECT(ownerCount(env, alice) == 3);
@@ -560,7 +560,7 @@ class NFTokenBurn_test : public beast::unit_test::suite
                 txflags(tfTransferable));
             env.close();
 
-            std::vector<uint256> offerIndexes;
+            std::vector<uint256, slab_allocator<uint256>> offerIndexes;
             offerIndexes.reserve(maxTokenOfferCancelCount);
             for (std::uint32_t i = 0; i < maxTokenOfferCancelCount; ++i)
             {
@@ -643,7 +643,7 @@ class NFTokenBurn_test : public beast::unit_test::suite
             // alice creates 498 sell offers and becky creates 1 buy offers.
             // When the token is burned, 498 sell offers and 1 buy offer are
             // removed. In total, 499 offers are removed
-            std::vector<uint256> offerIndexes;
+            std::vector<uint256, slab_allocator<uint256>> offerIndexes;
             auto const nftokenID = createNftAndOffers(
                 env, alice, offerIndexes, maxDeletableTokenOfferEntries - 2);
 
@@ -694,7 +694,7 @@ class NFTokenBurn_test : public beast::unit_test::suite
             // alice creates 501 sell offers for the token
             // After we burn the token, 500 of the sell offers should be
             // removed, and one is left over
-            std::vector<uint256> offerIndexes;
+            std::vector<uint256, slab_allocator<uint256>> offerIndexes;
             auto const nftokenID = createNftAndOffers(
                 env, alice, offerIndexes, maxDeletableTokenOfferEntries + 1);
 
@@ -740,7 +740,7 @@ class NFTokenBurn_test : public beast::unit_test::suite
             // When the token is burned, 499 sell offers and 1 buy offer
             // are removed.
             // In total, 500 offers are removed
-            std::vector<uint256> offerIndexes;
+            std::vector<uint256, slab_allocator<uint256>> offerIndexes;
             auto const nftokenID = createNftAndOffers(
                 env, alice, offerIndexes, maxDeletableTokenOfferEntries - 1);
 

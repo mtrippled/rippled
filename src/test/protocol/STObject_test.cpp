@@ -367,7 +367,7 @@ public:
         }
 
         {
-            std::vector<uint256> uints;
+            std::vector<uint256, slab_allocator<uint256>> uints;
             uints.reserve(5);
             for (int i = 0; i < uints.capacity(); ++i)
             {
@@ -622,7 +622,7 @@ public:
 {
     auto const& sf = sfIndexes;
     STObject st(sfGeneric);
-    std::vector<uint256> v;
+    std::vector<uint256, slab_allocator<uint256>> v;
     v.emplace_back(1);
     v.emplace_back(2);
     st[sf] = v;
@@ -633,7 +633,7 @@ public:
     BEAST_EXPECT(cst[sf][0] == 1);
     BEAST_EXPECT(cst[sf][1] == 2);
     static_assert(
-        std::is_same<decltype(cst[sfIndexes]), std::vector<uint256> const&>::
+        std::is_same<decltype(cst[sfIndexes]), std::vector<uint256, slab_allocator<uint256>> const&>::
             value,
         "");
 }
@@ -655,7 +655,7 @@ public:
     BEAST_EXPECT(cst[sf1].size() == 0);
     BEAST_EXPECT(!cst[~sf2]);
     BEAST_EXPECT(cst[sf3].size() == 0);
-    std::vector<uint256> v;
+    std::vector<uint256, slab_allocator<uint256>> v;
     v.emplace_back(1);
     st[sf1] = v;
     BEAST_EXPECT(cst[sf1].size() == 1);
@@ -668,7 +668,7 @@ public:
     st[sf3] = v;
     BEAST_EXPECT(cst[sf3].size() == 1);
     BEAST_EXPECT(cst[sf3][0] == uint256{1});
-    st[sf3] = std::vector<uint256>{};
+    st[sf3] = std::vector<uint256, slab_allocator<uint256>>{};
     BEAST_EXPECT(cst[sf3].size() == 0);
 }
 }  // namespace ripple

@@ -232,7 +232,7 @@ class NegativeUNL_test : public beast::unit_test::suite
         auto l = std::make_shared<Ledger>(
             create_genesis,
             env.app().config(),
-            std::vector<uint256>{},
+            std::vector<uint256, slab_allocator<uint256>>{},
             env.app().getNodeFamily());
         BEAST_EXPECT(l->rules().enabled(featureNegativeUNL));
 
@@ -531,7 +531,7 @@ class NegativeUNLNoAmendment_test : public beast::unit_test::suite
         auto l = std::make_shared<Ledger>(
             create_genesis,
             env.app().config(),
-            std::vector<uint256>{},
+            std::vector<uint256, slab_allocator<uint256>>{},
             env.app().getNodeFamily());
         BEAST_EXPECT(!l->rules().enabled(featureNegativeUNL));
 
@@ -615,7 +615,7 @@ struct NetworkHistory
         auto l = std::make_shared<Ledger>(
             create_genesis,
             env.app().config(),
-            std::vector<uint256>{fake_amemdment++},
+            std::vector<uint256, slab_allocator<uint256>>{fake_amemdment++},
             env.app().getNodeFamily());
         history.push_back(l);
 
@@ -1819,7 +1819,7 @@ class NegativeUNLVoteFilterValidations_test : public beast::unit_test::suite
         auto l = std::make_shared<Ledger>(
             create_genesis,
             env.app().config(),
-            std::vector<uint256>{},
+            std::vector<uint256, slab_allocator<uint256>>{},
             env.app().getNodeFamily());
 
         auto createSTVal = [&](std::pair<PublicKey, SecretKey> const& keys) {

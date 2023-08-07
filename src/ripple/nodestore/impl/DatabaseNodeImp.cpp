@@ -144,7 +144,7 @@ DatabaseNodeImp::fetchNodeObject(
 }
 
 std::vector<std::shared_ptr<NodeObject>>
-DatabaseNodeImp::fetchBatch(std::vector<uint256> const& hashes)
+DatabaseNodeImp::fetchBatch(std::vector<uint256, slab_allocator<uint256>> const& hashes)
 {
     std::vector<std::shared_ptr<NodeObject>> results{hashes.size()};
     using namespace std::chrono;

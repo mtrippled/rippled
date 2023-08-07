@@ -119,7 +119,7 @@ public:
     }
 
     std::vector<std::shared_ptr<NodeObject>>
-    fetchBatch(std::vector<uint256> const& hashes);
+    fetchBatch(std::vector<uint256, slab_allocator<uint256>> const& hashes);
 
     void
     asyncFetch(

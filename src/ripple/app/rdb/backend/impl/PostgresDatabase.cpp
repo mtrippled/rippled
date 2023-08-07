@@ -116,7 +116,7 @@ public:
     std::map<LedgerIndex, LedgerHashPair>
     getHashesByIndex(LedgerIndex minSeq, LedgerIndex maxSeq) override;
 
-    std::vector<uint256>
+    std::vector<uint256, slab_allocator<uint256>>
     getTxHashes(LedgerIndex seq) override;
 
     std::vector<std::shared_ptr<Transaction>>
@@ -346,7 +346,7 @@ enum class DataFormat { binary, expanded };
 static std::variant<TxnsData, TxnsDataBinary>
 flatFetchTransactions(
     Application& app,
-    std::vector<uint256>& nodestoreHashes,
+    std::vector<uint256, slab_allocator<uint256>>& nodestoreHashes,
     std::vector<uint32_t>& ledgerSequences,
     DataFormat format)
 {
@@ -402,7 +402,7 @@ processAccountTxStoredProcedureResult(
     {
         if (result.isMember("transactions"))
         {
-            std::vector<uint256> nodestoreHashes;
+            std::vector<uint256, slab_allocator<uint256>> nodestoreHashes;
             std::vector<uint32_t> ledgerSequences;
             for (auto& t : result["transactions"])
             {
@@ -679,10 +679,10 @@ PostgresDatabaseImp::getHashesByIndex(LedgerIndex minSeq, LedgerIndex maxSeq)
     return ret;
 }
 
-std::vector<uint256>
+std::vector<uint256, slab_allocator<uint256>>
 PostgresDatabaseImp::getTxHashes(LedgerIndex seq)
 {
-    std::vector<uint256> nodestoreHashes;
+    std::vector<uint256, slab_allocator<uint256>> nodestoreHashes;
 
 #ifdef RIPPLED_REPORTING
     auto log = app_.journal("Ledger");
@@ -812,7 +812,7 @@ PostgresDatabaseImp::getTxHistory(LedgerIndex startIndex)
 
     JLOG(j_.trace()) << __func__ << " : Postgres result = " << res.c_str();
 
-    std::vector<uint256> nodestoreHashes;
+    std::vector<uint256, slab_allocator<uint256>> nodestoreHashes;
     std::vector<uint32_t> ledgerSequences;
     for (size_t i = 0; i < res.ntuples(); ++i)
     {

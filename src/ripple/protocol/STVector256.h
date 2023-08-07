@@ -20,6 +20,7 @@
 #ifndef RIPPLE_PROTOCOL_STVECTOR256_H_INCLUDED
 #define RIPPLE_PROTOCOL_STVECTOR256_H_INCLUDED
 
+#include <ripple/basics/SlabAllocator.h>
 #include <ripple/protocol/STBase.h>
 #include <ripple/protocol/STBitString.h>
 #include <ripple/protocol/STInteger.h>
@@ -28,16 +29,17 @@ namespace ripple {
 
 class STVector256 : public STBase
 {
-    std::vector<uint256> mValue;
+    std::vector<uint256, slab_allocator<uint256>> mValue;
+//    std::vector<uint256, slab_allocator<uint256>> mValue;
 
 public:
-    using value_type = std::vector<uint256> const&;
+    using value_type = std::vector<uint256, slab_allocator<uint256>> const&;
 
     STVector256() = default;
 
     explicit STVector256(SField const& n);
-    explicit STVector256(std::vector<uint256> const& vector);
-    STVector256(SField const& n, std::vector<uint256> const& vector);
+    explicit STVector256(std::vector<uint256, slab_allocator<uint256>> const& vector);
+    STVector256(SField const& n, std::vector<uint256, slab_allocator<uint256>> const& vector);
     STVector256(SerialIter& sit, SField const& name);
 
     SerializedTypeID
@@ -55,16 +57,16 @@ public:
     isDefault() const override;
 
     STVector256&
-    operator=(std::vector<uint256> const& v);
+    operator=(std::vector<uint256, slab_allocator<uint256>> const& v);
 
     STVector256&
-    operator=(std::vector<uint256>&& v);
+    operator=(std::vector<uint256, slab_allocator<uint256>>&& v);
 
     void
     setValue(const STVector256& v);
 
     /** Retrieve a copy of the vector we contain */
-    explicit operator std::vector<uint256>() const;
+    explicit operator std::vector<uint256, slab_allocator<uint256>>() const;
 
     std::size_t
     size() const;
@@ -75,38 +77,38 @@ public:
     bool
     empty() const;
 
-    std::vector<uint256>::reference
-    operator[](std::vector<uint256>::size_type n);
+    std::vector<uint256, slab_allocator<uint256>>::reference
+    operator[](std::vector<uint256, slab_allocator<uint256>>::size_type n);
 
-    std::vector<uint256>::const_reference
-    operator[](std::vector<uint256>::size_type n) const;
+    std::vector<uint256, slab_allocator<uint256>>::const_reference
+    operator[](std::vector<uint256, slab_allocator<uint256>>::size_type n) const;
 
-    std::vector<uint256> const&
+    std::vector<uint256, slab_allocator<uint256>> const&
     value() const;
 
-    std::vector<uint256>::iterator
-    insert(std::vector<uint256>::const_iterator pos, uint256 const& value);
+    std::vector<uint256, slab_allocator<uint256>>::iterator
+    insert(std::vector<uint256, slab_allocator<uint256>>::const_iterator pos, uint256 const& value);
 
-    std::vector<uint256>::iterator
-    insert(std::vector<uint256>::const_iterator pos, uint256&& value);
+    std::vector<uint256, slab_allocator<uint256>>::iterator
+    insert(std::vector<uint256, slab_allocator<uint256>>::const_iterator pos, uint256&& value);
 
     void
     push_back(uint256 const& v);
 
-    std::vector<uint256>::iterator
+    std::vector<uint256, slab_allocator<uint256>>::iterator
     begin();
 
-    std::vector<uint256>::const_iterator
+    std::vector<uint256, slab_allocator<uint256>>::const_iterator
     begin() const;
 
-    std::vector<uint256>::iterator
+    std::vector<uint256, slab_allocator<uint256>>::iterator
     end();
 
-    std::vector<uint256>::const_iterator
+    std::vector<uint256, slab_allocator<uint256>>::const_iterator
     end() const;
 
-    std::vector<uint256>::iterator
-    erase(std::vector<uint256>::iterator position);
+    std::vector<uint256, slab_allocator<uint256>>::iterator
+    erase(std::vector<uint256, slab_allocator<uint256>>::iterator position);
 
     void
     clear() noexcept;
@@ -124,27 +126,27 @@ inline STVector256::STVector256(SField const& n) : STBase(n)
 {
 }
 
-inline STVector256::STVector256(std::vector<uint256> const& vector)
+inline STVector256::STVector256(std::vector<uint256, slab_allocator<uint256>> const& vector)
     : mValue(vector)
 {
 }
 
 inline STVector256::STVector256(
     SField const& n,
-    std::vector<uint256> const& vector)
+    std::vector<uint256, slab_allocator<uint256>> const& vector)
     : STBase(n), mValue(vector)
 {
 }
 
 inline STVector256&
-STVector256::operator=(std::vector<uint256> const& v)
+STVector256::operator=(std::vector<uint256, slab_allocator<uint256>> const& v)
 {
     mValue = v;
     return *this;
 }
 
 inline STVector256&
-STVector256::operator=(std::vector<uint256>&& v)
+STVector256::operator=(std::vector<uint256, slab_allocator<uint256>>&& v)
 {
     mValue = std::move(v);
     return *this;
@@ -157,7 +159,7 @@ STVector256::setValue(const STVector256& v)
 }
 
 /** Retrieve a copy of the vector we contain */
-inline STVector256::operator std::vector<uint256>() const
+inline STVector256::operator std::vector<uint256, slab_allocator<uint256>>() const
 {
     return mValue;
 }
@@ -180,34 +182,34 @@ STVector256::empty() const
     return mValue.empty();
 }
 
-inline std::vector<uint256>::reference
-STVector256::operator[](std::vector<uint256>::size_type n)
+inline std::vector<uint256, slab_allocator<uint256>>::reference
+STVector256::operator[](std::vector<uint256, slab_allocator<uint256>>::size_type n)
 {
     return mValue[n];
 }
 
-inline std::vector<uint256>::const_reference
-STVector256::operator[](std::vector<uint256>::size_type n) const
+inline std::vector<uint256, slab_allocator<uint256>>::const_reference
+STVector256::operator[](std::vector<uint256, slab_allocator<uint256>>::size_type n) const
 {
     return mValue[n];
 }
 
-inline std::vector<uint256> const&
+inline std::vector<uint256, slab_allocator<uint256>> const&
 STVector256::value() const
 {
     return mValue;
 }
 
-inline std::vector<uint256>::iterator
+inline std::vector<uint256, slab_allocator<uint256>>::iterator
 STVector256::insert(
-    std::vector<uint256>::const_iterator pos,
+    std::vector<uint256, slab_allocator<uint256>>::const_iterator pos,
     uint256 const& value)
 {
     return mValue.insert(pos, value);
 }
 
-inline std::vector<uint256>::iterator
-STVector256::insert(std::vector<uint256>::const_iterator pos, uint256&& value)
+inline std::vector<uint256, slab_allocator<uint256>>::iterator
+STVector256::insert(std::vector<uint256, slab_allocator<uint256>>::const_iterator pos, uint256&& value)
 {
     return mValue.insert(pos, std::move(value));
 }
@@ -218,32 +220,32 @@ STVector256::push_back(uint256 const& v)
     mValue.push_back(v);
 }
 
-inline std::vector<uint256>::iterator
+inline std::vector<uint256, slab_allocator<uint256>>::iterator
 STVector256::begin()
 {
     return mValue.begin();
 }
 
-inline std::vector<uint256>::const_iterator
+inline std::vector<uint256, slab_allocator<uint256>>::const_iterator
 STVector256::begin() const
 {
     return mValue.begin();
 }
 
-inline std::vector<uint256>::iterator
+inline std::vector<uint256, slab_allocator<uint256>>::iterator
 STVector256::end()
 {
     return mValue.end();
 }
 
-inline std::vector<uint256>::const_iterator
+inline std::vector<uint256, slab_allocator<uint256>>::const_iterator
 STVector256::end() const
 {
     return mValue.end();
 }
 
-inline std::vector<uint256>::iterator
-STVector256::erase(std::vector<uint256>::iterator position)
+inline std::vector<uint256, slab_allocator<uint256>>::iterator
+STVector256::erase(std::vector<uint256, slab_allocator<uint256>>::iterator position)
 {
     return mValue.erase(position);
 }

@@ -179,7 +179,7 @@ public:
 Ledger::Ledger(
     create_genesis_t,
     Config const& config,
-    std::vector<uint256> const& amendments,
+    std::vector<uint256, slab_allocator<uint256>> const& amendments,
     Family& family)
     : mImmutable(false)
     , txMap_(SHAMapType::TRANSACTION, family)
@@ -903,7 +903,7 @@ Ledger::updateSkipList()
     {
         auto const k = keylet::skip(prevIndex);
         auto sle = peek(k);
-        std::vector<uint256> hashes;
+        std::vector<uint256, slab_allocator<uint256>> hashes;
 
         bool created;
         if (!sle)
@@ -930,7 +930,7 @@ Ledger::updateSkipList()
     // update record of past 256 ledger
     auto const k = keylet::skip();
     auto sle = peek(k);
-    std::vector<uint256> hashes;
+    std::vector<uint256, slab_allocator<uint256>> hashes;
     bool created;
     if (!sle)
     {
@@ -1148,7 +1148,7 @@ loadByHash(uint256 const& ledgerHash, Application& app, bool acquire)
 
 std::vector<
     std::pair<std::shared_ptr<STTx const>, std::shared_ptr<STObject const>>>
-flatFetchTransactions(Application& app, std::vector<uint256>& nodestoreHashes)
+flatFetchTransactions(Application& app, std::vector<uint256, slab_allocator<uint256>>& nodestoreHashes)
 {
     if (!app.config().reporting())
     {

@@ -83,7 +83,7 @@ struct join_test : beast::unit_test::suite
                 Account::master.human());
         }
         // empty vector edge case
-        test(CollectionAndDelimiter(std::vector<uint256>{}, ","), "");
+        test(CollectionAndDelimiter(std::vector<uint256, slab_allocator<uint256>>{}, ","), "");
         // C-style string
         test(CollectionAndDelimiter("string", " "), "s t r i n g");
         // Empty C-style string edge case

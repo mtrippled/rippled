@@ -1706,9 +1706,9 @@ ApplicationImp::fdRequired() const
 void
 ApplicationImp::startGenesisLedger()
 {
-    std::vector<uint256> const initialAmendments =
+    std::vector<uint256, slab_allocator<uint256>> const initialAmendments =
         (config_->START_UP == Config::FRESH) ? m_amendmentTable->getDesired()
-                                             : std::vector<uint256>{};
+                                             : std::vector<uint256, slab_allocator<uint256>>{};
 
     std::shared_ptr<Ledger> const genesis = std::make_shared<Ledger>(
         create_genesis, *config_, initialAmendments, nodeFamily_);

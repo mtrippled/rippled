@@ -233,14 +233,14 @@ InboundLedger::~InboundLedger()
     }
 }
 
-static std::vector<uint256>
+static std::vector<uint256, slab_allocator<uint256>>
 neededHashes(
     uint256 const& root,
     SHAMap& map,
     int max,
     SHAMapSyncFilter* filter)
 {
-    std::vector<uint256> ret;
+    std::vector<uint256, slab_allocator<uint256>> ret;
 
     if (!root.isZero())
     {
@@ -258,13 +258,13 @@ neededHashes(
     return ret;
 }
 
-std::vector<uint256>
+std::vector<uint256, slab_allocator<uint256>>
 InboundLedger::neededTxHashes(int max, SHAMapSyncFilter* filter) const
 {
     return neededHashes(mLedger->info().txHash, mLedger->txMap(), max, filter);
 }
 
-std::vector<uint256>
+std::vector<uint256, slab_allocator<uint256>>
 InboundLedger::neededStateHashes(int max, SHAMapSyncFilter* filter) const
 {
     return neededHashes(

@@ -70,7 +70,7 @@ public:
      * @param seq Ledger sequence
      * @return Vector of transaction hashes
      */
-    virtual std::vector<uint256>
+    virtual std::vector<uint256, slab_allocator<uint256>>
     getTxHashes(LedgerIndex seq) = 0;
 
     /**

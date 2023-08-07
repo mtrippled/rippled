@@ -123,14 +123,14 @@ public:
 
     // Called by the consensus code when we need to
     // add feature entries to a validation
-    virtual std::vector<uint256>
+    virtual std::vector<uint256, slab_allocator<uint256>>
     doValidation(std::set<uint256> const& enabled) const = 0;
 
     // The set of amendments to enable in the genesis ledger
     // This will return all known, non-vetoed amendments.
     // If we ever have two amendments that should not both be
     // enabled at the same time, we should ensure one is vetoed.
-    virtual std::vector<uint256>
+    virtual std::vector<uint256, slab_allocator<uint256>>
     getDesired() const = 0;
 
     // The function below adapts the API callers expect to the

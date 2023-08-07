@@ -38,7 +38,7 @@ class SkipList_test : public beast::unit_test::suite
             auto prev = std::make_shared<Ledger>(
                 create_genesis,
                 config,
-                std::vector<uint256>{},
+                std::vector<uint256, slab_allocator<uint256>>{},
                 env.app().getNodeFamily());
             history.push_back(prev);
             for (auto i = 0; i < 1023; ++i)

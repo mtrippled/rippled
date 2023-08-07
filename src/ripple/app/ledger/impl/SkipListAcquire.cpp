@@ -211,7 +211,7 @@ SkipListAcquire::retrieveSkipList(
 
 void
 SkipListAcquire::onSkipListAcquired(
-    std::vector<uint256> const& skipList,
+    std::vector<uint256, slab_allocator<uint256>> const& skipList,
     std::uint32_t ledgerSeq,
     ScopedLockType& sl)
 {

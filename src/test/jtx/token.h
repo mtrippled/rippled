@@ -167,7 +167,7 @@ cancelOffer(
 Json::Value
 cancelOffer(
     jtx::Account const& account,
-    std::vector<uint256> const& nftokenOffers);
+    std::vector<uint256, slab_allocator<uint256>> const& nftokenOffers);
 
 /** Sets the optional RootIndex field when canceling NFTokenOffers. */
 class rootIndex

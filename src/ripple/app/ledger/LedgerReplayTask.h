@@ -53,7 +53,7 @@ public:
 
         // to be updated
         std::uint32_t finishSeq_ = 0;
-        std::vector<uint256> skipList_ = {};  // including the finishHash
+        std::vector<uint256, slab_allocator<uint256>> skipList_ = {};  // including the finishHash
         uint256 startHash_ = {};
         std::uint32_t startSeq_ = 0;
         bool full_ = false;
@@ -82,7 +82,7 @@ public:
         update(
             uint256 const& hash,
             std::uint32_t seq,
-            std::vector<uint256> const& sList);
+            std::vector<uint256, slab_allocator<uint256>> const& sList);
 
         /** check if this task can be merged into an existing task */
         bool
@@ -146,7 +146,7 @@ private:
     updateSkipList(
         uint256 const& hash,
         std::uint32_t seq,
-        std::vector<uint256> const& sList);
+        std::vector<uint256, slab_allocator<uint256>> const& sList);
 
     /**
      * Notify this task (by a LedgerDeltaAcquire subtask) that a delta is ready

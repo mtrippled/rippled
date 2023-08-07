@@ -721,7 +721,7 @@ Transactor::checkMultiSign(PreclaimContext const& ctx)
 static void
 removeUnfundedOffers(
     ApplyView& view,
-    std::vector<uint256> const& offers,
+    std::vector<uint256, slab_allocator<uint256>> const& offers,
     beast::Journal viewJ)
 {
     int removed = 0;
@@ -741,7 +741,7 @@ removeUnfundedOffers(
 static void
 removeExpiredNFTokenOffers(
     ApplyView& view,
-    std::vector<uint256> const& offers,
+    std::vector<uint256, slab_allocator<uint256>> const& offers,
     beast::Journal viewJ)
 {
     std::size_t removed = 0;
@@ -857,7 +857,7 @@ Transactor::operator()()
         //        awkward and very limiting. A more general purpose approach
         //        should be used, making it possible to do more useful work
         //        when transactions fail with a `tec` code.
-        std::vector<uint256> removedOffers;
+        std::vector<uint256, slab_allocator<uint256>> removedOffers;
 
         if ((result == tecOVERSIZE) || (result == tecKILLED))
         {
@@ -880,7 +880,7 @@ Transactor::operator()()
             });
         }
 
-        std::vector<uint256> expiredNFTokenOffers;
+        std::vector<uint256, slab_allocator<uint256>> expiredNFTokenOffers;
 
         if (result == tecEXPIRED)
         {

@@ -997,8 +997,8 @@ struct LedgerReplayer_test : public beast::unit_test::suite
     {
         testcase("TaskParameter");
 
-        auto makeSkipList = [](int count) -> std::vector<uint256> const {
-            std::vector<uint256> sList;
+        auto makeSkipList = [](int count) -> std::vector<uint256, slab_allocator<uint256>> const {
+            std::vector<uint256, slab_allocator<uint256>> sList;
             for (int i = 0; i < count; ++i)
                 sList.emplace_back(i);
             return sList;
@@ -1550,7 +1550,7 @@ struct LedgerReplayerLong_test : public beast::unit_test::suite
             InboundLedgersBehavior::Good,
             PeerFeature::LedgerReplayEnabled);
 
-        std::vector<uint256> finishHashes;
+        std::vector<uint256, slab_allocator<uint256>> finishHashes;
         auto l = net.server.ledgerMaster.getClosedLedger();
         for (int i = 0; i < rounds; ++i)
         {
