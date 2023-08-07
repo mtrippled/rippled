@@ -263,8 +263,8 @@ public:
         // We need to carve out a bit of memory for the slab header
         // and then align the rest appropriately:
         auto slabData = reinterpret_cast<void*>(
-            reinterpret_cast<std::uint8_t*>(buf) + (8 * 1024));
-        auto slabSize = size - (4 * 1024);
+            reinterpret_cast<std::uint8_t*>(buf) + sizeof(SlabBlock));
+        auto slabSize = size - sizeof(SlabBlock);
 
         // This operation is essentially guaranteed not to fail but
         // let's be careful anyways.
@@ -288,9 +288,6 @@ public:
             slab,
             std::memory_order_release,
             std::memory_order_relaxed))
-        while (!slabs_.compare_exchange_strong(
-            slab->next_,
-            slab))
         {
             ;  // Nothing to do
         }
