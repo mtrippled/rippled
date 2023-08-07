@@ -283,9 +283,11 @@ public:
         assert(slab);
 
         // Link the new slab
-        while (!slabs_.compare_exchange_strong(
+        while (!slabs_.compare_exchange_weak(
             slab->next_,
-            slab))
+            slab,
+            std::memory_order_release,
+            std::memory_order_relaxed))
         {
             ;  // Nothing to do
         }
