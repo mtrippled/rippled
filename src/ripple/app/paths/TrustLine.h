@@ -189,7 +189,20 @@ class PathFindTrustLine
     TrustLineBase* p_ = nullptr;
 
 public:
-    PathFindTrustLine() = delete;
+    ~PathFindTrustLine()
+    {
+        if (p_ == nullptr)
+            return;
+        // If the slabber doesn't claim this pointer, it was allocated
+        // manually, so we free it manually.
+        if (!globalSlabber.deallocate(reinterpret_cast<std::uint8_t*>(p_)))
+            delete p_;
+    }
+
+    PathFindTrustLine(PathFindTrustLine&& pftl)
+        : p_{std::exchange(pftl.p_, nullptr)}
+    {
+    }
 
     PathFindTrustLine(
         std::shared_ptr<SLE const> const& sle,
@@ -201,16 +214,6 @@ public:
             new (p_) TrustLineBase(sle, viewAccount);
         else
             p_ = new TrustLineBase(sle, viewAccount);
-    }
-
-    ~PathFindTrustLine()
-    {
-        if (p_ == nullptr)
-            return;
-        // If the slabber doesn't claim this pointer, it was allocated
-        // manually, so we free it manually.
-        if (!globalSlabber.deallocate(reinterpret_cast<std::uint8_t*>(p_)))
-            delete p_;
     }
 
     static std::optional<PathFindTrustLine>
