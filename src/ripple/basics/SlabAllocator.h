@@ -86,7 +86,7 @@ class SlabAllocator
                 // (will optimize to equivalent code)
                 std::memcpy(data, &l_, sizeof(std::uint8_t*));
                 l_ = data;
-                std::cout << "2. l_ &l_ " << static_cast<void*>(l_) << ' ' << static_cast<void*>(&l_) << std::endl;
+//                std::cout << "2. l_ &l_ " << static_cast<void*>(l_) << ' ' << static_cast<void*>(&l_) << std::endl;
                 data += item;
             }
         }
@@ -122,15 +122,15 @@ class SlabAllocator
                 std::lock_guard l(m_);
 
                 ret = l_;
-                std::cout << "1 ret,&ret,l_,&l_ " << static_cast<const void*>(ret) << ',' << static_cast<const void*>(&ret) << ',' << static_cast<const void*>(l_) << ',' << static_cast<const void*>(&l_) <<  std::endl;
+                //std::cout << "1 ret,&ret,l_,&l_ " << static_cast<const void*>(ret) << ',' << static_cast<const void*>(&ret) << ',' << static_cast<const void*>(l_) << ',' << static_cast<const void*>(&l_) <<  std::endl;
 
                 if (ret)
                 {
                     // Use memcpy to avoid unaligned UB
                     // (will optimize to equivalent code)
-                    std::cout << "before" << std::endl;
-                    std::cout << "2 p_,size,&l_,l_,&ret,ret,size " << static_cast<const void*>(p_) << ',' << size_ << ',' << static_cast<const void*>(&l_) << ',' << static_cast<const void*>(l_) << ',' << static_cast<const void*>(&ret) << ',' << static_cast<const void*>(ret) << ',' << sizeof(std::uint8_t*) << std::endl;
-                    std::cout << "after" << std::endl;
+                    //std::cout << "before" << std::endl;
+                    //std::cout << "2 p_,size,&l_,l_,&ret,ret,size " << static_cast<const void*>(p_) << ',' << size_ << ',' << static_cast<const void*>(&l_) << ',' << static_cast<const void*>(l_) << ',' << static_cast<const void*>(&ret) << ',' << static_cast<const void*>(ret) << ',' << sizeof(std::uint8_t*) << std::endl;
+                    //std::cout << "after" << std::endl;
                     std::memcpy(&l_, ret, sizeof(std::uint8_t*));
                 }
             }
@@ -158,7 +158,7 @@ class SlabAllocator
             // (will optimize to equivalent code)
             std::memcpy(ptr, &l_, sizeof(std::uint8_t*));
             l_ = ptr;
-            std::cout << "1. l_ &l_ " << static_cast<void*>(l_) << ' ' << static_cast<void*>(&l_) << std::endl;
+            //std::cout << "1. l_ &l_ " << static_cast<void*>(l_) << ' ' << static_cast<void*>(&l_) << std::endl;
         }
     };
 
@@ -480,7 +480,7 @@ public:
     {
         std::size_t s = n * sizeof(value_type);
         uint8_t* ret = globalSlabber.allocate(s);
-        std::cout << "allocate valuetypesize,n,ttl,ptr " << sizeof(value_type) << ',' << n << ',' << s << ',' << static_cast<void*>(ret) << std::endl;
+        //std::cout << "allocate valuetypesize,n,ttl,ptr " << sizeof(value_type) << ',' << n << ',' << s << ',' << static_cast<void*>(ret) << std::endl;
         if (ret != nullptr)
             return reinterpret_cast<value_type*>(ret);
         return new value_type[n];
@@ -513,7 +513,7 @@ public:
             return;
         if (!globalSlabber.deallocate(reinterpret_cast<std::uint8_t*>(p)))
             delete[] p;
-        std::cout << "deallocate size,ptr " << s << ',' << static_cast<void*>(p) << std::endl;
+        //std::cout << "deallocate size,ptr " << s << ',' << static_cast<void*>(p) << std::endl;
 //            delete p;
 //        ::operator delete(p);
     }
