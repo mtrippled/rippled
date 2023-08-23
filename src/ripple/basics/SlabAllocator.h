@@ -437,11 +437,11 @@ public:
 // based on the number of objects of each size we expect to need at any point
 // in time and with an eye to minimize the number of slack bytes in a block.
 inline SlabAllocatorSet<std::max_align_t> globalSlabber({
-    {  64, megabytes(std::size_t(100)) },
-    {  128, megabytes(std::size_t(100)) },
-    {  512, megabytes(std::size_t(100)) },
-    {  1024, megabytes(std::size_t(100)) },
-    {  8192, megabytes(std::size_t(100))  },
+    {  64 },
+    {  128 },
+    {  512 },
+    {  1024 },
+    {  8192 },
 });
 // clang-format on
 
