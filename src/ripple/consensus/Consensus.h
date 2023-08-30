@@ -1377,7 +1377,7 @@ Consensus<Adaptor>::phaseOpen()
             j_))
     {
         closeLedger();
-        adaptor_.setValidationDelay();
+//        adaptor_.setValidationDelay();
     }
 }
 
@@ -1535,11 +1535,12 @@ Consensus<Adaptor>::phaseEstablish()
         {
             std::stringstream ss;
             ss << "consensuslog calculating duration that network has been"
-                  "in phase establish. quorum, potential faulty positions to discard: " <<
-                  q << ',' << discard << ". Positions and ms since arrival: ";
+                  "in phase establish. quorum, potential faulty positions to discard: "
+               <<
+               q << ',' << discard << ". Positions and ms since arrival: ";
             std::multiset<std::chrono::milliseconds> arrivals;
             bool first = true;
-            for (auto& pos : currPeerPositions_)
+            for (auto &pos: currPeerPositions_)
             {
                 pos.second.proposal().arrivalTime().tick(clock_.now());
                 arrivals.insert(pos.second.proposal().arrivalTime().read());
@@ -1547,7 +1548,9 @@ Consensus<Adaptor>::phaseEstablish()
                     first = false;
                 else
                     ss << ',';
-                ss << pos.first << ':' << pos.second.proposal().arrivalTime().read().count() << "ms";
+                ss << pos.first << ':'
+                   << pos.second.proposal().arrivalTime().read().count()
+                   << "ms";
             }
 
             auto it = arrivals.rbegin();
@@ -1555,16 +1558,30 @@ Consensus<Adaptor>::phaseEstablish()
             beginning = *it;
             ss << ". Establish phase began " << beginning.count() << "ms ago.";
             JLOG(j_.debug()) << ss.str();
-        }
-        else
+        } else
         {
             beginning = result_->roundTime.read();
             JLOG(j_.debug()) << "consensuslog establish phase began " <<
-                beginning.count() << "ms ago.";
+                             beginning.count() << "ms ago.";
         }
 
         // Give everyone a chance to take an initial position
-        if (beginning < parms.ledgerMIN_CONSENSUS)
+        std::chrono::milliseconds minConsensus = parms.ledgerMIN_CONSENSUS;
+        auto vd = adaptor_.getValidationDelay();
+        if (vd)
+        {
+            minConsensus -= *vd;
+            JLOG(j_.debug()) << "consensuslog phaseEstablish previous validation delay "
+                << vd->count() << "ms. Taken from ledgerMIN_CONSENSUS to be " << minConsensus.count();
+            adaptor_.setValidationDelay();
+        }
+        else
+        {
+            JLOG(j_.debug()) << "consensuslog phaseEstablish no previous validation delay so "
+                                "ledgerMIN_CONSENSUS is " << minConsensus.count();
+        }
+
+        if (beginning < minConsensus)
         {
             adaptor_.setTimerDelay(parms.ledgerMIN_CONSENSUS - beginning);
             JLOG(j_.debug()) << "consensuslog phaseEstablish not enough time"

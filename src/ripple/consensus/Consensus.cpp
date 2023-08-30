@@ -72,8 +72,8 @@ shouldCloseLedger(
     // The openTime is the time spent so far waiting to close the ledger.
     // Any time spent retrying ledger validation in the previous round is
     // also counted.
-    if (validationDelay)
-        openTime += *validationDelay;
+//    if (validationDelay)
+//        openTime += *validationDelay;
 
     if (!anyTransactions)
     {
