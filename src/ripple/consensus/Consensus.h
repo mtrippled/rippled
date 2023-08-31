@@ -1568,7 +1568,7 @@ Consensus<Adaptor>::phaseEstablish()
         // Give everyone a chance to take an initial position
         std::chrono::milliseconds minConsensus = parms.ledgerMIN_CONSENSUS;
         auto vd = adaptor_.getValidationDelay();
-        if (vd)
+        if (false && vd)
         {
             minConsensus -= *vd;
             JLOG(j_.debug()) << "consensuslog phaseEstablish previous validation delay "

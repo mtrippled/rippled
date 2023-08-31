@@ -944,6 +944,8 @@ RCLConsensus::Adaptor::retryAccept(
     std::optional<std::chrono::time_point<std::chrono::steady_clock>>& start)
     const
 {
+    return false;
+    
     static bool const standalone = ledgerMaster_.standalone();
     auto const& validLedger = ledgerMaster_.getValidatedLedger();
 
