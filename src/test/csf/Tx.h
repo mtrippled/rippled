@@ -170,6 +170,12 @@ public:
         return res;
     }
 
+    std::size_t
+    size() const
+    {
+        return txs_.size();
+    }
+
 private:
     //! The set contains the actual transactions
     TxSetType txs_;

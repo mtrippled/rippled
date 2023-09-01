@@ -1590,7 +1590,8 @@ Consensus<Adaptor>::phaseEstablish()
             mode_.get(),
             getJson(true));
         lock.lock();
-    } while (adaptor_.retryAccept(txsBuilt->second, startDelay));
+    } while (adaptor_.retryAccept(txsBuilt->second, txsBuilt->first.size(),
+        startDelay));
 
     if (startDelay)
     {

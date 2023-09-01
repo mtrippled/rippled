@@ -905,13 +905,20 @@ RCLConsensus::Adaptor::onModeChange(ConsensusMode before, ConsensusMode after)
 bool
 RCLConsensus::Adaptor::retryAccept(
     Ledger_t const& newLedger,
+    std::size_t txs,
     std::optional<std::chrono::time_point<std::chrono::steady_clock>>& start)
     const
 {
+    // The number of transactions in the tx set that the extra check is likely
+    // to benefit stability with possible increase in ledger validation
+    // latency.
+    constexpr std::size_t txThreshold = 5000;
+    JLOG(j_.debug()) << "consensuslog retryAccept with " << txs << " transactions";
+
     static bool const standalone = ledgerMaster_.standalone();
     auto const& validLedger = ledgerMaster_.getValidatedLedger();
 
-    return (app_.getOPs().isFull() && !standalone &&
+    return (app_.getOPs().isFull() && !standalone && txs >= txThreshold &&
             (validLedger && (newLedger.id() != validLedger->info().hash) &&
              (newLedger.seq() >= validLedger->info().seq))) &&
         (!start ||
