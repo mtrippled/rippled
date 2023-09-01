@@ -1031,6 +1031,7 @@ struct Peer
     bool
     retryAccept(
         Ledger_t const& newLedger,
+        std::size_t txs,
         std::optional<std::chrono::time_point<std::chrono::steady_clock>>&
             start) const
     {

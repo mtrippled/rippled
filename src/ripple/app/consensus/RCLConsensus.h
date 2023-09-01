@@ -217,11 +217,16 @@ class RCLConsensus
         /** Whether to try building another ledger to validate.
          *
          * This should be called when a newly-created ledger hasn't been
-         * validated to avoid us forking to an invalid ledger.
+         * validated to avoid us forking to an invalid ledger. It tends to
+         * slightly increase consensus interval timing but helps to ensure
+         * that the correct ledger is validated. As the transaction volume
+         * increases, recovering from not validating becomes considerably
+         * more arduous.
          *
          * Retry only if all of the below are true:
          *   * We are synced to the network.
          *   * Not in standalone mode.
+         *   * This ledger has a high number of transactions.
          *   * We have validated a ledger.
          *   * The latest validated ledger and the new ledger are different.
          *   * The new ledger sequence is >= the validated ledger.
@@ -229,11 +234,13 @@ class RCLConsensus
          *
          * @param newLedger The new ledger which we have created.
          * @param start When we started possibly retrying ledgers.
+         * @param txs Number of transactions in the consensus set.
          * @return Whether to retry.
          */
         bool
         retryAccept(
             Ledger_t const& newLedger,
+            std::size_t txs,
             std::optional<std::chrono::time_point<std::chrono::steady_clock>>&
                 start) const;
 
