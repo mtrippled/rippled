@@ -1263,6 +1263,32 @@ NetworkOPsImp::processTransaction(
     // canonicalize can change our pointer
     app_.getMasterTransaction().canonicalize(&transaction);
 
+    {
+        std::stringstream ss;
+        ss << "tefPAST_SEQ diags processTransaction ";
+        if (bLocal)
+            ss << " from client. ";
+        else
+            ss << " from peer. sync_mode: ";
+        switch (sync)
+        {
+            using enum RPC::SubmitSync;
+            case sync:
+                ss << "sync";
+                break;
+            case async:
+                ss << "async";
+                break;
+            case wait:
+                ss << "wait";
+                break;
+            default:
+                ss << "bad value";
+        }
+        ss << ". transaction: " << Json::Compact(transaction->getJson(JsonOptions::none));
+        JLOG(m_journal.warn()) << ss.str();
+    }
+
     std::unique_lock lock(mMutex);
     if (!transaction->getApplying())
     {
@@ -1454,6 +1480,16 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
                 JLOG(m_journal.debug())
                     << "Status other than success " << e.result;
                 e.transaction->setStatus(INVALID);
+            }
+
+            {
+                std::string t;
+                std::string h;
+                transResultInfo(e.transaction->getResult(), t, h);
+                JLOG(m_journal.warn()) << "tefPAST_SEQ diags apply result "
+                                       << t
+                                       << ". " << Json::Compact(
+                    e.transaction->getJson(JsonOptions::none));
             }
 
             auto const enforceFailHard =
