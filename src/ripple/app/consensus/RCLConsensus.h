@@ -24,6 +24,7 @@
 #include <ripple/app/consensus/RCLCxLedger.h>
 #include <ripple/app/consensus/RCLCxPeerPos.h>
 #include <ripple/app/consensus/RCLCxTx.h>
+#include <ripple/app/main/Application.h>
 #include <ripple/app/misc/FeeVote.h>
 #include <ripple/app/misc/NegativeUNLVote.h>
 #include <ripple/basics/CountedObject.h>
@@ -288,6 +289,23 @@ class RCLConsensus
             std::optional<std::chrono::milliseconds> td = std::nullopt)
         {
             timerDelay_ = td;
+        }
+
+        /** Destroy Object On Job Queue
+         *
+         * For an object that is time-consuming to destroy, this is an easy
+         * way to ensure that it's destroyed outside of a lock or other
+         * performance critical code path.
+         *
+         * @tparam T Any type.
+         * @param garbage Object to be destroyed.
+         */
+        template <class T>
+        void
+        dispose(T&& garbage)
+        {
+            app_.getJobQueue().addJob(jtGARBAGE, "disposeGarbage",
+                [&, g = std::move(garbage)]() {});
         }
 
     private:
