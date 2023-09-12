@@ -1077,6 +1077,12 @@ struct Peer
         std::optional<std::chrono::milliseconds> vd = std::nullopt) const
     {
     }
+
+    template <class T>
+    void
+    dispose(T&&)
+    {
+    }
 };
 
 }  // namespace csf
