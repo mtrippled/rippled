@@ -80,6 +80,9 @@ public:
             (reason != InboundLedger::Reason::CONSENSUS))
             return {};
 
+        if (app_.getOPs().isFull())
+            return {};
+
         bool isNew = true;
         std::shared_ptr<InboundLedger> inbound;
         {
