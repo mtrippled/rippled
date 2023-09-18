@@ -110,6 +110,15 @@ to_string(RangeSet<T> const& rs)
     return s;
 }
 
+template <class T>
+bool
+single(RangeSet<T> const& rs)
+{
+    if (rs.size() == 1 && rs.begin()->first() == rs.begin()->last())
+        return true;
+    return false;
+}
+
 /** Convert the given styled string to a RangeSet.
 
     The styled string representation is the set
