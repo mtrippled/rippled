@@ -80,8 +80,16 @@ public:
             (reason != InboundLedger::Reason::CONSENSUS))
             return {};
 
-        if (app_.getOPs().isFull())
+        JLOG(j_.debug()) << "acquire isFull,seq,validLedgerIndex,singleCompleteLedgers " <<
+            app_.getOPs().isFull() << ',' << seq << ',' << app_.getLedgerMaster().getValidLedgerIndex() <<
+            ',' << app_.getLedgerMaster().singleCompleteLedgers();
+        if (app_.getOPs().isFull() &&
+            seq &&
+            seq < app_.getLedgerMaster().getValidLedgerIndex() + 10 &&
+            !app_.getLedgerMaster().singleCompleteLedgers())
+        {
             return {};
+        }
 
         bool isNew = true;
         std::shared_ptr<InboundLedger> inbound;
