@@ -1335,7 +1335,7 @@ Consensus<Adaptor>::shouldPause() const
     std::size_t const offline = trustedKeys.size();
 
     std::stringstream vars;
-    vars << " consensuslog (working seq: " << previousLedger_.seq() << ", "
+    vars << " (working seq: " << previousLedger_.seq() << ", "
          << "validated seq: " << adaptor_.getValidLedgerIndex() << ", "
          << "am validator: " << adaptor_.validator() << ", "
          << "have validated: " << adaptor_.haveValidated() << ", "

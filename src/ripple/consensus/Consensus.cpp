@@ -94,16 +94,11 @@ checkConsensusReached(
     std::size_t agreeing,
     std::size_t total,
     bool count_self,
-    std::size_t minConsensusPct,
-    bool reachedMax)
+    std::size_t minConsensusPct)
 {
-    // If we are alone for too long, we have a consensus
+    // If we are alone, we have a consensus
     if (total == 0)
-    {
-        if (reachedMax)
-            return true;
-        return false;
-    }
+        return true;
 
     if (count_self)
     {
@@ -132,12 +127,7 @@ checkConsensus(
                     << prevProposers << " agree=" << currentAgree
                     << " validated=" << currentFinished
                     << " time=" << currentAgreeTime.count() << "/"
-                    << previousAgreeTime.count()
-                    << " proposing? " << proposing
-                    << " minimum duration to reach consensus: "
-                    << parms.ledgerMIN_CONSENSUS.count() << "ms"
-                    << " max consensus time " << parms.ledgerMAX_CONSENSUS.count() << 's'
-                    << " minimum consensus percentage: " << parms.minCONSENSUS_PCT;
+                    << previousAgreeTime.count();
 
     if (currentProposers < (prevProposers * 3 / 4))
     {
@@ -153,8 +143,7 @@ checkConsensus(
     // Have we, together with the nodes on our UNL list, reached the threshold
     // to declare consensus?
     if (checkConsensusReached(
-            currentAgree, currentProposers, proposing, parms.minCONSENSUS_PCT,
-            currentAgreeTime > parms.ledgerMAX_CONSENSUS))
+            currentAgree, currentProposers, proposing, parms.minCONSENSUS_PCT))
     {
         JLOG(j.debug()) << "normal consensus";
         return ConsensusState::Yes;
@@ -163,8 +152,7 @@ checkConsensus(
     // Have sufficient nodes on our UNL list moved on and reached the threshold
     // to declare consensus?
     if (checkConsensusReached(
-            currentFinished, currentProposers, false, parms.minCONSENSUS_PCT,
-            currentAgreeTime > parms.ledgerMAX_CONSENSUS))
+            currentFinished, currentProposers, false, parms.minCONSENSUS_PCT))
     {
         JLOG(j.warn()) << "We see no consensus, but 80% of nodes have moved on";
         return ConsensusState::MovedOn;
