@@ -84,8 +84,8 @@ public:
             app_.getOPs().isFull() << ',' << seq << ',' << app_.getLedgerMaster().getValidLedgerIndex() <<
             ',' << app_.getLedgerMaster().singleCompleteLedgers();
         if (app_.getOPs().isFull() &&
-            seq &&
-            seq < app_.getLedgerMaster().getValidLedgerIndex() + 10 &&
+//            seq &&
+//            seq < app_.getLedgerMaster().getValidLedgerIndex() + 10 &&
             !app_.getLedgerMaster().singleCompleteLedgers())
         {
             return {};
