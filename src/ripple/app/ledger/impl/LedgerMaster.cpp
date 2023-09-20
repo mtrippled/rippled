@@ -159,16 +159,27 @@ shouldAcquire(
     std::uint32_t const ledgerHistory,
     std::optional<LedgerIndex> const minimumOnline,
     std::uint32_t const candidateLedger,
-    beast::Journal j)
+    beast::Journal j,
+    std::stringstream& ss)
 {
+    ss << ". shouldAcquire currentLedger,ledgerHistory,minimumOnline,"
+          "candidateLedger " << currentLedger << ',' << ledgerHistory << ',' <<
+          (minimumOnline ? std::to_string(*minimumOnline) : "none") << ',' <<
+          candidateLedger;
     bool const ret = [&]() {
         // Fetch ledger if it may be the current ledger
         if (candidateLedger >= currentLedger)
+        {
+            ss << " true";
             return true;
+        }
 
         // Or if it is within our configured history range:
         if (currentLedger - candidateLedger <= ledgerHistory)
+        {
+            ss << " true";
             return true;
+        }
 
         // Or if greater than or equal to a specific minimum ledger.
         // Do nothing if the minimum ledger to keep online is unknown.
@@ -177,6 +188,7 @@ shouldAcquire(
 
     JLOG(j.trace()) << "Missing ledger " << candidateLedger
                     << (ret ? " should" : " should NOT") << " be acquired";
+    ss << (ret ? " true" : "false");
     return ret;
 }
 
@@ -1467,6 +1479,9 @@ LedgerMaster::tryAdvance()
 
     // Can't advance without at least one fully-valid ledger
     mAdvanceWork = true;
+    JLOG(m_journal.debug()) << "gap tryAdvance mAdvanceThread,mValidLedger.empty(),will doAdvance" <<
+        mAdvanceThread << ',' << mValidLedger.empty() << ',' <<
+        (!mAdvanceThread && !mValidLedger.empty() ? "true" : "false");
     if (!mAdvanceThread && !mValidLedger.empty())
     {
         mAdvanceThread = true;
@@ -2043,14 +2058,28 @@ LedgerMaster::fetchForHistory(
 void
 LedgerMaster::doAdvance(std::unique_lock<std::recursive_mutex>& sl)
 {
+    std::stringstream ss;
+    ss << "gap doAdvance ";
     do
     {
         mAdvanceWork = false;  // If there's work to do, we'll make progress
         bool progress = false;
 
         auto const pubLedgers = findNewLedgersToPublish(sl);
+        ss << "pubLedgers.empty(): " << pubLedgers.empty();
         if (pubLedgers.empty())
         {
+            ss << " standalone_,app_getFeeTrack().isLoadedLocal(),"
+                  "app_.getJobQueue().getJobCount(jtPUBOLDLEDGER,"
+                  "mValidLedgerSeq,mPubLedgerSeq,getValidatedLedgerAge(),"
+                  "MAX_LEDGER_AGE_ACQUIRE,app_.getNodeStore().getWriteLoad(),"
+                  "MAX_WRITE_LOAD_ACQUIRE: " << standalone_ << ',' <<
+                  app_.getFeeTrack().isLoadedLocal() << ',' <<
+                  app_.getJobQueue().getJobCount(jtPUBOLDLEDGER) << ',' <<
+                  mValidLedgerSeq << ',' << mPubLedgerSeq << ',' <<
+                  getValidatedLedgerAge().count() << "s," <<
+                  MAX_LEDGER_AGE_ACQUIRE.count() << "s," <<
+                  app_.getNodeStore().getWriteLoad() << MAX_WRITE_LOAD_ACQUIRE;
             if (!standalone_ && !app_.getFeeTrack().isLoadedLocal() &&
                 (app_.getJobQueue().getJobCount(jtPUBOLDLEDGER) < 10) &&
                 (mValidLedgerSeq == mPubLedgerSeq) &&
@@ -2067,17 +2096,20 @@ LedgerMaster::doAdvance(std::unique_lock<std::recursive_mutex>& sl)
                         mPubLedger->info().seq,
                         app_.getNodeStore().earliestLedgerSeq());
                 }
+                ss << " missing " << (missing ? std::to_string(*missing) : "none");
                 if (missing)
                 {
                     JLOG(m_journal.trace())
                         << "tryAdvance discovered missing " << *missing;
+                    ss << ". mFillinProgress " << mFillInProgress;
                     if ((mFillInProgress == 0 || *missing > mFillInProgress) &&
                         shouldAcquire(
                             mValidLedgerSeq,
                             ledger_history_,
                             app_.getSHAMapStore().minimumOnline(),
                             *missing,
-                            m_journal))
+                            m_journal,
+                            ss))
                     {
                         JLOG(m_journal.trace())
                             << "advanceThread should acquire";
@@ -2139,6 +2171,8 @@ LedgerMaster::doAdvance(std::unique_lock<std::recursive_mutex>& sl)
         if (progress)
             mAdvanceWork = true;
     } while (mAdvanceWork);
+
+    JLOG(m_journal.debug()) << ss.str();
 }
 
 void
