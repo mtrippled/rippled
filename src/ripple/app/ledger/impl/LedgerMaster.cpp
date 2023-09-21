@@ -1947,6 +1947,9 @@ LedgerMaster::fetchForHistory(
             {
                 ledger =
                     app_.getInboundLedgers().acquire(*hash, missing, reason);
+                JLOG(m_journal.debug()) << "fetchForHistory ledger,missing,"
+                    "fetch_seq_,earliestLedgerSeq " << ledger << ',' <<
+                    missing << ',' << fetch_seq_ << ',' << app_.getNodeStore().earliestLedgerSeq();
                 if (!ledger && missing != fetch_seq_ &&
                     missing > app_.getNodeStore().earliestLedgerSeq())
                 {
