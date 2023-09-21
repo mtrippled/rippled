@@ -2065,9 +2065,6 @@ LedgerMaster::doAdvance(std::unique_lock<std::recursive_mutex>& sl)
         mAdvanceWork = false;  // If there's work to do, we'll make progress
         bool progress = false;
 
-        auto const pubLedgers = findNewLedgersToPublish(sl);
-        ss << "pubLedgers.empty(): " << pubLedgers.empty();
-        if (pubLedgers.empty())
         {
             ss << " standalone_,app_getFeeTrack().isLoadedLocal(),"
                   "app_.getJobQueue().getJobCount(jtPUBOLDLEDGER,"
@@ -2144,7 +2141,10 @@ LedgerMaster::doAdvance(std::unique_lock<std::recursive_mutex>& sl)
                 JLOG(m_journal.trace()) << "tryAdvance not fetching history";
             }
         }
-        else
+
+        auto const pubLedgers = findNewLedgersToPublish(sl);
+        ss << "pubLedgers.size(): " << pubLedgers.size();
+        if (pubLedgers.size())
         {
             JLOG(m_journal.trace()) << "tryAdvance found " << pubLedgers.size()
                                     << " ledgers to publish";
