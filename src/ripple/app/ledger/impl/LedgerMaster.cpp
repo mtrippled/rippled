@@ -2076,10 +2076,10 @@ LedgerMaster::doAdvance(std::unique_lock<std::recursive_mutex>& sl)
                   mValidLedgerSeq << ',' << mPubLedgerSeq << ',' <<
                   getValidatedLedgerAge().count() << "s," <<
                   MAX_LEDGER_AGE_ACQUIRE.count() << "s," <<
-                  app_.getNodeStore().getWriteLoad() << MAX_WRITE_LOAD_ACQUIRE;
+                  app_.getNodeStore().getWriteLoad() << ',' << MAX_WRITE_LOAD_ACQUIRE;
             if (!standalone_ && !app_.getFeeTrack().isLoadedLocal() &&
                 (app_.getJobQueue().getJobCount(jtPUBOLDLEDGER) < 10) &&
-                (mValidLedgerSeq == mPubLedgerSeq) &&
+                (mValidLedgerSeq <= mPubLedgerSeq + 1) &&
                 (getValidatedLedgerAge() < MAX_LEDGER_AGE_ACQUIRE) &&
                 (app_.getNodeStore().getWriteLoad() < MAX_WRITE_LOAD_ACQUIRE))
             {
@@ -2143,7 +2143,7 @@ LedgerMaster::doAdvance(std::unique_lock<std::recursive_mutex>& sl)
         }
 
         auto const pubLedgers = findNewLedgersToPublish(sl);
-        ss << "pubLedgers.size(): " << pubLedgers.size();
+        ss << " pubLedgers.size(): " << pubLedgers.size();
         if (pubLedgers.size())
         {
             JLOG(m_journal.trace()) << "tryAdvance found " << pubLedgers.size()
