@@ -1754,6 +1754,7 @@ Consensus<Adaptor>::updateOurPositions(bool const share)
     else
     {
         int neededWeight;
+        bool stuck = false;
 
         if (convergePercent_ < parms.avMID_CONSENSUS_TIME)
             neededWeight = parms.avINIT_CONSENSUS_PCT;
@@ -1762,12 +1763,16 @@ Consensus<Adaptor>::updateOurPositions(bool const share)
         else if (convergePercent_ < parms.avSTUCK_CONSENSUS_TIME)
             neededWeight = parms.avLATE_CONSENSUS_PCT;
         else
+        {
             neededWeight = parms.avSTUCK_CONSENSUS_PCT;
+            stuck = true;
+        }
 
         int participants = currPeerPositions_.size();
         if (mode_.get() == ConsensusMode::proposing)
         {
-            ++closeTimeVotes[asCloseTime(result_->position.closeTime())];
+            if (!stuck)
+                ++closeTimeVotes[asCloseTime(result_->position.closeTime())];
             ++participants;
         }
 
@@ -1782,6 +1787,31 @@ Consensus<Adaptor>::updateOurPositions(bool const share)
                         << " nw:" << neededWeight << " thrV:" << threshVote
                         << " thrC:" << threshConsensus;
 
+        std::multimap<int, NetClock::time_point> ctVotesByCount;
+        NetClock::time_point const ourCloseTime = asCloseTime(result_->position.closeTime());
+        for (auto& [t, v] : closeTimeVotes)
+            ctVotesByCount.insert({v, t});
+
+        auto maxLatest = ctVotesByCount.rbegin();
+        int maxVote = maxLatest->first;
+        NetClock::time_point const& bestCtime = maxLatest->second;
+        if (stuck && mode_.get() == ConsensusMode::proposing)
+        {
+            ++maxVote;
+            consensusCloseTime = bestCtime;
+            JLOG(j_.debug()) << "stuck, changing our close time to " << bestCtime.time_since_epoch().count();
+        }
+        JLOG(j_.debug())
+            << "CCTime: seq "
+            << static_cast<std::uint32_t>(previousLedger_.seq()) + 1 << ": "
+            << bestCtime.time_since_epoch().count() << " has " << maxVote << ", "
+            << threshVote << " required for adopting new close time, "
+            << threshConsensus << " required for close time consensus.";
+        if (maxVote >= threshVote)
+            consensusCloseTime = bestCtime;
+        if (maxVote >= threshConsensus)
+            haveCloseTimeConsensus_ = true;
+
         // An impasse is possible unless a validator pretends to change
         // its close time vote. Imagine 5 validators. 3 have positions
         // for close time t1, and 2 with t2. That's an impasse because
@@ -1791,6 +1821,7 @@ Consensus<Adaptor>::updateOurPositions(bool const share)
         // with the 3 to pretend to vote for the one with 2, because
         // that will never exceed the threshold of 75%, even with as
         // few as 3 validators. The most it can achieve is 2/3.
+        /*
         for (auto& [t, v] : closeTimeVotes)
         {
             if (adaptor_.validating() &&
@@ -1823,6 +1854,7 @@ Consensus<Adaptor>::updateOurPositions(bool const share)
                 }
             }
         }
+         */
 
         if (!haveCloseTimeConsensus_)
         {
