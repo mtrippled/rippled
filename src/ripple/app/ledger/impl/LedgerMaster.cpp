@@ -1950,7 +1950,7 @@ LedgerMaster::fetchForHistory(
                 JLOG(m_journal.debug()) << "fetchForHistory ledger,missing,"
                     "fetch_seq_,earliestLedgerSeq " << ledger << ',' <<
                     missing << ',' << fetch_seq_ << ',' << app_.getNodeStore().earliestLedgerSeq();
-                if (!ledger && missing != fetch_seq_ &&
+                if (!ledger && // missing != fetch_seq_ &&
                     missing > app_.getNodeStore().earliestLedgerSeq())
                 {
                     JLOG(m_journal.trace())
