@@ -1820,12 +1820,14 @@ NetworkOPsImp::beginConsensus(uint256 const& networkClosed)
 
     JLOG(m_journal.info()) << "Consensus time for #" << closingInfo.seq
                            << " with LCL " << closingInfo.parentHash;
+/*
     if (closingInfo.seq > m_ledgerMaster.getValidLedgerIndex() + 1)
     {
         JLOG(m_journal.warn()) << "Current ledger " << closingInfo.seq <<
             "has advanced at least 2 past validated " << m_ledgerMaster.getValidLedgerIndex();
         setMode(OperatingMode::SYNCING);
     }
+*/
 
     auto prevLedger = m_ledgerMaster.getLedgerByHash(closingInfo.parentHash);
 
