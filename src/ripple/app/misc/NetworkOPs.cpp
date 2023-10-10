@@ -398,6 +398,8 @@ public:
     clearLedgerFetch() override;
     Json::Value
     getLedgerFetchInfo() override;
+    bool
+    amFallingBehind() const override;
     std::uint32_t
     acceptLedger(
         std::optional<std::chrono::milliseconds> consensusDelay) override;
@@ -708,6 +710,7 @@ private:
     std::atomic<bool> amendmentBlocked_{false};
     std::atomic<bool> amendmentWarned_{false};
     std::atomic<bool> unlBlocked_{false};
+    std::atomic<bool> fallingBehind_{false};
 
     ClosureCounter<void, boost::system::error_code const&> waitHandlerCounter_;
     boost::asio::steady_timer heartbeatTimer_;
@@ -1829,6 +1832,18 @@ NetworkOPsImp::beginConsensus(uint256 const& networkClosed)
     }
 */
 
+    if (closingInfo.seq > m_ledgerMaster.getValidLedgerIndex() + 1)
+    {
+        fallingBehind_ = true;
+        JLOG(m_journal.warn()) << "Current ledger " << closingInfo.seq <<
+                               "has advanced at least 2 past validated " << m_ledgerMaster.getValidLedgerIndex();
+    }
+    else
+    {
+        fallingBehind_ = false;
+    }
+
+
     auto prevLedger = m_ledgerMaster.getLedgerByHash(closingInfo.parentHash);
 
     if (!prevLedger)
@@ -2744,6 +2759,12 @@ Json::Value
 NetworkOPsImp::getLedgerFetchInfo()
 {
     return app_.getInboundLedgers().getInfo();
+}
+
+bool
+NetworkOPsImp::amFallingBehind() const
+{
+    return fallingBehind_;
 }
 
 void

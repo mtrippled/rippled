@@ -258,6 +258,8 @@ public:
     clearLedgerFetch() = 0;
     virtual Json::Value
     getLedgerFetchInfo() = 0;
+    virtual bool
+    amFallingBehind() const = 0;
 
     /** Accepts the current transaction tree, return the new ledger's sequence
 

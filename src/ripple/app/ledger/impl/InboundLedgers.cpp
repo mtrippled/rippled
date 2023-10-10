@@ -83,10 +83,14 @@ public:
         JLOG(j_.debug()) << "acquire isFull,seq,validLedgerIndex,singleCompleteLedgers " <<
             app_.getOPs().isFull() << ',' << seq << ',' << app_.getLedgerMaster().getValidLedgerIndex() <<
             ',' << app_.getLedgerMaster().singleCompleteLedgers();
-        if (app_.getOPs().isFull() &&
+        if ((app_.getOPs().isNeedNetworkLedger() &&
+            (reason != InboundLedger::Reason::GENERIC) &&
+            (reason != InboundLedger::Reason::CONSENSUS)) ||
+            (app_.getOPs().isFull() &&
+            !app_.getOPs().amFallingBehind() &&
             seq &&
             seq < app_.getLedgerMaster().getValidLedgerIndex() + 20 &&
-            !app_.getLedgerMaster().singleCompleteLedgers())
+            !app_.getLedgerMaster().singleCompleteLedgers()))
         {
             return {};
         }
