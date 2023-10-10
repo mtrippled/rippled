@@ -37,7 +37,8 @@ BatchWriter::~BatchWriter()
 }
 
 void
-BatchWriter::store(std::shared_ptr<NodeObject> const& object)
+BatchWriter::store(std::shared_ptr<NodeObject> const& object,
+    beast::Journal const& j)
 {
     std::unique_lock<decltype(mWriteMutex)> sl(mWriteMutex);
 
@@ -52,6 +53,18 @@ BatchWriter::store(std::shared_ptr<NodeObject> const& object)
     {
         mWritePending = true;
 
+        // Log if the write batch size is too big. The trade-off here
+        // is that new ledgers can't be persisted if a limit is enforced,
+        // which causes desync. Versus eventual memory exhaustion if
+        // there are no limits. But we at least stay in sync longer in the
+        // latter case.
+        if (mWriteSet.size() >= batchWriteLimitSize)
+        {
+            JLOG(j.warn()) << "Pending write batch size " << mWriteSet.size()
+                           << " exceeds threshold of " << batchWriteLimitSize
+                           << ". This may be caused by slow i/o. More memory is consumed "
+                              " as pending write count increases.";
+        }
         m_scheduler.scheduleTask(*this);
     }
 }
