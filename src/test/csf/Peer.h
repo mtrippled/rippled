@@ -68,6 +68,8 @@ struct Peer
         For real consensus, this would add additional data for serialization
         and signing. For simulation, nothing extra is needed.
     */
+    std::shared_ptr<perf::Tracer> tracer_;
+    std::string startTimer_;
     class Position
     {
     public:

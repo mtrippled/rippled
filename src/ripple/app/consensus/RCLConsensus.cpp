@@ -420,6 +420,7 @@ RCLConsensus::Adaptor::onAccept(
     Json::Value&& consensusJson,
     std::pair<CanonicalTxSet_t, Ledger_t>&& tb)
 {
+    auto timer = perf::START_TIMER(tracer_);
     app_.getJobQueue().addJob(
         jtACCEPT,
         "acceptLedger",
@@ -435,6 +436,7 @@ RCLConsensus::Adaptor::onAccept(
             prepareOpenLedger(std::move(txsBuilt), result, rawCloseTimes, mode);
             this->app_.getOPs().endConsensus();
         });
+    perf::END_TIMER(tracer_, timer);
 }
 
 std::pair<
@@ -447,6 +449,7 @@ RCLConsensus::Adaptor::buildAndValidate(
     ConsensusMode const& mode,
     Json::Value&& consensusJson)
 {
+    auto timer = perf::START_TIMER(tracer_);
     prevProposers_ = result.proposers;
     prevRoundTime_ = result.roundTime.read();
 
@@ -507,6 +510,7 @@ RCLConsensus::Adaptor::buildAndValidate(
         }
     }
 
+    auto buildLclTimer = perf::START_TIMER(tracer_);
     auto built = buildLCL(
         prevLedger,
         retriableTxs,
@@ -515,6 +519,7 @@ RCLConsensus::Adaptor::buildAndValidate(
         closeResolution,
         result.roundTime.read(),
         failed);
+    perf::END_TIMER(tracer_, buildLclTimer);
 
     auto const newLCLHash = built.id();
     JLOG(j_.debug()) << "Built ledger #" << built.seq() << ": " << newLCLHash;
@@ -579,6 +584,7 @@ RCLConsensus::Adaptor::buildAndValidate(
     ledgerMaster_.consensusBuilt(
         built.ledger_, result.txns.id(), std::move(consensusJson));
 
+    perf::END_TIMER(tracer_, timer);
     return {retriableTxs, built};
 }
 
@@ -785,7 +791,8 @@ RCLConsensus::Adaptor::buildLCL(
             app_,
             retriableTxs,
             failedTxs,
-            j_);
+            j_,
+            tracer_);
     }();
 
     // Update fee computations based on accepted txs

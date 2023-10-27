@@ -112,6 +112,9 @@ class RCLConsensus
         using Result = ConsensusResult<Adaptor>;
         using clock_type = Stopwatch;
 
+        std::shared_ptr<perf::Tracer> tracer_ {
+            std::make_shared<perf::Tracer>(FILE_LINE)};
+        std::string startTimer_;
         bool justOpened_{false};
 
         Adaptor(

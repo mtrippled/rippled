@@ -1073,8 +1073,8 @@ void
 NetworkOPsImp::processHeartbeatTimer()
 {
     {
-        //std::unique_lock lock{app_.getMasterMutex()};
         perf::unique_lock lock(*app_.getMasterMutex(), FILE_LINE);
+        //std::unique_lock lock{app_.getMasterMutex()};
 
         // VFALCO NOTE This is for diagnosing a crash on exit
         LoadManager& mgr(app_.getLoadManager());
@@ -1396,7 +1396,8 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
 
                     auto timer = perf::startTimer(tracer, "apply_transaction");
                     auto const result = app_.getTxQ().apply(
-                        app_, view, e.transaction->getSTransaction(), flags, j);
+                        app_, view, e.transaction->getSTransaction(), flags, j,
+                        tracer);
                     perf::END_TIMER(tracer, timer);
                     ++accounting_.txCounters.attempt;
                     if (e.local)
@@ -1412,7 +1413,8 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
                     changed = changed || result.second;
                 }
                 return changed;
-            });
+            },
+            tracer);
         }
         if (changed)
             reportFeeChange();

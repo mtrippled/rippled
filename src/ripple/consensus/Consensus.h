@@ -750,6 +750,10 @@ Consensus<Adaptor>::startRoundInternal(
     ConsensusMode mode)
 {
     phase_ = ConsensusPhase::open;
+    perf::END_TIMER(adaptor_.tracer_, adaptor_.startTimer_);
+    adaptor_.tracer_.reset(new perf::Tracer(FILE_LINE));
+    adaptor_.startTimer_ = perf::START_TIMER(adaptor_.tracer_);
+    auto timer = perf::START_TIMER(adaptor_.tracer_);
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::open";
     adaptor_.justOpened_ = true;
     mode_.set(mode, adaptor_);
@@ -1508,6 +1512,8 @@ Consensus<Adaptor>::phaseEstablish()
     prevProposers_ = currPeerPositions_.size();
     prevRoundTime_ = result_->roundTime.read();
     phase_ = ConsensusPhase::accepted;
+    perf::END_TIMER(adaptor_.tracer_, adaptor_.startTimer_);
+    adaptor_.startTimer_ = perf::START_TIMER(adaptor_.tracer_);
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::accepted";
 
     std::optional<std::pair<
@@ -1610,7 +1616,10 @@ Consensus<Adaptor>::closeLedger()
     assert(!result_);
 
     phase_ = ConsensusPhase::establish;
+    perf::END_TIMER(adaptor_.tracer_, adaptor_.startTimer_);
+    adaptor_.startTimer_ = perf::START_TIMER(adaptor_.tracer_);
     JLOG(j_.debug()) << "transitioned to ConsensusPhase::establish";
+    auto timer = perf::START_TIMER(adaptor_.tracer_);
     rawCloseTimes_.self = now_;
 
     // Defer destruction of old tx set.
@@ -1640,6 +1649,7 @@ Consensus<Adaptor>::closeLedger()
         if (it != acquired_.end())
             createDisputes(it->second);
     }
+    perf::END_TIMER(adaptor_.tracer_, timer);
     // There's no reason to pause, especially if we have fallen behind and
     // can possible agree to a consensus proposal already.
     timerEntry(now_);

@@ -21,6 +21,7 @@
 #define RIPPLE_APP_LEDGER_BUILD_LEDGER_H_INCLUDED
 
 #include <ripple/basics/chrono.h>
+#include <ripple/basics/PerfLog.h>
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/ledger/ApplyView.h>
 #include <chrono>
@@ -59,7 +60,8 @@ buildLedger(
     Application& app,
     CanonicalTXSet& txns,
     std::set<TxID>& failedTxs,
-    beast::Journal j);
+    beast::Journal j,
+    std::shared_ptr<perf::Tracer> const& tracer);
 
 /** Build a new ledger by replaying transactions
 
@@ -76,7 +78,8 @@ buildLedger(
     LedgerReplay const& replayData,
     ApplyFlags applyFlags,
     Application& app,
-    beast::Journal j);
+    beast::Journal j,
+    std::shared_ptr<perf::Tracer> const& tracer = {});
 
 }  // namespace ripple
 #endif

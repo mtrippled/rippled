@@ -104,8 +104,8 @@ namespace {
 template <class MutexType>
 class ScopedUnlock
 {
-//    std::unique_lock<MutexType>& lock_;
     perf::unique_lock<perf::mutex<MutexType>>& lock_;
+//    std::unique_lock<MutexType>& lock_;
 
 public:
     /** Creates a ScopedUnlock.
@@ -119,7 +119,8 @@ public:
         as a local stack object, rather than creating on the heap.
     */
 //    explicit ScopedUnlock(std::unique_lock<MutexType>& lock) : lock_(lock)
-    explicit ScopedUnlock(perf::unique_lock<perf::mutex<MutexType>>& lock) : lock_(lock)
+    explicit ScopedUnlock(perf::unique_lock<perf::mutex<MutexType>>& lock) :
+        lock_(lock)
     {
         assert(lock_.owns_lock());
         lock_.unlock();
@@ -138,8 +139,8 @@ public:
     */
     ~ScopedUnlock() noexcept(false)
     {
-        //lock_.lock();
         lock_.lock(FILE_LINE);
+        //lock_.lock();
     }
 };
 
@@ -1630,7 +1631,7 @@ bool
 LedgerMaster::isNewPathRequest()
 {
     //std::lock_guard ml(m_mutex);
-    perf::unique_lock ml(m_mutex, FILE_LINE);
+    perf::lock_guard ml(m_mutex, FILE_LINE);
     bool const ret = mPathFindNewRequest;
     mPathFindNewRequest = false;
     return ret;
@@ -1724,7 +1725,8 @@ LedgerMaster::getValidatedRules()
 std::shared_ptr<ReadView const>
 LedgerMaster::getPublishedLedger()
 {
-    std::lock_guard lock(m_mutex);
+    perf::LOCK_GUARD(m_mutex, lock);
+    //std::lock_guard lock(m_mutex);
     return mPubLedger;
 }
 
@@ -1984,7 +1986,8 @@ LedgerMaster::fetchForHistory(
             {
                 ledger->setFull();
                 {
-                    std::lock_guard lock(m_mutex);
+                    //std::lock_guard lock(m_mutex);
+                    perf::lock_guard _(m_mutex, FILE_LINE);
                     mShardLedger = ledger;
                 }
                 if (!ledger->stateMap().family().isShardBacked())
@@ -1995,7 +1998,8 @@ LedgerMaster::fetchForHistory(
                 setFullLedger(ledger, false, false);
                 int fillInProgress;
                 {
-                    std::lock_guard lock(m_mutex);
+                    //std::lock_guard lock(m_mutex);
+                    perf::lock_guard _(m_mutex, FILE_LINE);
                     mHistLedger = ledger;
                     fillInProgress = mFillInProgress;
                 }
@@ -2005,7 +2009,8 @@ LedgerMaster::fetchForHistory(
                 {
                     {
                         // Previous ledger is in DB
-                        std::lock_guard lock(m_mutex);
+                        //std::lock_guard lock(m_mutex);
+                        perf::lock_guard _(m_mutex, FILE_LINE);
                         mFillInProgress = seq;
                     }
                     app_.getJobQueue().addJob(
