@@ -372,6 +372,24 @@ PerfLogImp::reportEvents()
         ++tracerIntermediate.first.count;
         tracerIntermediate.first.duration_us += event.timer.duration_us;
 
+        // Not positive what this does. Comes from cdbafed
+        // save it here in case it's helpful later.
+        /*
+        if (event.timer.tag.mutex_id)
+        {
+            Timers::Timer::Tag mutexTag = event.timer.tag;
+            // Remove the lock label from the mutex tag.
+            // This is the aggregation of all locks of the mutex.
+            mutexTag.label = "";
+            auto& mutexIntermediate = mutexIntermediates[mutexTag];
+            ++mutexIntermediate.first.count;
+            mutexIntermediate.first.duration_us += event.timer.duration_us;
+            auto& lock = mutexIntermediate.second[event.timer.tag];
+            ++lock.count;
+            lock.duration_us += event.timer.duration_us;
+        }
+         */
+
         traceJson["sub_timers_size"] = std::to_string(event.sub_timers.size());
         Json::Value subTraceJson(Json::arrayValue);
         for (auto const& subTimer : event.sub_timers)

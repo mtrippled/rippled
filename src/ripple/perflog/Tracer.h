@@ -129,6 +129,7 @@ namespace ripple {
         private:
             Mutex& mutex_;
             std::shared_ptr<Tracer> tracer_;
+            bool tracerFull_;
             Timers::Timer::Tag tracerTag_;
 
         public:
@@ -136,21 +137,28 @@ namespace ripple {
                        bool render = false, std::shared_ptr<Tracer> const& tracer = {})
                 : mutex_(mutex)
                 , tracer_(tracer)
+                , tracerFull_(tracer)
             {
                 auto const& tag = mutex_.tag();
                 mutex_.lock();
 
                 // Either append to an existing tracer object, or create a simple one.
-                if (!tracer_)
+                if (tracerFull_)
+                {
+                    tracerTag_ = tracer_->startTimer(
+                        Timers::Timer::Tag({label, tag.first, tag.second}));
+                }
+                else
+                {
                     tracer_ = std::make_shared<Tracer>(label, tag, render);
-                tracerTag_ = tracer_->startTimer(
-                    Timers::Timer::Tag({label, tag.first, tag.second}));
+                }
             }
 
             ~lock_guard()
             {
                 mutex_.unlock();
-                tracer_->endTimer(tracerTag_);
+                if (tracerFull_)
+                    tracer_->endTimer(tracerTag_);
             }
 
             lock_guard(lock_guard const& other) = delete;
@@ -269,8 +277,9 @@ namespace ripple {
                     return;
 
                 mutex_->unlock();
-                tracer_->endTimer(tracerTag_);
                 owns_ = false;
+                if (tracerTag_.label.size())
+                    tracer_->endTimer(tracerTag_);
             }
         };
 
