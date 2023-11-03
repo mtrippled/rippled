@@ -134,7 +134,8 @@ namespace ripple {
 
         public:
             lock_guard(Mutex& mutex, std::string_view const& label,
-                       bool render = false, std::shared_ptr<Tracer> const& tracer = {})
+                      std::shared_ptr<Tracer> const& tracer = {},
+                      bool render = false)
                 : mutex_(mutex)
                 , tracer_(tracer)
                 , tracerFull_(tracer)
@@ -204,7 +205,8 @@ namespace ripple {
 
         public:
             unique_lock(Mutex& mutex, std::string_view const& label,
-                        bool render = false, std::shared_ptr<Tracer> const& tracer = {})
+                        std::shared_ptr<Tracer> const& tracer = {},
+                        bool render = false)
                 : mutex_(&mutex)
                 , tracer_(tracer)
                 , render_(render)
