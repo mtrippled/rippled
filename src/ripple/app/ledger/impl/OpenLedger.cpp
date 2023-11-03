@@ -85,7 +85,8 @@ OpenLedger::accept(
     OrderedTxs& retries,
     ApplyFlags flags,
     std::string const& suffix,
-    modify_type const& f)
+    modify_type const& f,
+    std::shared_ptr<perf::Tracer> tracer)
 {
     JLOG(j_.trace()) << "accept ledger " << ledger->seq() << " " << suffix;
     auto next = create(rules, ledger);
@@ -93,16 +94,19 @@ OpenLedger::accept(
     {
         // Handle disputed tx, outside lock
         using empty = std::vector<std::shared_ptr<STTx const>>;
-        apply(app, *next, *ledger, empty{}, retries, flags, j_);
+        auto timer = perf::startTimer(tracer, FILE_LINE);
+        apply(app, *next, *ledger, empty{}, retries, flags, j_, tracer);
+        perf::endTimer(tracer, timer);
     }
     // Block calls to modify, otherwise
     // new tx going into the open ledger
     // would get lost.
 //    std::lock_guard lock1(modify_mutex_);
-    perf::lock_guard lock1(modify_mutex_, FILE_LINE);
+    perf::lock_guard lock1(modify_mutex_, FILE_LINE, tracer);
     // Apply tx from the current open view
     if (!current_->txs.empty())
     {
+        auto timer = perf::startTimer(tracer, FILE_LINE);
         apply(
             app,
             *next,
@@ -116,14 +120,20 @@ OpenLedger::accept(
                 }),
             retries,
             flags,
-            j_);
+            j_,
+            tracer);
+        perf::endTimer(tracer, timer);
     }
     // Call the modifier
+    auto timer = perf::startTimer(tracer, FILE_LINE);
     if (f)
         f(*next, j_);
+    perf::endTimer(tracer, timer);
     // Apply local tx
+    auto timer2 = perf::startTimer(tracer, FILE_LINE);
     for (auto const& item : locals)
-        app.getTxQ().apply(app, *next, item.second, flags, j_);
+        app.getTxQ().apply(app, *next, item.second, flags, j_, tracer);
+    perf::endTimer(tracer, timer2);
 
     // If we didn't relay this transaction recently, relay it to all peers
     for (auto const& txpair : next->txs)
@@ -147,7 +157,7 @@ OpenLedger::accept(
 
     // Switch to the new open view
 //    std::lock_guard lock2(current_mutex_);
-    perf::lock_guard lock2(current_mutex_, FILE_LINE);
+    perf::lock_guard lock2(current_mutex_, FILE_LINE, tracer);
     current_ = std::move(next);
 }
 

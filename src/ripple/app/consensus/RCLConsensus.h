@@ -650,7 +650,7 @@ public:
     prevLedgerID() const
     {
 //        std::lock_guard _{adaptor_.peekMutex()};
-        perf::lock_guard _{adaptor_.peekMutex(), FILE_LINE};
+        perf::lock_guard _(adaptor_.peekMutex(), FILE_LINE, adaptor_.tracer_);
         return consensus_.prevLedgerID();
     }
 

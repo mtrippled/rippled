@@ -215,8 +215,9 @@ namespace ripple {
             }
 
             unique_lock(Mutex& mutex, std::string_view const& label,
-                        std::defer_lock_t, bool render = false,
-                        std::shared_ptr<Tracer> const& tracer = {})
+                        std::defer_lock_t,
+                        std::shared_ptr<Tracer> const& tracer = {},
+                        bool render = false)
                 : mutex_(&mutex)
                 , tracer_(tracer)
                 , render_(render)

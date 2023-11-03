@@ -29,6 +29,7 @@
 #include <ripple/ledger/CachedSLEs.h>
 #include <ripple/ledger/OpenView.h>
 #include <cassert>
+#include <memory>
 #include <mutex>
 
 namespace ripple {
@@ -171,7 +172,8 @@ public:
         OrderedTxs& retries,
         ApplyFlags flags,
         std::string const& suffix = "",
-        modify_type const& f = {});
+        modify_type const& f = {},
+        std::shared_ptr<perf::Tracer> tracer = {});
 
 private:
     /** Algorithm for applying transactions.
@@ -188,7 +190,8 @@ private:
         FwdRange const& txs,
         OrderedTxs& retries,
         ApplyFlags flags,
-        beast::Journal j);
+        beast::Journal j,
+        std::shared_ptr<perf::Tracer> tracer = {});
 
     enum Result { success, failure, retry };
 
@@ -216,7 +219,8 @@ OpenLedger::apply(
     FwdRange const& txs,
     OrderedTxs& retries,
     ApplyFlags flags,
-    beast::Journal j)
+    beast::Journal j,
+    std::shared_ptr<perf::Tracer> tracer)
 {
     for (auto iter = txs.begin(); iter != txs.end(); ++iter)
     {
