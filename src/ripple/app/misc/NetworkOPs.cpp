@@ -1251,16 +1251,11 @@ NetworkOPsImp::submitTransaction(std::shared_ptr<STTx const> const& iTrans)
 
     auto tx = std::make_shared<Transaction>(trans, reason, app_);
 
-    auto t = tx;
-    processTransaction(
-        t, false, RPC::SubmitSync::async, false, FailHard::no);
-    /*
     m_job_queue.addJob(jtTRANSACTION, "submitTxn", [this, tx]() {
         auto t = tx;
         processTransaction(
             t, false, RPC::SubmitSync::async, false, FailHard::no);
     });
-     */
 }
 
 void

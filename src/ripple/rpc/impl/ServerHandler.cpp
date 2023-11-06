@@ -293,9 +293,6 @@ ServerHandler::onRequest(Session& session)
     }
 
     std::shared_ptr<Session> detachedSession = session.detach();
-    processSession(detachedSession, std::shared_ptr<JobQueue::Coro>());
-
-    /*
     auto const postResult = m_jobQueue.postCoro(
         jtCLIENT_RPC,
         "RPC-Client",
@@ -313,7 +310,6 @@ ServerHandler::onRequest(Session& session)
         detachedSession->close(true);
         return;
     }
-     */
 }
 
 void

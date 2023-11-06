@@ -1584,7 +1584,6 @@ PeerImp::handleTransaction(
             JLOG(p_journal_.trace())
                 << "No new transactions until synchronized";
         }
-        /*
         else if (
             app_.getJobQueue().getJobCount(jtTRANSACTION) >
             app_.config().MAX_TRANSACTIONS)
@@ -1592,13 +1591,8 @@ PeerImp::handleTransaction(
             overlay_.incJqTransOverflow();
             JLOG(p_journal_.info()) << "Transaction queue is full";
         }
-         */
         else
         {
-            auto weak = std::weak_ptr<PeerImp>(shared_from_this());
-            if (auto peer = weak.lock())
-                peer->checkTransaction(flags, checkSignature, stx);
-            /*
             app_.getJobQueue().addJob(
                 jtTRANSACTION,
                 "recvTransaction->checkTransaction",
@@ -1609,7 +1603,6 @@ PeerImp::handleTransaction(
                     if (auto peer = weak.lock())
                         peer->checkTransaction(flags, checkSignature, stx);
                 });
-                */
         }
     }
     catch (std::exception const& ex)
