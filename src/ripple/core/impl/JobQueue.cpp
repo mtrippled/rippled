@@ -100,13 +100,14 @@ JobQueue::addRefCountedJob(
 
     {
         std::lock_guard lock(m_mutex);
-        auto result =
-            m_jobSet.emplace(type, name, ++m_lastJob, data.load(), func);
-        auto const& job = *result.first;
+        m_jobSet.push(Job(type, name, ++m_lastJob, data.load(), func));
+//        auto result =
+//            m_jobSet.emplace(type, name, ++m_lastJob, data.load(), func);
+//        auto const& job = *result.first;
 
-        JobType const type(job.getType());
+//        JobType const type(job.getType());
         assert(type != jtINVALID);
-        assert(m_jobSet.find(job) != m_jobSet.end());
+//        assert(m_jobSet.find(job) != m_jobSet.end());
         perfLog_.jobQueue(type);
 
         JobTypeData& data(getJobTypeData(type));
@@ -305,6 +306,9 @@ JobQueue::getNextJob(Job& job)
 {
     assert(!m_jobSet.empty());
 
+    job = m_jobSet.front();
+    m_jobSet.pop();
+    /*
     std::set<Job>::const_iterator iter;
     for (iter = m_jobSet.begin(); iter != m_jobSet.end(); ++iter)
     {
@@ -327,6 +331,7 @@ JobQueue::getNextJob(Job& job)
     assert(iter != m_jobSet.end());
     job = *iter;
     m_jobSet.erase(iter);
+     */
 }
 
 void
