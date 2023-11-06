@@ -62,9 +62,12 @@ ConsensusTransSetSF::gotNode(
             auto stx = std::make_shared<STTx const>(std::ref(sit));
             assert(stx->getTransactionID() == nodeHash.as_uint256());
             auto const pap = &app_;
+            pap->getOPs().submitTransaction(stx);
+            /*
             app_.getJobQueue().addJob(jtTRANSACTION, "TXS->TXN", [pap, stx]() {
                 pap->getOPs().submitTransaction(stx);
             });
+             */
         }
         catch (std::exception const& ex)
         {
