@@ -23,6 +23,9 @@
 #include <ripple/shamap/NodeFamily.h>
 #include <sstream>
 
+#include <thread>
+#include <chrono>
+
 namespace ripple {
 
 NodeFamily::NodeFamily(Application& app, CollectorManager& cm)
@@ -50,7 +53,9 @@ void
 NodeFamily::sweep()
 {
     fbCache_->sweep();
+    std::this_thread::sleep_for(std::chrono::seconds(30));
     tnCache_->sweep();
+    std::this_thread::sleep_for(std::chrono::seconds(30));
 }
 
 void
