@@ -29,7 +29,6 @@
 #include <boost/coroutine/all.hpp>
 #include <boost/range/begin.hpp>  // workaround for boost 1.72 bug
 #include <boost/range/end.hpp>    // workaround for boost 1.72 bug
-#include <queue>
 
 namespace ripple {
 
@@ -246,8 +245,7 @@ private:
     beast::Journal m_journal;
     mutable std::mutex m_mutex;
     std::uint64_t m_lastJob;
-    std::queue<Job> m_jobSet;
-    //std::set<Job> m_jobSet;
+    std::set<Job> m_jobSet;
     JobCounter jobCounter_;
     std::atomic_bool stopping_{false};
     std::atomic_bool stopped_{false};
