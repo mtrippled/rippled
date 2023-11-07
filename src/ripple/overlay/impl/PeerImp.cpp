@@ -3197,8 +3197,8 @@ PeerImp::checkPropose(
     std::shared_ptr<protocol::TMProposeSet> const& packet,
     RCLCxPeerPos peerPos)
 {
-    JLOG(p_journal_.trace())
-        << "Checking " << (isTrusted ? "trusted" : "UNTRUSTED") << " proposal";
+    JLOG(p_journal_.debug())
+        << "consensuslog Checking " << (isTrusted ? "trusted" : "UNTRUSTED") << " proposal";
 
     assert(packet);
 

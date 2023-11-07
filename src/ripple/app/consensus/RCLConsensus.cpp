@@ -1039,8 +1039,10 @@ RCLConsensus::peerProposal(
     NetClock::time_point const& now,
     RCLCxPeerPos const& newProposal)
 {
+    JLOG(j_.debug()) << "consensuslog peerProposal locking";
 //    std::lock_guard _{adaptor_.peekMutex()};
     perf::lock_guard _(adaptor_.peekMutex(), FILE_LINE, adaptor_.tracer_);
+    JLOG(j_.debug()) << "consensuslog peerProposal locked";
     return consensus_.peerProposal(now, newProposal);
 }
 
