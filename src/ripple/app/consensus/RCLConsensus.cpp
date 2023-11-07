@@ -986,9 +986,12 @@ RCLConsensus::timerEntry(NetClock::time_point const& now)
 {
     try
     {
+        JLOG(j_.debug()) << "consensuslog timerEntry locking";
 //        std::lock_guard _{adaptor_.peekMutex()};
         perf::lock_guard _(adaptor_.peekMutex(), FILE_LINE, adaptor_.tracer_);
+        JLOG(j_.debug()) << "consensuslog timerEntry locked";
         consensus_.timerEntry(now);
+        JLOG(j_.debug()) << "consensuslog timerEntry done";
         if (adaptor_.justOpened_ && perf::perfLog)
         {
             adaptor_.justOpened_ = false;

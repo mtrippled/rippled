@@ -1028,9 +1028,15 @@ Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
     JLOG(j_.debug()) << "consensuslog timerEntry";
 
     if (phase_ == ConsensusPhase::open)
+    {
+        JLOG(j_.debug()) << "consensuslog timerEntry calling phaseOpen";
         phaseOpen();
+    }
     else if (phase_ == ConsensusPhase::establish)
+    {
+        JLOG(j_.debug()) << "consensuslog timerEntry calling phaseEstablish";
         phaseEstablish();
+    }
 }
 
 template <class Adaptor>
