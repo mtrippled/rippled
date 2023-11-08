@@ -1620,6 +1620,7 @@ Consensus<Adaptor>::phaseEstablish()
     // finishing (onAccept).
 //    std::unique_lock<std::recursive_mutex> lock(adaptor_.peekMutex());
     perf::unique_lock lock(adaptor_.peekMutex(), FILE_LINE);
+    JLOG(j_.debug()) << "consensuslog phaseEstablish recursive locked " << FILE_LINE;
     do
     {
         if (!result_.has_value() ||
@@ -1661,6 +1662,7 @@ Consensus<Adaptor>::phaseEstablish()
             result.emplace(*result_);
         }
         lock.unlock();
+        JLOG(j_.debug()) << "consensuslog phaseEstablish recursive unlocked " << FILE_LINE;
 
         // This is time-consuming and safe to not have under mutex.
         assert(result.has_value());
@@ -1671,6 +1673,7 @@ Consensus<Adaptor>::phaseEstablish()
             mode_.get(),
             getJson(true));
         lock.lock(FILE_LINE);
+        JLOG(j_.debug()) << "consensuslog phaseEstablish recursive locked " << FILE_LINE;
     } while (adaptor_.retryAccept(txsBuilt->second, startDelay));
 
     if (startDelay)
@@ -1683,6 +1686,7 @@ Consensus<Adaptor>::phaseEstablish()
     }
 
     lock.unlock();
+    JLOG(j_.debug()) << "consensuslog phaseEstablish recursive unlocked " << FILE_LINE;
 
     assert(result.has_value());
     adaptor_.onAccept(
