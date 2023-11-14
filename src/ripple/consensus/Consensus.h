@@ -802,6 +802,12 @@ Consensus<Adaptor>::startRoundInternal(
         previousLedger_.seq() + typename Ledger_t::Seq{1});
 
     playbackProposals();
+    if (currPeerPositions_.size() > (prevProposers_ / 2))
+    {
+        // We may be falling behind, don't wait for the timer
+        // consider closing the ledger immediately
+        timerEntry(now_);
+    }
 }
 
 template <class Adaptor>
