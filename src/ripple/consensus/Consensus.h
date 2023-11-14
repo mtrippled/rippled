@@ -401,8 +401,7 @@ public:
         @param now The network adjusted time
     */
     void
-    timerEntry(NetClock::time_point const& now,
-        perf::unique_lock<perf::mutex<std::recursive_mutex>>& lock);
+    timerEntry(NetClock::time_point const& now);
 
     /** Process a transaction set acquired from the network
 
@@ -431,8 +430,7 @@ public:
     void
     simulate(
         NetClock::time_point const& now,
-        std::optional<std::chrono::milliseconds> consensusDelay,
-        perf::unique_lock<perf::mutex<std::recursive_mutex>>& lock);
+        std::optional<std::chrono::milliseconds> consensusDelay);
 
     /** Get the previous ledger ID.
 
@@ -503,7 +501,7 @@ private:
         switch to the establish phase and start the consensus process.
     */
     void
-    phaseOpen(perf::unique_lock<perf::mutex<std::recursive_mutex>>& lock);
+    phaseOpen();
 
     /** Handle establish phase.
 
@@ -514,7 +512,7 @@ private:
         If we have consensus, move to the accepted phase.
     */
     void
-    phaseEstablish(perf::unique_lock<perf::mutex<std::recursive_mutex>>& lock);
+    phaseEstablish();
 
     /** Evaluate whether pausing increases likelihood of validation.
      *
@@ -543,7 +541,7 @@ private:
 
     // Close the open ledger and establish initial position.
     void
-    closeLedger(perf::unique_lock<perf::mutex<std::recursive_mutex>>& lock);
+    closeLedger();
 
     // Adjust our positions to try to agree with other validators.
     /** Adjust our positions to try to agree with other validators.
@@ -1013,10 +1011,8 @@ Consensus<Adaptor>::peerProposalInternal(
 
 template <class Adaptor>
 void
-Consensus<Adaptor>::timerEntry(NetClock::time_point const& now,
-    perf::unique_lock<perf::mutex<std::recursive_mutex>>& lock)
+Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
 {
-    lock.lock(FILE_LINE);
     // Nothing to do if we are currently working on a ledger
     if (phase_ == ConsensusPhase::accepted)
     {
@@ -1034,12 +1030,12 @@ Consensus<Adaptor>::timerEntry(NetClock::time_point const& now,
     if (phase_ == ConsensusPhase::open)
     {
         JLOG(j_.debug()) << "consensuslog timerEntry calling phaseOpen";
-        phaseOpen(lock);
+        phaseOpen();
     }
     else if (phase_ == ConsensusPhase::establish)
     {
         JLOG(j_.debug()) << "consensuslog timerEntry calling phaseEstablish";
-        phaseEstablish(lock);
+        phaseEstablish();
     }
 }
 
@@ -1097,13 +1093,12 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::simulate(
     NetClock::time_point const& now,
-    std::optional<std::chrono::milliseconds> consensusDelay,
-    perf::unique_lock<perf::mutex<std::recursive_mutex>>& lock)
+    std::optional<std::chrono::milliseconds> consensusDelay)
 {
     using namespace std::chrono_literals;
     JLOG(j_.info()) << "Simulating consensus";
     now_ = now;
-    closeLedger(lock);
+    closeLedger();
     result_->roundTime.tick(consensusDelay.value_or(100ms));
     result_->proposers = prevProposers_ = currPeerPositions_.size();
     prevRoundTime_ = result_->roundTime.read();
@@ -1332,7 +1327,7 @@ Consensus<Adaptor>::playbackProposals()
 
 template <class Adaptor>
 void
-Consensus<Adaptor>::phaseOpen(perf::unique_lock<perf::mutex<std::recursive_mutex>>& lock)
+Consensus<Adaptor>::phaseOpen()
 {
     using namespace std::chrono;
 
@@ -1380,7 +1375,7 @@ Consensus<Adaptor>::phaseOpen(perf::unique_lock<perf::mutex<std::recursive_mutex
             adaptor_.parms(),
             j_))
     {
-        closeLedger(lock);
+        closeLedger();
         adaptor_.setValidationDelay();
     }
 }
@@ -1501,7 +1496,7 @@ Consensus<Adaptor>::shouldPause() const
 
 template <class Adaptor>
 void
-Consensus<Adaptor>::phaseEstablish(perf::unique_lock<perf::mutex<std::recursive_mutex>>& lock)
+Consensus<Adaptor>::phaseEstablish()
 {
     // can only establish consensus if we already took a stance
     assert(result_);
@@ -1624,7 +1619,7 @@ Consensus<Adaptor>::phaseEstablish(perf::unique_lock<perf::mutex<std::recursive_
     // the rest of the logic below needs to be locked, until
     // finishing (onAccept).
 //    std::unique_lock<std::recursive_mutex> lock(adaptor_.peekMutex());
-//    perf::unique_lock lock(adaptor_.peekMutex(), FILE_LINE);
+    perf::unique_lock lock(adaptor_.peekMutex(), FILE_LINE);
     JLOG(j_.debug()) << "consensuslog phaseEstablish recursive locked " << FILE_LINE;
     do
     {
@@ -1704,7 +1699,7 @@ Consensus<Adaptor>::phaseEstablish(perf::unique_lock<perf::mutex<std::recursive_
 
 template <class Adaptor>
 void
-Consensus<Adaptor>::closeLedger(perf::unique_lock<perf::mutex<std::recursive_mutex>>& lock)
+Consensus<Adaptor>::closeLedger()
 {
     // We should not be closing if we already have a position
     assert(!result_);
@@ -1746,8 +1741,7 @@ Consensus<Adaptor>::closeLedger(perf::unique_lock<perf::mutex<std::recursive_mut
     perf::END_TIMER(adaptor_.tracer_, timer);
     // There's no reason to pause, especially if we have fallen behind and
     // can possible agree to a consensus proposal already.
-    lock.unlock();
-    timerEntry(now_, lock);
+    timerEntry(now_);
 }
 
 /** How many of the participants must agree to reach a given threshold?
