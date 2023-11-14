@@ -940,10 +940,15 @@ struct Peer
     void
     timerEntry()
     {
-        consensus.timerEntry(now());
+        perf::unique_lock lock(mtx, FILE_LINE, std::defer_lock);
+        consensus.timerEntry(now(), lock);
         // only reschedule if not completed
         if (completedLedgers < targetLedgers)
-            scheduler.in(parms().ledgerGRANULARITY, [this]() { timerEntry(); });
+        {
+            lock.unlock();
+            scheduler.in(parms().ledgerGRANULARITY, [this]()
+            { timerEntry(); });
+        }
     }
 
     // Called to begin the next round
@@ -962,8 +967,10 @@ struct Peer
 
         // Not yet modeling dynamic UNL.
         hash_set<PeerID> nowUntrusted;
+        perf::unique_lock<perf::mutex<std::recursive_mutex>> lock(mtx, FILE_LINE);
         consensus.startRound(
-            now(), bestLCL, lastClosedLedger, nowUntrusted, runAsValidator);
+            now(), bestLCL, lastClosedLedger, nowUntrusted, runAsValidator,
+            lock);
     }
 
     // Start the consensus process assuming it is not yet running
