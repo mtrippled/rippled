@@ -988,10 +988,9 @@ RCLConsensus::timerEntry(NetClock::time_point const& now)
     {
         JLOG(j_.debug()) << "consensuslog timerEntry locking";
 //        std::lock_guard _{adaptor_.peekMutex()};
-//        perf::lock_guard _(adaptor_.peekMutex(), FILE_LINE, adaptor_.tracer_);
-        perf::unique_lock lock(adaptor_.peekMutex(), FILE_LINE, std::defer_lock, adaptor_.tracer_);
+        perf::lock_guard _(adaptor_.peekMutex(), FILE_LINE, adaptor_.tracer_);
         JLOG(j_.debug()) << "consensuslog timerEntry locked";
-        consensus_.timerEntry(now, lock);
+        consensus_.timerEntry(now);
         JLOG(j_.debug()) << "consensuslog timerEntry done";
         if (adaptor_.justOpened_ && perf::perfLog)
         {
@@ -1034,9 +1033,8 @@ RCLConsensus::simulate(
     std::optional<std::chrono::milliseconds> consensusDelay)
 {
 //    std::lock_guard _{adaptor_.peekMutex()};
-//    perf::lock_guard _(adaptor_.peekMutex(), FILE_LINE, adaptor_.tracer_);
-    perf::unique_lock lock(adaptor_.peekMutex(), FILE_LINE, std::defer_lock, adaptor_.tracer_);
-    consensus_.simulate(now, consensusDelay, lock);
+    perf::lock_guard _(adaptor_.peekMutex(), FILE_LINE, adaptor_.tracer_);
+    consensus_.simulate(now, consensusDelay);
 }
 
 bool

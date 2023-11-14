@@ -940,15 +940,10 @@ struct Peer
     void
     timerEntry()
     {
-        perf::unique_lock lock(mtx, FILE_LINE, std::defer_lock);
-        consensus.timerEntry(now(), lock);
+        consensus.timerEntry(now());
         // only reschedule if not completed
         if (completedLedgers < targetLedgers)
-        {
-            lock.unlock();
-            scheduler.in(parms().ledgerGRANULARITY, [this]()
-            { timerEntry(); });
-        }
+            scheduler.in(parms().ledgerGRANULARITY, [this]() { timerEntry(); });
     }
 
     // Called to begin the next round
