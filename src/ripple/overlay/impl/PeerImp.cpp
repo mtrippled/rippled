@@ -2529,6 +2529,7 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMValidation> const& m)
         return;
     }
 
+    std::string valInfo = " validation seq,hash,source ";
     try
     {
         auto const closeTime = app_.timeKeeper().closeTime();
@@ -2546,16 +2547,20 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMValidation> const& m)
             val->setSeen(closeTime);
         }
 
+        valInfo += std::to_string(val->getFieldU32(sfLedgerSequence)) + ',' +
+            to_string(val->getConsensusHash()) + ',' + toBase58(TokenType::NodePublic, val->getSignerPublic());
+
         if (!isCurrent(
                 app_.getValidations().parms(),
                 app_.timeKeeper().closeTime(),
                 val->getSignTime(),
                 val->getSeenTime()))
         {
-            JLOG(p_journal_.trace()) << "Validation: Not current";
+            JLOG(p_journal_.debug()) << "Validation: Not current" << valInfo;
             fee_ = Resource::feeUnwantedData;
             return;
         }
+
 
         // RH TODO: when isTrusted = false we should probably also cache a key
         // suppression for 30 seconds to avoid doing a relatively expensive
@@ -2583,20 +2588,21 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMValidation> const& m)
                 (stopwatch().now() - *relayed) < reduce_relay::IDLED)
                 overlay_.updateSlotAndSquelch(
                     key, val->getSignerPublic(), id_, protocol::mtVALIDATION);
-            JLOG(p_journal_.trace()) << "Validation: duplicate";
+            JLOG(p_journal_.trace()) << "Validation: duplicate" << valInfo;
             return;
         }
 
         if (!isTrusted && (tracking_.load() == Tracking::diverged))
         {
             JLOG(p_journal_.debug())
-                << "Dropping untrusted validation from diverged peer";
+                << "Dropping untrusted validation from diverged peer" << valInfo;
         }
         else if (isTrusted || !app_.getFeeTrack().isLoadedLocal())
         {
-            std::string const name = [isTrusted, val]() {
+            std::string const name = [isTrusted, val, &valInfo]() {
                 std::string ret =
                     isTrusted ? "Trusted validation" : "Untrusted validation";
+                ret += valInfo;
 
 #ifdef DEBUG
                 ret += " " +
@@ -2619,13 +2625,13 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMValidation> const& m)
         else
         {
             JLOG(p_journal_.debug())
-                << "Dropping untrusted validation for load";
+                << "Dropping untrusted validation for load" << valInfo;
         }
     }
     catch (std::exception const& e)
     {
         JLOG(p_journal_.warn())
-            << "Exception processing validation: " << e.what();
+            << "Exception processing validation: " << e.what() << valInfo;
         fee_ = Resource::feeInvalidRequest;
     }
 }
