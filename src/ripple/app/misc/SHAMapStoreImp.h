@@ -237,6 +237,8 @@ public:
     void
     start() override
     {
+        JLOG(journal_.debug()) << "starting online_delete thread if interval: "
+            << deleteInterval_;
         if (deleteInterval_)
             thread_ = std::thread(&SHAMapStoreImp::run, this);
     }

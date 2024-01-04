@@ -375,6 +375,8 @@ LedgerMaster::setValidLedger(std::shared_ptr<Ledger const> const& l)
     mValidLedgerSeq = l->info().seq;
 
     app_.getOPs().updateLocalTx(*l);
+    JLOG(m_journal.debug()) << "online_delete setValidLedger " <<
+        (getValidatedLedger() ? std::to_string(getValidatedLedger()->seq()) : "none");
     app_.getSHAMapStore().onLedgerClosed(getValidatedLedger());
     mLedgerHistory.validatedLedger(l, consensusHash);
     app_.getAmendmentTable().doValidatedLedger(l);
@@ -992,7 +994,16 @@ LedgerMaster::setFullLedger(
         std::lock_guard ml(m_mutex);
 
         if (ledger->info().seq > mValidLedgerSeq)
+        {
+            JLOG(m_journal.debug()) << "online_delete setFullLedger setValidLedger seq,mValidLedgerSeq: "
+                << ledger->info().seq << ',' << mValidLedgerSeq;
             setValidLedger(ledger);
+        }
+        else
+        {
+            JLOG(m_journal.debug()) << "online_delete setFullLedger don't setValidLedger seq,mValidLedgerSeq: "
+                                    << ledger->info().seq << ',' << mValidLedgerSeq;
+        }
         if (!mPubLedger)
         {
             setPubLedger(ledger);
@@ -1119,6 +1130,7 @@ LedgerMaster::checkAccept(std::shared_ptr<Ledger const> const& ledger)
 
     ledger->setValidated();
     ledger->setFull();
+    JLOG(m_journal.debug()) << "online_delete setValidLedger " << ledger->info().seq;
     setValidLedger(ledger);
     if (!mPubLedger)
     {

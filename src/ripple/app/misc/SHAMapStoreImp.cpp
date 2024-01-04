@@ -234,11 +234,13 @@ SHAMapStoreImp::makeNodeStore(int readThreads)
 void
 SHAMapStoreImp::onLedgerClosed(std::shared_ptr<Ledger const> const& ledger)
 {
+    JLOG(journal_.debug()) << "online_delete onLedgerClosed locking";
     {
         std::lock_guard lock(mutex_);
         newLedger_ = ledger;
         working_ = true;
     }
+    JLOG(journal_.debug()) << "online_delete onLedgerClosed locked and notifying condition";
     cond_.notify_one();
 }
 
@@ -279,6 +281,8 @@ SHAMapStoreImp::copyNode(std::uint64_t& nodeCount, SHAMapTreeNode const& node)
 void
 SHAMapStoreImp::run()
 {
+    JLOG(journal_.debug()) << "online_delete run loop starting with "
+                              "advisory_delete: " << advisoryDelete_;
     if (app_.config().reporting())
     {
         assert(false);
@@ -295,9 +299,11 @@ SHAMapStoreImp::run()
 
     if (advisoryDelete_)
         canDelete_ = state_db_.getCanDelete();
+    JLOG(journal_.debug()) << "online_delete can delete " << canDelete_;
 
     while (true)
     {
+        JLOG(journal_.debug()) << "online_delete loop start";
         healthy_ = true;
         std::shared_ptr<Ledger const> validatedLedger;
 
@@ -307,15 +313,23 @@ SHAMapStoreImp::run()
             rendezvous_.notify_all();
             if (stop_)
             {
+                JLOG(journal_.debug()) << "online_delete loop returning";
                 return;
             }
+            JLOG(journal_.debug()) << "online_delete loop waiting";
             cond_.wait(lock);
+            JLOG(journal_.debug()) << "online_delete loop notified";
             if (newLedger_)
             {
+                JLOG(journal_.debug()) << "online_delete loop new ledger "
+                    << newLedger_->info().seq;
                 validatedLedger = std::move(newLedger_);
             }
             else
+            {
+                JLOG(journal_.debug()) << "online_delete loop no new ledger";
                 continue;
+            }
         }
 
         LedgerIndex const validatedSeq = validatedLedger->info().seq;
@@ -325,9 +339,14 @@ SHAMapStoreImp::run()
             state_db_.setLastRotated(lastRotated);
         }
 
+        bool const wait = healthWait();
         bool const readyToRotate =
             validatedSeq >= lastRotated + deleteInterval_ &&
-            canDelete_ >= lastRotated - 1 && healthWait() == keepGoing;
+            canDelete_ >= lastRotated - 1 && wait == keepGoing;
+        JLOG(journal_.debug()) << "online_delete loop check: "
+                                  "validatedSeq,lastRotated,deleteInterval_,canDelete_,keepGoing?,readyToRotate: "
+            << validatedSeq << ',' << lastRotated << ',' << deleteInterval_ << ','
+            << canDelete_ << ',' << (wait == keepGoing) << readyToRotate;
 
         // Make sure we don't delete ledgers currently being
         // imported into the ShardStore
@@ -695,6 +714,8 @@ SHAMapStoreImp::healthWait()
         lock.lock();
     }
 
+    JLOG(journal_.debug()) << "online_delete healthWait returning with "
+        << (stop_ ? "stopping" : "keepGoing");
     return stop_ ? stopping : keepGoing;
 }
 
