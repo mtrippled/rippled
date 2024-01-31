@@ -49,7 +49,7 @@ DatabaseRotatingImp::rotateWithLock(
     std::lock_guard lock(mutex_);
 
     auto newBackend = f(writableBackend_->getName());
-    archiveBackend_->setDeletePath();
+//    archiveBackend_->setDeletePath();
     archiveBackend_ = std::move(writableBackend_);
     writableBackend_ = std::move(newBackend);
 }

@@ -513,8 +513,8 @@ SHAMapStoreImp::dbPaths()
     }
 
     // The necessary directories exist. Now, remove any others.
-    for (boost::filesystem::path& p : pathsToDelete)
-        boost::filesystem::remove_all(p);
+//    for (boost::filesystem::path& p : pathsToDelete)
+//        boost::filesystem::remove_all(p);
 }
 
 std::unique_ptr<NodeStore::Backend>
