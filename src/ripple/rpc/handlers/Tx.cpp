@@ -39,6 +39,7 @@
 
 namespace ripple {
 
+/*
 static bool
 isValidated(LedgerMaster& ledgerMaster, std::uint32_t seq, uint256 const& hash)
 {
@@ -50,6 +51,7 @@ isValidated(LedgerMaster& ledgerMaster, std::uint32_t seq, uint256 const& hash)
 
     return ledgerMaster.getHashBySeq(seq) == hash;
 }
+ */
 
 struct TxResult
 {
@@ -262,6 +264,10 @@ doTxHelp(RPC::Context& context, TxArgs args)
     result.txn = txn;
     if (txn->getLedger() == 0)
     {
+        if (result.validated == false)
+        {
+            JLOG(context.j.debug()) << "tx validated false " << *args.hash;
+        }
         return {result, rpcSUCCESS};
     }
 
@@ -281,8 +287,33 @@ doTxHelp(RPC::Context& context, TxArgs args)
         {
             result.meta = meta;
         }
-        result.validated = isValidated(
-            context.ledgerMaster, ledger->info().seq, ledger->info().hash);
+        {
+//            result.validated = isValidated(
+//                context.ledgerMaster, ledger->info().seq, ledger->info().hash);
+            if (!context.ledgerMaster.haveLedger(ledger->info().seq))
+            {
+                JLOG(context.j.debug()) << "tx validated false " << *args.hash
+                    << " don't have seq " << ledger->info().seq;
+                result.validated = false;
+            }
+
+            if (ledger->info().seq > context.ledgerMaster.getValidatedLedger()->info().seq)
+            {
+                JLOG(context.j.debug()) << "tx validated false " << *args.hash
+                    << " seq > validated seq: " << ledger->info().seq
+                    << " > " << context.ledgerMaster.getValidatedLedger()->info().seq;
+                result.validated = false;
+            }
+
+            result.validated = context.ledgerMaster.getHashBySeq(ledger->info().seq) == ledger->info().hash;
+            if (result.validated == false)
+            {
+                JLOG(context.j.debug()) << "tx validated false " << *args.hash
+                    << " wrong hash for seq " << ledger->info().seq << ": "
+                    << context.ledgerMaster.getHashBySeq(ledger->info().seq)
+                    << " != " << ledger->info().hash;
+            }
+        }
         if (result.validated)
             result.closeTime =
                 context.ledgerMaster.getCloseTimeBySeq(txn->getLedger());
@@ -295,6 +326,11 @@ doTxHelp(RPC::Context& context, TxArgs args)
         if (txnIdx <= 0xFFFFU && netID < 0xFFFFU && lgrSeq < 0x0FFF'FFFFUL)
             result.ctid =
                 RPC::encodeCTID(lgrSeq, (uint16_t)txnIdx, (uint16_t)netID);
+    }
+    else
+    {
+        JLOG(context.j.debug()) << "tx validated false " << *args.hash
+            << " ledger or meta not there " << ledger << ',' << meta;
     }
 
     return {result, rpcSUCCESS};
