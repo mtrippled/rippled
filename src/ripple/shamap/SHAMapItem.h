@@ -151,8 +151,8 @@ intrusive_ptr_release(SHAMapItem const* x)
 
         // If the slabber doens't claim this pointer, it was allocated
         // manually, so we free it manually.
-        if (!detail::slabber.deallocate(const_cast<std::uint8_t*>(p)))
-            delete[] p;
+//        if (!detail::slabber.deallocate(const_cast<std::uint8_t*>(p)))
+        delete[] p;
     }
 }
 
@@ -161,6 +161,7 @@ make_shamapitem(uint256 const& tag, Slice data)
 {
     assert(data.size() <= megabytes<std::size_t>(16));
 
+    /*
     std::uint8_t* raw = detail::slabber.allocate(data.size());
 
     // If we can't grab memory from the slab allocators, we fall back to
@@ -173,6 +174,8 @@ make_shamapitem(uint256 const& tag, Slice data)
     // that the refcount can never be zero before incrementing as an
     // invariant.
     return {new (raw) SHAMapItem{tag, data}, false};
+     */
+    return {new SHAMapItem{tag, data}, false};
 }
 
 static_assert(alignof(SHAMapItem) != 40);
