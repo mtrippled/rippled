@@ -211,6 +211,7 @@ public:
         clock_type::time_point const now(m_clock.now());
         clock_type::time_point when_expire;
 
+        std::size_t beforeSize = 0, afterSize = 0;
         auto const start = std::chrono::steady_clock::now();
         {
             std::lock_guard lock(m_mutex);
@@ -240,8 +241,10 @@ public:
             workers.reserve(m_cache.partitions());
             std::atomic<int> allRemovals = 0;
 
+            std::size_t beforeSize = 0;
             for (std::size_t p = 0; p < m_cache.partitions(); ++p)
             {
+                beforeSize += m_cache.map()[p].size();
                 workers.push_back(sweepHelper(
                     when_expire,
                     now,
@@ -252,6 +255,8 @@ public:
             }
             for (std::thread& worker : workers)
                 worker.join();
+            for (std::size_t p = 0; p < m_cache.partitions(); ++p)
+                afterSize += m_cache.map()[p].size();
 
             m_cache_count -= allRemovals;
         }
@@ -262,7 +267,10 @@ public:
             << std::chrono::duration_cast<std::chrono::milliseconds>(
                    std::chrono::steady_clock::now() - start)
                    .count()
-            << "ms";
+            << "ms"
+            << ". total before - after = deleted: "
+            << beforeSize << " - " << afterSize << " = "
+            << (beforeSize - afterSize);
     }
 
     bool
