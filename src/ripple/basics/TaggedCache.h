@@ -28,6 +28,7 @@
 #include <atomic>
 #include <functional>
 #include <mutex>
+#include <sstream>
 #include <thread>
 #include <type_traits>
 #include <vector>
@@ -215,26 +216,44 @@ public:
         auto const start = std::chrono::steady_clock::now();
         {
             std::lock_guard lock(m_mutex);
+            std::stringstream ss;
+            ss << "target size " << m_target_size << " target age "
+                << std::chrono::duration_cast<std::chrono::seconds>(m_target_age).count()
+                << "s. cache size " << m_cache.size()
+                << " now seconds: "
+                << std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count()
+                << "s. ";
 
             if (m_target_size == 0 ||
                 (static_cast<int>(m_cache.size()) <= m_target_size))
             {
                 when_expire = now - m_target_age;
+                ss << " simply set when_expire to "
+                    << std::chrono::duration_cast<std::chrono::seconds>(when_expire.time_since_epoch()).count()
+                    << "s. ";
             }
             else
             {
                 when_expire =
                     now - m_target_age * m_target_size / m_cache.size();
+                ss << " complexly set when_expire to "
+                   << std::chrono::duration_cast<std::chrono::seconds>(when_expire.time_since_epoch()).count()
+                   << "s. ";
 
                 clock_type::duration const minimumAge(std::chrono::seconds(1));
                 if (when_expire > (now - minimumAge))
                     when_expire = now - minimumAge;
+                ss << " what ever might it be now? "
+                   << std::chrono::duration_cast<std::chrono::seconds>(when_expire.time_since_epoch()).count()
+                   << "s. ";
 
-                JLOG(m_journal.trace())
-                    << m_name << " is growing fast " << m_cache.size() << " of "
+                ss << m_name << " is growing fast " << m_cache.size() << " of "
                     << m_target_size << " aging at "
                     << (now - when_expire).count() << " of "
                     << m_target_age.count();
+
+                JLOG(m_journal.debug()) << "TaggedCache sweep size and age math: "
+                    << ss.str();
             }
 
             std::vector<std::thread> workers;

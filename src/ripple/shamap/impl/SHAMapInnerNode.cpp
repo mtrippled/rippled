@@ -373,12 +373,12 @@ SHAMapInnerNode::canonicalizeChild(
     if (children[childIndex])
     {
         // There is already a node hooked up, return it
-        node = children[childIndex];
+//        node = children[childIndex];
     }
     else
     {
         // Hook this node up
-        children[childIndex] = node;
+//        children[childIndex] = node;
     }
     return node;
 }
