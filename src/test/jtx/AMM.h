@@ -106,6 +106,7 @@ struct VoteArg
     std::optional<ter> err = std::nullopt;
 };
 
+/*
 struct BidArg
 {
     std::optional<Account> account = std::nullopt;
@@ -117,6 +118,7 @@ struct BidArg
     std::optional<std::pair<Issue, Issue>> assets = std::nullopt;
     std::optional<ter> err = std::nullopt;
 };
+ */
 
 /** Convenience class to test AMM functionality.
  */
@@ -329,8 +331,21 @@ public:
         std::optional<std::pair<Issue, Issue>> const& assets = std::nullopt,
         std::optional<ter> const& ter = std::nullopt);
 
-    void
-    bid(BidArg const& arg);
+    Json::Value
+    bidJson(std::optional<Account> const& account,
+        std::optional<std::variant<int, IOUAmount, STAmount>> const& bidMin =
+        std::nullopt,
+        std::optional<std::variant<int, IOUAmount, STAmount>> const& bidMax =
+        std::nullopt,
+        std::vector<Account> const& authAccounts = {},
+        std::optional<std::uint32_t> const& flags = std::nullopt,
+        std::optional<jtx::seq> const& seq = std::nullopt,
+        std::optional<std::pair<Issue, Issue>> const& assets = std::nullopt,
+        std::optional<ter> const& ter = std::nullopt);
+
+
+//    void
+//    bid(BidArg const& arg);
 
     AccountID const&
     ammAccount() const

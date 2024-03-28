@@ -661,6 +661,20 @@ public:
     }
     /** @} */
 
+    /** Create a STTx from a JTx
+        The framework requires that JSON is valid.
+        On a parse error, the JSON is logged and
+        an exception thrown.
+        Throws:
+            parse_error
+    */
+    std::shared_ptr<STTx const>
+    st(JTx const& jt);
+
+    std::shared_ptr<STTx const>
+    ust(JTx const& jt);
+
+
 protected:
     int trace_ = 0;
     TestStopwatch stopwatch_;
@@ -678,16 +692,6 @@ protected:
 
     virtual void
     autofill(JTx& jt);
-
-    /** Create a STTx from a JTx
-        The framework requires that JSON is valid.
-        On a parse error, the JSON is logged and
-        an exception thrown.
-        Throws:
-            parse_error
-    */
-    std::shared_ptr<STTx const>
-    st(JTx const& jt);
 
     // Invoke funclets on stx
     // Note: The STTx may not be modified

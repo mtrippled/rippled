@@ -34,11 +34,14 @@ namespace ripple {
 NotTEC
 AMMBid::preflight(PreflightContext const& ctx)
 {
+    std::cerr << "AMMbid::preflight\n";
     if (!ammEnabled(ctx.rules))
         return temDISABLED;
 
+    std::cerr << "AMMbid::preflight before preflight1\n";
     if (auto const ret = preflight1(ctx); !isTesSuccess(ret))
         return ret;
+    std::cerr << "AMMbid::preflight after preflight1\n";
 
     if (ctx.tx.getFlags() & tfUniversalMask)
     {

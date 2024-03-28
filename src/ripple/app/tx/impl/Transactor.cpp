@@ -109,11 +109,13 @@ preflight1(PreflightContext const& ctx)
 
     auto const spk = ctx.tx.getSigningPubKey();
 
+    std::cerr << "preflight1 sig check\n" << ctx.tx.getJson(JsonOptions::none) << '\n';
     if (!spk.empty() && !publicKeyType(makeSlice(spk)))
     {
         JLOG(ctx.j.debug()) << "preflight1: invalid signing key";
         return temBAD_SIGNATURE;
     }
+    std::cerr << "preflight1 after that check\n";
 
     // An AccountTxnID field constrains transaction ordering more than the
     // Sequence field.  Tickets, on the other hand, reduce ordering

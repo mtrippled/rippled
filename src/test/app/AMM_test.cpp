@@ -19,6 +19,8 @@
 #include <ripple/app/misc/AMMHelpers.h>
 #include <ripple/app/paths/AMMContext.h>
 #include <ripple/app/paths/AMMOffer.h>
+#include <ripple/app/tx/impl/AMMBid.h>
+#include <ripple/app/tx/impl/Transactor.h>
 #include <ripple/protocol/AMMCore.h>
 #include <ripple/protocol/STParsedJSON.h>
 #include <ripple/resource/Fees.h>
@@ -2822,6 +2824,143 @@ private:
                 STAmount{USD, UINT64_C(1'010'10090898081), -11},
                 IOUAmount{1'004'487'562112089, -9}));
         }
+
+        {
+            Env env(*this);
+            env.memoize("alice");
+            env.memoize("bob");
+            env.memoize("carol");
+
+            Json::Value escrowTx = escrow("alice", "carol", XRP(1000));
+            auto const jtx = env.jt(
+                escrowTx,
+                finish_time(env.now() + 1s),
+                seq(1),
+                fee(10));
+            std::cerr << "escrowTx and type:\n";
+            std::cerr << escrowTx << '\n';
+            std::cerr << jtx.stx->getTxnType() << '\n';
+            auto const pf = preflight(
+                env.app(),
+                env.current()->rules(),
+                *jtx.stx,
+                tapNONE,
+                env.journal);
+            BEAST_EXPECT(pf.ter == tesSUCCESS);
+            BEAST_EXPECT(!pf.consequences.isBlocker());
+            BEAST_EXPECT(pf.consequences.fee() == drops(10));
+            BEAST_EXPECT(pf.consequences.potentialSpend() == XRP(1000));
+
+        }
+
+        {
+            Env env(*this);
+            fund(env, gw, {alice, bob}, XRP(2'000), {USD(2'000)});
+            AMM amm(env, gw, XRP(1'000), USD(1'010), false, 1'000);
+//            auto const lpIssue = amm.lptIssue();
+//            env.trust(STAmount{lpIssue, 500}, alice);
+//            env.trust(STAmount{lpIssue, 50}, bob);
+//            env(pay(gw, alice, STAmount{lpIssue, 500}));
+//            env(pay(gw, bob, STAmount{lpIssue, 50}));
+            // Alice doesn't have anymore lp tokens
+            std::cerr << "doing amm.bid alice, 500 2\n";
+//            amm.bid(alice, 500);
+            Json::Value tx = amm.bidJson(alice, 500);
+            std::cerr << "test preflight before\n";
+            std::cerr << tx << '\n';
+            auto const jtx = env.jt(
+                tx,
+                seq(1),
+                fee(10));
+
+            env.app().config().features.erase(featureAMM);
+            auto const pf = testPreflight(env.app(),
+                env.current()->rules(),
+                *jtx.stx,
+                tapNONE,
+                env.journal);
+            std::cerr << "test preflight after\n";
+            std::cerr << tx << '\n';
+            std::cerr << jtx.stx->getTxnType() << '\n';
+            BEAST_EXPECT(pf.ter == temDISABLED);
+
+            env.app().config().features.insert(featureAMM);
+            std::cerr << "test2 preflight before\n";
+            std::cerr << tx << '\n';
+            auto jtx2 = env.jt(
+                tx,
+                seq(1),
+                fee(10));
+            auto sig = jtx2.jv["TxnSignature"];
+            jtx2.jv["TxnSignature"] = "deadbeef";
+            env.app().config().features.erase(featureTicketBatch);
+            std::cerr << "test2 preflight before2\n";
+            std::cerr << jtx2.jv << '\n';
+
+            jtx2.stx = env.ust(jtx2);
+            std::cerr << "test2 preflight after reserialization:\n"
+                << jtx2.stx->getJson(JsonOptions::none) << '\n';
+
+//            PreflightContext const pfctx(env.app(), *jtx.stx,
+//                env.current()->rules(), tapNONE, env.journal);
+//            auto ret = AMMBid::preflight(pfctx);
+            auto const pf2 = testPreflight(env.app(),
+                env.current()->rules(),
+                *jtx2.stx,
+                tapNONE,
+                env.journal);
+            std::cerr << "test2 preflight after\n";
+            BEAST_EXPECT(pf2.ter != tesSUCCESS);
+
+            jtx2.jv["TxnSignature"] = sig;
+            jtx2.jv["Asset2"]["currency"] = "XRP";
+            jtx2.jv["Asset2"].removeMember("issuer");
+            jtx2.stx = env.ust(jtx2);
+            std::cerr << "test3 before preflight after reserialization:\n"
+                      << jtx2.stx->getJson(JsonOptions::none) << '\n';
+            auto const pf3 = testPreflight(env.app(),
+                env.current()->rules(),
+                *jtx2.stx,
+                tapNONE,
+                env.journal);
+            BEAST_EXPECT(pf3.ter == temBAD_AMM_TOKENS);
+        }
+
+        /*
+        // preflight tests
+        {
+            Env env(*this);
+            fund(env, gw, {alice, bob}, XRP(1'000), {USD(1'000)});
+            AMM amm(env, gw, XRP(10), USD(1'000));
+//            auto const lpIssue = amm.lptIssue();
+//            env.trust(STAmount{lpIssue, 100}, alice);
+//            env.trust(STAmount{lpIssue, 50}, bob);
+//            env(pay(gw, alice, STAmount{lpIssue, 100}));
+//            env(pay(gw, bob, STAmount{lpIssue, 50}));
+            Json::Value tx = amm.bidJson(alice, 100);
+
+            auto const jtx = env.jt(
+                tx,
+                finish_time(env.now() + 1s),
+                seq(1),
+                fee(10));
+
+            std::cerr << "test preflight before\n";
+            std::cerr << jtx.stx->getTxnType() << '\n';
+            std::cerr << tx << '\n';
+            auto const pf = testPreflight(env.app(),
+                env.current()->rules(),
+                *jtx.stx,
+                tapNONE,
+                env.journal);
+            std::cerr << "test preflight after\n";
+
+            // PreflightContext const pfctx(app, tx, rules, flags, j);
+//            Env env(*this);
+//            Json::Value tx =
+
+        }
+         */
     }
 
     void

@@ -727,6 +727,80 @@ AMM::bid(
     submit(jv, seq, ter);
 }
 
+Json::Value
+AMM::bidJson(
+    std::optional<Account> const& account,
+    std::optional<std::variant<int, IOUAmount, STAmount>> const& bidMin,
+    std::optional<std::variant<int, IOUAmount, STAmount>> const& bidMax,
+    std::vector<Account> const& authAccounts,
+    std::optional<std::uint32_t> const& flags,
+    std::optional<jtx::seq> const& seq,
+    std::optional<std::pair<Issue, Issue>> const& assets,
+    std::optional<ter> const& ter)
+{
+    if (auto const amm =
+        env_.current()->read(keylet::amm(asset1_.issue(), asset2_.issue())))
+    {
+        assert(
+            !env_.current()->rules().enabled(fixInnerObjTemplate) ||
+            amm->isFieldPresent(sfAuctionSlot));
+        if (amm->isFieldPresent(sfAuctionSlot))
+        {
+            auto const& auctionSlot =
+                static_cast<STObject const&>(amm->peekAtField(sfAuctionSlot));
+            lastPurchasePrice_ = auctionSlot[sfPrice].iou();
+        }
+    }
+    bidMin_ = std::nullopt;
+    bidMax_ = std::nullopt;
+
+    Json::Value jv;
+    jv[jss::Account] = account ? account->human() : creatorAccount_.human();
+    setTokens(jv, assets);
+    auto getBid = [&](auto const& bid) {
+        if (std::holds_alternative<int>(bid))
+            return STAmount{lptIssue_, std::get<int>(bid)};
+        else if (std::holds_alternative<IOUAmount>(bid))
+            return toSTAmount(std::get<IOUAmount>(bid), lptIssue_);
+        else
+            return std::get<STAmount>(bid);
+    };
+    if (bidMin)
+    {
+        STAmount saTokens = getBid(*bidMin);
+        saTokens.setJson(jv[jss::BidMin]);
+        bidMin_ = saTokens.iou();
+    }
+    if (bidMax)
+    {
+        STAmount saTokens = getBid(*bidMax);
+        saTokens.setJson(jv[jss::BidMax]);
+        bidMax_ = saTokens.iou();
+    }
+    if (authAccounts.size() > 0)
+    {
+        Json::Value accounts(Json::arrayValue);
+        for (auto const& account : authAccounts)
+        {
+            Json::Value acct;
+            Json::Value authAcct;
+            acct[jss::Account] = account.human();
+            authAcct[jss::AuthAccount] = acct;
+            accounts.append(authAcct);
+        }
+        jv[jss::AuthAccounts] = accounts;
+    }
+    if (flags)
+        jv[jss::Flags] = *flags;
+    jv[jss::TransactionType] = jss::AMMBid;
+    if (fee_ != 0)
+        jv[jss::Fee] = std::to_string(fee_);
+//    submit(jv, seq, ter);
+    return jv;
+}
+
+
+/*
 void
 AMM::bid(BidArg const& arg)
 {
@@ -740,6 +814,7 @@ AMM::bid(BidArg const& arg)
         arg.assets,
         arg.err);
 }
+ */
 
 void
 AMM::submit(

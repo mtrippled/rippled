@@ -377,6 +377,18 @@ preflight(
     }
 }
 
+PreflightResult
+testPreflight(
+    Application& app,
+    Rules const& rules,
+    STTx const& tx,
+    ApplyFlags flags,
+    beast::Journal j)
+{
+    PreflightContext const pfctx(app, tx, rules, flags, j);
+    return {pfctx, invoke_preflight(pfctx)};
+}
+
 PreclaimResult
 preclaim(
     PreflightResult const& preflightResult,

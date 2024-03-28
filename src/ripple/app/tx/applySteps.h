@@ -250,6 +250,14 @@ preflight(
     ApplyFlags flags,
     beast::Journal j);
 
+PreflightResult
+testPreflight(
+    Application& app,
+    Rules const& rules,
+    STTx const& tx,
+    ApplyFlags flags,
+    beast::Journal j);
+
 /** Gate a transaction based on static ledger information.
 
     The transaction is checked against all possible
