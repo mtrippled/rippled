@@ -1484,12 +1484,14 @@ LedgerMaster::findNewLedgersToPublish(
                 ss << " it's seq,pubSeq: " << ledger->info().seq
                     << ',' << pubSeq << " ";
             }
-            if (ledger && (ledger->info().seq == pubSeq))
-            {
-                ss << " yes, set it validated, add to return vector and increment pubSeq to " << pubSeq + 1 << " ";
+            if (ledger && (ledger->info().seq >= pubSeq)) {
+                ss << " yes, set " << ledger->info().seq << " validated, add to return vector";
                 ledger->setValidated();
                 ret.push_back(ledger);
-                ++pubSeq;
+                if (ledger->info().seq > pubSeq)
+                    ss << " but there's a gap";
+                else
+                    ss << " increment pubSeq to " << ++pubSeq;
             }
         }
         ss << ". ready to publish " << ret.size() << " ledgers. ";
