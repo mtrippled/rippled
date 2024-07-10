@@ -26,6 +26,7 @@
 #include <xrpl/beast/hash/hash_append.h>
 #include <xrpl/json/json_value.h>
 #include <xrpl/protocol/HashPrefix.h>
+#include <xrpl/protocol/Protocol.h>
 #include <xrpl/protocol/PublicKey.h>
 #include <xrpl/protocol/SecretKey.h>
 #include <boost/container/static_vector.hpp>
@@ -44,7 +45,7 @@ class RCLCxPeerPos
 {
 public:
     //< The type of the proposed position
-    using Proposal = ConsensusProposal<NodeID, uint256, uint256>;
+    using Proposal = ConsensusProposal<NodeID, uint256, uint256, LedgerIndex>;
 
     /** Constructor
 

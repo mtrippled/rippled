@@ -231,6 +231,9 @@ message TMProposeSet
 
     // Number of hops traveled
     optional uint32 hops                = 12    [deprecated=true];
+
+    // sequence of the ledger we are proposing
+    optional uint32 ledgerSeq           = 14;
 }
 
 enum TxSetStatus

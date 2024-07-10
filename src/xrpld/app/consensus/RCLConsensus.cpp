@@ -55,7 +55,7 @@ RCLConsensus::RCLConsensus(
     LedgerMaster& ledgerMaster,
     LocalTxs& localTxs,
     InboundTransactions& inboundTransactions,
-    Consensus<Adaptor>::clock_type const& clock,
+    Consensus<Adaptor>::clock_type& clock,
     ValidatorKeys const& validatorKeys,
     beast::Journal journal)
     : adaptor_(
@@ -173,6 +173,9 @@ RCLConsensus::Adaptor::share(RCLCxPeerPos const& peerPos)
     auto const sig = peerPos.signature();
     prop.set_signature(sig.data(), sig.size());
 
+    if (proposal.ledgerSeq().has_value())
+        prop.set_ledgerseq(*proposal.ledgerSeq());
+
     app_.overlay().relay(prop, peerPos.suppressionID(), peerPos.publicKey());
 }
 
@@ -223,6 +226,8 @@ RCLConsensus::Adaptor::propose(RCLCxPeerPos::Proposal const& proposal)
     auto const& keys = *validatorKeys_.keys;
 
     prop.set_nodepubkey(keys.publicKey.data(), keys.publicKey.size());
+
+    prop.set_ledgerseq(*proposal.ledgerSeq());
 
     auto sig =
         signDigest(keys.publicKey, keys.secretKey, proposal.signingHash());
@@ -397,7 +402,8 @@ RCLConsensus::Adaptor::onClose(
             setHash,
             closeTime,
             app_.timeKeeper().closeTime(),
-            validatorKeys_.nodeID}};
+            validatorKeys_.nodeID,
+            initialLedger->info().seq}};
 }
 
 void

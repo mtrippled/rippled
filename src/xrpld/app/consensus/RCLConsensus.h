@@ -421,7 +421,7 @@ public:
         LedgerMaster& ledgerMaster,
         LocalTxs& localTxs,
         InboundTransactions& inboundTransactions,
-        Consensus<Adaptor>::clock_type const& clock,
+        Consensus<Adaptor>::clock_type& clock,
         ValidatorKeys const& validatorKeys,
         beast::Journal journal);
 

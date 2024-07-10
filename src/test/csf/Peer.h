@@ -161,6 +161,7 @@ struct Peer
     using PeerPosition_t = Position;
     using Result = ConsensusResult<Peer>;
     using NodeKey = Validation::NodeKey;
+//    using clock_type = beast::abstract_clock<std::chrono::steady_clock>;
 
     //! Logging support that prefixes messages with the peer ID
     beast::WrappedSink sink;
@@ -508,7 +509,8 @@ struct Peer
                 TxSet::calcID(openTxs),
                 closeTime,
                 now(),
-                id));
+                id,
+                prevLedger.seq() + typename Ledger_t::Seq{1}));
     }
 
     void

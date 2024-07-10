@@ -1989,6 +1989,10 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMProposeSet> const& m)
         }
     }
 
+    std::optional<LedgerIndex> ledgerSeq;
+    if (set.has_ledgerseq())
+        ledgerSeq = set.ledgerseq();
+
     JLOG(p_journal_.trace())
         << "Proposal: " << (isTrusted ? "trusted" : "untrusted");
 
@@ -2002,7 +2006,8 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMProposeSet> const& m)
             proposeHash,
             closeTime,
             app_.timeKeeper().closeTime(),
-            calcNodeID(app_.validatorManifests().getMasterKey(publicKey))});
+            calcNodeID(app_.validatorManifests().getMasterKey(publicKey)),
+            ledgerSeq});
 
     std::weak_ptr<PeerImp> weak = shared_from_this();
     app_.getJobQueue().addJob(
