@@ -2333,6 +2333,18 @@ NetworkOPsImp::recvValidation(
     lock.unlock();
 
     pubValidation(val);
+    std::stringstream ss;
+    ss << "VALIDATION: " << val->render() << " master_key: ";
+    auto master = app_.validators().getTrustedKey(val->getSignerPublic());
+    if (master)
+    {
+        ss << toBase58(TokenType::NodePublic, *master);
+    }
+    else
+    {
+        ss << "none";
+    }
+    JLOG(m_journal.debug()) << ss.str();
 
     // We will always relay trusted validations; if configured, we will
     // also relay all untrusted validations.
