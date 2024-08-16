@@ -104,6 +104,7 @@ template <class MutexType>
 class ScopedUnlock
 {
     std::unique_lock<MutexType>& lock_;
+    beast::Journal j_;
 
 public:
     /** Creates a ScopedUnlock.
@@ -116,10 +117,14 @@ public:
         otherwise there are no guarantees what will happen! Best just to use it
         as a local stack object, rather than creating on the heap.
     */
-    explicit ScopedUnlock(std::unique_lock<MutexType>& lock) : lock_(lock)
+    ScopedUnlock(std::unique_lock<MutexType>& lock, beast::Journal j)
+//    explicit ScopedUnlock(std::unique_lock<MutexType>& lock) : lock_(lock)
+        : lock_(lock)
+        , j_(j)
     {
         assert(lock_.owns_lock());
         lock_.unlock();
+        JLOG(j_.debug()) << "unlock";
     }
 
     ScopedUnlock(ScopedUnlock const&) = delete;
@@ -135,6 +140,7 @@ public:
     */
     ~ScopedUnlock() noexcept(false)
     {
+        JLOG(j_.debug()) << "lock";
         lock_.lock();
     }
 };
@@ -228,6 +234,7 @@ LedgerMaster::isCompatible(
     }
 
     {
+        JLOG(m_journal.debug()) << "LedgerMasterLock lock4";
         std::lock_guard sl(m_mutex);
 
         if ((mLastValidLedger.second != 0) &&
@@ -238,9 +245,11 @@ LedgerMaster::isCompatible(
                 s,
                 reason))
         {
+            JLOG(m_journal.debug()) << "LedgerMasterLock unlock4-1";
             return false;
         }
     }
+    JLOG(m_journal.debug()) << "LedgerMasterLock unlock4-2";
 
     return true;
 }
@@ -424,8 +433,12 @@ void
 LedgerMaster::addHeldTransaction(
     std::shared_ptr<Transaction> const& transaction)
 {
-    std::lock_guard ml(m_mutex);
-    mHeldTransactions.insert(transaction->getSTransaction());
+    JLOG(m_journal.debug()) << "LedgerMasterLock lock5";
+    {
+        std::lock_guard ml(m_mutex);
+        mHeldTransactions.insert(transaction->getSTransaction());
+    }
+    JLOG(m_journal.debug()) << "LedgerMasterLock unlock5";
 }
 
 // Validate a ledger's close time and sequence number if we're considering
@@ -510,8 +523,12 @@ LedgerMaster::switchLCL(std::shared_ptr<Ledger const> const& lastClosed)
         LogicError("The new last closed ledger is open!");
 
     {
-        std::lock_guard ml(m_mutex);
-        mClosedLedger.set(lastClosed);
+        JLOG(m_journal.debug()) << "LedgerMasterLock lock6";
+        {
+            std::lock_guard ml(m_mutex);
+            mClosedLedger.set(lastClosed);
+        }
+        JLOG(m_journal.debug()) << "LedgerMasterLock unlock6";
     }
 
     if (standalone_)
@@ -547,6 +564,7 @@ LedgerMaster::storeLedger(std::shared_ptr<Ledger const> ledger)
 void
 LedgerMaster::applyHeldTransactions()
 {
+    JLOG(m_journal.debug()) << "LedgerMasterLock lock7";
     std::lock_guard sl(m_mutex);
 
     app_.openLedger().modify([&](OpenView& view, beast::Journal j) {
@@ -567,14 +585,21 @@ LedgerMaster::applyHeldTransactions()
     // VFALCO NOTE The hash for an open ledger is undefined so we use
     // something that is a reasonable substitute.
     mHeldTransactions.reset(app_.openLedger().current()->info().parentHash);
+    JLOG(m_journal.debug()) << "LedgerMasterLock unlock7";
 }
 
 std::shared_ptr<STTx const>
 LedgerMaster::popAcctTransaction(std::shared_ptr<STTx const> const& tx)
 {
-    std::lock_guard sl(m_mutex);
+    std::shared_ptr<STTx const> ret;
+    JLOG(m_journal.debug()) << "LedgerMasterLock lock8";
+    {
+        std::lock_guard sl(m_mutex);
 
-    return mHeldTransactions.popAcctTransaction(tx);
+        ret = mHeldTransactions.popAcctTransaction(tx);
+    }
+    JLOG(m_journal.debug()) << "LedgerMasterLock unlock8";
+    return ret;
 }
 
 void
@@ -769,12 +794,16 @@ LedgerMaster::tryFill(std::shared_ptr<Ledger const> ledger)
     while (!app_.getJobQueue().isStopping() && seq > 0)
     {
         {
-            std::lock_guard ml(m_mutex);
-            minHas = seq;
-            --seq;
+            JLOG(m_journal.debug()) << "LedgerMasterLock lock9";
+            {
+                std::lock_guard ml(m_mutex);
+                minHas = seq;
+                --seq;
 
-            if (haveLedger(seq))
-                break;
+                if (haveLedger(seq))
+                    break;
+            }
+            JLOG(m_journal.debug()) << "LedgerMasterLock unlock9";
         }
 
         auto it(ledgerHashes.find(seq));
@@ -818,9 +847,13 @@ LedgerMaster::tryFill(std::shared_ptr<Ledger const> ledger)
         mCompleteLedgers.insert(range(minHas, maxHas));
     }
     {
-        std::lock_guard ml(m_mutex);
-        mFillInProgress = 0;
-        tryAdvance();
+        JLOG(m_journal.debug()) << "LedgerMasterLock lock10";
+        {
+            std::lock_guard ml(m_mutex);
+            mFillInProgress = 0;
+            tryAdvance();
+        }
+        JLOG(m_journal.debug()) << "LedgerMasterLock unlock10";
     }
 }
 
@@ -962,6 +995,7 @@ LedgerMaster::setFullLedger(
         mCompleteLedgers.insert(ledger->info().seq);
     }
 
+    JLOG(m_journal.debug()) << "LedgerMasterLock lock11";
     {
         std::lock_guard ml(m_mutex);
 
@@ -988,6 +1022,7 @@ LedgerMaster::setFullLedger(
             }
         }
     }
+    JLOG(m_journal.debug()) << "LedgerMasterLock unlock11";
 }
 
 void
@@ -1015,9 +1050,13 @@ LedgerMaster::checkAccept(uint256 const& hash, std::uint32_t seq)
         valCount = validations.size();
         if (valCount >= app_.validators().quorum())
         {
-            std::lock_guard ml(m_mutex);
-            if (seq > mLastValidLedger.second)
-                mLastValidLedger = std::make_pair(hash, seq);
+            JLOG(m_journal.debug()) << "LedgerMasterLock lock12";
+            {
+                std::lock_guard ml(m_mutex);
+                if (seq > mLastValidLedger.second)
+                    mLastValidLedger = std::make_pair(hash, seq);
+            }
+            JLOG(m_journal.debug()) << "LedgerMasterLock unlock12";
         }
 
         if (seq == mValidLedgerSeq)
@@ -1070,141 +1109,149 @@ LedgerMaster::checkAccept(std::shared_ptr<Ledger const> const& ledger)
 
     // Can we advance the last fully-validated ledger? If so, can we
     // publish?
-    std::lock_guard ml(m_mutex);
-
-    if (ledger->info().seq <= mValidLedgerSeq)
-        return;
-
-    auto const minVal = getNeededValidations();
-    auto validations = app_.validators().negativeUNLFilter(
-        app_.getValidations().getTrustedForLedger(
-            ledger->info().hash, ledger->info().seq));
-    auto const tvc = validations.size();
-    if (tvc < minVal)  // nothing we can do
+    JLOG(m_journal.debug()) << "LedgerMasterLock lock13";
     {
-        JLOG(m_journal.trace())
-            << "Only " << tvc << " validations for " << ledger->info().hash;
-        return;
-    }
+        std::lock_guard ml(m_mutex);
 
-    JLOG(m_journal.info()) << "Advancing accepted ledger to "
-                           << ledger->info().seq << " with >= " << minVal
-                           << " validations";
-
-    ledger->setValidated();
-    ledger->setFull();
-    setValidLedger(ledger);
-    if (!mPubLedger)
-    {
-        pendSaveValidated(app_, ledger, true, true);
-        setPubLedger(ledger);
-        app_.getOrderBookDB().setup(ledger);
-    }
-
-    std::uint32_t const base = app_.getFeeTrack().getLoadBase();
-    auto fees = app_.getValidations().fees(ledger->info().hash, base);
-    {
-        auto fees2 =
-            app_.getValidations().fees(ledger->info().parentHash, base);
-        fees.reserve(fees.size() + fees2.size());
-        std::copy(fees2.begin(), fees2.end(), std::back_inserter(fees));
-    }
-    std::uint32_t fee;
-    if (!fees.empty())
-    {
-        std::sort(fees.begin(), fees.end());
-        if (auto stream = m_journal.debug())
+        if (ledger->info().seq <= mValidLedgerSeq)
         {
-            std::stringstream s;
-            s << "Received fees from validations: (" << fees.size() << ") ";
-            for (auto const fee1 : fees)
-            {
-                s << " " << fee1;
-            }
-            stream << s.str();
+            JLOG(m_journal.debug()) << "LedgerMasterLock unlock13-1";
+            return;
         }
-        fee = fees[fees.size() / 2];  // median
-    }
-    else
-    {
-        fee = base;
-    }
 
-    app_.getFeeTrack().setRemoteFee(fee);
-
-    tryAdvance();
-
-    if (ledger->seq() % 256 == 0)
-    {
-        // Check if the majority of validators run a higher version rippled
-        // software. If so print a warning.
-        //
-        // Once the HardenedValidations amendment is enabled, validators include
-        // their rippled software version in the validation messages of every
-        // (flag - 1) ledger. We wait for one ledger time before checking the
-        // version information to accumulate more validation messages.
-
-        auto currentTime = app_.timeKeeper().now();
-        bool needPrint = false;
-
-        // The variable upgradeWarningPrevTime_ will be set when and only when
-        // the warning is printed.
-        if (upgradeWarningPrevTime_ == TimeKeeper::time_point())
+        auto const minVal = getNeededValidations();
+        auto validations = app_.validators().negativeUNLFilter(
+            app_.getValidations().getTrustedForLedger(
+                ledger->info().hash, ledger->info().seq));
+        auto const tvc = validations.size();
+        if (tvc < minVal)  // nothing we can do
         {
-            // Have not printed the warning before, check if need to print.
-            auto const vals = app_.getValidations().getTrustedForLedger(
-                ledger->info().parentHash, ledger->info().seq - 1);
-            std::size_t higherVersionCount = 0;
-            std::size_t rippledCount = 0;
-            for (auto const& v : vals)
+            JLOG(m_journal.trace())
+                << "Only " << tvc << " validations for " << ledger->info().hash;
+            JLOG(m_journal.debug()) << "LedgerMasterLock unlock13-2";
+            return;
+        }
+
+        JLOG(m_journal.info()) << "Advancing accepted ledger to "
+                               << ledger->info().seq << " with >= " << minVal
+                               << " validations";
+
+        ledger->setValidated();
+        ledger->setFull();
+        setValidLedger(ledger);
+        if (!mPubLedger)
+        {
+            pendSaveValidated(app_, ledger, true, true);
+            setPubLedger(ledger);
+            app_.getOrderBookDB().setup(ledger);
+        }
+
+        std::uint32_t const base = app_.getFeeTrack().getLoadBase();
+        auto fees = app_.getValidations().fees(ledger->info().hash, base);
+        {
+            auto fees2 =
+                app_.getValidations().fees(ledger->info().parentHash, base);
+            fees.reserve(fees.size() + fees2.size());
+            std::copy(fees2.begin(), fees2.end(), std::back_inserter(fees));
+        }
+        std::uint32_t fee;
+        if (!fees.empty())
+        {
+            std::sort(fees.begin(), fees.end());
+            if (auto stream = m_journal.debug())
             {
-                if (v->isFieldPresent(sfServerVersion))
+                std::stringstream s;
+                s << "Received fees from validations: (" << fees.size() << ") ";
+                for (auto const fee1: fees)
                 {
-                    auto version = v->getFieldU64(sfServerVersion);
-                    higherVersionCount +=
-                        BuildInfo::isNewerVersion(version) ? 1 : 0;
-                    rippledCount +=
-                        BuildInfo::isRippledVersion(version) ? 1 : 0;
+                    s << " " << fee1;
+                }
+                stream << s.str();
+            }
+            fee = fees[fees.size() / 2];  // median
+        } else
+        {
+            fee = base;
+        }
+
+        app_.getFeeTrack().setRemoteFee(fee);
+
+        tryAdvance();
+
+        if (ledger->seq() % 256 == 0)
+        {
+            // Check if the majority of validators run a higher version rippled
+            // software. If so print a warning.
+            //
+            // Once the HardenedValidations amendment is enabled, validators include
+            // their rippled software version in the validation messages of every
+            // (flag - 1) ledger. We wait for one ledger time before checking the
+            // version information to accumulate more validation messages.
+
+            auto currentTime = app_.timeKeeper().now();
+            bool needPrint = false;
+
+            // The variable upgradeWarningPrevTime_ will be set when and only when
+            // the warning is printed.
+            if (upgradeWarningPrevTime_ == TimeKeeper::time_point())
+            {
+                // Have not printed the warning before, check if need to print.
+                auto const vals = app_.getValidations().getTrustedForLedger(
+                    ledger->info().parentHash, ledger->info().seq - 1);
+                std::size_t higherVersionCount = 0;
+                std::size_t rippledCount = 0;
+                for (auto const &v: vals)
+                {
+                    if (v->isFieldPresent(sfServerVersion))
+                    {
+                        auto version = v->getFieldU64(sfServerVersion);
+                        higherVersionCount +=
+                            BuildInfo::isNewerVersion(version) ? 1 : 0;
+                        rippledCount +=
+                            BuildInfo::isRippledVersion(version) ? 1 : 0;
+                    }
+                }
+                // We report only if (1) we have accumulated validation messages
+                // from 90% validators from the UNL, (2) 60% of validators
+                // running the rippled implementation have higher version numbers,
+                // and (3) the calculation won't cause divide-by-zero.
+                if (higherVersionCount > 0 && rippledCount > 0)
+                {
+                    constexpr std::size_t reportingPercent = 90;
+                    constexpr std::size_t cutoffPercent = 60;
+                    auto const unlSize{
+                        app_.validators().getQuorumKeys().second.size()};
+                    needPrint = unlSize > 0 &&
+                                calculatePercent(vals.size(), unlSize) >=
+                                reportingPercent &&
+                                calculatePercent(higherVersionCount,
+                                    rippledCount) >=
+                                cutoffPercent;
                 }
             }
-            // We report only if (1) we have accumulated validation messages
-            // from 90% validators from the UNL, (2) 60% of validators
-            // running the rippled implementation have higher version numbers,
-            // and (3) the calculation won't cause divide-by-zero.
-            if (higherVersionCount > 0 && rippledCount > 0)
+                // To throttle the warning messages, instead of printing a warning
+                // every flag ledger, we print every week.
+            else if (currentTime - upgradeWarningPrevTime_ >= weeks{1})
             {
-                constexpr std::size_t reportingPercent = 90;
-                constexpr std::size_t cutoffPercent = 60;
-                auto const unlSize{
-                    app_.validators().getQuorumKeys().second.size()};
-                needPrint = unlSize > 0 &&
-                    calculatePercent(vals.size(), unlSize) >=
-                        reportingPercent &&
-                    calculatePercent(higherVersionCount, rippledCount) >=
-                        cutoffPercent;
+                // Printed the warning before, and assuming most validators
+                // do not downgrade, we keep printing the warning
+                // until the local server is restarted.
+                needPrint = true;
+            }
+
+            if (needPrint)
+            {
+                upgradeWarningPrevTime_ = currentTime;
+                auto const upgradeMsg =
+                    "Check for upgrade: "
+                    "A majority of trusted validators are "
+                    "running a newer version.";
+                std::cerr << upgradeMsg << std::endl;
+                JLOG(m_journal.error()) << upgradeMsg;
             }
         }
-        // To throttle the warning messages, instead of printing a warning
-        // every flag ledger, we print every week.
-        else if (currentTime - upgradeWarningPrevTime_ >= weeks{1})
-        {
-            // Printed the warning before, and assuming most validators
-            // do not downgrade, we keep printing the warning
-            // until the local server is restarted.
-            needPrint = true;
-        }
-
-        if (needPrint)
-        {
-            upgradeWarningPrevTime_ = currentTime;
-            auto const upgradeMsg =
-                "Check for upgrade: "
-                "A majority of trusted validators are "
-                "running a newer version.";
-            std::cerr << upgradeMsg << std::endl;
-            JLOG(m_journal.error()) << upgradeMsg;
-        }
     }
+    JLOG(m_journal.debug()) << "LedgerMasterLock unlock13-3";
 }
 
 /** Report that the consensus process built a particular ledger */
@@ -1378,7 +1425,7 @@ LedgerMaster::findNewLedgersToPublish(
     auto valLedger = mValidLedger.get();
     std::uint32_t valSeq = valLedger->info().seq;
 
-    ScopedUnlock sul{sl};
+    ScopedUnlock sul(sl, app_.logs().journal("ScopedUnlock1"));
     try
     {
         for (std::uint32_t seq = pubSeq; seq <= valSeq; ++seq)
@@ -1479,6 +1526,7 @@ LedgerMaster::findNewLedgersToPublish(
 void
 LedgerMaster::tryAdvance()
 {
+    JLOG(m_journal.debug()) << "LedgerMasterLock lock14";
     std::lock_guard ml(m_mutex);
 
     // Can't advance without at least one fully-valid ledger
@@ -1486,33 +1534,43 @@ LedgerMaster::tryAdvance()
     if (!mAdvanceThread && !mValidLedger.empty())
     {
         mAdvanceThread = true;
-        app_.getJobQueue().addJob(jtADVANCE3, "advanceLedger3", [this]() {
-            JLOG(m_journal.debug()) << "JOB advanceLedger getConsensusLedger3 started";
-            std::unique_lock sl(m_mutex);
-
-            assert(!mValidLedger.empty() && mAdvanceThread);
-
-            JLOG(m_journal.trace()) << "advanceThread<";
-
-            try
+        app_.getJobQueue().addJob(jtADVANCE3, "advanceLedger3", [this]()
+        {
+            JLOG(m_journal.debug())
+                << "JOB advanceLedger getConsensusLedger3 started";
             {
-                doAdvance(sl);
-            }
-            catch (std::exception const& ex)
-            {
-                JLOG(m_journal.fatal()) << "doAdvance throws: " << ex.what();
-            }
+                JLOG(m_journal.debug()) << "LedgerMasterLock lock15";
+                std::unique_lock sl(m_mutex);
 
-            mAdvanceThread = false;
-            JLOG(m_journal.trace()) << "advanceThread>";
-            JLOG(m_journal.debug()) << "JOB advanceLedger getConsensusLedger3 finishing";
+                assert(!mValidLedger.empty() && mAdvanceThread);
+
+                JLOG(m_journal.trace()) << "advanceThread<";
+
+                try
+                {
+                    doAdvance(sl);
+                }
+                catch (std::exception const &ex)
+                {
+                    JLOG(m_journal.fatal()) << "doAdvance throws: "
+                                            << ex.what();
+                }
+
+                mAdvanceThread = false;
+                JLOG(m_journal.trace()) << "advanceThread>";
+                JLOG(m_journal.debug())
+                    << "JOB advanceLedger getConsensusLedger3 finishing";
+            }
+            JLOG(m_journal.debug()) << "LedgerMasterLock unlock15";
         });
     }
+    JLOG(m_journal.debug()) << "LedgerMasterLock unlock14";
 }
 
 void
 LedgerMaster::updatePaths()
 {
+    JLOG(m_journal.debug()) << "LedgerMasterLock lock16";
     {
         std::lock_guard ml(m_mutex);
         if (app_.getOPs().isNeedNetworkLedger())
@@ -1520,14 +1578,17 @@ LedgerMaster::updatePaths()
             --mPathFindThread;
             mPathLedger.reset();
             JLOG(m_journal.debug()) << "Need network ledger for updating paths";
+            JLOG(m_journal.debug()) << "LedgerMasterLock unlock16-1";
             return;
         }
     }
+    JLOG(m_journal.debug()) << "LedgerMasterLock unlock16-2";
 
     while (!app_.getJobQueue().isStopping())
     {
         JLOG(m_journal.debug()) << "updatePaths running";
         std::shared_ptr<ReadView const> lastLedger;
+        JLOG(m_journal.debug()) << "LedgerMasterLock lock17";
         {
             std::lock_guard ml(m_mutex);
 
@@ -1546,9 +1607,11 @@ LedgerMaster::updatePaths()
                 --mPathFindThread;
                 mPathLedger.reset();
                 JLOG(m_journal.debug()) << "Nothing to do for updating paths";
+                JLOG(m_journal.debug()) << "LedgerMasterLock unlock17-1";
                 return;
             }
         }
+        JLOG(m_journal.debug()) << "LedgerMasterLock unlock17-2";
 
         if (!standalone_)
         {  // don't pathfind with a ledger that's more than 60 seconds old
@@ -1559,9 +1622,11 @@ LedgerMaster::updatePaths()
             {
                 JLOG(m_journal.debug())
                     << "Published ledger too old for updating paths";
+                JLOG(m_journal.debug()) << "LedgerMasterLock lock18";
                 std::lock_guard ml(m_mutex);
                 --mPathFindThread;
                 mPathLedger.reset();
+                JLOG(m_journal.debug()) << "LedgerMasterLock unlock18";
                 return;
             }
         }
@@ -1570,6 +1635,7 @@ LedgerMaster::updatePaths()
         {
             auto& pathRequests = app_.getPathRequests();
             {
+                JLOG(m_journal.debug()) << "LedgerMasterLock lock19";
                 std::lock_guard ml(m_mutex);
                 if (!pathRequests.requestsPending())
                 {
@@ -1579,22 +1645,29 @@ LedgerMaster::updatePaths()
                         << "No path requests found. Nothing to do for updating "
                            "paths. "
                         << mPathFindThread << " jobs remaining";
+                    JLOG(m_journal.debug()) << "LedgerMasterLock unlock19-1";
                     return;
                 }
             }
+            JLOG(m_journal.debug()) << "LedgerMasterLock unlock19-2";
             JLOG(m_journal.debug()) << "Updating paths";
             pathRequests.updateAll(lastLedger);
 
-            std::lock_guard ml(m_mutex);
-            if (!pathRequests.requestsPending())
+            JLOG(m_journal.debug()) << "LedgerMasterLock lock20";
             {
-                JLOG(m_journal.debug())
-                    << "No path requests left. No need for further updating "
-                       "paths";
-                --mPathFindThread;
-                mPathLedger.reset();
-                return;
+                std::lock_guard ml(m_mutex);
+                if (!pathRequests.requestsPending())
+                {
+                    JLOG(m_journal.debug())
+                        << "No path requests left. No need for further updating "
+                           "paths";
+                    --mPathFindThread;
+                    mPathLedger.reset();
+                    JLOG(m_journal.debug()) << "LedgerMasterLock unlock20-1";
+                    return;
+                }
             }
+            JLOG(m_journal.debug()) << "LedgerMasterLock unlock20-2";
         }
         catch (SHAMapMissingNode const& mn)
         {
@@ -1622,17 +1695,23 @@ LedgerMaster::updatePaths()
 bool
 LedgerMaster::newPathRequest()
 {
-    std::unique_lock ml(m_mutex);
-    mPathFindNewRequest = newPFWork("pf:newRequest", ml);
+    JLOG(m_journal.debug()) << "LedgerMasterLock lock21";
+    {
+        std::unique_lock ml(m_mutex);
+        mPathFindNewRequest = newPFWork("pf:newRequest", ml);
+    }
+    JLOG(m_journal.debug()) << "LedgerMasterLock unlock21";
     return mPathFindNewRequest;
 }
 
 bool
 LedgerMaster::isNewPathRequest()
 {
+    JLOG(m_journal.debug()) << "LedgerMasterLock lock22";
     std::lock_guard ml(m_mutex);
     bool const ret = mPathFindNewRequest;
     mPathFindNewRequest = false;
+    JLOG(m_journal.debug()) << "LedgerMasterLock unlock22";
     return ret;
 }
 
@@ -1641,10 +1720,16 @@ LedgerMaster::isNewPathRequest()
 bool
 LedgerMaster::newOrderBookDB()
 {
-    std::unique_lock ml(m_mutex);
-    mPathLedger.reset();
+    bool ret;
+    JLOG(m_journal.debug()) << "LedgerMasterLock lock23";
+    {
+        std::unique_lock ml(m_mutex);
+        mPathLedger.reset();
 
-    return newPFWork("pf:newOBDB", ml);
+        ret = newPFWork("pf:newOBDB", ml);
+    }
+    JLOG(m_journal.debug()) << "LedgerMasterLock unlock23";
+    return ret;
 }
 
 /** A thread needs to be dispatched to handle pathfinding work of some kind.
@@ -1672,8 +1757,9 @@ LedgerMaster::newPFWork(
 }
 
 std::recursive_mutex&
-LedgerMaster::peekMutex()
+LedgerMaster::peekMutex(char const* caller)
 {
+    JLOG(m_journal.debug()) << "peekMutex " << caller;
     return m_mutex;
 }
 
@@ -1721,7 +1807,9 @@ LedgerMaster::getValidatedRules()
 std::shared_ptr<ReadView const>
 LedgerMaster::getPublishedLedger()
 {
+    JLOG(m_journal.debug()) << "LedgerMasterLock lock24";
     std::lock_guard lock(m_mutex);
+    JLOG(m_journal.debug()) << "LedgerMasterLock unlock24";
     return mPubLedger;
 }
 
@@ -1944,7 +2032,7 @@ LedgerMaster::fetchForHistory(
     InboundLedger::Reason reason,
     std::unique_lock<std::recursive_mutex>& sl)
 {
-    ScopedUnlock sul{sl};
+    ScopedUnlock sul(sl, app_.logs().journal("ScopedUnlock2"));
     if (auto hash = getLedgerHashForHistory(missing, reason))
     {
         assert(hash->isNonZero());
@@ -1978,20 +2066,24 @@ LedgerMaster::fetchForHistory(
             JLOG(m_journal.trace()) << "fetchForHistory acquired " << seq;
             setFullLedger(ledger, false, false);
             int fillInProgress;
+            JLOG(m_journal.debug()) << "LedgerMasterLock lock25";
             {
                 std::lock_guard lock(m_mutex);
                 mHistLedger = ledger;
                 fillInProgress = mFillInProgress;
             }
+            JLOG(m_journal.debug()) << "LedgerMasterLock unlock25";
             if (fillInProgress == 0 &&
                 app_.getRelationalDatabase().getHashByIndex(seq - 1) ==
                     ledger->info().parentHash)
             {
+                JLOG(m_journal.debug()) << "LedgerMasterLock lock26";
                 {
                     // Previous ledger is in DB
                     std::lock_guard lock(m_mutex);
                     mFillInProgress = seq;
                 }
+                JLOG(m_journal.debug()) << "LedgerMasterLock unlock26";
                 app_.getJobQueue().addJob(
                     jtADVANCE4, "tryFill advanceLedger4", [this, ledger]() {
                         JLOG(m_journal.debug()) << "JOB advanceLedger tryFill advanceLedger4 started";
@@ -2116,7 +2208,7 @@ LedgerMaster::doAdvance(std::unique_lock<std::recursive_mutex>& sl)
             for (auto const& ledger : pubLedgers)
             {
                 {
-                    ScopedUnlock sul{sl};
+                    ScopedUnlock sul(sl, app_.logs().journal("ScopedUnlock3"));
                     JLOG(m_journal.debug())
                         << "tryAdvance publishing seq " << ledger->info().seq;
                     setFullLedger(ledger, true, true);
@@ -2125,7 +2217,7 @@ LedgerMaster::doAdvance(std::unique_lock<std::recursive_mutex>& sl)
                 setPubLedger(ledger);
 
                 {
-                    ScopedUnlock sul{sl};
+                    ScopedUnlock sul(sl, app_.logs().journal("ScopedUnlock4"));
                     app_.getOPs().pubLedger(ledger);
                 }
             }
