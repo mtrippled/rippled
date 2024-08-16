@@ -135,7 +135,7 @@ RCLValidationsAdaptor::acquire(LedgerHash const& hash)
         Application* pApp = &app_;
 
         app_.getJobQueue().addJob(
-            jtADVANCE, "getConsensusLedger", [pApp, hash]() {
+            jtADVANCE2, "getConsensusLedger2", [pApp, hash]() {
                 pApp->getInboundLedgers().acquire(
                     hash, 0, InboundLedger::Reason::CONSENSUS);
             });

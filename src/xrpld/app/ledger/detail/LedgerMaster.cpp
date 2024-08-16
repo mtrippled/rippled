@@ -1486,7 +1486,7 @@ LedgerMaster::tryAdvance()
     if (!mAdvanceThread && !mValidLedger.empty())
     {
         mAdvanceThread = true;
-        app_.getJobQueue().addJob(jtADVANCE, "advanceLedger", [this]() {
+        app_.getJobQueue().addJob(jtADVANCE3, "advanceLedger3", [this]() {
             std::unique_lock sl(m_mutex);
 
             assert(!mValidLedger.empty() && mAdvanceThread);
@@ -1991,7 +1991,7 @@ LedgerMaster::fetchForHistory(
                     mFillInProgress = seq;
                 }
                 app_.getJobQueue().addJob(
-                    jtADVANCE, "tryFill", [this, ledger]() {
+                    jtADVANCE4, "tryFill advanceLedger4", [this, ledger]() {
                         tryFill(ledger);
                     });
             }

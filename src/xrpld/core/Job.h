@@ -64,7 +64,10 @@ enum JobType {
     jtREQUESTED_TXN,      // Reply with requested transactions
     jtBATCH,              // Apply batched transactions
     jtLEDGER_DATA,        // Received data for a ledger we're acquiring
-    jtADVANCE,            // Advance validated/acquired ledgers
+    jtADVANCE1,            // Advance validated/acquired ledgers 1st caller
+    jtADVANCE2,            // Advance validated/acquired ledgers 2nd caller
+    jtADVANCE3,            // Advance validated/acquired ledgers 3rd caller
+    jtADVANCE4,            // Advance validated/acquired ledgers 4th caller
     jtPUBLEDGER,          // Publish a fully-accepted ledger
     jtTXN_DATA,           // Fetch a proposed set
     jtWAL,                // Write-ahead logging

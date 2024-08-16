@@ -90,7 +90,10 @@ private:
         add(jtUPDATE_PF,         "updatePaths",                 1,     0ms,     0ms);
         add(jtTRANSACTION,       "transaction",          maxLimit,   250ms,  1000ms);
         add(jtBATCH,             "batch",                maxLimit,   250ms,  1000ms);
-        add(jtADVANCE,           "advanceLedger",        maxLimit,     0ms,     0ms);
+        add(jtADVANCE1,           "advanceLedger1",        maxLimit,     0ms,     0ms);
+        add(jtADVANCE2,           "advanceLedger2",        maxLimit,     0ms,     0ms);
+        add(jtADVANCE3,           "advanceLedger3",        maxLimit,     0ms,     0ms);
+        add(jtADVANCE4,           "advanceLedger4",        maxLimit,     0ms,     0ms);
         add(jtPUBLEDGER,         "publishNewLedger",     maxLimit,  3000ms,  4500ms);
         add(jtTXN_DATA,          "fetchTxnData",                5,     0ms,     0ms);
         add(jtWAL,               "writeAhead",           maxLimit,  1000ms,  2500ms);
