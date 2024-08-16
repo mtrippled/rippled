@@ -134,9 +134,11 @@ RCLConsensus::Adaptor::acquireLedger(LedgerHash const& hash)
             acquiringLedger_ = hash;
 
             app_.getJobQueue().addJob(
-                jtADVANCE1, "getConsensusLedger1", [id = hash, &app = app_]() {
+                jtADVANCE1, "getConsensusLedger1", [id = hash, &app = app_, this]() {
+                    JLOG(j_.debug()) << "JOB advanceLedger getConsensusLedger1 started";
                     app.getInboundLedgers().acquire(
                         id, 0, InboundLedger::Reason::CONSENSUS);
+                    JLOG(j_.debug()) << "JOB advanceLedger getConsensusLedger1 finishing";
                 });
         }
         return std::nullopt;

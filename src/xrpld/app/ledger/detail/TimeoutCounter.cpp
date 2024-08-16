@@ -83,9 +83,11 @@ TimeoutCounter::queueJob(ScopedLockType& sl)
     app_.getJobQueue().addJob(
         queueJobParameter_.jobType,
         queueJobParameter_.jobName,
-        [wptr = pmDowncast()]() {
+        [wptr = pmDowncast(), this]() {
+            JLOG(journal_.debug()) << "JOB ledgerData InboundLedger started";
             if (auto sptr = wptr.lock(); sptr)
                 sptr->invokeOnTimer();
+            JLOG(journal_.debug()) << "JOB ledgerData InboundLedger finishing";
         });
 }
 

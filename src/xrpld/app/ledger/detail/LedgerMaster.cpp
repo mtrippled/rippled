@@ -1487,6 +1487,7 @@ LedgerMaster::tryAdvance()
     {
         mAdvanceThread = true;
         app_.getJobQueue().addJob(jtADVANCE3, "advanceLedger3", [this]() {
+            JLOG(m_journal.debug()) << "JOB advanceLedger getConsensusLedger3 started";
             std::unique_lock sl(m_mutex);
 
             assert(!mValidLedger.empty() && mAdvanceThread);
@@ -1504,6 +1505,7 @@ LedgerMaster::tryAdvance()
 
             mAdvanceThread = false;
             JLOG(m_journal.trace()) << "advanceThread>";
+            JLOG(m_journal.debug()) << "JOB advanceLedger getConsensusLedger3 finishing";
         });
     }
 }
@@ -1992,7 +1994,9 @@ LedgerMaster::fetchForHistory(
                 }
                 app_.getJobQueue().addJob(
                     jtADVANCE4, "tryFill advanceLedger4", [this, ledger]() {
+                        JLOG(m_journal.debug()) << "JOB advanceLedger tryFill advanceLedger4 started";
                         tryFill(ledger);
+                        JLOG(m_journal.debug()) << "JOB advanceLedger tryFill advanceLedger4 finishing";
                     });
             }
             progress = true;
@@ -2159,8 +2163,10 @@ LedgerMaster::gotFetchPack(bool progress, std::uint32_t seq)
     if (!mGotFetchPackThread.test_and_set(std::memory_order_acquire))
     {
         app_.getJobQueue().addJob(jtLEDGER_DATA, "gotFetchPack", [&]() {
+            JLOG(m_journal.debug()) << "JOB ledgerData gotFetchPack started";
             app_.getInboundLedgers().gotFetchPack();
             mGotFetchPackThread.clear(std::memory_order_release);
+            JLOG(m_journal.debug()) << "JOB ledgerData gotFetchPack finished";
         });
     }
 }

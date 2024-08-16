@@ -167,8 +167,10 @@ public:
             // dispatch
             if (ledger->gotData(std::weak_ptr<Peer>(peer), packet))
                 app_.getJobQueue().addJob(
-                    jtLEDGER_DATA, "processLedgerData", [ledger]() {
+                    jtLEDGER_DATA, "processLedgerData", [ledger, this]() {
+                        JLOG(j_.debug()) << "JOB ledgerData processLedgerData started";
                         ledger->runData();
+                        JLOG(j_.debug()) << "JOB ledgerData processLedgerData finishing";
                     });
 
             return true;
@@ -183,7 +185,9 @@ public:
         {
             app_.getJobQueue().addJob(
                 jtLEDGER_DATA, "gotStaleData", [this, packet]() {
+                    JLOG(j_.debug()) << "JOB ledgerData gotStaleData started";
                     gotStaleData(packet);
+                    JLOG(j_.debug()) << "JOB ledgerData gotStaleData finishing";
                 });
         }
 

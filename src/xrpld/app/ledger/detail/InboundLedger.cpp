@@ -469,6 +469,7 @@ InboundLedger::done()
     // We hold the PeerSet lock, so must dispatch
     app_.getJobQueue().addJob(
         jtLEDGER_DATA, "AcquisitionDone", [self = shared_from_this()]() {
+            JLOG(self->journal_.debug()) << "JOB ledgerData AcquisitionDone started";
             if (self->complete_ && !self->failed_)
             {
                 self->app_.getLedgerMaster().checkAccept(self->getLedger());
@@ -477,6 +478,7 @@ InboundLedger::done()
             else
                 self->app_.getInboundLedgers().logFailure(
                     self->hash_, self->mSeq);
+            JLOG(self->journal_.debug()) << "JOB ledgerData AcquisitionDone finished";
         });
 }
 
