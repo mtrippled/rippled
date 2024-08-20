@@ -87,7 +87,7 @@ public:
     isCompatible(ReadView const&, beast::Journal::Stream, char const* reason);
 
     std::recursive_mutex&
-    peekMutex(char const* caller);
+    peekMutex();
 
     // The current ledger is the ledger we believe new transactions should go in
     std::shared_ptr<ReadView const>
@@ -437,13 +437,9 @@ private:
     void
     collect_metrics()
     {
-        JLOG(m_journal.debug()) << "LedgerMasterLock lock1";
-        {
-            std::lock_guard lock(m_mutex);
-            m_stats.validatedLedgerAge.set(getValidatedLedgerAge().count());
-            m_stats.publishedLedgerAge.set(getPublishedLedgerAge().count());
-        }
-        JLOG(m_journal.debug()) << "LedgerMasterLock unlock1";
+        std::lock_guard lock(m_mutex);
+        m_stats.validatedLedgerAge.set(getValidatedLedgerAge().count());
+        m_stats.publishedLedgerAge.set(getPublishedLedgerAge().count());
     }
 };
 

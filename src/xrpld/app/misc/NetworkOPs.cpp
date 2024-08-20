@@ -1332,8 +1332,7 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
         bool changed = false;
         {
             std::unique_lock ledgerLock{
-                m_ledgerMaster.peekMutex("apply"), std::defer_lock};
-            JLOG(m_journal.debug()) << "LedgerMasterLock std::lock peekMutex lock3";
+                m_ledgerMaster.peekMutex(), std::defer_lock};
             std::lock(masterLock, ledgerLock);
 
             app_.openLedger().modify([&](OpenView& view, beast::Journal j) {
@@ -1356,7 +1355,6 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
                 return changed;
             });
         }
-        JLOG(m_journal.debug()) << "LedgerMasterLock std::lock peekMutex unlock3";
         if (changed)
             reportFeeChange();
 

@@ -638,8 +638,7 @@ RCLConsensus::Adaptor::doAccept(
 
         // Build new open ledger
         std::unique_lock lock{app_.getMasterMutex(), std::defer_lock};
-        std::unique_lock sl{ledgerMaster_.peekMutex("doAccept"), std::defer_lock};
-        JLOG(j_.debug()) << "LedgerMasterLock std::lock peekMutex lock2";
+        std::unique_lock sl{ledgerMaster_.peekMutex(), std::defer_lock};
         std::lock(lock, sl);
 
         auto const lastVal = ledgerMaster_.getValidatedLedger();
@@ -666,7 +665,6 @@ RCLConsensus::Adaptor::doAccept(
         // is created
         app_.getOPs().reportFeeChange();
     }
-    JLOG(j_.debug()) << "LedgerMasterLock std::lock peekMutex unlock2";
 
     //-------------------------------------------------------------------------
     {
