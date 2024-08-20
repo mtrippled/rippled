@@ -57,12 +57,14 @@ LedgerDeltaAcquire::~LedgerDeltaAcquire()
 void
 LedgerDeltaAcquire::init(int numPeers)
 {
+    JLOG(journal_.debug()) << "TimeoutCounter lock9 " << this;
     ScopedLockType sl(mtx_);
     if (!isDone())
     {
         trigger(numPeers, sl);
         setTimer(sl);
     }
+    JLOG(journal_.debug()) << "TimeoutCounter unlock9 " << this;
 }
 
 void
@@ -140,10 +142,14 @@ LedgerDeltaAcquire::processData(
     LedgerInfo const& info,
     std::map<std::uint32_t, std::shared_ptr<STTx const>>&& orderedTxns)
 {
+    JLOG(journal_.debug()) << "TimeoutCounter lock10 " << this;
     ScopedLockType sl(mtx_);
     JLOG(journal_.trace()) << "got data for " << hash_;
     if (isDone())
+    {
+        JLOG(journal_.debug()) << "TimeoutCounter unlock10-1 " << this;
         return;
+    }
 
     if (info.seq == ledgerSeq_)
     {
@@ -156,6 +162,7 @@ LedgerDeltaAcquire::processData(
             orderedTxns_ = std::move(orderedTxns);
             JLOG(journal_.debug()) << "ready to replay " << hash_;
             notify(sl);
+            JLOG(journal_.debug()) << "TimeoutCounter unlock10-2 " << this;
             return;
         }
     }
@@ -164,6 +171,7 @@ LedgerDeltaAcquire::processData(
     JLOG(journal_.error())
         << "failed to create a (info only) ledger from verified data " << hash_;
     notify(sl);
+    JLOG(journal_.debug()) << "TimeoutCounter unlock10-3 " << this;
 }
 
 void
@@ -171,6 +179,7 @@ LedgerDeltaAcquire::addDataCallback(
     InboundLedger::Reason reason,
     OnDeltaDataCB&& cb)
 {
+    JLOG(journal_.debug()) << "TimeoutCounter lock11 " << this;
     ScopedLockType sl(mtx_);
     dataReadyCallbacks_.emplace_back(std::move(cb));
     if (reasons_.count(reason) == 0)
@@ -186,18 +195,26 @@ LedgerDeltaAcquire::addDataCallback(
             << "task added to a finished LedgerDeltaAcquire " << hash_;
         notify(sl);
     }
+    JLOG(journal_.debug()) << "TimeoutCounter unlock11 " << this;
 }
 
 std::shared_ptr<Ledger const>
 LedgerDeltaAcquire::tryBuild(std::shared_ptr<Ledger const> const& parent)
 {
+    JLOG(journal_.debug()) << "TimeoutCounter lock12 " << this;
     ScopedLockType sl(mtx_);
 
     if (fullLedger_)
+    {
+        JLOG(journal_.debug()) << "TimeoutCounter unlock12-1 " << this;
         return fullLedger_;
+    }
 
     if (failed_ || !complete_ || !replayTemp_)
+    {
+        JLOG(journal_.debug()) << "TimeoutCounter unlock12-2 " << this;
         return {};
+    }
 
     assert(parent->seq() + 1 == replayTemp_->seq());
     assert(parent->info().hash == replayTemp_->info().parentHash);
@@ -208,6 +225,7 @@ LedgerDeltaAcquire::tryBuild(std::shared_ptr<Ledger const> const& parent)
     {
         JLOG(journal_.info()) << "Built " << hash_;
         onLedgerBuilt(sl);
+        JLOG(journal_.debug()) << "TimeoutCounter unlock12-3 " << this;
         return fullLedger_;
     }
     else
@@ -216,6 +234,7 @@ LedgerDeltaAcquire::tryBuild(std::shared_ptr<Ledger const> const& parent)
         complete_ = false;
         JLOG(journal_.error()) << "tryBuild failed " << hash_ << " with parent "
                                << parent->info().hash;
+        JLOG(journal_.debug()) << "TimeoutCounter unlock12-4 " << this;
         Throw<std::runtime_error>("Cannot replay ledger");
     }
 }

@@ -53,14 +53,16 @@ TimeoutCounter::setTimer(ScopedLockType& sl)
         return;
     timer_.expires_after(timerInterval_);
     timer_.async_wait(
-        [wptr = pmDowncast()](boost::system::error_code const& ec) {
+        [wptr = pmDowncast(), this](boost::system::error_code const& ec) {
             if (ec == boost::asio::error::operation_aborted)
                 return;
 
             if (auto ptr = wptr.lock())
             {
+                JLOG(journal_.debug()) << "TimeoutCounter lock23 " << this;
                 ScopedLockType sl(ptr->mtx_);
                 ptr->queueJob(sl);
+                JLOG(journal_.debug()) << "TimeoutCounter unlock23 " << this;
             }
         });
 }
@@ -94,37 +96,52 @@ TimeoutCounter::queueJob(ScopedLockType& sl)
 void
 TimeoutCounter::invokeOnTimer()
 {
+    JLOG(journal_.debug()) << "TimeoutCounter lock24 " << this;
     ScopedLockType sl(mtx_);
+    JLOG(journal_.debug()) << "TimeoutCounter::invokeOnTimer locked " << this;
 
     if (isDone())
+    {
+        JLOG(journal_.debug()) << "TimeoutCounter unlock24-1  " << this;
         return;
+    }
 
     if (!progress_)
     {
         ++timeouts_;
-        JLOG(journal_.debug()) << "Timeout(" << timeouts_ << ") "
-                               << " acquiring " << hash_;
+        JLOG(journal_.debug()) << "TimeoutCounter::invokeOnTimer Timeout(" << timeouts_ << ") "
+                               << " acquiring " << hash_ << " " <<  this;
         onTimer(false, sl);
+        JLOG(journal_.debug()) << "TimeoutCounter::invokeOnTimer no progress onTimer finished " << this;
     }
     else
     {
         progress_ = false;
+        JLOG(journal_.debug()) << "TimeoutCounter::invokeOnTimer progress onTimer starting " << this;
         onTimer(true, sl);
+        JLOG(journal_.debug()) << "TimeoutCounter::invokeOnTimer progress onTimer finished " << this;
     }
 
     if (!isDone())
+    {
+        JLOG(journal_.debug()) << "TimeoutCounter::invokeOnTimer setting timer " << this;
         setTimer(sl);
+        JLOG(journal_.debug()) << "TimeoutCounter::invokeOnTimer timer set " << this;
+    }
+    JLOG(journal_.debug()) << "TimeoutCounter unlock24-2 " << this;
 }
 
 void
 TimeoutCounter::cancel()
 {
+    JLOG(journal_.debug()) << "TimeoutCounter lock25 " << this;
     ScopedLockType sl(mtx_);
     if (!isDone())
     {
         failed_ = true;
         JLOG(journal_.info()) << "Cancel " << hash_;
     }
+    JLOG(journal_.debug()) << "TimeoutCounter unlock25 " << this;
 }
 
 }  // namespace ripple

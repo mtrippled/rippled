@@ -104,17 +104,22 @@ InboundLedger::InboundLedger(
 void
 InboundLedger::init(ScopedLockType& collectionLock)
 {
+    JLOG(journal_.debug()) << "TimeoutCounter lock2 " << this;
     ScopedLockType sl(mtx_);
     collectionLock.unlock();
 
     tryDB(app_.getNodeFamily().db());
     if (failed_)
+    {
+        JLOG(journal_.debug()) << "TimeoutCounter unlock2-1 " << this;
         return;
+    }
 
     if (!complete_)
     {
         addPeers();
         queueJob(sl);
+        JLOG(journal_.debug()) << "TimeoutCounter unlock2-2 " << this;
         return;
     }
 
@@ -126,13 +131,17 @@ InboundLedger::init(ScopedLockType& collectionLock)
     mLedger->setImmutable();
 
     if (mReason == Reason::HISTORY)
+    {
+        JLOG(journal_.debug()) << "TimeoutCounter unlock2-3 " << this;
         return;
+    }
 
     app_.getLedgerMaster().storeLedger(mLedger);
 
     // Check if this could be a newer fully-validated ledger
     if (mReason == Reason::CONSENSUS)
         app_.getLedgerMaster().checkAccept(mLedger);
+    JLOG(journal_.debug()) << "TimeoutCounter unlock2-4 " << this;
 }
 
 std::size_t
@@ -147,6 +156,7 @@ InboundLedger::getPeerCount() const
 void
 InboundLedger::update(std::uint32_t seq)
 {
+    JLOG(journal_.debug()) << "TimeoutCounter lock3 " << this;
     ScopedLockType sl(mtx_);
 
     // If we didn't know the sequence number, but now do, save it
@@ -155,11 +165,13 @@ InboundLedger::update(std::uint32_t seq)
 
     // Prevent this from being swept
     touch();
+    JLOG(journal_.debug()) << "TimeoutCounter unlock3 " << this;
 }
 
 bool
 InboundLedger::checkLocal()
 {
+    JLOG(journal_.debug()) << "TimeoutCounter lock4 " << this;
     ScopedLockType sl(mtx_);
     if (!isDone())
     {
@@ -170,9 +182,11 @@ InboundLedger::checkLocal()
         if (failed_ || complete_)
         {
             done();
+            JLOG(journal_.debug()) << "TimeoutCounter unlock4-1 " << this;
             return true;
         }
     }
+    JLOG(journal_.debug()) << "TimeoutCounter unlock4-2 " << this;
     return false;
 }
 
@@ -487,6 +501,7 @@ InboundLedger::done()
 void
 InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
 {
+    JLOG(journal_.debug()) << "TimeoutCounter lock5 " << this;
     ScopedLockType sl(mtx_);
 
     if (isDone())
@@ -494,6 +509,7 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
         JLOG(journal_.debug())
             << "Trigger on ledger: " << hash_ << (complete_ ? " completed" : "")
             << (failed_ ? " failed" : "");
+        JLOG(journal_.debug()) << "TimeoutCounter unlock5-1 " << this;
         return;
     }
 
@@ -516,6 +532,7 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
         if (failed_)
         {
             JLOG(journal_.warn()) << " failed local for " << hash_;
+            JLOG(journal_.debug()) << "TimeoutCounter unlock5-2 " << this;
             return;
         }
     }
@@ -592,6 +609,7 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
         JLOG(journal_.trace()) << "Sending header request to "
                                << (peer ? "selected peer" : "all peers");
         mPeerSet->sendRequest(tmGL, peer);
+        JLOG(journal_.debug()) << "TimeoutCounter unlock5-3 " << this;
         return;
     }
 
@@ -629,6 +647,7 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
             JLOG(journal_.trace()) << "Sending AS root request to "
                                    << (peer ? "selected peer" : "all peers");
             mPeerSet->sendRequest(tmGL, peer);
+            JLOG(journal_.debug()) << "TimeoutCounter unlock5-4 " << this;
             return;
         }
         else
@@ -674,6 +693,7 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
                             << ") to "
                             << (peer ? "selected peer" : "all peers");
                         mPeerSet->sendRequest(tmGL, peer);
+                        JLOG(journal_.debug()) << "TimeoutCounter unlock5-5 " << this;
                         return;
                     }
                     else
@@ -701,6 +721,7 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
             JLOG(journal_.trace()) << "Sending TX root request to "
                                    << (peer ? "selected peer" : "all peers");
             mPeerSet->sendRequest(tmGL, peer);
+            JLOG(journal_.debug()) << "TimeoutCounter unlock5-6 " << this;
             return;
         }
         else
@@ -738,6 +759,7 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
                         << "Sending TX node request (" << nodes.size()
                         << ") to " << (peer ? "selected peer" : "all peers");
                     mPeerSet->sendRequest(tmGL, peer);
+                    JLOG(journal_.debug()) << "TimeoutCounter unlock5-7 " << this;
                     return;
                 }
                 else
@@ -756,6 +778,7 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
         sl.unlock();
         done();
     }
+    JLOG(journal_.debug()) << "TimeoutCounter unlock5-8 " << this;
 }
 
 void
@@ -1071,6 +1094,7 @@ InboundLedger::processData(
 
         SHAMapAddNode san;
 
+        JLOG(journal_.debug()) << "TimeoutCounter lock6 " << this;
         ScopedLockType sl(mtx_);
 
         try
@@ -1081,6 +1105,7 @@ InboundLedger::processData(
                 {
                     JLOG(journal_.warn()) << "Got invalid header data";
                     peer->charge(Resource::feeInvalidRequest);
+                    JLOG(journal_.debug()) << "TimeoutCounter unlock6-1 " << this;
                     return -1;
                 }
 
@@ -1104,6 +1129,7 @@ InboundLedger::processData(
             JLOG(journal_.warn())
                 << "Included AS/TX root invalid: " << ex.what();
             peer->charge(Resource::feeBadData);
+            JLOG(journal_.debug()) << "TimeoutCounter unlock6-2 " << this;
             return -1;
         }
 
@@ -1111,6 +1137,7 @@ InboundLedger::processData(
             progress_ = true;
 
         mStats += san;
+        JLOG(journal_.debug()) << "TimeoutCounter unlock6-3 " << this;
         return san.getGood();
     }
 
@@ -1127,6 +1154,7 @@ InboundLedger::processData(
             return -1;
         }
 
+        JLOG(journal_.debug()) << "TimeoutCounter lock7 " << this;
         ScopedLockType sl(mtx_);
 
         // Verify node IDs and data are complete
@@ -1136,6 +1164,7 @@ InboundLedger::processData(
             {
                 JLOG(journal_.warn()) << "Got bad node";
                 peer->charge(Resource::feeInvalidRequest);
+                JLOG(journal_.debug()) << "TimeoutCounter unlock7-1 " << this;
                 return -1;
             }
         }
@@ -1152,6 +1181,7 @@ InboundLedger::processData(
             progress_ = true;
 
         mStats += san;
+        JLOG(journal_.debug()) << "TimeoutCounter unlock7-2 " << this;
         return san.getGood();
     }
 
@@ -1287,6 +1317,7 @@ InboundLedger::getJson(int)
 {
     Json::Value ret(Json::objectValue);
 
+    JLOG(journal_.debug()) << "TimeoutCounter lock8 " << this;
     ScopedLockType sl(mtx_);
 
     ret[jss::hash] = to_string(hash_);
@@ -1330,6 +1361,7 @@ InboundLedger::getJson(int)
         ret[jss::needed_transaction_hashes] = hv;
     }
 
+    JLOG(journal_.debug()) << "TimeoutCounter unlock8 " << this;
     return ret;
 }
 

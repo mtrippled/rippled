@@ -179,24 +179,30 @@ TransactionAcquire::takeNodes(
     std::vector<std::pair<SHAMapNodeID, Slice>> const& data,
     std::shared_ptr<Peer> const& peer)
 {
+    JLOG(journal_.debug()) << "TimeoutCounter lock26 " << this;
     ScopedLockType sl(mtx_);
 
     if (complete_)
     {
         JLOG(journal_.trace()) << "TX set complete";
+        JLOG(journal_.debug()) << "TimeoutCounter unlock26-1 " << this;
         return SHAMapAddNode();
     }
 
     if (failed_)
     {
         JLOG(journal_.trace()) << "TX set failed";
+        JLOG(journal_.debug()) << "TimeoutCounter unlock26-2 " << this;
         return SHAMapAddNode();
     }
 
     try
     {
         if (data.empty())
+        {
+            JLOG(journal_.debug()) << "TimeoutCounter unlock26-3 " << this;
             return SHAMapAddNode::invalid();
+        }
 
         ConsensusTransSetSF sf(app_, app_.getTempNodeCache());
 
@@ -219,12 +225,14 @@ TransactionAcquire::takeNodes(
             else if (!mMap->addKnownNode(d.first, d.second, &sf).isGood())
             {
                 JLOG(journal_.warn()) << "TX acquire got bad non-root node";
+                JLOG(journal_.debug()) << "TimeoutCounter unlock26-4 " << this;
                 return SHAMapAddNode::invalid();
             }
         }
 
         trigger(peer);
         progress_ = true;
+        JLOG(journal_.debug()) << "TimeoutCounter unlock26-5 " << this;
         return SHAMapAddNode::useful();
     }
     catch (std::exception const& ex)
@@ -232,6 +240,7 @@ TransactionAcquire::takeNodes(
         JLOG(journal_.error())
             << "Peer " << peer->id()
             << " sent us junky transaction node data: " << ex.what();
+        JLOG(journal_.debug()) << "TimeoutCounter unlock26-6 " << this;
         return SHAMapAddNode::invalid();
     }
 }
@@ -248,20 +257,24 @@ TransactionAcquire::addPeers(std::size_t limit)
 void
 TransactionAcquire::init(int numPeers)
 {
+    JLOG(journal_.debug()) << "TimeoutCounter lock27 " << this;
     ScopedLockType sl(mtx_);
 
     addPeers(numPeers);
 
     setTimer(sl);
+    JLOG(journal_.debug()) << "TimeoutCounter unlock27 " << this;
 }
 
 void
 TransactionAcquire::stillNeed()
 {
+    JLOG(journal_.debug()) << "TimeoutCounter lock28 " << this;
     ScopedLockType sl(mtx_);
 
     if (timeouts_ > NORM_TIMEOUTS)
         timeouts_ = NORM_TIMEOUTS;
+    JLOG(journal_.debug()) << "TimeoutCounter unlock28 " << this;
 }
 
 }  // namespace ripple

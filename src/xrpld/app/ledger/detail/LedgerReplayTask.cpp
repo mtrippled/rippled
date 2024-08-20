@@ -134,12 +134,14 @@ LedgerReplayTask::init()
         }
     });
 
+    JLOG(journal_.debug()) << "TimeoutCounter lock13 " << this;
     ScopedLockType sl(mtx_);
     if (!isDone())
     {
         trigger(sl);
         setTimer(sl);
     }
+    JLOG(journal_.debug()) << "TimeoutCounter unlock13 " << this;
 }
 
 void
@@ -175,9 +177,11 @@ LedgerReplayTask::deltaReady(uint256 const& deltaHash)
 {
     JLOG(journal_.trace()) << "Delta " << deltaHash << " ready for task "
                            << hash_;
+    JLOG(journal_.debug()) << "TimeoutCounter lock14 " << this;
     ScopedLockType sl(mtx_);
     if (!isDone())
         tryAdvance(sl);
+    JLOG(journal_.debug()) << "TimeoutCounter unlock14 " << this;
 }
 
 void
@@ -229,21 +233,29 @@ LedgerReplayTask::updateSkipList(
     std::vector<uint256> const& sList)
 {
     {
+        JLOG(journal_.debug()) << "TimeoutCounter lock15 " << this;
         ScopedLockType sl(mtx_);
         if (isDone())
+        {
+            JLOG(journal_.debug()) << "TimeoutCounter unlock15-1 " << this;
             return;
+        }
         if (!parameter_.update(hash, seq, sList))
         {
             JLOG(journal_.error()) << "Parameter update failed " << hash_;
             failed_ = true;
+            JLOG(journal_.debug()) << "TimeoutCounter unlock15-2 " << this;
             return;
         }
     }
+    JLOG(journal_.debug()) << "TimeoutCounter unlock15-3 " << this;
 
     replayer_.createDeltas(shared_from_this());
+    JLOG(journal_.debug()) << "TimeoutCounter lock16 " << this;
     ScopedLockType sl(mtx_);
     if (!isDone())
         trigger(sl);
+    JLOG(journal_.debug()) << "TimeoutCounter unlock16 " << this;
 }
 
 void
@@ -283,6 +295,7 @@ LedgerReplayTask::addDelta(std::shared_ptr<LedgerDeltaAcquire> const& delta)
             }
         });
 
+    JLOG(journal_.debug()) << "TimeoutCounter lock17 " << this;
     ScopedLockType sl(mtx_);
     if (!isDone())
     {
@@ -294,13 +307,20 @@ LedgerReplayTask::addDelta(std::shared_ptr<LedgerDeltaAcquire> const& delta)
             deltas_.back()->ledgerSeq_ + 1 == delta->ledgerSeq_);
         deltas_.push_back(delta);
     }
+    JLOG(journal_.debug()) << "TimeoutCounter unlock17 " << this;
 }
 
 bool
 LedgerReplayTask::finished() const
 {
-    ScopedLockType sl(mtx_);
-    return isDone();
+    bool ret;
+    JLOG(journal_.debug()) << "TimeoutCounter lock18 " << this;
+    {
+        ScopedLockType sl(mtx_);
+        ret = isDone();
+    }
+    JLOG(journal_.debug()) << "TimeoutCounter unlock18 " << this;
+    return ret;
 }
 
 }  // namespace ripple

@@ -53,12 +53,14 @@ SkipListAcquire::~SkipListAcquire()
 void
 SkipListAcquire::init(int numPeers)
 {
+    JLOG(journal_.debug()) << "TimeoutCounter lock19 " << this;
     ScopedLockType sl(mtx_);
     if (!isDone())
     {
         trigger(numPeers, sl);
         setTimer(sl);
     }
+    JLOG(journal_.debug()) << "TimeoutCounter unlock19 " << this;
 }
 
 void
@@ -140,9 +142,13 @@ SkipListAcquire::processData(
     boost::intrusive_ptr<SHAMapItem const> const& item)
 {
     assert(ledgerSeq != 0 && item);
+    JLOG(journal_.debug()) << "TimeoutCounter lock20 " << this;
     ScopedLockType sl(mtx_);
     if (isDone())
+    {
+        JLOG(journal_.debug()) << "TimeoutCounter unlock20-1 " << this;
         return;
+    }
 
     JLOG(journal_.trace()) << "got data for " << hash_;
     try
@@ -154,6 +160,7 @@ SkipListAcquire::processData(
             if (auto const& skipList = sle->getFieldV256(sfHashes).value();
                 !skipList.empty())
                 onSkipListAcquired(skipList, ledgerSeq, sl);
+            JLOG(journal_.debug()) << "TimeoutCounter unlock20-2 " << this;
             return;
         }
     }
@@ -165,11 +172,13 @@ SkipListAcquire::processData(
     JLOG(journal_.error()) << "failed to retrieve Skip list from verified data "
                            << hash_;
     notify(sl);
+    JLOG(journal_.debug()) << "TimeoutCounter unlock20-3 " << this;
 }
 
 void
 SkipListAcquire::addDataCallback(OnSkipListDataCB&& cb)
 {
+    JLOG(journal_.debug()) << "TimeoutCounter lock21 " << this;
     ScopedLockType sl(mtx_);
     dataReadyCallbacks_.emplace_back(std::move(cb));
     if (isDone())
@@ -178,13 +187,20 @@ SkipListAcquire::addDataCallback(OnSkipListDataCB&& cb)
             << "task added to a finished SkipListAcquire " << hash_;
         notify(sl);
     }
+    JLOG(journal_.debug()) << "TimeoutCounter unlock21 " << this;
 }
 
 std::shared_ptr<SkipListAcquire::SkipListData const>
 SkipListAcquire::getData() const
 {
-    ScopedLockType sl(mtx_);
-    return data_;
+    std::shared_ptr<SkipListAcquire::SkipListData const> ret;
+    JLOG(journal_.debug()) << "TimeoutCounter lock22 " << this;
+    {
+        ScopedLockType sl(mtx_);
+        ret = data_;
+    }
+    JLOG(journal_.debug()) << "TimeoutCounter unlock22 " << this;
+    return ret;
 }
 
 void
