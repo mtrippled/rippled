@@ -501,6 +501,7 @@ InboundLedger::done()
 void
 InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
 {
+    JLOG(journal_.debug()) << "InboundLedger::trigger1 " << this;
     JLOG(journal_.debug()) << "TimeoutCounter lock5-1 " << this;
     ScopedLockType sl(mtx_);
 
@@ -509,6 +510,7 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
         JLOG(journal_.debug())
             << "Trigger on ledger: " << hash_ << (complete_ ? " completed" : "")
             << (failed_ ? " failed" : "");
+        JLOG(journal_.debug()) << "InboundLedger::trigger2 " << this;
         JLOG(journal_.debug()) << "TimeoutCounter unlock5-1 " << this;
         return;
     }
@@ -528,10 +530,13 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
 
     if (!mHaveHeader)
     {
+        JLOG(journal_.debug()) << "InboundLedger::trigger3 " << this;
         tryDB(app_.getNodeFamily().db());
+        JLOG(journal_.debug()) << "InboundLedger::trigger4 " << this;
         if (failed_)
         {
             JLOG(journal_.warn()) << " failed local for " << hash_;
+            JLOG(journal_.debug()) << "InboundLedger::trigger5 " << this;
             JLOG(journal_.debug()) << "TimeoutCounter unlock5-2 " << this;
             return;
         }
@@ -540,6 +545,7 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
     protocol::TMGetLedger tmGL;
     tmGL.set_ledgerhash(hash_.begin(), hash_.size());
 
+    JLOG(journal_.debug()) << "InboundLedger::trigger6 " << this;
     if (timeouts_ != 0)
     {
         // Be more aggressive if we've timed out at least once
@@ -598,6 +604,7 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
             }
         }
     }
+    JLOG(journal_.debug()) << "InboundLedger::trigger7 " << this;
 
     // We can't do much without the header data because we don't know the
     // state or transaction root hashes.
@@ -609,6 +616,7 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
         JLOG(journal_.trace()) << "Sending header request to "
                                << (peer ? "selected peer" : "all peers");
         mPeerSet->sendRequest(tmGL, peer);
+        JLOG(journal_.debug()) << "InboundLedger::trigger8 " << this;
         JLOG(journal_.debug()) << "TimeoutCounter unlock5-3 " << this;
         return;
     }
@@ -633,6 +641,7 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
     // if we wind up abandoning this fetch.
     if (mHaveHeader && !mHaveState && !failed_)
     {
+        JLOG(journal_.debug()) << "InboundLedger::trigger9 " << this;
         assert(mLedger);
 
         if (!mLedger->stateMap().isValid())
@@ -647,25 +656,30 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
             JLOG(journal_.trace()) << "Sending AS root request to "
                                    << (peer ? "selected peer" : "all peers");
             mPeerSet->sendRequest(tmGL, peer);
+            JLOG(journal_.debug()) << "InboundLedger::trigger10 " << this;
             JLOG(journal_.debug()) << "TimeoutCounter unlock5-4 " << this;
             return;
         }
         else
         {
+            JLOG(journal_.debug()) << "InboundLedger::trigger11 " << this;
             AccountStateSF filter(
                 mLedger->stateMap().family().db(), app_.getLedgerMaster());
 
             // Release the lock while we process the large state map
             sl.unlock();
             JLOG(journal_.debug()) << "TimeoutCounter unlock5-5 " << this;
+            JLOG(journal_.debug()) << "InboundLedger::trigger12 " << this;
             auto nodes =
                 mLedger->stateMap().getMissingNodes(missingNodesFind, &filter);
+            JLOG(journal_.debug()) << "InboundLedger::trigger13 " << this;
             JLOG(journal_.debug()) << "TimeoutCounter lock5-2 " << this;
             sl.lock();
 
             // Make sure nothing happened while we released the lock
             if (!failed_ && !complete_ && !mHaveState)
             {
+                JLOG(journal_.debug()) << "InboundLedger::trigger14 " << this;
                 if (nodes.empty())
                 {
                     if (!mLedger->stateMap().isValid())
@@ -680,10 +694,13 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
                 }
                 else
                 {
+                    JLOG(journal_.debug()) << "InboundLedger::trigger15 " << this;
                     filterNodes(nodes, reason);
+                    JLOG(journal_.debug()) << "InboundLedger::trigger16 " << this;
 
                     if (!nodes.empty())
                     {
+                        JLOG(journal_.debug()) << "InboundLedger::trigger17 " << this;
                         tmGL.set_itype(protocol::liAS_NODE);
                         for (auto const& id : nodes)
                         {
@@ -695,6 +712,7 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
                             << ") to "
                             << (peer ? "selected peer" : "all peers");
                         mPeerSet->sendRequest(tmGL, peer);
+                        JLOG(journal_.debug()) << "InboundLedger::trigger18 " << this;
                         JLOG(journal_.debug()) << "TimeoutCounter unlock5-6 " << this;
                         return;
                     }
