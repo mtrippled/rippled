@@ -68,20 +68,27 @@ public:
         std::uint32_t seq,
         InboundLedger::Reason reason) override
     {
+        JLOG(j_.debug()) << "InboundLedgers::acquire1 " << this;
         assert(hash.isNonZero());
 
         // probably not the right rule
         if (app_.getOPs().isNeedNetworkLedger() &&
             (reason != InboundLedger::Reason::GENERIC) &&
             (reason != InboundLedger::Reason::CONSENSUS))
+        {
+            JLOG(j_.debug()) << "InboundLedgers::acquire2 " << this;
             return {};
+        }
 
         bool isNew = true;
         std::shared_ptr<InboundLedger> inbound;
         {
+            JLOG(j_.debug()) << "InboundLedgers::acquire3 " << this;
             ScopedLockType sl(mLock);
+            JLOG(j_.debug()) << "InboundLedgers::acquire4 " << this;
             if (stopping_)
             {
+                JLOG(j_.debug()) << "InboundLedgers::acquire5 " << this;
                 return {};
             }
 
@@ -107,14 +114,23 @@ public:
         }
 
         if (inbound->isFailed())
+        {
+            JLOG(j_.debug()) << "InboundLedgers::acquire6 " << this;
             return {};
+        }
 
         if (!isNew)
+        {
             inbound->update(seq);
+        }
 
         if (!inbound->isComplete())
+        {
+            JLOG(j_.debug()) << "InboundLedgers::acquire7 " << this;
             return {};
+        }
 
+        JLOG(j_.debug()) << "InboundLedgers::acquire8 " << this;
         return inbound->getLedger();
     }
 
