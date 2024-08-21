@@ -84,11 +84,13 @@ public:
         std::shared_ptr<InboundLedger> inbound;
         {
             JLOG(j_.debug()) << "InboundLedgers::acquire3 " << this;
+            JLOG(j_.debug()) << "InboundLedgers lock1";
             ScopedLockType sl(mLock);
             JLOG(j_.debug()) << "InboundLedgers::acquire4 " << this;
             if (stopping_)
             {
                 JLOG(j_.debug()) << "InboundLedgers::acquire5 " << this;
+                JLOG(j_.debug()) << "InboundLedgers unlock1-1";
                 return {};
             }
 
@@ -116,6 +118,7 @@ public:
         if (inbound->isFailed())
         {
             JLOG(j_.debug()) << "InboundLedgers::acquire6 " << this;
+            JLOG(j_.debug()) << "InboundLedgers unlock1-2 but I think init already unlocked";
             return {};
         }
 
@@ -127,10 +130,12 @@ public:
         if (!inbound->isComplete())
         {
             JLOG(j_.debug()) << "InboundLedgers::acquire7 " << this;
+            JLOG(j_.debug()) << "InboundLedgers unlock1-3 but I think init already unlocked";
             return {};
         }
 
         JLOG(j_.debug()) << "InboundLedgers::acquire8 " << this;
+        JLOG(j_.debug()) << "InboundLedgers unlock1-4 but I think init already unlocked";
         return inbound->getLedger();
     }
 
@@ -142,6 +147,7 @@ public:
         std::shared_ptr<InboundLedger> ret;
 
         {
+            JLOG(j_.debug()) << "InboundLedgers lock2";
             ScopedLockType sl(mLock);
 
             auto it = mLedgers.find(hash);
@@ -150,6 +156,7 @@ public:
                 ret = it->second;
             }
         }
+        JLOG(j_.debug()) << "InboundLedgers unlock2";
 
         return ret;
     }
@@ -213,18 +220,26 @@ public:
     void
     logFailure(uint256 const& h, std::uint32_t seq) override
     {
+        JLOG(j_.debug()) << "InboundLedgers lock3";
         ScopedLockType sl(mLock);
 
         mRecentFailures.emplace(h, seq);
+        JLOG(j_.debug()) << "InboundLedgers unlock3";
     }
 
     bool
     isFailure(uint256 const& h) override
     {
-        ScopedLockType sl(mLock);
+        bool ret;
+        JLOG(j_.debug()) << "InboundLedgers lock4";
+        {
+            ScopedLockType sl(mLock);
 
-        beast::expire(mRecentFailures, kReacquireInterval);
-        return mRecentFailures.find(h) != mRecentFailures.end();
+            beast::expire(mRecentFailures, kReacquireInterval);
+            ret = mRecentFailures.find(h) != mRecentFailures.end();
+        }
+        JLOG(j_.debug()) << "InboundLedgers unlock4";
+        return ret;
     }
 
     /** We got some data for a ledger we are no longer acquiring Since we paid
@@ -268,10 +283,12 @@ public:
     void
     clearFailures() override
     {
+        JLOG(j_.debug()) << "InboundLedgers lock5";
         ScopedLockType sl(mLock);
 
         mRecentFailures.clear();
         mLedgers.clear();
+        JLOG(j_.debug()) << "InboundLedgers unlock5";
     }
 
     std::size_t
@@ -298,6 +315,7 @@ public:
         std::vector<std::pair<uint256, std::shared_ptr<InboundLedger>>> acqs;
 
         {
+            JLOG(j_.debug()) << "InboundLedgers lock6";
             ScopedLockType sl(mLock);
 
             acqs.reserve(mLedgers.size());
@@ -314,6 +332,7 @@ public:
                     ret[to_string(it.first)][jss::failed] = true;
             }
         }
+        JLOG(j_.debug()) << "InboundLedgers unlock6";
 
         for (auto const& it : acqs)
         {
@@ -333,6 +352,7 @@ public:
     {
         std::vector<std::shared_ptr<InboundLedger>> acquires;
         {
+            JLOG(j_.debug()) << "InboundLedgers lock7";
             ScopedLockType sl(mLock);
 
             acquires.reserve(mLedgers.size());
@@ -342,6 +362,7 @@ public:
                 acquires.push_back(it.second);
             }
         }
+        JLOG(j_.debug()) << "InboundLedgers lock7";
 
         for (auto const& acquire : acquires)
         {
@@ -359,6 +380,7 @@ public:
         std::size_t total;
 
         {
+            JLOG(j_.debug()) << "InboundLedgers lock8";
             ScopedLockType sl(mLock);
             MapType::iterator it(mLedgers.begin());
             total = mLedgers.size();
@@ -389,6 +411,7 @@ public:
 
             beast::expire(mRecentFailures, kReacquireInterval);
         }
+        JLOG(j_.debug()) << "InboundLedgers unlock8";
 
         JLOG(j_.debug())
             << "Swept " << stuffToSweep.size() << " out of " << total
@@ -402,17 +425,25 @@ public:
     void
     stop() override
     {
+        JLOG(j_.debug()) << "InboundLedgers lock9";
         ScopedLockType lock(mLock);
         stopping_ = true;
         mLedgers.clear();
         mRecentFailures.clear();
+        JLOG(j_.debug()) << "InboundLedgers unlock9";
     }
 
     std::size_t
     cacheSize() override
     {
-        ScopedLockType lock(mLock);
-        return mLedgers.size();
+        std::size_t ret;
+        JLOG(j_.debug()) << "InboundLedgers lock10";
+        {
+            ScopedLockType lock(mLock);
+            ret = mLedgers.size();
+        }
+        JLOG(j_.debug()) << "InboundLedgers unlock10";
+        return ret;
     }
 
 private:

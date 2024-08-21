@@ -107,7 +107,7 @@ InboundLedger::init(ScopedLockType& collectionLock)
     JLOG(journal_.debug()) << "TimeoutCounter lock2 " << this;
     ScopedLockType sl(mtx_);
     collectionLock.unlock();
-
+    JLOG(journal_.debug()) << "InboundLedgers InboundLedger::init unlock";
     tryDB(app_.getNodeFamily().db());
     if (failed_)
     {
