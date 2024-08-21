@@ -501,7 +501,7 @@ InboundLedger::done()
 void
 InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
 {
-    JLOG(journal_.debug()) << "TimeoutCounter lock5 " << this;
+    JLOG(journal_.debug()) << "TimeoutCounter lock5-1 " << this;
     ScopedLockType sl(mtx_);
 
     if (isDone())
@@ -657,8 +657,10 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
 
             // Release the lock while we process the large state map
             sl.unlock();
+            JLOG(journal_.debug()) << "TimeoutCounter unlock5-5 " << this;
             auto nodes =
                 mLedger->stateMap().getMissingNodes(missingNodesFind, &filter);
+            JLOG(journal_.debug()) << "TimeoutCounter lock5-2 " << this;
             sl.lock();
 
             // Make sure nothing happened while we released the lock
@@ -693,7 +695,7 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
                             << ") to "
                             << (peer ? "selected peer" : "all peers");
                         mPeerSet->sendRequest(tmGL, peer);
-                        JLOG(journal_.debug()) << "TimeoutCounter unlock5-5 " << this;
+                        JLOG(journal_.debug()) << "TimeoutCounter unlock5-6 " << this;
                         return;
                     }
                     else
@@ -721,7 +723,7 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
             JLOG(journal_.trace()) << "Sending TX root request to "
                                    << (peer ? "selected peer" : "all peers");
             mPeerSet->sendRequest(tmGL, peer);
-            JLOG(journal_.debug()) << "TimeoutCounter unlock5-6 " << this;
+            JLOG(journal_.debug()) << "TimeoutCounter unlock5-7 " << this;
             return;
         }
         else
@@ -759,7 +761,7 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
                         << "Sending TX node request (" << nodes.size()
                         << ") to " << (peer ? "selected peer" : "all peers");
                     mPeerSet->sendRequest(tmGL, peer);
-                    JLOG(journal_.debug()) << "TimeoutCounter unlock5-7 " << this;
+                    JLOG(journal_.debug()) << "TimeoutCounter unlock5-8 " << this;
                     return;
                 }
                 else
@@ -776,9 +778,10 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
             << "Done:" << (complete_ ? " complete" : "")
             << (failed_ ? " failed " : " ") << mLedger->info().seq;
         sl.unlock();
+        JLOG(journal_.debug()) << "TimeoutCounter unlock5-9 " << this;
         done();
     }
-    JLOG(journal_.debug()) << "TimeoutCounter unlock5-8 " << this;
+    JLOG(journal_.debug()) << "TimeoutCounter unlock5-10 " << this;
 }
 
 void

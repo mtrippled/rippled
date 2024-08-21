@@ -286,12 +286,14 @@ LedgerDeltaAcquire::notify(ScopedLockType& sl)
     std::swap(toCall, dataReadyCallbacks_);
     auto const good = !failed_;
     sl.unlock();
+    JLOG(journal_.debug()) << "TimeoutCounter LedgerDeltaAcquire::notify unlock " << this;
 
     for (auto& cb : toCall)
     {
         cb(good, hash_);
     }
 
+    JLOG(journal_.debug()) << "TimeoutCounter LedgerDeltaAcquire::notify lock " << this;
     sl.lock();
 }
 
