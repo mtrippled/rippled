@@ -181,6 +181,7 @@ TransactionAcquire::takeNodes(
 {
     JLOG(journal_.debug()) << "TimeoutCounter lock26 " << this;
     ScopedLockType sl(mtx_);
+    JLOG(journal_.debug()) << "TimeoutCounter locked26 " << this;
 
     if (complete_)
     {
@@ -259,6 +260,7 @@ TransactionAcquire::init(int numPeers)
 {
     JLOG(journal_.debug()) << "TimeoutCounter lock27 " << this;
     ScopedLockType sl(mtx_);
+    JLOG(journal_.debug()) << "TimeoutCounter locked27 " << this;
 
     addPeers(numPeers);
 
@@ -271,6 +273,7 @@ TransactionAcquire::stillNeed()
 {
     JLOG(journal_.debug()) << "TimeoutCounter lock28 " << this;
     ScopedLockType sl(mtx_);
+    JLOG(journal_.debug()) << "TimeoutCounter locked28 " << this;
 
     if (timeouts_ > NORM_TIMEOUTS)
         timeouts_ = NORM_TIMEOUTS;

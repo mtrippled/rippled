@@ -61,6 +61,7 @@ TimeoutCounter::setTimer(ScopedLockType& sl)
             {
                 JLOG(journal_.debug()) << "TimeoutCounter lock23 " << this;
                 ScopedLockType sl(ptr->mtx_);
+                JLOG(journal_.debug()) << "TimeoutCounter locked23 " << this;
                 ptr->queueJob(sl);
                 JLOG(journal_.debug()) << "TimeoutCounter unlock23 " << this;
             }
@@ -98,6 +99,7 @@ TimeoutCounter::invokeOnTimer()
 {
     JLOG(journal_.debug()) << "TimeoutCounter lock24 " << this;
     ScopedLockType sl(mtx_);
+    JLOG(journal_.debug()) << "TimeoutCounter locked24 " << this;
     JLOG(journal_.debug()) << "TimeoutCounter::invokeOnTimer locked " << this;
 
     if (isDone())
@@ -136,6 +138,7 @@ TimeoutCounter::cancel()
 {
     JLOG(journal_.debug()) << "TimeoutCounter lock25 " << this;
     ScopedLockType sl(mtx_);
+    JLOG(journal_.debug()) << "TimeoutCounter locked25 " << this;
     if (!isDone())
     {
         failed_ = true;

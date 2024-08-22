@@ -59,6 +59,7 @@ LedgerDeltaAcquire::init(int numPeers)
 {
     JLOG(journal_.debug()) << "TimeoutCounter lock9 " << this;
     ScopedLockType sl(mtx_);
+    JLOG(journal_.debug()) << "TimeoutCounter locked9 " << this;
     if (!isDone())
     {
         trigger(numPeers, sl);
@@ -144,6 +145,7 @@ LedgerDeltaAcquire::processData(
 {
     JLOG(journal_.debug()) << "TimeoutCounter lock10 " << this;
     ScopedLockType sl(mtx_);
+    JLOG(journal_.debug()) << "TimeoutCounter locked10 " << this;
     JLOG(journal_.trace()) << "got data for " << hash_;
     if (isDone())
     {
@@ -181,6 +183,7 @@ LedgerDeltaAcquire::addDataCallback(
 {
     JLOG(journal_.debug()) << "TimeoutCounter lock11 " << this;
     ScopedLockType sl(mtx_);
+    JLOG(journal_.debug()) << "TimeoutCounter locked11 " << this;
     dataReadyCallbacks_.emplace_back(std::move(cb));
     if (reasons_.count(reason) == 0)
     {
@@ -203,6 +206,7 @@ LedgerDeltaAcquire::tryBuild(std::shared_ptr<Ledger const> const& parent)
 {
     JLOG(journal_.debug()) << "TimeoutCounter lock12 " << this;
     ScopedLockType sl(mtx_);
+    JLOG(journal_.debug()) << "TimeoutCounter locked12 " << this;
 
     if (fullLedger_)
     {

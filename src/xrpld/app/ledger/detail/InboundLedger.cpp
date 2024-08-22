@@ -106,6 +106,7 @@ InboundLedger::init(ScopedLockType& collectionLock)
 {
     JLOG(journal_.debug()) << "TimeoutCounter lock2 " << this;
     ScopedLockType sl(mtx_);
+    JLOG(journal_.debug()) << "TimeoutCounter locked2 " << this;
     collectionLock.unlock();
     JLOG(journal_.debug()) << "InboundLedgers InboundLedger::init unlock";
     tryDB(app_.getNodeFamily().db());
@@ -158,6 +159,7 @@ InboundLedger::update(std::uint32_t seq)
 {
     JLOG(journal_.debug()) << "TimeoutCounter lock3 " << this;
     ScopedLockType sl(mtx_);
+    JLOG(journal_.debug()) << "TimeoutCounter locked3 " << this;
 
     // If we didn't know the sequence number, but now do, save it
     if ((seq != 0) && (mSeq == 0))
@@ -173,6 +175,7 @@ InboundLedger::checkLocal()
 {
     JLOG(journal_.debug()) << "TimeoutCounter lock4 " << this;
     ScopedLockType sl(mtx_);
+    JLOG(journal_.debug()) << "TimeoutCounter locked4 " << this;
     if (!isDone())
     {
         if (mLedger)
@@ -504,6 +507,7 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
     JLOG(journal_.debug()) << "InboundLedger::trigger1 " << this;
     JLOG(journal_.debug()) << "TimeoutCounter lock5-1 " << this;
     ScopedLockType sl(mtx_);
+    JLOG(journal_.debug()) << "TimeoutCounter locked5-1 " << this;
 
     if (isDone())
     {
@@ -675,6 +679,7 @@ InboundLedger::trigger(std::shared_ptr<Peer> const& peer, TriggerReason reason)
             JLOG(journal_.debug()) << "InboundLedger::trigger13 " << this;
             JLOG(journal_.debug()) << "TimeoutCounter lock5-2 " << this;
             sl.lock();
+            JLOG(journal_.debug()) << "TimeoutCounter locked5-2 " << this;
 
             // Make sure nothing happened while we released the lock
             if (!failed_ && !complete_ && !mHaveState)
@@ -1117,6 +1122,7 @@ InboundLedger::processData(
 
         JLOG(journal_.debug()) << "TimeoutCounter lock6 " << this;
         ScopedLockType sl(mtx_);
+        JLOG(journal_.debug()) << "TimeoutCounter locked6 " << this;
 
         try
         {
@@ -1177,6 +1183,7 @@ InboundLedger::processData(
 
         JLOG(journal_.debug()) << "TimeoutCounter lock7 " << this;
         ScopedLockType sl(mtx_);
+        JLOG(journal_.debug()) << "TimeoutCounter locked7 " << this;
 
         // Verify node IDs and data are complete
         for (auto const& node : packet.nodes())
@@ -1340,6 +1347,7 @@ InboundLedger::getJson(int)
 
     JLOG(journal_.debug()) << "TimeoutCounter lock8 " << this;
     ScopedLockType sl(mtx_);
+    JLOG(journal_.debug()) << "TimeoutCounter locked8 " << this;
 
     ret[jss::hash] = to_string(hash_);
 

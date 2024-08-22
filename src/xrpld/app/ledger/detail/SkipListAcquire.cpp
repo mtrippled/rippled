@@ -55,6 +55,7 @@ SkipListAcquire::init(int numPeers)
 {
     JLOG(journal_.debug()) << "TimeoutCounter lock19 " << this;
     ScopedLockType sl(mtx_);
+    JLOG(journal_.debug()) << "TimeoutCounter locked19 " << this;
     if (!isDone())
     {
         trigger(numPeers, sl);
@@ -144,6 +145,7 @@ SkipListAcquire::processData(
     assert(ledgerSeq != 0 && item);
     JLOG(journal_.debug()) << "TimeoutCounter lock20 " << this;
     ScopedLockType sl(mtx_);
+    JLOG(journal_.debug()) << "TimeoutCounter locked20 " << this;
     if (isDone())
     {
         JLOG(journal_.debug()) << "TimeoutCounter unlock20-1 " << this;
@@ -180,6 +182,7 @@ SkipListAcquire::addDataCallback(OnSkipListDataCB&& cb)
 {
     JLOG(journal_.debug()) << "TimeoutCounter lock21 " << this;
     ScopedLockType sl(mtx_);
+    JLOG(journal_.debug()) << "TimeoutCounter locked21 " << this;
     dataReadyCallbacks_.emplace_back(std::move(cb));
     if (isDone())
     {
@@ -197,6 +200,7 @@ SkipListAcquire::getData() const
     JLOG(journal_.debug()) << "TimeoutCounter lock22 " << this;
     {
         ScopedLockType sl(mtx_);
+        JLOG(journal_.debug()) << "TimeoutCounter locked22 " << this;
         ret = data_;
     }
     JLOG(journal_.debug()) << "TimeoutCounter unlock22 " << this;

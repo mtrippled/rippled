@@ -29,6 +29,7 @@
 #include <xrpl/protocol/jss.h>
 #include <memory>
 #include <mutex>
+#include <thread>
 #include <vector>
 
 namespace ripple {
@@ -68,7 +69,9 @@ public:
         std::uint32_t seq,
         InboundLedger::Reason reason) override
     {
-        JLOG(j_.debug()) << "InboundLedgers::acquire1 " << this;
+        static std::size_t instance = 0;
+        ++instance;
+        JLOG(j_.debug()) << "InboundLedgers::acquire1 " << this << " " << std::this_thread::get_id() << " " << instance;
         assert(hash.isNonZero());
 
         // probably not the right rule
@@ -76,25 +79,28 @@ public:
             (reason != InboundLedger::Reason::GENERIC) &&
             (reason != InboundLedger::Reason::CONSENSUS))
         {
-            JLOG(j_.debug()) << "InboundLedgers::acquire2 " << this;
+            JLOG(j_.debug()) << "InboundLedgers::acquire2 " << this << " " << std::this_thread::get_id() << " " << instance;
             return {};
         }
 
         bool isNew = true;
         std::shared_ptr<InboundLedger> inbound;
         {
-            JLOG(j_.debug()) << "InboundLedgers::acquire3 " << this;
+            JLOG(j_.debug()) << "InboundLedgers::acquire3 " << this << " " << std::this_thread::get_id() << " " << instance;
             JLOG(j_.debug()) << "InboundLedgers lock1";
             ScopedLockType sl(mLock);
-            JLOG(j_.debug()) << "InboundLedgers::acquire4 " << this;
+            JLOG(j_.debug()) << "InboundLedgers locked1";
+            JLOG(j_.debug()) << "InboundLedgers::acquire4 " << this << " " << std::this_thread::get_id() << " " << instance;
             if (stopping_)
             {
-                JLOG(j_.debug()) << "InboundLedgers::acquire5 " << this;
+                JLOG(j_.debug()) << "InboundLedgers::acquire5 " << this << " " << std::this_thread::get_id() << " " << instance;
                 JLOG(j_.debug()) << "InboundLedgers unlock1-1";
                 return {};
             }
 
+            JLOG(j_.debug()) << "InboundLedgers::acquire5.1 " << this << " " << std::this_thread::get_id() << " " << instance;
             auto it = mLedgers.find(hash);
+            JLOG(j_.debug()) << "InboundLedgers::acquire5.2 " << this << " " << std::this_thread::get_id() << " " << instance;
             if (it != mLedgers.end())
             {
                 isNew = false;
@@ -113,28 +119,31 @@ public:
                 inbound->init(sl);
                 ++mCounter;
             }
+            JLOG(j_.debug()) << "InboundLedgers::acquire5.3 " << this << " " << std::this_thread::get_id() << " " << instance;
         }
 
         if (inbound->isFailed())
         {
-            JLOG(j_.debug()) << "InboundLedgers::acquire6 " << this;
+            JLOG(j_.debug()) << "InboundLedgers::acquire6 " << this << " " << std::this_thread::get_id() << " " << instance;
             JLOG(j_.debug()) << "InboundLedgers unlock1-2 but I think init already unlocked";
             return {};
         }
 
         if (!isNew)
         {
+            JLOG(j_.debug()) << "InboundLedgers::acquire5.4 " << this << " " << std::this_thread::get_id() << " " << instance;
             inbound->update(seq);
+            JLOG(j_.debug()) << "InboundLedgers::acquire5.5 " << this << " " << std::this_thread::get_id() << " " << instance;
         }
 
         if (!inbound->isComplete())
         {
-            JLOG(j_.debug()) << "InboundLedgers::acquire7 " << this;
+            JLOG(j_.debug()) << "InboundLedgers::acquire7 " << this << " " << std::this_thread::get_id() << " " << instance;
             JLOG(j_.debug()) << "InboundLedgers unlock1-3 but I think init already unlocked";
             return {};
         }
 
-        JLOG(j_.debug()) << "InboundLedgers::acquire8 " << this;
+        JLOG(j_.debug()) << "InboundLedgers::acquire8 " << this << " " << std::this_thread::get_id() << " " << instance;
         JLOG(j_.debug()) << "InboundLedgers unlock1-4 but I think init already unlocked";
         return inbound->getLedger();
     }
@@ -149,6 +158,7 @@ public:
         {
             JLOG(j_.debug()) << "InboundLedgers lock2";
             ScopedLockType sl(mLock);
+            JLOG(j_.debug()) << "InboundLedgers locked2";
 
             auto it = mLedgers.find(hash);
             if (it != mLedgers.end())
@@ -222,6 +232,7 @@ public:
     {
         JLOG(j_.debug()) << "InboundLedgers lock3";
         ScopedLockType sl(mLock);
+        JLOG(j_.debug()) << "InboundLedgers locked3";
 
         mRecentFailures.emplace(h, seq);
         JLOG(j_.debug()) << "InboundLedgers unlock3";
@@ -234,6 +245,7 @@ public:
         JLOG(j_.debug()) << "InboundLedgers lock4";
         {
             ScopedLockType sl(mLock);
+            JLOG(j_.debug()) << "InboundLedgers locked4";
 
             beast::expire(mRecentFailures, kReacquireInterval);
             ret = mRecentFailures.find(h) != mRecentFailures.end();
@@ -285,6 +297,7 @@ public:
     {
         JLOG(j_.debug()) << "InboundLedgers lock5";
         ScopedLockType sl(mLock);
+        JLOG(j_.debug()) << "InboundLedgers locked5";
 
         mRecentFailures.clear();
         mLedgers.clear();
@@ -317,6 +330,7 @@ public:
         {
             JLOG(j_.debug()) << "InboundLedgers lock6";
             ScopedLockType sl(mLock);
+            JLOG(j_.debug()) << "InboundLedgers locked6";
 
             acqs.reserve(mLedgers.size());
             for (auto const& it : mLedgers)
@@ -354,6 +368,7 @@ public:
         {
             JLOG(j_.debug()) << "InboundLedgers lock7";
             ScopedLockType sl(mLock);
+            JLOG(j_.debug()) << "InboundLedgers locked7";
 
             acquires.reserve(mLedgers.size());
             for (auto const& it : mLedgers)
@@ -362,7 +377,7 @@ public:
                 acquires.push_back(it.second);
             }
         }
-        JLOG(j_.debug()) << "InboundLedgers lock7";
+        JLOG(j_.debug()) << "InboundLedgers unlock7";
 
         for (auto const& acquire : acquires)
         {
@@ -382,6 +397,7 @@ public:
         {
             JLOG(j_.debug()) << "InboundLedgers lock8";
             ScopedLockType sl(mLock);
+            JLOG(j_.debug()) << "InboundLedgers locked8";
             MapType::iterator it(mLedgers.begin());
             total = mLedgers.size();
 
@@ -427,6 +443,7 @@ public:
     {
         JLOG(j_.debug()) << "InboundLedgers lock9";
         ScopedLockType lock(mLock);
+        JLOG(j_.debug()) << "InboundLedgers locked9";
         stopping_ = true;
         mLedgers.clear();
         mRecentFailures.clear();
@@ -440,6 +457,7 @@ public:
         JLOG(j_.debug()) << "InboundLedgers lock10";
         {
             ScopedLockType lock(mLock);
+            JLOG(j_.debug()) << "InboundLedgers locked10";
             ret = mLedgers.size();
         }
         JLOG(j_.debug()) << "InboundLedgers unlock10";

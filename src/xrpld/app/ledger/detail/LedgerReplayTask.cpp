@@ -136,6 +136,7 @@ LedgerReplayTask::init()
 
     JLOG(journal_.debug()) << "TimeoutCounter lock13 " << this;
     ScopedLockType sl(mtx_);
+    JLOG(journal_.debug()) << "TimeoutCounter locked13 " << this;
     if (!isDone())
     {
         trigger(sl);
@@ -179,6 +180,7 @@ LedgerReplayTask::deltaReady(uint256 const& deltaHash)
                            << hash_;
     JLOG(journal_.debug()) << "TimeoutCounter lock14 " << this;
     ScopedLockType sl(mtx_);
+    JLOG(journal_.debug()) << "TimeoutCounter locked14 " << this;
     if (!isDone())
         tryAdvance(sl);
     JLOG(journal_.debug()) << "TimeoutCounter unlock14 " << this;
@@ -235,6 +237,7 @@ LedgerReplayTask::updateSkipList(
     {
         JLOG(journal_.debug()) << "TimeoutCounter lock15 " << this;
         ScopedLockType sl(mtx_);
+        JLOG(journal_.debug()) << "TimeoutCounter locked15 " << this;
         if (isDone())
         {
             JLOG(journal_.debug()) << "TimeoutCounter unlock15-1 " << this;
@@ -253,6 +256,7 @@ LedgerReplayTask::updateSkipList(
     replayer_.createDeltas(shared_from_this());
     JLOG(journal_.debug()) << "TimeoutCounter lock16 " << this;
     ScopedLockType sl(mtx_);
+    JLOG(journal_.debug()) << "TimeoutCounter locked16 " << this;
     if (!isDone())
         trigger(sl);
     JLOG(journal_.debug()) << "TimeoutCounter unlock16 " << this;
@@ -297,6 +301,7 @@ LedgerReplayTask::addDelta(std::shared_ptr<LedgerDeltaAcquire> const& delta)
 
     JLOG(journal_.debug()) << "TimeoutCounter lock17 " << this;
     ScopedLockType sl(mtx_);
+    JLOG(journal_.debug()) << "TimeoutCounter locked17 " << this;
     if (!isDone())
     {
         JLOG(journal_.trace())
@@ -317,6 +322,7 @@ LedgerReplayTask::finished() const
     JLOG(journal_.debug()) << "TimeoutCounter lock18 " << this;
     {
         ScopedLockType sl(mtx_);
+        JLOG(journal_.debug()) << "TimeoutCounter locked18 " << this;
         ret = isDone();
     }
     JLOG(journal_.debug()) << "TimeoutCounter unlock18 " << this;
