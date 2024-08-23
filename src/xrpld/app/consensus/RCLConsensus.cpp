@@ -137,7 +137,7 @@ RCLConsensus::Adaptor::acquireLedger(LedgerHash const& hash)
                 jtADVANCE1, "getConsensusLedger1", [id = hash, &app = app_, this]() {
                     JLOG(j_.debug()) << "JOB advanceLedger getConsensusLedger1 started";
                     app.getInboundLedgers().acquire(
-                        id, 0, InboundLedger::Reason::CONSENSUS);
+                        id, 0, InboundLedger::Reason::CONSENSUS, true);
                     JLOG(j_.debug()) << "JOB advanceLedger getConsensusLedger1 finishing";
                 });
         }

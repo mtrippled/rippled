@@ -30,6 +30,7 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <set>
 #include <vector>
 
 namespace ripple {
@@ -67,7 +68,8 @@ public:
     acquire(
         uint256 const& hash,
         std::uint32_t seq,
-        InboundLedger::Reason reason) override
+        InboundLedger::Reason reason,
+        bool jq) override
     {
         static std::size_t instance = 0;
         ++instance;
@@ -131,9 +133,21 @@ public:
 
         if (!isNew)
         {
+            if (jq)
+            {
+                std::lock_guard _(mLock);
+                if (pendingJobs_.contains(*const_cast<uint256*>(&hash)))
+                    return {};
+                pendingJobs_.insert(*const_cast<uint256*>(&hash));
+            }
             JLOG(j_.debug()) << "InboundLedgers::acquire5.4 " << this << " " << std::this_thread::get_id() << " " << instance;
             inbound->update(seq);
             JLOG(j_.debug()) << "InboundLedgers::acquire5.5 " << this << " " << std::this_thread::get_id() << " " << instance;
+            if (jq)
+            {
+                std::lock_guard _(mLock);
+                pendingJobs_.erase(*const_cast<uint256 *>(&hash));
+            }
         }
 
         if (!inbound->isComplete())
@@ -479,6 +493,8 @@ private:
     beast::insight::Counter mCounter;
 
     std::unique_ptr<PeerSetBuilder> mPeerSetBuilder;
+
+    std::set<uint256> pendingJobs_;
 };
 
 //------------------------------------------------------------------------------
