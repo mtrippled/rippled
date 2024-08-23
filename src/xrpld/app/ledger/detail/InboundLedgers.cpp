@@ -369,6 +369,7 @@ public:
             JLOG(j_.debug()) << "InboundLedgers lock7";
             ScopedLockType sl(mLock);
             JLOG(j_.debug()) << "InboundLedgers locked7";
+            JLOG(j_.debug()) << "InboundLedgers size " << mLedgers.size();
 
             acquires.reserve(mLedgers.size());
             for (auto const& it : mLedgers)
