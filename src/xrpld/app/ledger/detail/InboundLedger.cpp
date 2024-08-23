@@ -1196,14 +1196,15 @@ InboundLedger::processData(
                 return -1;
             }
         }
+        JLOG(journal_.debug()) << "TimeoutCounter processData nodes " << packet.nodes().size() << " " << this;
 
         SHAMapAddNode san;
         receiveNode(packet, san);
 
         JLOG(journal_.debug())
-            << "Ledger "
+            << "TimeoutCounter processData Ledger "
             << ((packet.type() == protocol::liTX_NODE) ? "TX" : "AS")
-            << " node stats: " << san.get();
+            << " node stats: " << san.get() << " " << this;
 
         if (san.isUseful())
             progress_ = true;
