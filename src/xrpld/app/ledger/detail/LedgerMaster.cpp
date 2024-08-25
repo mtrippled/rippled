@@ -1013,7 +1013,13 @@ LedgerMaster::checkAccept(uint256 const& hash, std::uint32_t seq, bool jq)
     {
         // Ledger is too old
         if (seq < mValidLedgerSeq)
+        {
+            if (jq)
+            {
+                JLOG(m_journal.debug()) << "checkAccept jq validation1.1 " << hash << " " << seq;
+            }
             return;
+        }
 
         auto validations = app_.validators().negativeUNLFilter(
             app_.getValidations().getTrustedForLedger(hash, seq));
@@ -1026,11 +1032,23 @@ LedgerMaster::checkAccept(uint256 const& hash, std::uint32_t seq, bool jq)
         }
 
         if (seq == mValidLedgerSeq)
+        {
+            if (jq)
+            {
+                JLOG(m_journal.debug()) << "checkAccept jq validation1.2 " << hash << " " << seq;
+            }
             return;
+        }
 
         // Ledger could match the ledger we're already building
         if (seq == mBuildingLedgerSeq)
+        {
+            if (jq)
+            {
+                JLOG(m_journal.debug()) << "checkAccept jq validation1.3 " << hash << " " << seq;
+            }
             return;
+        }
     }
 
     if (jq)
