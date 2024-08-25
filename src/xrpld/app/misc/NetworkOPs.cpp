@@ -2306,7 +2306,7 @@ NetworkOPsImp::recvValidation(
     JLOG(m_journal.trace())
         << "recvValidation " << val->getLedgerHash() << " from " << source;
 
-    handleNewValidation(app_, val, source);
+    handleNewValidation(app_, val, source, true);
 
     pubValidation(val);
     std::stringstream ss;

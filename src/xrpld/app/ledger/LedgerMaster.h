@@ -229,7 +229,7 @@ public:
     void
     checkAccept(std::shared_ptr<Ledger const> const& ledger);
     void
-    checkAccept(uint256 const& hash, std::uint32_t seq);
+    checkAccept(uint256 const& hash, std::uint32_t seq, bool jq = false);
     void
     consensusBuilt(
         std::shared_ptr<Ledger const> const& ledger,

@@ -1000,7 +1000,7 @@ LedgerMaster::failedSave(std::uint32_t seq, uint256 const& hash)
 // Check if the specified ledger can become the new last fully-validated
 // ledger.
 void
-LedgerMaster::checkAccept(uint256 const& hash, std::uint32_t seq)
+LedgerMaster::checkAccept(uint256 const& hash, std::uint32_t seq, bool jq)
 {
     std::size_t valCount = 0;
 
@@ -1042,7 +1042,7 @@ LedgerMaster::checkAccept(uint256 const& hash, std::uint32_t seq)
         // FIXME: We may not want to fetch a ledger with just one
         // trusted validation
         ledger = app_.getInboundLedgers().acquire(
-            hash, seq, InboundLedger::Reason::GENERIC);
+            hash, seq, InboundLedger::Reason::GENERIC, jq);
     }
 
     if (ledger)

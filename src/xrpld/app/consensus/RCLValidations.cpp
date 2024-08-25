@@ -154,7 +154,8 @@ void
 handleNewValidation(
     Application& app,
     std::shared_ptr<STValidation> const& val,
-    std::string const& source)
+    std::string const& source,
+    bool jq)
 {
     auto const& signingKey = val->getSignerPublic();
     auto const& hash = val->getLedgerHash();
@@ -179,7 +180,7 @@ handleNewValidation(
     if (outcome == ValStatus::current)
     {
         if (val->isTrusted())
-            app.getLedgerMaster().checkAccept(hash, seq);
+            app.getLedgerMaster().checkAccept(hash, seq, jq);
         return;
     }
 
