@@ -1004,7 +1004,7 @@ LedgerMaster::checkAccept(uint256 const& hash, std::uint32_t seq, bool jq)
 {
     if (jq)
     {
-        JLOG(m_journal.debug()) << "checkAccept jq validation " << hash << " " << seq;
+        JLOG(m_journal.debug()) << "checkAccept jq validation1 " << hash << " " << seq;
     }
 
     std::size_t valCount = 0;
@@ -1033,7 +1033,15 @@ LedgerMaster::checkAccept(uint256 const& hash, std::uint32_t seq, bool jq)
             return;
     }
 
+    if (jq)
+    {
+        JLOG(m_journal.debug()) << "checkAccept jq validation2 " << hash << " " << seq;
+    }
     auto ledger = mLedgerHistory.getLedgerByHash(hash);
+    if (jq)
+    {
+        JLOG(m_journal.debug()) << "checkAccept jq validation3 " << hash << " " << seq;
+    }
 
     if (!ledger)
     {
@@ -1046,12 +1054,31 @@ LedgerMaster::checkAccept(uint256 const& hash, std::uint32_t seq, bool jq)
 
         // FIXME: We may not want to fetch a ledger with just one
         // trusted validation
+        if (jq)
+        {
+            JLOG(m_journal.debug()) << "checkAccept jq validation4 " << hash << " " << seq;
+        }
         ledger = app_.getInboundLedgers().acquire(
             hash, seq, InboundLedger::Reason::GENERIC, jq);
+        if (jq)
+        {
+            JLOG(m_journal.debug()) << "checkAccept jq validation5 " << hash << " " << seq;
+        }
     }
 
     if (ledger)
+    {
+        if (jq)
+        {
+            JLOG(m_journal.debug()) << "checkAccept jq validation6 " << hash << " " << seq;
+        }
         checkAccept(ledger);
+    }
+    if (jq)
+    {
+        JLOG(m_journal.debug()) << "checkAccept jq validation7"
+                                   " " << hash << " " << seq;
+    }
 }
 
 /**
