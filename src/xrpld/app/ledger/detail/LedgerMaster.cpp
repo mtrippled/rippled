@@ -1002,6 +1002,11 @@ LedgerMaster::failedSave(std::uint32_t seq, uint256 const& hash)
 void
 LedgerMaster::checkAccept(uint256 const& hash, std::uint32_t seq, bool jq)
 {
+    if (jq)
+    {
+        JLOG(m_journal.debug()) << "checkAccept jq validation " << hash << " " << seq;
+    }
+
     std::size_t valCount = 0;
 
     if (seq != 0)
