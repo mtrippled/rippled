@@ -155,6 +155,7 @@ handleNewValidation(
     Application& app,
     std::shared_ptr<STValidation> const& val,
     std::string const& source,
+    beast::Journal j,
     bool jq)
 {
     auto const& signingKey = val->getSignerPublic();
@@ -179,8 +180,11 @@ handleNewValidation(
 
     if (outcome == ValStatus::current)
     {
+        auto const start = std::chrono::steady_clock::now();
         if (val->isTrusted())
             app.getLedgerMaster().checkAccept(hash, seq, jq);
+        JLOG(j.debug()) << "checkAccept validation hash seq durationus " << hash
+            << ' ' << seq << ' ' << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count() << "us";
         return;
     }
 

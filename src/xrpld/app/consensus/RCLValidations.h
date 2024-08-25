@@ -250,6 +250,7 @@ handleNewValidation(
     Application& app,
     std::shared_ptr<STValidation> const& val,
     std::string const& source,
+    beast::Journal j,
     bool jq = false);
 
 }  // namespace ripple

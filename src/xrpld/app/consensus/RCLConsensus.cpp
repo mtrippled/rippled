@@ -881,7 +881,7 @@ RCLConsensus::Adaptor::validate(
     // suppress it if we receive it
     app_.getHashRouter().addSuppression(sha512Half(makeSlice(serialized)));
 
-    handleNewValidation(app_, v, "local");
+    handleNewValidation(app_, v, "local", j_);
 
     // Broadcast to all our peers:
     protocol::TMValidation val;
