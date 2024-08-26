@@ -137,7 +137,7 @@ RCLValidationsAdaptor::acquire(LedgerHash const& hash)
         app_.getJobQueue().addJob(
             jtADVANCE2, "getConsensusLedger2", [pApp, hash, this]() {
                 JLOG(j_.debug()) << "JOB advanceLedger getConsensusLedger2 started";
-                pApp->getInboundLedgers().acquire(
+                pApp->getInboundLedgers().acquireAsync(
                     hash, 0, InboundLedger::Reason::CONSENSUS);
                 JLOG(j_.debug()) << "JOB advanceLedger getConsensusLedger2 finishing";
             });
