@@ -138,7 +138,7 @@ RCLValidationsAdaptor::acquire(LedgerHash const& hash)
             jtADVANCE2, "getConsensusLedger2", [pApp, hash, this]() {
                 JLOG(j_.debug()) << "JOB advanceLedger getConsensusLedger2 started";
                 pApp->getInboundLedgers().acquire(
-                    hash, 0, InboundLedger::Reason::CONSENSUS, true);
+                    hash, 0, InboundLedger::Reason::CONSENSUS);
                 JLOG(j_.debug()) << "JOB advanceLedger getConsensusLedger2 finishing";
             });
         return std::nullopt;
@@ -154,9 +154,7 @@ void
 handleNewValidation(
     Application& app,
     std::shared_ptr<STValidation> const& val,
-    std::string const& source,
-    beast::Journal j,
-    bool jq)
+    std::string const& source)
 {
     auto const& signingKey = val->getSignerPublic();
     auto const& hash = val->getLedgerHash();
@@ -180,11 +178,8 @@ handleNewValidation(
 
     if (outcome == ValStatus::current)
     {
-        auto const start = std::chrono::steady_clock::now();
         if (val->isTrusted())
-            app.getLedgerMaster().checkAccept(hash, seq, jq);
-        JLOG(j.debug()) << "checkAccept validation hash seq durationus " << hash
-            << ' ' << seq << ' ' << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count() << "us";
+            app.getLedgerMaster().checkAccept(hash, seq);
         return;
     }
 

@@ -137,7 +137,7 @@ RCLConsensus::Adaptor::acquireLedger(LedgerHash const& hash)
                 jtADVANCE1, "getConsensusLedger1", [id = hash, &app = app_, this]() {
                     JLOG(j_.debug()) << "JOB advanceLedger getConsensusLedger1 started";
                     app.getInboundLedgers().acquire(
-                        id, 0, InboundLedger::Reason::CONSENSUS, true);
+                        id, 0, InboundLedger::Reason::CONSENSUS);
                     JLOG(j_.debug()) << "JOB advanceLedger getConsensusLedger1 finishing";
                 });
         }
@@ -881,7 +881,7 @@ RCLConsensus::Adaptor::validate(
     // suppress it if we receive it
     app_.getHashRouter().addSuppression(sha512Half(makeSlice(serialized)));
 
-    handleNewValidation(app_, v, "local", j_);
+    handleNewValidation(app_, v, "local");
 
     // Broadcast to all our peers:
     protocol::TMValidation val;

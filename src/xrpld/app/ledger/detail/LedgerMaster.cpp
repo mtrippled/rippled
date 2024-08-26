@@ -1000,26 +1000,15 @@ LedgerMaster::failedSave(std::uint32_t seq, uint256 const& hash)
 // Check if the specified ledger can become the new last fully-validated
 // ledger.
 void
-LedgerMaster::checkAccept(uint256 const& hash, std::uint32_t seq, bool jq)
+LedgerMaster::checkAccept(uint256 const& hash, std::uint32_t seq)
 {
-    if (jq)
-    {
-        JLOG(m_journal.debug()) << "checkAccept jq validation1 " << hash << " " << seq;
-    }
-
     std::size_t valCount = 0;
 
     if (seq != 0)
     {
         // Ledger is too old
         if (seq < mValidLedgerSeq)
-        {
-            if (jq)
-            {
-                JLOG(m_journal.debug()) << "checkAccept jq validation1.1 " << hash << " " << seq;
-            }
             return;
-        }
 
         auto validations = app_.validators().negativeUNLFilter(
             app_.getValidations().getTrustedForLedger(hash, seq));
@@ -1032,34 +1021,14 @@ LedgerMaster::checkAccept(uint256 const& hash, std::uint32_t seq, bool jq)
         }
 
         if (seq == mValidLedgerSeq)
-        {
-            if (jq)
-            {
-                JLOG(m_journal.debug()) << "checkAccept jq validation1.2 " << hash << " " << seq;
-            }
             return;
-        }
 
         // Ledger could match the ledger we're already building
         if (seq == mBuildingLedgerSeq)
-        {
-            if (jq)
-            {
-                JLOG(m_journal.debug()) << "checkAccept jq validation1.3 " << hash << " " << seq;
-            }
             return;
-        }
     }
 
-    if (jq)
-    {
-        JLOG(m_journal.debug()) << "checkAccept jq validation2 " << hash << " " << seq;
-    }
     auto ledger = mLedgerHistory.getLedgerByHash(hash);
-    if (jq)
-    {
-        JLOG(m_journal.debug()) << "checkAccept jq validation3 " << hash << " " << seq;
-    }
 
     if (!ledger)
     {
@@ -1072,31 +1041,12 @@ LedgerMaster::checkAccept(uint256 const& hash, std::uint32_t seq, bool jq)
 
         // FIXME: We may not want to fetch a ledger with just one
         // trusted validation
-        if (jq)
-        {
-            JLOG(m_journal.debug()) << "checkAccept jq validation4 " << hash << " " << seq;
-        }
         ledger = app_.getInboundLedgers().acquire(
-            hash, seq, InboundLedger::Reason::GENERIC, jq);
-        if (jq)
-        {
-            JLOG(m_journal.debug()) << "checkAccept jq validation5 " << hash << " " << seq;
-        }
+            hash, seq, InboundLedger::Reason::GENERIC);
     }
 
     if (ledger)
-    {
-        if (jq)
-        {
-            JLOG(m_journal.debug()) << "checkAccept jq validation6 " << hash << " " << seq;
-        }
         checkAccept(ledger);
-    }
-    if (jq)
-    {
-        JLOG(m_journal.debug()) << "checkAccept jq validation7"
-                                   " " << hash << " " << seq;
-    }
 }
 
 /**

@@ -243,15 +243,12 @@ using RCLValidations = Validations<RCLValidationsAdaptor>;
     @param app Application object containing validations and ledgerMaster
     @param val The validation to add
     @param source Name associated with validation used in logging
-    @param jq Whether this is being run on the Job Queue.
 */
 void
 handleNewValidation(
     Application& app,
     std::shared_ptr<STValidation> const& val,
-    std::string const& source,
-    beast::Journal j,
-    bool jq = false);
+    std::string const& source);
 
 }  // namespace ripple
 
