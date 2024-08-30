@@ -388,7 +388,7 @@ SHAMapStoreImp::run()
             JLOG(journal_.debug()) << "copied ledger " << validatedSeq
                                    << " nodecount " << nodeCount;
 
-            JLOG(journal_.debug()) << "freshening caches";
+            JLOG(journal_.debug()) << "not freshening caches";
             freshenCaches();
             if (healthWait() == stopping)
                 return;
