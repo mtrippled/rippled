@@ -147,8 +147,10 @@ OpenLedger::accept(
     }
 
     // Switch to the new open view
-    std::lock_guard lock2(current_mutex_);
-    current_ = std::move(next);
+    {
+        std::lock_guard lock2(current_mutex_);
+        current_ = std::move(next);
+    }
 }
 
 //------------------------------------------------------------------------------
