@@ -1309,20 +1309,32 @@ NetworkOPsImp::doTransactionSync(
 void
 NetworkOPsImp::transactionBatch()
 {
+    static std::uint64_t instance = 0;
+    ++instance;
+    JLOG(m_journal.debug()) << "BATCH1 " << instance;
     std::unique_lock<std::mutex> lock(mMutex);
+    JLOG(m_journal.debug()) << "BATCH2 " << instance;
 
     if (mDispatchState == DispatchState::running)
+    {
+        JLOG(m_journal.debug()) << "BATCH3 " << instance;
         return;
+    }
 
     while (mTransactions.size())
     {
         apply(lock);
+        JLOG(m_journal.debug()) << "BATCH4 " << instance;
     }
+    JLOG(m_journal.debug()) << "BATCH5 " << instance;
 }
 
 void
 NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
 {
+    static uint64_t instance = 0;
+    ++instance;
+    JLOG(m_journal.debug()) << "BATCH apply1 " << instance;
     std::vector<TransactionStatus> submit_held;
     std::vector<TransactionStatus> transactions;
     mTransactions.swap(transactions);
@@ -1339,7 +1351,9 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
         {
             std::unique_lock ledgerLock{
                 m_ledgerMaster.peekMutex(), std::defer_lock};
+            JLOG(m_journal.debug()) << "BATCH apply2 " << instance;
             std::lock(masterLock, ledgerLock);
+            JLOG(m_journal.debug()) << "BATCH apply3 " << instance;
 
             app_.openLedger().modify([&](OpenView& view, beast::Journal j) {
                 for (TransactionStatus& e : transactions)
@@ -1361,6 +1375,7 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
                 return changed;
             });
         }
+        JLOG(m_journal.debug()) << "BATCH apply4 " << instance;
         if (changed)
             reportFeeChange();
 
@@ -1502,9 +1517,11 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
                     *validatedLedgerIndex, fee, accountSeq, availableSeq);
             }
         }
+        JLOG(m_journal.debug()) << "BATCH apply5 " << instance;
     }
 
     batchLock.lock();
+    JLOG(m_journal.debug()) << "BATCH apply6 " << instance;
 
     for (TransactionStatus& e : transactions)
         e.transaction->clearApplying();
@@ -1521,6 +1538,7 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
     mCond.notify_all();
 
     mDispatchState = DispatchState::none;
+    JLOG(m_journal.debug()) << "BATCH apply7 " << instance;
 }
 
 //

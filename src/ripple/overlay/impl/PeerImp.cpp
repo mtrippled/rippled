@@ -3458,6 +3458,10 @@ PeerImp::getTxSet(std::shared_ptr<protocol::TMGetLedger> const& m) const
 void
 PeerImp::processLedgerRequest(std::shared_ptr<protocol::TMGetLedger> const& m)
 {
+    static std::uint64_t instance = 0;
+    ++instance;
+    JLOG(journal_.debug()) << "LEDGER_REQUEST1 " << instance;
+
     // Do not resource charge a peer responding to a relay
     if (!m->has_requestcookie())
         charge(Resource::feeMediumBurdenPeer);
@@ -3491,16 +3495,21 @@ PeerImp::processLedgerRequest(std::shared_ptr<protocol::TMGetLedger> const& m)
         {
             JLOG(p_journal_.debug())
                 << "processLedgerRequest: Large send queue";
+            JLOG(journal_.debug()) << "LEDGER_REQUEST2 " << instance;
             return;
         }
         if (app_.getFeeTrack().isLoadedLocal() && !cluster())
         {
+            JLOG(journal_.debug()) << "LEDGER_REQUEST3 " << instance;
             JLOG(p_journal_.debug()) << "processLedgerRequest: Too busy";
             return;
         }
 
         if (ledger = getLedger(m); !ledger)
+        {
+            JLOG(journal_.debug()) << "LEDGER_REQUEST4 " << instance;
             return;
+        }
 
         // Fill out the reply
         auto const ledgerHash{ledger->info().hash};
@@ -3514,6 +3523,7 @@ PeerImp::processLedgerRequest(std::shared_ptr<protocol::TMGetLedger> const& m)
         {
             case protocol::liBASE:
                 sendLedgerBase(ledger, ledgerData);
+                JLOG(journal_.debug()) << "LEDGER_REQUEST5 " << instance;
                 return;
 
             case protocol::liTX_NODE:
@@ -3533,6 +3543,7 @@ PeerImp::processLedgerRequest(std::shared_ptr<protocol::TMGetLedger> const& m)
                 // This case should not be possible here
                 JLOG(p_journal_.error())
                     << "processLedgerRequest: Invalid ledger info type";
+                JLOG(journal_.debug()) << "LEDGER_REQUEST6 " << instance;
                 return;
         }
     }
@@ -3540,6 +3551,7 @@ PeerImp::processLedgerRequest(std::shared_ptr<protocol::TMGetLedger> const& m)
     if (!map)
     {
         JLOG(p_journal_.warn()) << "processLedgerRequest: Unable to find map";
+        JLOG(journal_.debug()) << "LEDGER_REQUEST7 " << instance;
         return;
     }
 
@@ -3625,6 +3637,7 @@ PeerImp::processLedgerRequest(std::shared_ptr<protocol::TMGetLedger> const& m)
     }
 
     send(std::make_shared<Message>(ledgerData, protocol::mtLEDGER_DATA));
+    JLOG(journal_.debug()) << "LEDGER_REQUEST8 " << instance;
 }
 
 int
