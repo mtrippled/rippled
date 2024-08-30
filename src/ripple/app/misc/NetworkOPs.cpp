@@ -1309,7 +1309,7 @@ NetworkOPsImp::doTransactionSync(
 void
 NetworkOPsImp::transactionBatch()
 {
-    static std::uint64_t instance = 0;
+    static std::atomic<std::uint64_t> instance = 0;
     ++instance;
     JLOG(m_journal.debug()) << "BATCH1 " << instance;
     std::unique_lock<std::mutex> lock(mMutex);
@@ -1332,7 +1332,7 @@ NetworkOPsImp::transactionBatch()
 void
 NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
 {
-    static uint64_t instance = 0;
+    static std::atomic<uint64_t> instance = 0;
     ++instance;
     JLOG(m_journal.debug()) << "BATCH apply1 " << instance;
     std::vector<TransactionStatus> submit_held;

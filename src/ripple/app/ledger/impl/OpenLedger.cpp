@@ -56,14 +56,24 @@ OpenLedger::current() const
 bool
 OpenLedger::modify(modify_type const& f)
 {
-    std::lock_guard lock1(modify_mutex_);
-    auto next = std::make_shared<OpenView>(*current_);
-    auto const changed = f(*next, j_);
-    if (changed)
+    bool changed;
     {
-        std::lock_guard lock2(current_mutex_);
-        current_ = std::move(next);
+        JLOG(j_.debug()) << "MODIFY1";
+        std::lock_guard lock1(modify_mutex_);
+        JLOG(j_.debug()) << "MODIFY2";
+        auto next = std::make_shared<OpenView>(*current_);
+        changed = f(*next, j_);
+        if (changed)
+        {
+            {
+                JLOG(j_.debug()) << "MODIFY3";
+                std::lock_guard lock2(current_mutex_);
+                current_ = std::move(next);
+            }
+            JLOG(j_.debug()) << "MODIFY4";
+        }
     }
+    JLOG(j_.debug()) << "MODIFY5";
     return changed;
 }
 

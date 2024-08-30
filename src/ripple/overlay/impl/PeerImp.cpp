@@ -3458,7 +3458,7 @@ PeerImp::getTxSet(std::shared_ptr<protocol::TMGetLedger> const& m) const
 void
 PeerImp::processLedgerRequest(std::shared_ptr<protocol::TMGetLedger> const& m)
 {
-    static std::uint64_t instance = 0;
+    static std::atomic<std::uint64_t> instance = 0;
     ++instance;
     JLOG(journal_.debug()) << "LEDGER_REQUEST1 " << instance;
 
