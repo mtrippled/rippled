@@ -1353,6 +1353,7 @@ NetworkOPsImp::transactionBatch()
 void
 NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
 {
+    auto tracer = perf::make_Tracer("batch NetworkOpsImp::apply()");
     std::vector<TransactionStatus> submit_held;
     std::vector<TransactionStatus> transactions;
     mTransactions.swap(transactions);
@@ -1365,12 +1366,16 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
 
     {
 //        std::unique_lock masterLock{app_.getMasterMutex(), std::defer_lock};
-        perf::unique_lock masterLock(*app_.getMasterMutex(), FILE_LINE, std::defer_lock);
+        perf::unique_lock masterLock(*app_.getMasterMutex(), FILE_LINE,
+            std::defer_lock, false, tracer);
+//        perf::unique_lock masterLock(*app_.getMasterMutex(), FILE_LINE, std::defer_lock);
         bool changed = false;
         {
 //            std::unique_lock ledgerLock{
 //                m_ledgerMaster.peekMutex(), std::defer_lock};
-            perf::unique_lock ledgerLock(m_ledgerMaster.peekMutex(), FILE_LINE, std::defer_lock);
+            perf::unique_lock ledgerLock(m_ledgerMaster.peekMutex(), FILE_LINE,
+                std::defer_lock, false, tracer);
+//            perf::unique_lock ledgerLock(m_ledgerMaster.peekMutex(), FILE_LINE, std::defer_lock);
 //            std::lock(masterLock, ledgerLock);
             masterLock.lock(FILE_LINE);
             ledgerLock.lock(FILE_LINE);
@@ -1402,7 +1407,7 @@ NetworkOPsImp::apply(std::unique_lock<std::mutex>& batchLock)
                     changed = changed || result.second;
                 }
                 return changed;
-            });
+            }, tracer);
         }
         if (changed)
             reportFeeChange();

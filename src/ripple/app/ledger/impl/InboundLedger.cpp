@@ -1106,7 +1106,8 @@ InboundLedger::gotData(
 int
 InboundLedger::processData(
     std::shared_ptr<Peer> peer,
-    protocol::TMLedgerData& packet)
+    protocol::TMLedgerData& packet,
+    std::shared_ptr<perf::Tracer>& tracer)
 {
     if (packet.type() == protocol::liBASE)
     {
@@ -1119,7 +1120,8 @@ InboundLedger::processData(
 
         SHAMapAddNode san;
 
-        perf::unique_lock sl(mtx_, FILE_LINE);
+        perf::unique_lock sl(mtx_, FILE_LINE, false, tracer);
+//        perf::unique_lock sl(mtx_, FILE_LINE);
 //        ScopedLockType sl(mtx_);
 
         try
@@ -1176,7 +1178,8 @@ InboundLedger::processData(
             return -1;
         }
 
-        perf::unique_lock sl(mtx_, FILE_LINE);
+        perf::unique_lock sl(mtx_, FILE_LINE, false, tracer);
+//        perf::unique_lock sl(mtx_, FILE_LINE);
 //        ScopedLockType sl(mtx_);
 
         // Verify node IDs and data are complete
@@ -1288,6 +1291,7 @@ struct PeerDataCounts
 void
 InboundLedger::runData()
 {
+    auto tracer = perf::make_Tracer("InboundLedger::runData()");
     // Maximum number of peers to request data from
     constexpr std::size_t maxUsefulPeers = 6;
 
@@ -1303,7 +1307,8 @@ InboundLedger::runData()
         data.clear();
 
         {
-            perf::lock_guard sl(mReceivedDataLock, FILE_LINE);
+            perf::lock_guard sl(mReceivedDataLock, FILE_LINE, false, tracer);
+//            perf::lock_guard sl(mReceivedDataLock, FILE_LINE);
 //            std::lock_guard sl(mReceivedDataLock);
 
             if (mReceivedData.empty())
@@ -1319,8 +1324,10 @@ InboundLedger::runData()
         {
             if (auto peer = entry.first.lock())
             {
-                int count = processData(peer, *(entry.second));
+                int count = processData(peer, *(entry.second), tracer);
+                auto timer = perf::startTimer(tracer, FILE_LINE);
                 dataCounts.update(std::move(peer), count);
+                perf::endTimer(tracer, timer);
             }
         }
     }

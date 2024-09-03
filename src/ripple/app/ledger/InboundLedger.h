@@ -153,7 +153,8 @@ private:
     pmDowncast() override;
 
     int
-    processData(std::shared_ptr<Peer> peer, protocol::TMLedgerData& data);
+    processData(std::shared_ptr<Peer> peer, protocol::TMLedgerData& data,
+        std::shared_ptr<perf::Tracer>& tracer);
 
     bool
     takeHeader(std::string const& data);
