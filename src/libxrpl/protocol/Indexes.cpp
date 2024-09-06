@@ -73,6 +73,7 @@ enum class LedgerNameSpace : std::uint16_t {
     XCHAIN_CREATE_ACCOUNT_CLAIM_ID = 'K',
     DID = 'I',
     ORACLE = 'R',
+    PERMISSIONED_DOMAIN = 'P',
 
     // No longer used or supported. Left here to reserve the space
     // to avoid accidental reuse.
