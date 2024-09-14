@@ -26,7 +26,10 @@ PermissionedDomainDelete::preflight(PreflightContext const& ctx)
 {
     if (!ctx.rules.enabled(featurePermissionedDomains))
         return temDISABLED;
-    return tesSUCCESS;
+    if (auto const ret = preflight1(ctx); !isTesSuccess(ret))
+        return ret;
+
+    return preflight2(ctx);
 }
 
 TER

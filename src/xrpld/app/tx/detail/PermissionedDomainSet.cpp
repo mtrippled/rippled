@@ -17,7 +17,12 @@
 */
 //==============================================================================
 
+#include <xrpl/protocol/STObject.h>
+#include <xrpl/protocol/TxFlags.h>
 #include <xrpld/app/tx/detail/PermissionedDomainSet.h>
+#include <xrpld/ledger/View.h>
+
+#include <optional>
 
 namespace ripple {
 
@@ -26,7 +31,61 @@ PermissionedDomainSet::preflight(PreflightContext const& ctx)
 {
     if (!ctx.rules.enabled(featurePermissionedDomains))
         return temDISABLED;
-    return tesSUCCESS;
+    if (auto const ret = preflight1(ctx); !isTesSuccess(ret))
+        return ret;
+
+    constexpr std::size_t PD_ARRAY_MAX = 10;
+    if (ctx.tx.isFieldPresent(sfAcceptedCredentials))
+    {
+        auto const credentials =
+            ctx.tx.getFieldArray(sfAcceptedCredentials);
+        if (credentials.size() > PD_ARRAY_MAX)
+            return temMALFORMED;
+        /*
+        // TODO iterate and make sure each Issuer exists once credentials
+        // interface is available.
+        for (auto const& credential : *credentials.value())
+        {
+        }
+         */
+    }
+
+    if (ctx.tx.isFieldPresent(sfAcceptedTokens))
+    {
+        auto const tokens = ctx.tx.getFieldArray(sfAcceptedTokens);
+        if (tokens.size() > PD_ARRAY_MAX)
+            return temMALFORMED;
+
+        for (auto const& token : tokens)
+        {
+            auto asset = token.at(~sfAsset);
+            if (asset.has_value())
+            {
+                if (isXRP(asset->currency))
+                    return temMALFORMED;
+                continue;
+            }
+            /* TODO check if MPTIssue type is XRP when the time comes.
+            auto mptAsset = token.at(~mptAsset)
+            if (mptAsset.has_value())
+            {
+            }
+             */
+        }
+    }
+
+    // Checking with existing domainID requires preclaim()
+    if (!ctx.tx.isFieldPresent(sfDomainID))
+    {
+        auto const ret = checkRules(ctx.tx,
+            std::make_shared<SLE>(keylet::permissionedDomain(
+                ctx.tx.getAccountID(sfAccount),
+                ctx.tx.getFieldU32(sfSequence))));
+        if (!isTesSuccess(ret))
+            return ret;
+    }
+
+    return preflight2(ctx);
 }
 
 XRPAmount
@@ -39,6 +98,26 @@ PermissionedDomainSet::calculateBaseFee(ReadView const& view, STTx const& tx)
 TER
 PermissionedDomainSet::preclaim(PreclaimContext const& ctx)
 {
+    auto domain = ctx.tx.at(~sfDomainID);
+    if (!domain.has_value())
+        return tesSUCCESS;
+
+    // Check existing object.
+    auto const sleDomain = ctx.view.read(
+        {ltPERMISSIONED_DOMAIN, *domain});
+    if (sleDomain->empty())
+        return tecNO_ENTRY;
+    auto const owner = sleDomain->getAccountID(sfOwner);
+    auto account = ctx.tx.at(sfAccount);
+    if (owner != account)
+        return temINVALID_ACCOUNT_ID;
+
+    if (auto const ret = checkRules(ctx.tx, sleDomain);
+        !isTesSuccess(ret))
+    {
+        return ret;
+    }
+
     return tesSUCCESS;
 }
 
@@ -46,8 +125,120 @@ PermissionedDomainSet::preclaim(PreclaimContext const& ctx)
 TER
 PermissionedDomainSet::doApply()
 {
+    auto const ownerSle = view().peek(keylet::account(account_));
+    if (!ownerSle)
+        return tefINTERNAL;
+
+    auto updateSle =
+        [this](std::shared_ptr<STLedgerEntry> const& sle) {
+            auto const flags = ctx_.tx.getFlags();
+            if (flags)
+            {
+                sle->setFlag(flags & tfSetOnlyXRP);
+                sle->setFlag(flags & tfClearOnlyXRP);
+            }
+            if (ctx_.tx.isFieldPresent(sfAcceptedCredentials))
+            {
+                auto credentials = ctx_.tx.getFieldArray(sfAcceptedCredentials);
+                /* TODO sort by Issuer once the interface to credentials is available.
+                credentials.sort([](STObject const& left, STObject const& right) {
+                    return left.? < right.?;
+                });
+                 */
+                sle->setFieldArray(sfAcceptedCredentials, credentials);
+            }
+            if (ctx_.tx.isFieldPresent(sfAcceptedTokens))
+            {
+                auto tokens = ctx_.tx.getFieldArray(sfAcceptedTokens);
+                tokens.sort([](STObject const &left, STObject const &right)
+                {
+                    // TODO incorporate MPTissue when the time comes.
+                    return left.at(sfAsset).account < right.at(sfAsset).account;
+                });
+                sle->setFieldArray(sfAcceptedTokens, tokens);
+            }
+    };
+
+    if (auto domain = ctx_.tx.at(~sfDomainID))
+    {
+        // Modify existing permissioned domain.
+        auto sleUpdate = ctx_.view().peek(
+            {ltPERMISSIONED_DOMAIN, *domain});
+        updateSle(sleUpdate);
+        view().update(sleUpdate);
+    }
+    else
+    {
+        // Create new permissioned domain.
+        Keylet const pdKeylet = keylet::permissionedDomain(account_,
+            ctx_.tx.getFieldU32(sfSequence));
+        auto slePd = std::make_shared<SLE>(pdKeylet);
+        slePd->setFieldU16(sfSequence, ctx_.tx.getFieldU16(sfSequence));
+        slePd->setFieldArray(sfAcceptedCredentials, STArray());
+        auto tokens = ctx_.tx.getFieldArray(sfAcceptedTokens);
+        updateSle(slePd);
+        view().insert(slePd);
+        auto const page = view().dirInsert(
+            keylet::ownerDir(account_),
+            pdKeylet,
+            describeOwnerDir(account_));
+        if (!page)
+            return tecDIR_FULL;
+        // If we succeeded, the new entry counts against the creator's reserve.
+        adjustOwnerCount(view(), slePd, 1, ctx_.journal);
+    }
+
     return tesSUCCESS;
 }
 
+NotTEC
+PermissionedDomainSet::checkRules(STTx const& tx,
+    std::shared_ptr<STLedgerEntry const> const& sle)
+{
+    bool const sleOnlyXRP = sle->getFlags() & lsfOnlyXRP;
+    auto const txFlags = tx.getFlags();
+    if ((txFlags & tfSetOnlyXRP) && (txFlags & tfClearOnlyXRP))
+        return temMALFORMED;
+    bool onlyXRP = false;
+    if (sleOnlyXRP)
+    {
+        if (txFlags & tfSetOnlyXRP)
+            return temMALFORMED;
+        onlyXRP = true;
+    }
+    else
+    {
+        if (txFlags & tfClearOnlyXRP)
+            return temMALFORMED;
+        // onlyXRP is still false
+    }
+
+    bool someCredentials = false;
+    if (tx.isFieldPresent(sfAcceptedCredentials))
+    {
+        if (!tx.getFieldArray(sfAcceptedCredentials).empty())
+            someCredentials = true;
+    }
+
+    bool someTokens = false;
+    if (tx.isFieldPresent(sfAcceptedTokens))
+    {
+        if (!tx.getFieldArray(sfAcceptedTokens).empty())
+            someTokens = true;
+    }
+
+    if (onlyXRP)
+    {
+        if (someTokens)
+            return temMALFORMED;
+    }
+    else
+    {
+        if (!someCredentials && !someTokens)
+            return temMALFORMED;
+    }
+
+    return tesSUCCESS;
+}
 
 } // ripple

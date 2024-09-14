@@ -452,6 +452,13 @@ oracle(AccountID const& account, std::uint32_t const& documentID) noexcept
     return {ltORACLE, indexHash(LedgerNameSpace::ORACLE, account, documentID)};
 }
 
+Keylet
+permissionedDomain(AccountID const& account, std::uint32_t seq) noexcept
+{
+    return {ltPERMISSIONED_DOMAIN, indexHash(
+        LedgerNameSpace::PERMISSIONED_DOMAIN, account, seq)};
+}
+
 }  // namespace keylet
 
 }  // namespace ripple

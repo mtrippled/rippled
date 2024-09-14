@@ -198,7 +198,7 @@ enum LedgerEntryType : std::uint16_t
     ltORACLE = 0x0080,
 
     /** A ledger object which tracks Permissioned Domain
-        \sa keylet::TODO
+        \sa keylet::permissionedDomain
      */
     ltPERMISSIONED_DOMAIN = 0x0077,
 
@@ -313,6 +313,9 @@ enum LedgerSpecificFlags {
 
     // ltNFTOKEN_OFFER
     lsfSellNFToken = 0x00000001,
+
+    //ltPERMISSIONED_DOMAIN
+    lsfOnlyXRP = 0x00010000,
 };
 
 //------------------------------------------------------------------------------

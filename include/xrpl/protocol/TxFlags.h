@@ -185,6 +185,10 @@ constexpr std::uint32_t tfDepositMask = ~(tfUniversal | tfDepositSubTx);
 constexpr std::uint32_t tfClearAccountCreateAmount     = 0x00010000;
 constexpr std::uint32_t tfBridgeModifyMask = ~(tfUniversal | tfClearAccountCreateAmount);
 
+// PermissionedDomain flags:
+constexpr std::uint32_t tfSetOnlyXRP =   0x00010000;
+constexpr std::uint32_t tfClearOnlyXRP = 0x00020000;
+
 // clang-format on
 
 }  // namespace ripple

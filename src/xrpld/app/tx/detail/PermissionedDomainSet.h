@@ -45,6 +45,10 @@ public:
     /** Attempt to create the Permissioned Domain. */
     TER
     doApply() override;
+
+private:
+    static NotTEC
+    checkRules(STTx const& tx, std::shared_ptr<STLedgerEntry const> const& sle);
 };
 
 } // ripple
