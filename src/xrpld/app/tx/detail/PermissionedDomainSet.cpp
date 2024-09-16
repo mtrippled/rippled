@@ -39,7 +39,7 @@ PermissionedDomainSet::preflight(PreflightContext const& ctx)
     {
         auto const credentials =
             ctx.tx.getFieldArray(sfAcceptedCredentials);
-        if (credentials.size() > PD_ARRAY_MAX)
+        if (credentials.size() == 0 || credentials.size() > PD_ARRAY_MAX)
             return temMALFORMED;
         /*
         // TODO iterate and make sure each Issuer exists once credentials
@@ -53,13 +53,13 @@ PermissionedDomainSet::preflight(PreflightContext const& ctx)
     if (ctx.tx.isFieldPresent(sfAcceptedTokens))
     {
         auto const tokens = ctx.tx.getFieldArray(sfAcceptedTokens);
-        if (tokens.size() > PD_ARRAY_MAX)
+        if (tokens.size() == 0 || tokens.size() > PD_ARRAY_MAX)
             return temMALFORMED;
 
         for (auto const& token : tokens)
         {
             auto asset = token.at(~sfAsset);
-            if (asset.has_value())
+            if (asset)
             {
                 if (isXRP(asset->currency))
                     return temMALFORMED;
@@ -67,7 +67,7 @@ PermissionedDomainSet::preflight(PreflightContext const& ctx)
             }
             /* TODO check if MPTIssue type is XRP when the time comes.
             auto mptAsset = token.at(~mptAsset)
-            if (mptAsset.has_value())
+            if (mptAsset)
             {
             }
              */
@@ -99,7 +99,7 @@ TER
 PermissionedDomainSet::preclaim(PreclaimContext const& ctx)
 {
     auto domain = ctx.tx.at(~sfDomainID);
-    if (!domain.has_value())
+    if (!domain)
         return tesSUCCESS;
 
     // Check existing object.

@@ -930,4 +930,56 @@ ValidClawback::finalize(
     return true;
 }
 
+//------------------------------------------------------------------------------
+
+void
+ValidPermissionedDomain::visitEntry(
+    bool,
+    std::shared_ptr<SLE const> const& before,
+    std::shared_ptr<SLE const> const& after)
+{
+    if (after->getType() != ltPERMISSIONED_DOMAIN)
+        return;
+
+    if (after->isFieldPresent(sfAcceptedCredentials))
+        credentialsSize_ = after->getFieldArray(sfAcceptedCredentials).size();
+    if (after->isFieldPresent(sfAcceptedTokens))
+        tokensSize_ = after->getFieldArray(sfAcceptedTokens).size();
+    onlyXRP_ = after->getFlags() & lsfOnlyXRP;
+}
+
+bool
+ValidPermissionedDomain::finalize(
+    STTx const& tx,
+    TER const result,
+    XRPAmount const,
+    ReadView const& view,
+    beast::Journal const& j)
+{
+    if (tx.getTxnType() != ttPERMISSIONED_DOMAIN_SET)
+        return true;
+
+    if (onlyXRP_)
+    {
+        if (tokensSize_)
+            return false;
+    }
+    else
+    {
+        if (!credentialsSize_ && !tokensSize_)
+            return false;
+    }
+
+    constexpr std::size_t PD_ARRAY_MAX = 10;
+    if (credentialsSize_ &&
+        (*credentialsSize_ == 0 || *credentialsSize_ > PD_ARRAY_MAX))
+    {
+        return false;
+    }
+    if (tokensSize_ && (*tokensSize_ == 0 || *tokensSize_ > PD_ARRAY_MAX))
+        return false;
+
+    return true;
+}
+
 }  // namespace ripple
