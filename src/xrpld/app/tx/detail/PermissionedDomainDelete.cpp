@@ -18,6 +18,7 @@
 //==============================================================================
 
 #include <xrpld/app/tx/detail/PermissionedDomainDelete.h>
+#include <xrpld/ledger/View.h>
 
 namespace ripple {
 
@@ -28,13 +29,22 @@ PermissionedDomainDelete::preflight(PreflightContext const& ctx)
         return temDISABLED;
     if (auto const ret = preflight1(ctx); !isTesSuccess(ret))
         return ret;
-
+    if (!ctx.tx.isFieldPresent(sfDomainID))
+        return temMALFORMED;
     return preflight2(ctx);
 }
 
 TER
 PermissionedDomainDelete::preclaim(PreclaimContext const& ctx)
 {
+    auto const domain = ctx.tx.getFieldH256(sfDomainID);
+    // Check existing object.
+    auto const sleDomain = ctx.view.read(
+        {ltPERMISSIONED_DOMAIN, domain});
+    if (sleDomain->empty())
+        return tecNO_ENTRY;
+    if (sleDomain->getAccountID(sfOwner) != ctx.tx.getAccountID(sfAccount))
+        return temINVALID_ACCOUNT_ID;
     return tesSUCCESS;
 }
 
@@ -42,6 +52,18 @@ PermissionedDomainDelete::preclaim(PreclaimContext const& ctx)
 TER
 PermissionedDomainDelete::doApply()
 {
+    auto const slePd =
+        view().peek({ltPERMISSIONED_DOMAIN, ctx_.tx.at(sfDomainID)});
+    auto const page{(*slePd)[sfOwnerNode]};
+    if (!view().dirRemove(
+        keylet::ownerDir(account_), page, slePd->key(), true))
+    {
+        JLOG(j_.fatal()) << "Unable to delete permissioned domain directory entry.";
+        return tefBAD_LEDGER;
+    }
+    auto const ownerSle = view().peek(keylet::account(account_));
+    adjustOwnerCount(view(), ownerSle, -1, ctx_.journal);
+    view().erase(slePd);
     return tesSUCCESS;
 }
 

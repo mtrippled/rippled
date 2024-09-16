@@ -108,7 +108,7 @@ PermissionedDomainSet::preclaim(PreclaimContext const& ctx)
     if (sleDomain->empty())
         return tecNO_ENTRY;
     auto const owner = sleDomain->getAccountID(sfOwner);
-    auto account = ctx.tx.at(sfAccount);
+    auto account = ctx.tx.getAccountID(sfAccount);
     if (owner != account)
         return temINVALID_ACCOUNT_ID;
 
@@ -162,7 +162,7 @@ PermissionedDomainSet::doApply()
     if (auto domain = ctx_.tx.at(~sfDomainID))
     {
         // Modify existing permissioned domain.
-        auto sleUpdate = ctx_.view().peek(
+        auto sleUpdate = view().peek(
             {ltPERMISSIONED_DOMAIN, *domain});
         updateSle(sleUpdate);
         view().update(sleUpdate);
@@ -184,8 +184,9 @@ PermissionedDomainSet::doApply()
             describeOwnerDir(account_));
         if (!page)
             return tecDIR_FULL;
+        slePd->setFieldU64(sfOwnerNode, *page);
         // If we succeeded, the new entry counts against the creator's reserve.
-        adjustOwnerCount(view(), slePd, 1, ctx_.journal);
+        adjustOwnerCount(view(), ownerSle, 1, ctx_.journal);
     }
 
     return tesSUCCESS;
