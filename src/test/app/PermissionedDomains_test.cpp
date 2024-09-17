@@ -25,6 +25,7 @@
 
 namespace ripple {
 namespace test {
+namespace jtx {
 
 class PermissionedDomains_test : public beast::unit_test::suite
 {
@@ -62,16 +63,17 @@ public:
     run() override
     {
         testcase("Amendment is there.");
-        jtx::Env env{
+        Env env{
             *this,
-            jtx::supported_amendments() | featurePermissionedDomains
+            supported_amendments() | featurePermissionedDomains
         };
-        BEAST_EXPECT(env.current()->rules().enabled(featurePermissionedDomains));
+        BEAST_EXPECT(
+            env.current()->rules().enabled(featurePermissionedDomains));
     }
 };
 
 BEAST_DEFINE_TESTSUITE_PRIO(PermissionedDomains, app, ripple, 2);
 
-
+} // jtx
 } // test
 } // ripple

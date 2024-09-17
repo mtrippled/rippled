@@ -145,7 +145,10 @@ PermissionedDomainSet::doApply()
                     return left.? < right.?;
                 });
                  */
-                sle->setFieldArray(sfAcceptedCredentials, credentials);
+                if (credentials.empty())
+                    sle->delField(sfAcceptedCredentials);
+                else
+                    sle->setFieldArray(sfAcceptedCredentials, credentials);
             }
             if (ctx_.tx.isFieldPresent(sfAcceptedTokens))
             {
@@ -155,7 +158,10 @@ PermissionedDomainSet::doApply()
                     // TODO incorporate MPTissue when the time comes.
                     return left.at(sfAsset).account < right.at(sfAsset).account;
                 });
-                sle->setFieldArray(sfAcceptedTokens, tokens);
+                if (tokens.empty())
+                    sle->delField(sfAcceptedTokens);
+                else
+                    sle->setFieldArray(sfAcceptedTokens, tokens);
             }
     };
 
