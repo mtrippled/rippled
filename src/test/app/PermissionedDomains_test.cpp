@@ -23,9 +23,10 @@
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Issue.h>
 #include <xrpl/protocol/jss.h>
-#include <array>
 #include <iostream>
 #include <optional>
+#include <string>
+#include <utility>
 #include <vector>
 
 namespace ripple {
@@ -65,6 +66,16 @@ class PermissionedDomains_test : public beast::unit_test::suite
         return jv;
     }
 
+    static Json::Value
+    deleteTx(AccountID const& account, std::string const& domain)
+    {
+        Json::Value jv{Json::objectValue};
+        jv[sfTransactionType.jsonName] = jss::PermissionedDomainDelete;
+        jv[sfAccount.jsonName] = to_string(account);
+        jv[sfDomainID.jsonName] = domain;
+        return jv;
+    }
+
 public:
     void
     testEnabled()
@@ -74,9 +85,35 @@ public:
         Env env{*this, withFeature_};
         env.fund(XRP(1000), alice);
         std::cerr << "test set starting\n";
-        env(setTx(alice, tfSetOnlyXRP), ter(tesSUCCESS));
+        auto const setFee {drops(env.current()->fees().increment)};
+        env(setTx(alice, tfSetOnlyXRP), fee(setFee), ter(tesSUCCESS));
         std::cerr << "test set finished\n";
         env.close();
+
+        Json::Value params;
+        params[jss::account] = alice.human();
+        auto const resp = env.rpc("json", "account_objects", to_string(params));
+        BEAST_EXPECT(resp["result"]["account_objects"].size() == 1);
+        std::cerr << "account_objects:\n" << resp << '\n';
+        Json::Value a{Json::arrayValue};
+        a = resp[jss::result][jss::account_objects][0u][jss::index].asString();
+        std::cerr << "array: " << a << '\n';
+        std::cerr << "keylet.key: " << keylet::permissionedDomain(alice, 4).key << '\n';
+
+        uint256 index;
+        std::ignore = index.parseHex(a.asString());
+        std::cerr << "uint256 index:" << index << '\n';
+        env(deleteTx(alice, a.asString()), ter(tesSUCCESS));
+        env.close();
+        auto const resp2 = env.rpc("json", "account_objects", to_string(params));
+        std::cerr << "account_objects:\n" << resp2 << '\n';
+        BEAST_EXPECT(resp2["result"]["account_objects"].size() == 0);
+
+//        BEAST_EXPECT(str)
+
+//        BEAST_EXPECT(
+//            resp[jss::result][jss::error_message] == "Account malformed.");
+
 
         /*
          *                 auto jrr = env.rpc(

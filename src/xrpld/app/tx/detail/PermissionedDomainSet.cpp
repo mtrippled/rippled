@@ -97,14 +97,12 @@ PermissionedDomainSet::preflight(PreflightContext const& ctx)
     return preflight2(ctx);
 }
 
-/*
 XRPAmount
 PermissionedDomainSet::calculateBaseFee(ReadView const& view, STTx const& tx)
 {
     // The fee required for PermissionedDomainSet is one owner reserve.
     return view.fees().increment;
 }
- */
 
 TER
 PermissionedDomainSet::preclaim(PreclaimContext const& ctx)
@@ -206,6 +204,7 @@ PermissionedDomainSet::doApply()
         std::cerr << "new sle has credentials,tokens:"
             << slePd->isFieldPresent(sfAcceptedCredentials) << ','
             << slePd->isFieldPresent(sfAcceptedTokens) << '\n';
+        slePd->setAccountID(sfOwner, account_);
         std::cerr << "PermissionedDomainSet::doApply12\n";
         slePd->setFieldU32(sfSequence, ctx_.tx.getFieldU32(sfSequence));
         std::cerr << "PermissionedDomainSet::doApply13\n";
