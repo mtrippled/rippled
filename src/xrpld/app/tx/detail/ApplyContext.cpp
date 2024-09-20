@@ -113,22 +113,27 @@ ApplyContext::checkInvariantsHelper(
         // short-circuits). While the logic is still correct, the log
         // message won't be. Every failed invariant should write to the log,
         // not just the first one.
+        std::cerr << "beforefinalize\n";
         std::array<bool, sizeof...(Is)> finalizers{
             {std::get<Is>(checkers).finalize(
                 tx, result, fee, *view_, journal)...}};
+        std::cerr << "afterfinalize\n";
 
         // call each check's finalizer to see that it passes
         if (!std::all_of(
                 finalizers.cbegin(), finalizers.cend(), [](auto const& b) {
+                    std::cerr << "invariant result " << b << '\n';
                     return b;
                 }))
         {
+            std::cerr << "afteranotherfinalize\n";
             JLOG(journal.fatal())
                 << "Transaction has failed one or more invariants: "
                 << to_string(tx.getJson(JsonOptions::none));
 
             return failInvariantCheck(result);
         }
+        std::cerr << "afterallfinalize " << result << '\n';
     }
     catch (std::exception const& ex)
     {

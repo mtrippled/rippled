@@ -381,7 +381,7 @@ preflight(
     }
     catch (std::exception const& e)
     {
-        JLOG(j.fatal()) << "apply: " << e.what();
+        JLOG(j.fatal()) << "apply1: " << e.what();
         return {pfctx, {tefEXCEPTION, TxConsequences{tx}}};
     }
 }
@@ -427,7 +427,7 @@ preclaim(
     }
     catch (std::exception const& e)
     {
-        JLOG(ctx->j.fatal()) << "apply: " << e.what();
+        JLOG(ctx->j.fatal()) << "apply2: " << e.what();
         return {*ctx, tefEXCEPTION};
     }
 }
@@ -469,7 +469,7 @@ doApply(PreclaimResult const& preclaimResult, Application& app, OpenView& view)
     }
     catch (std::exception const& e)
     {
-        JLOG(preclaimResult.j.fatal()) << "apply: " << e.what();
+        JLOG(preclaimResult.j.fatal()) << "apply3: " << e.what();
         return {tefEXCEPTION, false};
     }
 }

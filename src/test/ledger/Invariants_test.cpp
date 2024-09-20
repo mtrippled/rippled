@@ -109,7 +109,9 @@ class Invariants_test : public beast::unit_test::suite
         TER terActual = tesSUCCESS;
         for (TER const& terExpect : ters)
         {
+            std::cerr << "check3 starting\n";
             terActual = ac.checkInvariants(terActual, fee);
+            std::cerr << "check3 finished\n";
             BEAST_EXPECT(terExpect == terActual);
             BEAST_EXPECT(
                 sink.messages().str().starts_with("Invariant failed:") ||

@@ -40,7 +40,10 @@ PermissionedDomainSet::preflight(PreflightContext const& ctx)
         auto const credentials =
             ctx.tx.getFieldArray(sfAcceptedCredentials);
         if (credentials.size() == 0 || credentials.size() > PD_ARRAY_MAX)
+        {
+            std::cerr << "malformed1\n";
             return temMALFORMED;
+        }
         /*
         // TODO iterate and make sure each Issuer exists once credentials
         // interface is available.
@@ -54,7 +57,10 @@ PermissionedDomainSet::preflight(PreflightContext const& ctx)
     {
         auto const tokens = ctx.tx.getFieldArray(sfAcceptedTokens);
         if (tokens.size() == 0 || tokens.size() > PD_ARRAY_MAX)
+        {
+            std::cerr << "malformed2\n";
             return temMALFORMED;
+        }
 
         for (auto const& token : tokens)
         {
@@ -62,7 +68,10 @@ PermissionedDomainSet::preflight(PreflightContext const& ctx)
             if (asset)
             {
                 if (isXRP(asset->currency))
+                {
+                    std::cerr << "malformed3\n";
                     return temMALFORMED;
+                }
                 continue;
             }
             /* TODO check if MPTIssue type is XRP when the time comes.
@@ -88,12 +97,14 @@ PermissionedDomainSet::preflight(PreflightContext const& ctx)
     return preflight2(ctx);
 }
 
+/*
 XRPAmount
 PermissionedDomainSet::calculateBaseFee(ReadView const& view, STTx const& tx)
 {
     // The fee required for PermissionedDomainSet is one owner reserve.
     return view.fees().increment;
 }
+ */
 
 TER
 PermissionedDomainSet::preclaim(PreclaimContext const& ctx)
@@ -125,17 +136,22 @@ PermissionedDomainSet::preclaim(PreclaimContext const& ctx)
 TER
 PermissionedDomainSet::doApply()
 {
+    std::cerr << "PermissionedDomainSet::doApply1\n";
     auto const ownerSle = view().peek(keylet::account(account_));
     if (!ownerSle)
         return tefINTERNAL;
+    std::cerr << "PermissionedDomainSet::doApply3\n";
 
+    // All checks have already been done.
     auto updateSle =
         [this](std::shared_ptr<STLedgerEntry> const& sle) {
             auto const flags = ctx_.tx.getFlags();
             if (flags)
             {
-                sle->setFlag(flags & tfSetOnlyXRP);
-                sle->setFlag(flags & tfClearOnlyXRP);
+                if (flags & tfSetOnlyXRP)
+                    sle->setFlag(lsfOnlyXRP);
+                else if (flags & tfClearOnlyXRP)
+                    sle->clearFlag(lsfOnlyXRP);
             }
             if (ctx_.tx.isFieldPresent(sfAcceptedCredentials))
             {
@@ -148,7 +164,10 @@ PermissionedDomainSet::doApply()
                 if (credentials.empty())
                     sle->delField(sfAcceptedCredentials);
                 else
+                {
+                    std::cerr << "set credentials1\n";
                     sle->setFieldArray(sfAcceptedCredentials, credentials);
+                }
             }
             if (ctx_.tx.isFieldPresent(sfAcceptedTokens))
             {
@@ -161,7 +180,10 @@ PermissionedDomainSet::doApply()
                 if (tokens.empty())
                     sle->delField(sfAcceptedTokens);
                 else
+                {
+                    std::cerr << "set tokens1\n";
                     sle->setFieldArray(sfAcceptedTokens, tokens);
+                }
             }
     };
 
@@ -175,26 +197,40 @@ PermissionedDomainSet::doApply()
     }
     else
     {
+        std::cerr << "PermissionedDomainSet::doApply10\n";
         // Create new permissioned domain.
         Keylet const pdKeylet = keylet::permissionedDomain(account_,
             ctx_.tx.getFieldU32(sfSequence));
+        std::cerr << "PermissionedDomainSet::doApply11\n";
         auto slePd = std::make_shared<SLE>(pdKeylet);
-        slePd->setFieldU16(sfSequence, ctx_.tx.getFieldU16(sfSequence));
-        slePd->setFieldArray(sfAcceptedCredentials, STArray());
-        auto tokens = ctx_.tx.getFieldArray(sfAcceptedTokens);
+        std::cerr << "new sle has credentials,tokens:"
+            << slePd->isFieldPresent(sfAcceptedCredentials) << ','
+            << slePd->isFieldPresent(sfAcceptedTokens) << '\n';
+        std::cerr << "PermissionedDomainSet::doApply12\n";
+        slePd->setFieldU32(sfSequence, ctx_.tx.getFieldU32(sfSequence));
+        std::cerr << "PermissionedDomainSet::doApply13\n";
         updateSle(slePd);
+        std::cerr << "after update sle has credentials,tokens:"
+                  << slePd->isFieldPresent(sfAcceptedCredentials) << ','
+                  << slePd->isFieldPresent(sfAcceptedTokens) << '\n';
+        std::cerr << "PermissionedDomainSet::doApply20\n";
         view().insert(slePd);
+        std::cerr << "PermissionedDomainSet::doApply21\n";
         auto const page = view().dirInsert(
             keylet::ownerDir(account_),
             pdKeylet,
             describeOwnerDir(account_));
+        std::cerr << "PermissionedDomainSet::doApply22\n";
         if (!page)
             return tecDIR_FULL;
+        std::cerr << "PermissionedDomainSet::doApply23\n";
         slePd->setFieldU64(sfOwnerNode, *page);
+        std::cerr << "PermissionedDomainSet::doApply24\n";
         // If we succeeded, the new entry counts against the creator's reserve.
         adjustOwnerCount(view(), ownerSle, 1, ctx_.journal);
     }
 
+    std::cerr << "PermissionedDomainSet::doApply1000\n";
     return tesSUCCESS;
 }
 
@@ -202,22 +238,40 @@ NotTEC
 PermissionedDomainSet::checkRules(STTx const& tx,
     std::shared_ptr<STLedgerEntry const> const& sle)
 {
-    bool const sleOnlyXRP = sle->getFlags() & lsfOnlyXRP;
-    auto const txFlags = tx.getFlags();
-    if ((txFlags & tfSetOnlyXRP) && (txFlags & tfClearOnlyXRP))
-        return temMALFORMED;
-    bool onlyXRP = false;
-    if (sleOnlyXRP)
+    /*
+     * wrong flags already checked
+     * onlyXRP:
+     * true: sle has flag, no tx flag to unset
+     * true: sle has no flag, tx flag to set
+     */
+    bool const txFlagSet = tx.getFlags() & tfSetOnlyXRP;
+    bool const txFlagClear = tx.getFlags() & tfClearOnlyXRP;
+    if (txFlagSet && txFlagClear)
     {
-        if (txFlags & tfSetOnlyXRP)
+        std::cerr << "malformed4\n";
+        return temMALFORMED;
+    }
+    bool onlyXRP = false;
+    if (sle->getFlags() & lsfOnlyXRP)
+    {
+        if (txFlagSet)
+        {
+            std::cerr << "malformed5\n";
             return temMALFORMED;
+        }
         onlyXRP = true;
     }
     else
     {
-        if (txFlags & tfClearOnlyXRP)
+        if (txFlagClear)
+        {
+            std::cerr << "malformed6\n";
             return temMALFORMED;
-        // onlyXRP is still false
+        }
+        else if (txFlagSet)
+        {
+            onlyXRP = true;
+        }
     }
 
     bool someCredentials = false;
@@ -237,12 +291,18 @@ PermissionedDomainSet::checkRules(STTx const& tx,
     if (onlyXRP)
     {
         if (someTokens)
+        {
+            std::cerr << "malformed7\n";
             return temMALFORMED;
+        }
     }
     else
     {
         if (!someCredentials && !someTokens)
+        {
+            std::cerr << "malformed8\n";
             return temMALFORMED;
+        }
     }
 
     return tesSUCCESS;

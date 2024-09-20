@@ -370,8 +370,8 @@ LedgerFormats::LedgerFormats()
         {
             {sfOwner,               soeREQUIRED},
             {sfSequence,            soeREQUIRED},
-            {sfAcceptedCredentials, soeREQUIRED},
-            {sfAcceptedTokens,      soeREQUIRED},
+            {sfAcceptedCredentials, soeOPTIONAL},
+            {sfAcceptedTokens,      soeOPTIONAL},
             {sfOwnerNode,           soeREQUIRED},
             {sfPreviousTxnID,       soeREQUIRED},
             {sfPreviousTxnLgrSeq,   soeREQUIRED}

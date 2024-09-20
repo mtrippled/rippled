@@ -478,6 +478,7 @@ LedgerEntryTypesMatch::visitEntry(
             case ltXCHAIN_OWNED_CREATE_ACCOUNT_CLAIM_ID:
             case ltDID:
             case ltORACLE:
+            case ltPERMISSIONED_DOMAIN:
                 break;
             default:
                 invalidTypeAdded_ = true;
@@ -956,29 +957,44 @@ ValidPermissionedDomain::finalize(
     ReadView const& view,
     beast::Journal const& j)
 {
-    if (tx.getTxnType() != ttPERMISSIONED_DOMAIN_SET)
+    if (tx.getTxnType() != ttPERMISSIONED_DOMAIN_SET || result != tesSUCCESS)
         return true;
+
+    std::cerr << "invariant onlyxrp,credentialsize,tokensize: "
+        << onlyXRP_ << ',' << credentialsSize_.has_value() << ','
+        << tokensSize_.has_value() << '\n';
 
     if (onlyXRP_)
     {
         if (tokensSize_)
+        {
+            std::cerr << "false1\n";
             return false;
+        }
     }
     else
     {
         if (!credentialsSize_ && !tokensSize_)
+        {
+            std::cerr << "false2\n";
             return false;
+        }
     }
 
     constexpr std::size_t PD_ARRAY_MAX = 10;
     if (credentialsSize_ &&
         (*credentialsSize_ == 0 || *credentialsSize_ > PD_ARRAY_MAX))
     {
+        std::cerr << "false3\n";
         return false;
     }
     if (tokensSize_ && (*tokensSize_ == 0 || *tokensSize_ > PD_ARRAY_MAX))
+    {
+        std::cerr << "false4\n";
         return false;
+    }
 
+    std::cerr << "true1\n";
     return true;
 }
 
