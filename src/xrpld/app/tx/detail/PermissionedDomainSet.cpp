@@ -112,6 +112,13 @@ PermissionedDomainSet::preclaim(PreclaimContext const& ctx)
         return tesSUCCESS;
 
     // Check existing object.
+    std::cerr << "checkzero1\n";
+    if (*domain == beast::zero)
+    {
+        std::cerr << "checkzero2\n";
+        return temMALFORMED;
+    }
+    std::cerr << "checkzero3\n";
     auto const sleDomain = ctx.view.read(
         {ltPERMISSIONED_DOMAIN, *domain});
     if (sleDomain->empty())

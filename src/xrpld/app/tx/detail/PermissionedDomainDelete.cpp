@@ -37,14 +37,27 @@ PermissionedDomainDelete::preflight(PreflightContext const& ctx)
 TER
 PermissionedDomainDelete::preclaim(PreclaimContext const& ctx)
 {
+    std::cerr << "preclaim1\n";
     auto const domain = ctx.tx.getFieldH256(sfDomainID);
+    std::cerr << "preclaim2\n";
     // Check existing object.
+    if (domain == beast::zero)
+        return temMALFORMED;
     auto const sleDomain = ctx.view.read(
         {ltPERMISSIONED_DOMAIN, domain});
-    if (sleDomain->empty())
+    std::cerr << "preclaim3\n";
+    if (!sleDomain)
+    {
+        std::cerr << "preclaim4\n";
         return tecNO_ENTRY;
+    }
+    std::cerr << "preclaim5\n";
     if (sleDomain->getAccountID(sfOwner) != ctx.tx.getAccountID(sfAccount))
+    {
+        std::cerr << "preclaim6\n";
         return temINVALID_ACCOUNT_ID;
+    }
+    std::cerr << "preclaim7\n";
     return tesSUCCESS;
 }
 

@@ -103,7 +103,8 @@ public:
         uint256 index;
         std::ignore = index.parseHex(a.asString());
         std::cerr << "uint256 index:" << index << '\n';
-        env(deleteTx(alice, a.asString()), ter(tesSUCCESS));
+        uint256 d{};
+        env(deleteTx(alice, to_string(index)), ter(tesSUCCESS));
         env.close();
         auto const resp2 = env.rpc("json", "account_objects", to_string(params));
         std::cerr << "account_objects:\n" << resp2 << '\n';
@@ -120,7 +121,22 @@ public:
                     "json", "account_objects", to_string(params))[jss::result];
 
          */
-        BEAST_EXPECT(true);
+    }
+
+    void
+    testDisabled()
+    {
+        testcase("Disabled");
+        Account const alice{"alice"};
+        Env env{*this, withoutFeature_};
+        env.fund(XRP(1000), alice);
+        std::cerr << "test set starting\n";
+        auto const setFee {drops(env.current()->fees().increment)};
+        env(setTx(alice, tfSetOnlyXRP), fee(setFee), ter(temDISABLED));
+        std::cerr << "test set finished\n";
+        env.close();
+        env(deleteTx(alice, to_string(uint256(75))), ter(temDISABLED));
+        env.close();
     }
 
 
@@ -166,6 +182,7 @@ public:
             */
 
         testEnabled();
+        testDisabled();
     }
 };
 
