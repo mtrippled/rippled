@@ -76,7 +76,6 @@ class PermissionedDomains_test : public beast::unit_test::suite
         return jv;
     }
 
-public:
     void
     testEnabled()
     {
@@ -84,43 +83,24 @@ public:
         Account const alice{"alice"};
         Env env{*this, withFeature_};
         env.fund(XRP(1000), alice);
-        std::cerr << "test set starting\n";
         auto const setFee {drops(env.current()->fees().increment)};
         env(setTx(alice, tfSetOnlyXRP), fee(setFee), ter(tesSUCCESS));
-        std::cerr << "test set finished\n";
         env.close();
 
         Json::Value params;
         params[jss::account] = alice.human();
         auto const resp = env.rpc("json", "account_objects", to_string(params));
         BEAST_EXPECT(resp["result"]["account_objects"].size() == 1);
-        std::cerr << "account_objects:\n" << resp << '\n';
         Json::Value a{Json::arrayValue};
         a = resp[jss::result][jss::account_objects][0u][jss::index].asString();
-        std::cerr << "array: " << a << '\n';
-        std::cerr << "keylet.key: " << keylet::permissionedDomain(alice, 4).key << '\n';
 
         uint256 index;
         std::ignore = index.parseHex(a.asString());
-        std::cerr << "uint256 index:" << index << '\n';
         uint256 d{};
         env(deleteTx(alice, to_string(index)), ter(tesSUCCESS));
         env.close();
-        auto const resp2 = env.rpc("json", "account_objects", to_string(params));
-        std::cerr << "account_objects:\n" << resp2 << '\n';
-        BEAST_EXPECT(resp2["result"]["account_objects"].size() == 0);
-
-//        BEAST_EXPECT(str)
-
-//        BEAST_EXPECT(
-//            resp[jss::result][jss::error_message] == "Account malformed.");
-
-
-        /*
-         *                 auto jrr = env.rpc(
-                    "json", "account_objects", to_string(params))[jss::result];
-
-         */
+        BEAST_EXPECT(env.rpc("json", "account_objects",
+            to_string(params))["result"]["account_objects"].size() == 0);
     }
 
     void
@@ -130,59 +110,64 @@ public:
         Account const alice{"alice"};
         Env env{*this, withoutFeature_};
         env.fund(XRP(1000), alice);
-        std::cerr << "test set starting\n";
         auto const setFee {drops(env.current()->fees().increment)};
         env(setTx(alice, tfSetOnlyXRP), fee(setFee), ter(temDISABLED));
-        std::cerr << "test set finished\n";
-        env.close();
         env(deleteTx(alice, to_string(uint256(75))), ter(temDISABLED));
         env.close();
     }
 
+    void
+    testSet()
+    {
 
-    /*
-     *         using namespace test::jtx;
-        static FeatureBitset const all{supported_amendments()};
-        static FeatureBitset const fixNFTDir{fixNFTokenDirV1};
+    }
 
-        static std::array<FeatureBitset, 7> const feats{
-            all - fixNFTDir - fixNonFungibleTokensV1_2 - fixNFTokenRemint -
-                fixNFTokenReserve - featureNFTokenMintOffer,
-            all - disallowIncoming - fixNonFungibleTokensV1_2 -
-                fixNFTokenRemint - fixNFTokenReserve - featureNFTokenMintOffer,
-            all - fixNonFungibleTokensV1_2 - fixNFTokenRemint -
-                fixNFTokenReserve - featureNFTokenMintOffer,
-            all - fixNFTokenRemint - fixNFTokenReserve -
-                featureNFTokenMintOffer,
-            all - fixNFTokenReserve - featureNFTokenMintOffer,
-            all - featureNFTokenMintOffer,
-            all};
+    void
+    testDelete()
+    {
+        testcase("Delete");
+        Env env{*this, withFeature_};
 
-        if (BEAST_EXPECT(instance < feats.size()))
-        {
-            testWithFeats(feats[instance]);
-        }
-        BEAST_EXPECT(!last || instance == feats.size() - 1);
+        Account const alice{"alice"};
+        env.fund(XRP(1000), alice);
+        auto const setFee {drops(env.current()->fees().increment)};
+        env(setTx(alice, tfSetOnlyXRP), fee(setFee), ter(tesSUCCESS));
+        Json::Value params;
+        params[jss::account] = alice.human();
+        std::string const aliceIndex = env.rpc("json", "account_objects",
+            to_string(params))[jss::result][jss::account_objects][0u][jss::index].asString();
 
-     * Env env{*this, features};
+        Account const bob{"bob"};
+        env.fund(XRP(1000), bob);
+        env.close();
 
-     * if (env.current()->rules().enabled(fixNFTokenRemint))
-     */
+        // Delete a domain that doesn't belong to the account.
+        uint256 index;
+        std::ignore = index.parseHex(aliceIndex);
+        env(deleteTx(bob, to_string(index)), ter(temINVALID_ACCOUNT_ID));
+        // Delete a non-existent domain.
+        env(deleteTx(alice, to_string(uint256(75))), ter(tecNO_ENTRY));
+        // Delete uint256 zero domain.
+        env(deleteTx(alice, to_string(uint256())), ter(temMALFORMED));
+        // Delete domain that belongs to user.
+        env(deleteTx(alice, to_string(index)), ter(tesSUCCESS));
+    }
+
+    void
+    testInvariants()
+    {
+
+    }
+
+public:
     void
     run() override
     {
-        /*
-        testcase("Amendment is there.");
-        Env env{
-            *this,
-            supported_amendments() | featurePermissionedDomains
-        };
-        BEAST_EXPECT(
-            env.current()->rules().enabled(featurePermissionedDomains));
-            */
-
         testEnabled();
         testDisabled();
+        testSet();
+        testDelete();
+        testInvariants();
     }
 };
 
