@@ -86,6 +86,8 @@ XRPNotCreated::visitEntry(
     std::shared_ptr<SLE const> const& before,
     std::shared_ptr<SLE const> const& after)
 {
+    std::stringstream ss;
+    ss << "XRPNotCreated::visitEntry start drops: " << drops_ << ". ";
     /* We go through all modified ledger entries, looking only at account roots,
      * escrow payments, and payment channels. We remove from the total any
      * previous XRP values and add to the total any new XRP values. The net
@@ -95,17 +97,21 @@ XRPNotCreated::visitEntry(
      */
     if (before)
     {
+        ss << "before type: " << before->getType() << ". ";
         switch (before->getType())
         {
             case ltACCOUNT_ROOT:
                 drops_ -= (*before)[sfBalance].xrp().drops();
+                std::cerr << "XRPNotCreated::visitEntry drops1 " << drops_ << '\n';
                 break;
             case ltPAYCHAN:
                 drops_ -=
                     ((*before)[sfAmount] - (*before)[sfBalance]).xrp().drops();
+                std::cerr << "XRPNotCreated::visitEntry drops2 " << drops_ << '\n';
                 break;
             case ltESCROW:
                 drops_ -= (*before)[sfAmount].xrp().drops();
+                std::cerr << "XRPNotCreated::visitEntry drops3 " << drops_ << '\n';
                 break;
             default:
                 break;
@@ -114,25 +120,30 @@ XRPNotCreated::visitEntry(
 
     if (after)
     {
+        ss << "after type: " << after->getType() << ". ";
         switch (after->getType())
         {
             case ltACCOUNT_ROOT:
                 drops_ += (*after)[sfBalance].xrp().drops();
+                std::cerr << "XRPNotCreated::visitEntry drops4 " << drops_ << '\n';
                 break;
             case ltPAYCHAN:
                 if (!isDelete)
                     drops_ += ((*after)[sfAmount] - (*after)[sfBalance])
                                   .xrp()
                                   .drops();
+                std::cerr << "XRPNotCreated::visitEntry drops5 " << drops_ << '\n';
                 break;
             case ltESCROW:
                 if (!isDelete)
                     drops_ += (*after)[sfAmount].xrp().drops();
+                std::cerr << "XRPNotCreated::visitEntry drops6 " << drops_ << '\n';
                 break;
             default:
                 break;
         }
     }
+    std::cerr << ss.str() << '\n';
 }
 
 bool
@@ -147,6 +158,7 @@ XRPNotCreated::finalize(
     // transaction created XRP out of thin air. That's not possible.
     if (drops_ > 0)
     {
+        std::cerr << "XRPNotCreated::finalize false1\n";
         JLOG(j.fatal()) << "Invariant failed: XRP net change was positive: "
                         << drops_;
         return false;
@@ -155,11 +167,13 @@ XRPNotCreated::finalize(
     // The negative of the net change should be equal to actual fee charged.
     if (-drops_ != fee.drops())
     {
+        std::cerr << "XRPNotCreated::finalize false2\n";
         JLOG(j.fatal()) << "Invariant failed: XRP net change of " << drops_
                         << " doesn't match fee " << fee.drops();
         return false;
     }
 
+    std::cerr << "XRPNotCreated::finalize true1\n";
     return true;
 }
 
@@ -721,30 +735,35 @@ ValidNFTokenPage::finalize(
 {
     if (badLink_)
     {
+        std::cerr << "ValidNFTTokenPage false1\n";
         JLOG(j.fatal()) << "Invariant failed: NFT page is improperly linked.";
         return false;
     }
 
     if (badEntry_)
     {
+        std::cerr << "ValidNFTTokenPage false2\n";
         JLOG(j.fatal()) << "Invariant failed: NFT found in incorrect page.";
         return false;
     }
 
     if (badSort_)
     {
+        std::cerr << "ValidNFTTokenPage false3\n";
         JLOG(j.fatal()) << "Invariant failed: NFTs on page are not sorted.";
         return false;
     }
 
     if (badURI_)
     {
+        std::cerr << "ValidNFTTokenPage false4\n";
         JLOG(j.fatal()) << "Invariant failed: NFT contains empty URI.";
         return false;
     }
 
     if (invalidSize_)
     {
+        std::cerr << "ValidNFTTokenPage false5\n";
         JLOG(j.fatal()) << "Invariant failed: NFT page has invalid size.";
         return false;
     }
@@ -753,12 +772,14 @@ ValidNFTokenPage::finalize(
     {
         if (deletedFinalPage_)
         {
+            std::cerr << "ValidNFTTokenPage false6\n";
             JLOG(j.fatal()) << "Invariant failed: Last NFT page deleted with "
                                "non-empty directory.";
             return false;
         }
         if (deletedLink_)
         {
+            std::cerr << "ValidNFTTokenPage false7\n";
             JLOG(j.fatal()) << "Invariant failed: Lost NextMinPage link.";
             return false;
         }
@@ -939,14 +960,24 @@ ValidPermissionedDomain::visitEntry(
     std::shared_ptr<SLE const> const& before,
     std::shared_ptr<SLE const> const& after)
 {
+    std::stringstream ss;
+    ss << "ValidPermissionedDomain::visitEntry ";
+    if (before)
+        ss << "before type " << before->getType() << ' ';
+    if (after)
+        ss << "after type " << after->getType() << ' ';
     if (after->getType() != ltPERMISSIONED_DOMAIN)
+    {
+        std::cerr << ss.str() << '\n';
         return;
+    }
 
     if (after->isFieldPresent(sfAcceptedCredentials))
         credentialsSize_ = after->getFieldArray(sfAcceptedCredentials).size();
     if (after->isFieldPresent(sfAcceptedTokens))
         tokensSize_ = after->getFieldArray(sfAcceptedTokens).size();
     onlyXRP_ = after->getFlags() & lsfOnlyXRP;
+    std::cerr << ss.str() << '\n';
 }
 
 bool
@@ -957,6 +988,7 @@ ValidPermissionedDomain::finalize(
     ReadView const& view,
     beast::Journal const& j)
 {
+    std::cerr << "ValidPermissionedDomain::finalize1\n";
     if (tx.getTxnType() != ttPERMISSIONED_DOMAIN_SET || result != tesSUCCESS)
         return true;
 
@@ -969,6 +1001,8 @@ ValidPermissionedDomain::finalize(
         if (tokensSize_)
         {
             std::cerr << "false1\n";
+            JLOG(j.fatal()) << "Invariant failed: permissioned domain with "
+                               "both XRP only flag and tokens.";
             return false;
         }
     }
@@ -977,6 +1011,8 @@ ValidPermissionedDomain::finalize(
         if (!credentialsSize_ && !tokensSize_)
         {
             std::cerr << "false2\n";
+            JLOG(j.fatal()) << "Invariant failed: permissioned domain with "
+                               "no rules.";
             return false;
         }
     }
@@ -986,11 +1022,15 @@ ValidPermissionedDomain::finalize(
         (*credentialsSize_ == 0 || *credentialsSize_ > PD_ARRAY_MAX))
     {
         std::cerr << "false3\n";
+        JLOG(j.fatal()) << "Invariant failed: permissioned domain bad "
+                           "credentials size " << *credentialsSize_;
         return false;
     }
     if (tokensSize_ && (*tokensSize_ == 0 || *tokensSize_ > PD_ARRAY_MAX))
     {
         std::cerr << "false4\n";
+        JLOG(j.fatal()) << "Invariant failed: permissioned domain bad "
+                           "tokens size " << *tokensSize_;
         return false;
     }
 

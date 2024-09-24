@@ -166,7 +166,7 @@ PermissionedDomainSet::doApply()
                     return left.? < right.?;
                 });
                  */
-                if (credentials.empty())
+                if (credentials.empty() && sle->isFieldPresent(sfAcceptedCredentials))
                     sle->delField(sfAcceptedCredentials);
                 else
                 {
@@ -182,7 +182,7 @@ PermissionedDomainSet::doApply()
                     // TODO incorporate MPTissue when the time comes.
                     return left.at(sfAsset).account < right.at(sfAsset).account;
                 });
-                if (tokens.empty())
+                if (tokens.empty() && sle->isFieldPresent(sfAcceptedTokens))
                     sle->delField(sfAcceptedTokens);
                 else
                 {

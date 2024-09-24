@@ -1057,7 +1057,7 @@ STObject::setFieldH160(SField const& field, base_uint<160, Tag> const& v)
     if (auto cf = dynamic_cast<Bits*>(rf))
         cf->setValue(v);
     else
-        Throw<std::runtime_error>("Wrong field type");
+        Throw<std::runtime_error>("Wrong field type2");
 }
 
 inline bool
@@ -1083,7 +1083,7 @@ STObject::getFieldByValue(SField const& field) const
     const T* cf = dynamic_cast<const T*>(rf);
 
     if (!cf)
-        Throw<std::runtime_error>("Wrong field type");
+        Throw<std::runtime_error>("Wrong field type3");
 
     return cf->value();
 }
@@ -1108,9 +1108,17 @@ STObject::getFieldByConstRef(SField const& field, V const& empty) const
         return empty;  // optional field not present
 
     const T* cf = dynamic_cast<const T*>(rf);
+    std::stringstream ss;
+    ss << " field type name,id " << field.getName() << ',' << id;
+    std::cerr << ss.str() << '\n';
 
     if (!cf)
-        Throw<std::runtime_error>("Wrong field type");
+    {
+        std::stringstream ss2;
+        ss2 << "Wrong field type4 name,id " << field.getName() << ',' << id;
+        Throw<std::runtime_error>(ss2.str());
+//        Throw<std::runtime_error>("Wrong field type4");
+    }
 
     return *cf;
 }
@@ -1133,7 +1141,7 @@ STObject::setFieldUsingSetValue(SField const& field, V value)
     T* cf = dynamic_cast<T*>(rf);
 
     if (!cf)
-        Throw<std::runtime_error>("Wrong field type");
+        Throw<std::runtime_error>("Wrong field type5");
 
     cf->setValue(std::move(value));
 }
@@ -1154,7 +1162,7 @@ STObject::setFieldUsingAssignment(SField const& field, T const& value)
     T* cf = dynamic_cast<T*>(rf);
 
     if (!cf)
-        Throw<std::runtime_error>("Wrong field type");
+        Throw<std::runtime_error>("Wrong field type6");
 
     (*cf) = value;
 }
@@ -1175,7 +1183,7 @@ STObject::peekField(SField const& field)
     T* cf = dynamic_cast<T*>(rf);
 
     if (!cf)
-        Throw<std::runtime_error>("Wrong field type");
+        Throw<std::runtime_error>("Wrong field type7");
 
     return *cf;
 }

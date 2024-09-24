@@ -124,7 +124,7 @@ get(STObject const& st, TypedField<U> const& f)
     auto const u = dynamic_cast<U const*>(b);
     // This should never happen
     if (!u)
-        Throw<std::runtime_error>("Wrong field type");
+        Throw<std::runtime_error>("Wrong field type1");
     STExchange<U, T>::get(t, *u);
     return t;
 }

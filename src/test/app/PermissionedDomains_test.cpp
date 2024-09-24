@@ -23,6 +23,8 @@
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Issue.h>
 #include <xrpl/protocol/jss.h>
+#include <xrpld/app/tx/detail/ApplyContext.h>
+#include <xrpld/ledger/ApplyViewImpl.h>
 #include <iostream>
 #include <optional>
 #include <string>
@@ -153,11 +155,31 @@ class PermissionedDomains_test : public beast::unit_test::suite
         env(deleteTx(alice, to_string(index)), ter(tesSUCCESS));
     }
 
+    /*
     void
     testInvariants()
     {
+        testcase("Invariants");
+        Env env{*this, withFeature_};
+        Account const alice{"alice"};
+        env.fund(XRP(1000), alice);
+        auto const setFee {drops(env.current()->fees().increment)};
+        env(setTx(alice, tfSetOnlyXRP), fee(setFee), ter(tesSUCCESS));
+        Json::Value params;
+        params[jss::account] = alice.human();
+        std::string const aliceIndex = env.rpc("json", "account_objects",
+            to_string(params))[jss::result][jss::account_objects][0u][jss::index].asString();
+        uint256 idx;
+        std::ignore = idx.parseHex(aliceIndex);
+
+        ApplyViewImpl av(&*env.current(), tapNONE);
+        auto sle = av.peek({ltPERMISSIONED_DOMAIN, idx});
+        sle->clearFlag(lsfOnlyXRP);
+        av.update(sle);
+        env.close();
 
     }
+     */
 
 public:
     void
@@ -167,7 +189,7 @@ public:
         testDisabled();
         testSet();
         testDelete();
-        testInvariants();
+//        testInvariants();
     }
 };
 
