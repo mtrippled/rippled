@@ -50,12 +50,17 @@ class PermissionedDomains_test : public beast::unit_test::suite
         Json::Value jv;
         jv[sfTransactionType.jsonName] = jss::PermissionedDomainSet;
         jv[sfAccount.jsonName] = to_string(account);
-        jv[sfFlags.jsonName] = flags;
+        if (flags)
+            jv[sfFlags.jsonName] = flags;
         if (credentials)
         {
             Json::Value a(Json::arrayValue);
             for (auto const& credential : *credentials)
-                a.append(strHex(Slice{credential.data(), credential.size()}));
+            {
+//                Json::Value obj(Json::objectValue);
+//                obj[jss::issuer] = ""
+//                a.append(strHex(Slice{credential.data(), credential.size()}));
+            }
             jv[sfAcceptedCredentials.jsonName] = a;
         }
         if (tokens)
@@ -121,6 +126,30 @@ class PermissionedDomains_test : public beast::unit_test::suite
     void
     testSet()
     {
+        testcase("Set");
+        {
+            // Create new
+            Account const alice{"alice"};
+            Env env{*this, withFeature_};
+            env.fund(XRP(1000), alice);
+            auto const setFee{drops(env.current()->fees().increment)};
+            env(setTx(alice, tfSetOnlyXRP), fee(setFee), ter(tesSUCCESS));
+            env.close();
+
+            Json::Value params;
+            params[jss::account] = alice.human();
+            Json::Value const objs = env.rpc("json", "account_objects",
+                to_string(params))[jss::result][jss::account_objects];
+            std::cerr << "objs:" << objs << '\n';
+            BEAST_EXPECT(objs.size() == 1);
+
+            // Update
+            uint256 domain;
+            std::ignore = domain.parseHex(objs[0u][jss::index].asString());
+            std::vector<Blob> credentials;
+            credentials.emplace_back();
+            env(setTx(alice, tfClearOnlyXRP, domain, credentials));
+        }
 
     }
 
