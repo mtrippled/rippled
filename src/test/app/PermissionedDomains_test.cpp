@@ -135,7 +135,7 @@ class PermissionedDomains_test : public beast::unit_test::suite
     {
         testcase("Set");
         {
-            // Create new
+            // Create new (with only XRP flag and no other rules)
             Account const alice{"alice"};
             Env env{*this, withFeature_};
             env.fund(XRP(1000), alice);
@@ -161,6 +161,7 @@ class PermissionedDomains_test : public beast::unit_test::suite
             credentials.emplace_back(alice, Blob());
             std::cerr << "UPDATE TEST TX\n";
             env(setTx(alice, tfClearOnlyXRP, domain, credentials));
+            env.close();
             Json::Value const obj = env.rpc("json", "account_objects",
                 to_string(params))[jss::result][jss::account_objects];
             std::cerr << "obj:" << obj << '\n';
@@ -168,6 +169,44 @@ class PermissionedDomains_test : public beast::unit_test::suite
             BEAST_EXPECT((obj[0u]["Flags"].asUInt() & lsfOnlyXRP) == 0);
             BEAST_EXPECT(obj[0u]["AcceptedCredentials"].size() == 2);
             BEAST_EXPECT(obj[0u].get("AcceptedTokens", Json::nullValue) == Json::nullValue);
+
+            // Update non-existing
+            env(setTx(alice, tfSetOnlyXRP, uint256(75)), ter(tecNO_ENTRY));
+
+            // Update doesn't belong to owner.
+            Account const bob{"bob"};
+            env.fund(XRP(1000), bob);
+            env(setTx(bob, tfSetOnlyXRP, domain), ter(temINVALID_ACCOUNT_ID));
+            env.close();
+
+            // Create new object with bad flags.
+            env(setTx(bob, tfClearOnlyXRP | tfSetOnlyXRP), fee(setFee),
+                ter(temMALFORMED));
+            env(setTx(bob, tfClearOnlyXRP), fee(setFee),
+                ter(temMALFORMED));
+
+            // Create object with no flags.
+            env(setTx(bob, 0, std::nullopt, credentials), fee(setFee));
+            env.close();
+            params[jss::account] = bob.human();
+            Json::Value objects = env.rpc("json", "account_objects",
+                to_string(params))[jss::result][jss::account_objects];
+            BEAST_EXPECT(objects.size() == 1);
+            BEAST_EXPECT(objects[0u]["Flags"].asUInt() == 0);
+
+            // Update object with bad flags.
+            std::ignore = domain.parseHex(objects[0u][jss::index].asString());
+            env(setTx(bob, tfClearOnlyXRP | tfSetOnlyXRP, domain),
+                ter(temMALFORMED));
+            env(setTx(bob, tfClearOnlyXRP, domain),
+                ter(temMALFORMED));
+
+            // Update object good flag.
+            env(setTx(bob, tfSetOnlyXRP, domain));
+            env.close();
+            objects = env.rpc("json", "account_objects",
+                to_string(params))[jss::result][jss::account_objects];
+            BEAST_EXPECT(objects[0u]["Flags"].asUInt() & lsfOnlyXRP);
         }
     }
 
@@ -202,32 +241,6 @@ class PermissionedDomains_test : public beast::unit_test::suite
         env(deleteTx(alice, to_string(index)), ter(tesSUCCESS));
     }
 
-    /*
-    void
-    testInvariants()
-    {
-        testcase("Invariants");
-        Env env{*this, withFeature_};
-        Account const alice{"alice"};
-        env.fund(XRP(1000), alice);
-        auto const setFee {drops(env.current()->fees().increment)};
-        env(setTx(alice, tfSetOnlyXRP), fee(setFee), ter(tesSUCCESS));
-        Json::Value params;
-        params[jss::account] = alice.human();
-        std::string const aliceIndex = env.rpc("json", "account_objects",
-            to_string(params))[jss::result][jss::account_objects][0u][jss::index].asString();
-        uint256 idx;
-        std::ignore = idx.parseHex(aliceIndex);
-
-        ApplyViewImpl av(&*env.current(), tapNONE);
-        auto sle = av.peek({ltPERMISSIONED_DOMAIN, idx});
-        sle->clearFlag(lsfOnlyXRP);
-        av.update(sle);
-        env.close();
-
-    }
-     */
-
 public:
     void
     run() override
@@ -236,7 +249,6 @@ public:
         testDisabled();
         testSet();
         testDelete();
-//        testInvariants();
     }
 };
 

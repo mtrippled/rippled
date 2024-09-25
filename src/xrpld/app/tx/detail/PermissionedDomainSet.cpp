@@ -135,13 +135,13 @@ PermissionedDomainSet::preclaim(PreclaimContext const& ctx)
     std::cerr << "checkzero1\n";
     if (*domain == beast::zero)
     {
-        std::cerr << "checkzero2\n";
+        std::cerr << "malformed4\n";
         return temMALFORMED;
     }
     std::cerr << "checkzero3\n";
     auto const sleDomain = ctx.view.read(
         {ltPERMISSIONED_DOMAIN, *domain});
-    if (sleDomain->empty())
+    if (!sleDomain)
         return tecNO_ENTRY;
     auto const owner = sleDomain->getAccountID(sfOwner);
     auto account = ctx.tx.getAccountID(sfAccount);
@@ -278,7 +278,7 @@ PermissionedDomainSet::checkRules(STTx const& tx,
     bool const txFlagClear = tx.getFlags() & tfClearOnlyXRP;
     if (txFlagSet && txFlagClear)
     {
-        std::cerr << "malformed4\n";
+        std::cerr << "malformed5\n";
         return temMALFORMED;
     }
     bool onlyXRP = false;
@@ -287,7 +287,7 @@ PermissionedDomainSet::checkRules(STTx const& tx,
     {
         if (txFlagSet)
         {
-            std::cerr << "malformed5\n";
+            std::cerr << "malformed6\n";
             return temMALFORMED;
         }
         onlyXRP = true;
@@ -296,7 +296,7 @@ PermissionedDomainSet::checkRules(STTx const& tx,
     {
         if (txFlagClear)
         {
-            std::cerr << "malformed6\n";
+            std::cerr << "malformed7\n";
             return temMALFORMED;
         }
         else if (txFlagSet)
@@ -323,7 +323,7 @@ PermissionedDomainSet::checkRules(STTx const& tx,
     {
         if (someTokens)
         {
-            std::cerr << "malformed7\n";
+            std::cerr << "malformed8\n";
             return temMALFORMED;
         }
     }
@@ -331,7 +331,7 @@ PermissionedDomainSet::checkRules(STTx const& tx,
     {
         if (!someCredentials && !someTokens)
         {
-            std::cerr << "malformed8\n";
+            std::cerr << "malformed9\n";
             return temMALFORMED;
         }
     }
