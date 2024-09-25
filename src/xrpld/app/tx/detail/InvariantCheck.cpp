@@ -972,11 +972,7 @@ ValidPermissionedDomain::visitEntry(
         return;
     }
 
-    if (after->isFieldPresent(sfAcceptedCredentials))
-        credentialsSize_ = after->getFieldArray(sfAcceptedCredentials).size();
-    if (after->isFieldPresent(sfAcceptedTokens))
-        tokensSize_ = after->getFieldArray(sfAcceptedTokens).size();
-    onlyXRP_ = after->getFlags() & lsfOnlyXRP;
+    credentialsSize_ = after->getFieldArray(sfAcceptedCredentials).size();
     std::cerr << ss.str() << '\n';
 }
 
@@ -992,45 +988,20 @@ ValidPermissionedDomain::finalize(
     if (tx.getTxnType() != ttPERMISSIONED_DOMAIN_SET || result != tesSUCCESS)
         return true;
 
-    std::cerr << "invariant onlyxrp,credentialsize,tokensize: "
-        << onlyXRP_ << ',' << credentialsSize_.has_value() << ','
-        << tokensSize_.has_value() << '\n';
-
-    if (onlyXRP_)
+    if (!credentialsSize_)
     {
-        if (tokensSize_)
-        {
-            std::cerr << "false1\n";
-            JLOG(j.fatal()) << "Invariant failed: permissioned domain with "
-                               "both XRP only flag and tokens.";
-            return false;
-        }
-    }
-    else
-    {
-        if (!credentialsSize_ && !tokensSize_)
-        {
-            std::cerr << "false2\n";
-            JLOG(j.fatal()) << "Invariant failed: permissioned domain with "
-                               "no rules.";
-            return false;
-        }
+        std::cerr << "false2\n";
+        JLOG(j.fatal()) << "Invariant failed: permissioned domain with "
+                           "no rules.";
+        return false;
     }
 
     constexpr std::size_t PD_ARRAY_MAX = 10;
-    if (credentialsSize_ &&
-        (*credentialsSize_ == 0 || *credentialsSize_ > PD_ARRAY_MAX))
+    if (credentialsSize_ > PD_ARRAY_MAX)
     {
         std::cerr << "false3\n";
         JLOG(j.fatal()) << "Invariant failed: permissioned domain bad "
-                           "credentials size " << *credentialsSize_;
-        return false;
-    }
-    if (tokensSize_ && (*tokensSize_ == 0 || *tokensSize_ > PD_ARRAY_MAX))
-    {
-        std::cerr << "false4\n";
-        JLOG(j.fatal()) << "Invariant failed: permissioned domain bad "
-                           "tokens size " << *tokensSize_;
+                           "credentials size " << credentialsSize_;
         return false;
     }
 

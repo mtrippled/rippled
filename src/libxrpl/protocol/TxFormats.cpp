@@ -518,8 +518,7 @@ TxFormats::TxFormats()
         ttPERMISSIONED_DOMAIN_SET,
         {
             {sfDomainID, soeOPTIONAL},
-            {sfAcceptedCredentials, soeOPTIONAL},
-            {sfAcceptedTokens, soeOPTIONAL},
+            {sfAcceptedCredentials, soeREQUIRED},
         },
         commonFields);
 

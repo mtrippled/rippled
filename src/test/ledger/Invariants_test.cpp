@@ -815,49 +815,6 @@ class Invariants_test : public beast::unit_test::suite
                 slePd->setAccountID(sfOwner, A1);
                 slePd->setFieldU32(sfSequence, 10);
 
-                slePd->clearFlag(lsfOnlyXRP);
-                ac.view().insert(slePd);
-                return true;
-            },
-            XRPAmount{},
-            STTx{ttPERMISSIONED_DOMAIN_SET, [](STObject& tx) {}},
-            {tecINVARIANT_FAILED, tecINVARIANT_FAILED}
-        );
-
-        doInvariantCheck(
-            {{"permissioned domain with both XRP only flag and tokens"}},
-            [](Account const& A1, Account const&, ApplyContext& ac) {
-                Keylet const pdKeylet = keylet::permissionedDomain(A1.id(), 10);
-                auto slePd =
-                    std::make_shared<SLE>(pdKeylet);
-                slePd->setAccountID(sfOwner, A1);
-                slePd->setFieldU32(sfSequence, 10);
-
-                slePd->setFlag(lsfOnlyXRP);
-                STArray tokens(sfAcceptedTokens);
-                STObject obj(sfSequence);
-                tokens.push_back(obj);
-                std::cerr << "tokens.size() " << tokens.size() << '\n';
-                slePd->setFieldArray(sfAcceptedTokens, tokens);
-                ac.view().insert(slePd);
-                return true;
-            },
-            XRPAmount{},
-            STTx{ttPERMISSIONED_DOMAIN_SET, [](STObject& tx) {}},
-            {tecINVARIANT_FAILED, tecINVARIANT_FAILED}
-        );
-
-        doInvariantCheck(
-            {{"permissioned domain bad credentials size 0"}},
-            [](Account const& A1, Account const&, ApplyContext& ac) {
-                Keylet const pdKeylet = keylet::permissionedDomain(A1.id(), 10);
-                auto slePd =
-                    std::make_shared<SLE>(pdKeylet);
-                slePd->setAccountID(sfOwner, A1);
-                slePd->setFieldU32(sfSequence, 10);
-
-                STArray credentials(sfAcceptedCredentials);
-                slePd->setFieldArray(sfAcceptedCredentials, credentials);
                 ac.view().insert(slePd);
                 return true;
             },
@@ -879,46 +836,6 @@ class Invariants_test : public beast::unit_test::suite
                 for (std::size_t n = 0; n < 11; ++n)
                     credentials.push_back(STObject(sfSequence));
                 slePd->setFieldArray(sfAcceptedCredentials, credentials);
-                ac.view().insert(slePd);
-                return true;
-            },
-            XRPAmount{},
-            STTx{ttPERMISSIONED_DOMAIN_SET, [](STObject& tx) {}},
-            {tecINVARIANT_FAILED, tecINVARIANT_FAILED}
-        );
-
-        doInvariantCheck(
-            {{"permissioned domain bad tokens size 0"}},
-            [](Account const& A1, Account const&, ApplyContext& ac) {
-                Keylet const pdKeylet = keylet::permissionedDomain(A1.id(), 10);
-                auto slePd =
-                    std::make_shared<SLE>(pdKeylet);
-                slePd->setAccountID(sfOwner, A1);
-                slePd->setFieldU32(sfSequence, 10);
-
-                STArray tokens(sfAcceptedTokens);
-                slePd->setFieldArray(sfAcceptedTokens, tokens);
-                ac.view().insert(slePd);
-                return true;
-            },
-            XRPAmount{},
-            STTx{ttPERMISSIONED_DOMAIN_SET, [](STObject& tx) {}},
-            {tecINVARIANT_FAILED, tecINVARIANT_FAILED}
-        );
-
-        doInvariantCheck(
-            {{"permissioned domain bad tokens size 11"}},
-            [](Account const& A1, Account const&, ApplyContext& ac) {
-                Keylet const pdKeylet = keylet::permissionedDomain(A1.id(), 10);
-                auto slePd =
-                    std::make_shared<SLE>(pdKeylet);
-                slePd->setAccountID(sfOwner, A1);
-                slePd->setFieldU32(sfSequence, 10);
-
-                STArray tokens(sfAcceptedTokens);
-                for (std::size_t n = 0; n < 11; ++n)
-                    tokens.push_back(STObject(sfSequence));
-                slePd->setFieldArray(sfAcceptedTokens, tokens);
                 ac.view().insert(slePd);
                 return true;
             },

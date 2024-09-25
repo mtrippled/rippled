@@ -27,9 +27,6 @@ namespace ripple {
 
 class PermissionedDomainSet : public Transactor
 {
-    static NotTEC
-    checkRules(STTx const& tx, std::shared_ptr<STLedgerEntry const> const& sle);
-
 public:
     static constexpr ConsequencesFactoryType ConsequencesFactory{Normal};
 

@@ -313,9 +313,6 @@ enum LedgerSpecificFlags {
 
     // ltNFTOKEN_OFFER
     lsfSellNFToken = 0x00000001,
-
-    //ltPERMISSIONED_DOMAIN
-    lsfOnlyXRP = 0x00010000,
 };
 
 //------------------------------------------------------------------------------

@@ -453,9 +453,7 @@ public:
 
 class ValidPermissionedDomain
 {
-    std::optional<std::size_t> credentialsSize_;
-    std::optional<std::size_t> tokensSize_;
-    bool onlyXRP_;
+    std::size_t credentialsSize_ {0};
 
 public:
     void

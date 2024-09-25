@@ -671,7 +671,6 @@ extern SField const sfVoteSlots;
 extern SField const sfAuthAccounts;
 extern SField const sfPriceDataSeries;
 extern SField const sfAcceptedCredentials;
-extern SField const sfAcceptedTokens;
 
 // array of objects (uncommon)
 extern SField const sfMajorities;
