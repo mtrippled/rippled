@@ -39,24 +39,17 @@ PermissionedDomainSet::preflight(PreflightContext const& ctx)
     {
         auto const credentials =
             ctx.tx.getFieldArray(sfAcceptedCredentials);
-        if (credentials.size() == 0 || credentials.size() > PD_ARRAY_MAX)
+        if (credentials.empty() || credentials.size() > PD_ARRAY_MAX)
         {
             std::cerr << "malformed1\n";
             return temMALFORMED;
         }
-        /*
-        // TODO iterate and make sure each Issuer exists once credentials
-        // interface is available.
-        for (auto const& credential : *credentials.value())
-        {
-        }
-         */
     }
 
     if (ctx.tx.isFieldPresent(sfAcceptedTokens))
     {
         auto const tokens = ctx.tx.getFieldArray(sfAcceptedTokens);
-        if (tokens.size() == 0 || tokens.size() > PD_ARRAY_MAX)
+        if (tokens.empty() || tokens.size() > PD_ARRAY_MAX)
         {
             std::cerr << "malformed2\n";
             return temMALFORMED;
@@ -101,12 +94,39 @@ XRPAmount
 PermissionedDomainSet::calculateBaseFee(ReadView const& view, STTx const& tx)
 {
     // The fee required for PermissionedDomainSet is one owner reserve.
+    if (tx.isFieldPresent(sfDomainID))
+        return view.fees().base;
     return view.fees().increment;
 }
 
 TER
 PermissionedDomainSet::preclaim(PreclaimContext const& ctx)
 {
+    /*
+    if (ctx.tx.isFieldPresent(sfAcceptedCredentials))
+    {
+        // TODO will need a credential object with issuer and
+        // CredentialType (Blob) fields when credentials
+        // implemented.
+        auto const credentials =
+            ctx.tx.getFieldArray(sfAcceptedCredentials);
+        // TODO iterate and make sure each Issuer exists once credentials
+        // interface is available.
+        for (auto const& credential : credentials)
+        {
+            if (!credential.isFieldPresent(sfIssuer) ||
+                !credential.isFieldPresent(sfCredentialType))
+            {
+                return temMALFORMED;
+            }
+            auto const issuer = credential.getAccountID(sfIssuer);
+            auto const sle = ctx.view.read(keylet::account(issuer));
+            if (!sle)
+                return temBAD_ISSUER;
+        }
+    }
+     */
+
     auto domain = ctx.tx.at(~sfDomainID);
     if (!domain)
         return tesSUCCESS;
@@ -161,16 +181,18 @@ PermissionedDomainSet::doApply()
             if (ctx_.tx.isFieldPresent(sfAcceptedCredentials))
             {
                 auto credentials = ctx_.tx.getFieldArray(sfAcceptedCredentials);
-                /* TODO sort by Issuer once the interface to credentials is available.
-                credentials.sort([](STObject const& left, STObject const& right) {
-                    return left.? < right.?;
-                });
-                 */
                 if (credentials.empty() && sle->isFieldPresent(sfAcceptedCredentials))
                     sle->delField(sfAcceptedCredentials);
                 else
                 {
-                    std::cerr << "set credentials1\n";
+                    // TODO will need a credential object with issuer and
+                    // CredentialType (Blob) fields when credentials
+                    // implemented.
+                    std::cerr << "set credentials1 len " << credentials.size() << '\n';
+                    credentials.sort([](STObject const& left, STObject const& right) -> bool {
+                        return dynamic_cast<STObject const*>(&left)->getAccountID(sfIssuer) <
+                            dynamic_cast<STObject const*>(&right)->getAccountID(sfIssuer);
+                    });
                     sle->setFieldArray(sfAcceptedCredentials, credentials);
                 }
             }
@@ -197,6 +219,7 @@ PermissionedDomainSet::doApply()
         // Modify existing permissioned domain.
         auto sleUpdate = view().peek(
             {ltPERMISSIONED_DOMAIN, *domain});
+        std::cerr << "modify before update flags:" << sleUpdate ->getFlags() << '\n';
         updateSle(sleUpdate);
         view().update(sleUpdate);
     }
@@ -216,9 +239,10 @@ PermissionedDomainSet::doApply()
         slePd->setFieldU32(sfSequence, ctx_.tx.getFieldU32(sfSequence));
         std::cerr << "PermissionedDomainSet::doApply13\n";
         updateSle(slePd);
-        std::cerr << "after update sle has credentials,tokens:"
+        std::cerr << "after update sle has credentials,tokens,flags:"
                   << slePd->isFieldPresent(sfAcceptedCredentials) << ','
-                  << slePd->isFieldPresent(sfAcceptedTokens) << '\n';
+                  << slePd->isFieldPresent(sfAcceptedTokens) << ','
+                  << slePd->getFlags() << '\n';
         std::cerr << "PermissionedDomainSet::doApply20\n";
         view().insert(slePd);
         std::cerr << "PermissionedDomainSet::doApply21\n";
@@ -258,6 +282,7 @@ PermissionedDomainSet::checkRules(STTx const& tx,
         return temMALFORMED;
     }
     bool onlyXRP = false;
+    std::cerr << "sle->getFlags():" << sle->getFlags() << '\n';
     if (sle->getFlags() & lsfOnlyXRP)
     {
         if (txFlagSet)

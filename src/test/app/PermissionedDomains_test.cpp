@@ -44,7 +44,7 @@ class PermissionedDomains_test : public beast::unit_test::suite
     static Json::Value
     setTx(AccountID const& account, std::uint32_t const flags,
         std::optional<uint256> domain = std::nullopt,
-        std::optional<std::vector<Blob>> credentials = std::nullopt,
+        std::optional<std::vector<std::pair<AccountID, Blob>>> credentials = std::nullopt,
         std::optional<std::vector<Issue>> tokens = std::nullopt)
     {
         Json::Value jv;
@@ -52,14 +52,20 @@ class PermissionedDomains_test : public beast::unit_test::suite
         jv[sfAccount.jsonName] = to_string(account);
         if (flags)
             jv[sfFlags.jsonName] = flags;
+        if (domain)
+            jv[sfDomainID.jsonName] = to_string(*domain);
         if (credentials)
         {
             Json::Value a(Json::arrayValue);
             for (auto const& credential : *credentials)
             {
-//                Json::Value obj(Json::objectValue);
-//                obj[jss::issuer] = ""
-//                a.append(strHex(Slice{credential.data(), credential.size()}));
+                Json::Value obj(Json::objectValue);
+                obj[sfIssuer.jsonName] = to_string(credential.first);
+                obj[sfCredentialType.jsonName] = strHex(Slice{credential.second.data(),
+                                                     credential.second.size()});
+                Json::Value o2(Json::objectValue);
+                o2[sfAcceptedCredential.jsonName] = obj;
+                a.append(o2);
             }
             jv[sfAcceptedCredentials.jsonName] = a;
         }
@@ -70,6 +76,7 @@ class PermissionedDomains_test : public beast::unit_test::suite
                 a.append(to_json(token));
             jv[sfAcceptedTokens.jsonName] = a;
         }
+        std::cerr << "json test set tx:" << jv << '\n';
         return jv;
     }
 
@@ -142,15 +149,26 @@ class PermissionedDomains_test : public beast::unit_test::suite
                 to_string(params))[jss::result][jss::account_objects];
             std::cerr << "objs:" << objs << '\n';
             BEAST_EXPECT(objs.size() == 1);
+            BEAST_EXPECT(objs[0u]["Flags"].asUInt() & lsfOnlyXRP);
+            BEAST_EXPECT(objs[0u].get("AcceptedCredentials", Json::nullValue) == Json::nullValue);
+            BEAST_EXPECT(objs[0u].get("AcceptedTokens", Json::nullValue) == Json::nullValue);
 
             // Update
             uint256 domain;
             std::ignore = domain.parseHex(objs[0u][jss::index].asString());
-            std::vector<Blob> credentials;
-            credentials.emplace_back();
+            std::vector<std::pair<AccountID, Blob>> credentials;
+            credentials.emplace_back(alice, Blob());
+            credentials.emplace_back(alice, Blob());
+            std::cerr << "UPDATE TEST TX\n";
             env(setTx(alice, tfClearOnlyXRP, domain, credentials));
+            Json::Value const obj = env.rpc("json", "account_objects",
+                to_string(params))[jss::result][jss::account_objects];
+            std::cerr << "obj:" << obj << '\n';
+            BEAST_EXPECT(obj.size() == 1);
+            BEAST_EXPECT((obj[0u]["Flags"].asUInt() & lsfOnlyXRP) == 0);
+            BEAST_EXPECT(obj[0u]["AcceptedCredentials"].size() == 2);
+            BEAST_EXPECT(obj[0u].get("AcceptedTokens", Json::nullValue) == Json::nullValue);
         }
-
     }
 
     void

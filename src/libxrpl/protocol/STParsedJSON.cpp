@@ -957,6 +957,8 @@ parseArray(
             std::string const objectName(json[i].getMemberNames()[0]);
             ;
             auto const& nameField(SField::getField(objectName));
+            std::cerr << "objectName,nameField:" << objectName << ','
+                << nameField.getName() << '\n';
 
             if (nameField == sfInvalid)
             {

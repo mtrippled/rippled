@@ -21,11 +21,15 @@
 #define RIPPLE_TX_PERMISSIONEDDOMAINSET_H_INCLUDED
 
 #include <xrpld/app/tx/detail/Transactor.h>
+#include <optional>
 
 namespace ripple {
 
 class PermissionedDomainSet : public Transactor
 {
+    static NotTEC
+    checkRules(STTx const& tx, std::shared_ptr<STLedgerEntry const> const& sle);
+
 public:
     static constexpr ConsequencesFactoryType ConsequencesFactory{Normal};
 
@@ -45,10 +49,6 @@ public:
     /** Attempt to create the Permissioned Domain. */
     TER
     doApply() override;
-
-private:
-    static NotTEC
-    checkRules(STTx const& tx, std::shared_ptr<STLedgerEntry const> const& sle);
 };
 
 } // ripple

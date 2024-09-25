@@ -565,6 +565,7 @@ extern SF_VL const sfDIDDocument;
 extern SF_VL const sfData;
 extern SF_VL const sfAssetClass;
 extern SF_VL const sfProvider;
+extern SF_VL const sfCredentialType;
 
 // variable length (uncommon)
 extern SF_VL const sfFulfillment;
@@ -639,6 +640,7 @@ extern SField const sfVoteEntry;
 extern SField const sfAuctionSlot;
 extern SField const sfAuthAccount;
 extern SField const sfPriceData;
+extern SField const sfAcceptedCredential;
 
 extern SField const sfSigner;
 extern SField const sfMajority;

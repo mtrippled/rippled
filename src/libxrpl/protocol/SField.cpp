@@ -308,6 +308,7 @@ CONSTRUCT_TYPED_SFIELD(sfDIDDocument,           "DIDDocument",          VL,     
 CONSTRUCT_TYPED_SFIELD(sfData,                  "Data",                 VL,        27);
 CONSTRUCT_TYPED_SFIELD(sfAssetClass,            "AssetClass",           VL,        28);
 CONSTRUCT_TYPED_SFIELD(sfProvider,              "Provider",             VL,        29);
+CONSTRUCT_TYPED_SFIELD(sfCredentialType,        "CredentialType",       VL,        30);
 
 // account
 CONSTRUCT_TYPED_SFIELD(sfAccount,               "Account",              ACCOUNT,    1);
@@ -392,6 +393,7 @@ CONSTRUCT_UNTYPED_SFIELD(sfXChainCreateAccountAttestationCollectionElement,
                                                  "XChainCreateAccountAttestationCollectionElement",
                                                                         OBJECT,    31);
 CONSTRUCT_UNTYPED_SFIELD(sfPriceData,            "PriceData",           OBJECT,    32);
+CONSTRUCT_UNTYPED_SFIELD(sfAcceptedCredential,   "AcceptedCredential",  OBJECT,    33);
 
 // array of objects
 //                                                                            ARRAY/1 is reserved for end of array
@@ -406,6 +408,8 @@ CONSTRUCT_UNTYPED_SFIELD(sfMemos,               "Memos",                ARRAY,  
 CONSTRUCT_UNTYPED_SFIELD(sfNFTokens,            "NFTokens",             ARRAY,     10);
 CONSTRUCT_UNTYPED_SFIELD(sfHooks,               "Hooks",                ARRAY,     11);
 CONSTRUCT_UNTYPED_SFIELD(sfVoteSlots,           "VoteSlots",            ARRAY,     12);
+CONSTRUCT_UNTYPED_SFIELD(sfAcceptedCredentials, "AcceptedCredentials",  ARRAY,     13);
+CONSTRUCT_UNTYPED_SFIELD(sfAcceptedTokens,      "AcceptedTokens",       ARRAY,     14);
 
 // array of objects (uncommon)
 CONSTRUCT_UNTYPED_SFIELD(sfMajorities,          "Majorities",           ARRAY,     16);
@@ -422,8 +426,6 @@ CONSTRUCT_UNTYPED_SFIELD(sfXChainCreateAccountAttestations,
 // 23 is unused and available for use
 CONSTRUCT_UNTYPED_SFIELD(sfPriceDataSeries,     "PriceDataSeries",      ARRAY,     24);
 CONSTRUCT_UNTYPED_SFIELD(sfAuthAccounts,        "AuthAccounts",         ARRAY,     25);
-CONSTRUCT_UNTYPED_SFIELD(sfAcceptedCredentials, "AcceptedCredentials",  ARRAY,     26);
-CONSTRUCT_UNTYPED_SFIELD(sfAcceptedTokens,      "AcceptedTokens",       ARRAY,     27);
 
 // clang-format on
 
