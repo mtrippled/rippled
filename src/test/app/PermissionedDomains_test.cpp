@@ -137,8 +137,14 @@ class PermissionedDomains_test : public beast::unit_test::suite
             obj = credential["AcceptedCredential"];
             auto const issuer = obj["Issuer"];
             auto const credentialType = obj["CredentialType"];
-            ret.push_back({AccountID(issuer.asString()),
-                           strUnHex(credentialType.asString()).value()});
+//            auto aid = AccountID(issuer.asString());
+            auto aid = parseBase58<AccountID>(issuer.asString());
+            auto ct = strUnHex(credentialType.asString());
+            std::cerr << "credential type optional exists: "
+                << (ct.has_value() ? "yes" : "no") << '\n';
+            std::cerr << "credentialtype:" << fromBlob(*ct) << '\n';
+            ret.emplace_back(*parseBase58<AccountID>(issuer.asString()),
+                           strUnHex(credentialType.asString()).value());
         }
         return ret;
     }
@@ -154,16 +160,16 @@ class PermissionedDomains_test : public beast::unit_test::suite
         return ret;
     }
 
-    static std::uint32_t
-    ownerCount(Account const& account, Env& env)
+    static Json::Value
+    ownerInfo(Account const& account, Env& env)
     {
         Json::Value params;
         params[jss::account] = account.human();
         auto const& resp = env.rpc("json", "account_info",
             to_string(params));
-        std::cerr << "account_info:" << resp << '\n';
+//        std::cerr << "account_info:" << resp << '\n';
         return env.rpc("json", "account_info",
-            to_string(params))["result"]["account_data"]["OwnerCount"].asUInt();
+            to_string(params))["result"]["account_data"];
     }
 
     // tests
@@ -177,7 +183,7 @@ class PermissionedDomains_test : public beast::unit_test::suite
         auto const setFee (drops(env.current()->fees().increment));
         Credentials credentials{{alice, toBlob("first credential")}};
         env(setTx(alice, credentials), fee(setFee));
-        BEAST_EXPECT(ownerCount(alice, env) == 1);
+        BEAST_EXPECT(ownerInfo(alice, env)["OwnerCount"].asUInt() == 1);
         auto objects = getObjects(alice, env);
         BEAST_EXPECT(objects.size() == 1);
         auto const domain = objects.begin()->first;
@@ -244,9 +250,125 @@ class PermissionedDomains_test : public beast::unit_test::suite
     testSet()
     {
         testcase("Set");
-        BEAST_EXPECT(true);
+        Env env(*this, withFeature_);
+        Account const alice("alice");
+        env.fund(XRP(1000), alice);
+        Account const alice2("alice2");
+        env.fund(XRP(1000), alice2);
+        Account const alice3("alice3");
+        env.fund(XRP(1000), alice3);
+        Account const alice4("alice4");
+        env.fund(XRP(1000), alice4);
+        Account const alice5("alice5");
+        env.fund(XRP(1000), alice5);
+        Account const alice6("alice6");
+        env.fund(XRP(1000), alice6);
+        Account const alice7("alice7");
+        env.fund(XRP(1000), alice7);
+        Account const alice8("alice8");
+        env.fund(XRP(1000), alice8);
+        Account const alice9("alice9");
+        env.fund(XRP(1000), alice9);
+        Account const alice10("alice10");
+        env.fund(XRP(1000), alice10);
+        Account const alice11("alice11");
+        env.fund(XRP(1000), alice11);
+        Account const alice12("alice12");
+        env.fund(XRP(1000), alice12);
+        auto const dropsFee = env.current()->fees().increment;
+        auto const setFee(drops(dropsFee));
+
+        // Create new from existing account with a single credential.
+        Credentials const credentials1 {{alice2, toBlob("credential1")}};
+        env(setTx(alice, credentials1), fee(setFee));
+        BEAST_EXPECT(ownerInfo(alice, env)["OwnerCount"].asUInt() == 1);
+        auto tx = env.tx()->getJson(JsonOptions::none);
+        BEAST_EXPECT(tx[jss::TransactionType] == "PermissionedDomainSet");
+        BEAST_EXPECT(tx["Account"] == alice.human());
+        auto objects = getObjects(alice, env);
+        auto domain = objects.begin()->first;
+        auto object = objects.begin()->second;
+        BEAST_EXPECT(object["LedgerEntryType"] == "PermissionedDomain");
+        BEAST_EXPECT(object["Owner"] == alice.human());
+        BEAST_EXPECT(object["Sequence"] == tx["Sequence"]);
+        BEAST_EXPECT(credentialsFromJson(object) == credentials1);
+
+        // Create new from existing account with 10 credentials.
+        Credentials const credentials10 {{alice2, toBlob("credential1")},
+                                  {alice3, toBlob("credential2")},
+                                  {alice4, toBlob("credential3")},
+                                  {alice5, toBlob("credential4")},
+                                  {alice6, toBlob("credential5")},
+                                  {alice7, toBlob("credential6")},
+                                  {alice8, toBlob("credential7")},
+                                  {alice9, toBlob("credential8")},
+                                  {alice10, toBlob("credential9")},
+                                  {alice11, toBlob("credential10")},
+                                  };
+        BEAST_EXPECT(credentials10 != sortCredentials(credentials10));
+        env(setTx(alice, credentials10), fee(setFee));
+        tx = env.tx()->getJson(JsonOptions::none);
+        std::cerr << "tx:" << tx << '\n';
+        auto meta = env.meta()->getJson(JsonOptions::none);
+        std::cerr << "meta:" << meta << '\n';
+        Json::Value a(Json::arrayValue);
+        a = meta["AffectedNodes"];
+
+        uint256 domain2;
+        for (auto const& node : a)
         {
-            /*
+            if (!node.isMember("CreatedNode") ||
+                node["CreatedNode"]["LedgerEntryType"] != "PermissionedDomain")
+            {
+                continue;
+            }
+            std::ignore = domain2.parseHex(node["CreatedNode"]["LedgerIndex"].asString());
+        }
+        objects = getObjects(alice, env);
+        object = objects[domain2];
+        BEAST_EXPECT(credentialsFromJson(object) == sortCredentials(credentials10));
+
+        // Make a new domain with insufficient fee.
+        auto const lowFee = drops(dropsFee - 1);
+        env(setTx(alice, credentials10), fee(lowFee), ter(telINSUF_FEE_P));
+
+        // Update with 1 credential.
+        env(setTx(alice, credentials1, domain2));
+        BEAST_EXPECT(credentialsFromJson(getObjects(alice, env)[domain2]) ==
+            credentials1);
+
+        // Update with 10 credentials.
+        env(setTx(alice, credentials10, domain2));
+        env.close();
+        BEAST_EXPECT(credentialsFromJson(getObjects(alice, env)[domain2]) ==
+            sortCredentials(credentials10));
+
+        // Try to delete the account with domains.
+        auto const acctDelFee(drops(env.current()->fees().increment));
+        // Close enough ledgers to make it potentially deletable if empty.
+        std::cerr << "owner seq,current seq: " << ownerInfo(alice, env)["Sequence"].asUInt()
+            << ',' << env.current()->seq() << '\n';
+        constexpr std::size_t deleteDelta = 255;
+        std::size_t iters = deleteDelta + ownerInfo(alice, env)["Sequence"].asUInt() - env.current()->seq();
+        std::cerr << "iters:" << iters << '\n';
+        std::size_t ownerSeq = ownerInfo(alice, env)["Sequence"].asUInt();
+//        for (std::size_t n = 0; n < (std::size_t)(deleteDelta + ownerInfo(alice, env)["Sequence"].asUInt() - env.current()->seq()); ++n)
+        while (deleteDelta + ownerSeq > env.current()->seq())
+//        for (std::size_t n = 0; n < (deleteDelta + ownerInfo(alice, env)["Sequence"].asUInt()); ++n)
+            env.close();
+        std::cerr << "after closes current seq " << env.current()->seq() << '\n';
+        env(acctdelete(alice, alice2), fee(acctDelFee), ter(tecHAS_OBLIGATIONS));
+
+        // Delete the domains and then the owner account.
+        for (auto const& objs : getObjects(alice, env))
+            env(deleteTx(alice, objs.first));
+        env.close();
+        ownerSeq = ownerInfo(alice, env)["Sequence"].asUInt();
+        while (deleteDelta + ownerSeq > env.current()->seq())
+            env.close();
+        env(acctdelete(alice, alice2), fee(acctDelFee));
+
+        /*
             // Create new (with only XRP flag and no other rules)
             Account const alice{"alice"};
             Env env{*this, withFeature_};
@@ -300,7 +422,6 @@ class PermissionedDomains_test : public beast::unit_test::suite
             objects = env.rpc("json", "account_objects",
                 to_string(params))[jss::result][jss::account_objects];
                 */
-        }
     }
 
     void
@@ -319,7 +440,7 @@ class PermissionedDomains_test : public beast::unit_test::suite
         auto const domain = objects.begin()->first;
 
         // Delete a domain that doesn't belong to the account.
-        Account const bob{"bob"};
+        Account const bob("bob");
         env.fund(XRP(1000), bob);
         env(deleteTx(bob, domain), ter(temINVALID_ACCOUNT_ID));
         env.close();
@@ -327,11 +448,17 @@ class PermissionedDomains_test : public beast::unit_test::suite
         // Delete a non-existent domain.
         env(deleteTx(alice, uint256(75)), ter(tecNO_ENTRY));
 
+        // Delete a zero domain.
+        env(deleteTx(alice, uint256(0)), ter(temMALFORMED));
+
+        // Make sure owner count reflects the existing domain.
+        BEAST_EXPECT(ownerInfo(alice, env)["OwnerCount"].asUInt() == 1);
         // Delete domain that belongs to user.
-        BEAST_EXPECT(ownerCount(alice, env) == 1);
         env(deleteTx(alice, domain), ter(tesSUCCESS));
-        // Make sure we got the reserve back.
-        BEAST_EXPECT(ownerCount(alice, env) == 0);
+        auto const tx = env.tx()->getJson(JsonOptions::none);
+        BEAST_EXPECT(tx[jss::TransactionType] == "PermissionedDomainDelete");
+        // Make sure the owner count goes back to 0.
+        BEAST_EXPECT(ownerInfo(alice, env)["OwnerCount"].asUInt() == 0);
 
         //        env(deleteTx(alice, domain));
         /*
@@ -368,7 +495,7 @@ public:
     {
         testEnabled();
         testDisabled();
-//        testSet();
+        testSet();
         testDelete();
     }
 };

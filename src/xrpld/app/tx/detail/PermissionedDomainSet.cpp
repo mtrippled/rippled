@@ -65,7 +65,7 @@ PermissionedDomainSet::calculateBaseFee(ReadView const& view, STTx const& tx)
 {
     // The fee required for PermissionedDomainSet is one owner reserve.
     if (tx.isFieldPresent(sfDomainID))
-        return view.fees().base;
+        return Transactor::calculateBaseFee(view, tx);
     return view.fees().increment;
 }
 
