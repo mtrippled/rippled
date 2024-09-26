@@ -29,23 +29,34 @@ namespace ripple {
 NotTEC
 PermissionedDomainSet::preflight(PreflightContext const& ctx)
 {
+    std::cerr << "preflight1\n";
     if (!ctx.rules.enabled(featurePermissionedDomains))
+    {
+        std::cerr << "preflight2\n";
         return temDISABLED;
+    }
     if (auto const ret = preflight1(ctx); !isTesSuccess(ret))
+    {
+        std::cerr << "preflight3\n";
         return ret;
+    }
 
     if (!ctx.tx.isFieldPresent(sfAcceptedCredentials))
+    {
+        std::cerr << "preflight4\n";
         return temMALFORMED;
+    }
 
     constexpr std::size_t PD_ARRAY_MAX = 10;
     auto const credentials =
         ctx.tx.getFieldArray(sfAcceptedCredentials);
     if (credentials.empty() || credentials.size() > PD_ARRAY_MAX)
     {
-        std::cerr << "malformed1\n";
+        std::cerr << "preflight5\n";
         return temMALFORMED;
     }
 
+    std::cerr << "preflight6\n";
     return preflight2(ctx);
 }
 
@@ -61,6 +72,7 @@ PermissionedDomainSet::calculateBaseFee(ReadView const& view, STTx const& tx)
 TER
 PermissionedDomainSet::preclaim(PreclaimContext const& ctx)
 {
+    std::cerr << "preclaim1\n";
     if (!ctx.view.read(keylet::account(ctx.tx.getAccountID(sfAccount))))
         return tefINTERNAL;
 

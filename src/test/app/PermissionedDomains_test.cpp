@@ -26,6 +26,7 @@
 #include <xrpld/app/tx/detail/ApplyContext.h>
 #include <xrpld/ledger/ApplyViewImpl.h>
 #include <iostream>
+#include <map>
 #include <optional>
 #include <string>
 #include <utility>
@@ -77,6 +78,33 @@ class PermissionedDomains_test : public beast::unit_test::suite
         return jv;
     }
 
+    static std::map<uint256, Json::Value>
+    getObjects(Account const& account, Env& env)
+    {
+        std::cerr << "objects for " << account.human() << '\n';
+        std::map<uint256, Json::Value> ret;
+        Json::Value params;
+        params[jss::account] = account.human();
+        auto const& resp = env.rpc("json", "account_objects",
+            to_string(params));
+        std::cerr << "json:" << resp << '\n';
+        Json::Value a(Json::arrayValue);
+        a = resp[jss::result][jss::account_objects];
+        for (auto const& object : a)
+        {
+            for (auto const& member : object.getMemberNames())
+                std::cerr << "member:" << member << '\n';
+            std::cerr << "LedgerEntryType:" << object["LedgerEntryType"] << '\n';
+            if (object["LedgerEntryType"] != "PermissionedDomain")
+                continue;
+            uint256 index;
+            std::ignore = index.parseHex(object[jss::index].asString());
+            ret[index] = object;
+            std::cerr << "object:" << object << '\n';
+        }
+        return ret;
+    }
+
     void
     testEnabled()
     {
@@ -87,8 +115,14 @@ class PermissionedDomains_test : public beast::unit_test::suite
         auto const setFee {drops(env.current()->fees().increment)};
         std::vector<std::pair<AccountID, Blob>> credentials;
         credentials.emplace_back(alice, Blob());
-        env(setTx(alice, credentials));
+        env(setTx(alice, credentials), fee(setFee));
         env.close();
+        auto const objects = getObjects(alice, env);
+        std::cerr << "number of objects: " << objects.size() << '\n';
+        for (auto const& object : objects)
+        {
+            std::cerr << to_string(object.first) << ',' << object.second << '\n';
+        }
 
         Json::Value params;
         params[jss::account] = alice.human();
