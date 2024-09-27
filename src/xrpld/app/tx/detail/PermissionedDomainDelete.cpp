@@ -37,23 +37,25 @@ PermissionedDomainDelete::preflight(PreflightContext const& ctx)
 TER
 PermissionedDomainDelete::preclaim(PreclaimContext const& ctx)
 {
+    assert(ctx.tx.isFieldPresent(sfDomainID));
     auto const domain = ctx.tx.getFieldH256(sfDomainID);
-    // Check existing object.
     if (domain == beast::zero)
         return temMALFORMED;
     auto const sleDomain = ctx.view.read(
         {ltPERMISSIONED_DOMAIN, domain});
     if (!sleDomain)
         return tecNO_ENTRY;
+    assert(sleDomain->isFieldPresent(sfOwner) && ctx.tx.isFieldPresent(sfAccount));
     if (sleDomain->getAccountID(sfOwner) != ctx.tx.getAccountID(sfAccount))
         return temINVALID_ACCOUNT_ID;
     return tesSUCCESS;
 }
 
-/** Attempt to create the Permissioned Domain. */
+/** Attempt to delete the Permissioned Domain. */
 TER
 PermissionedDomainDelete::doApply()
 {
+    assert(ctx_.tx.isFieldPresent(sfDomainID));
     auto const slePd =
         view().peek({ltPERMISSIONED_DOMAIN, ctx_.tx.at(sfDomainID)});
     auto const page{(*slePd)[sfOwnerNode]};
@@ -64,10 +66,10 @@ PermissionedDomainDelete::doApply()
         return tefBAD_LEDGER;
     }
     auto const ownerSle = view().peek(keylet::account(account_));
+    assert(ownerSle && ownerSle->getFieldU32(sfOwnerCount) > 0);
     adjustOwnerCount(view(), ownerSle, -1, ctx_.journal);
     view().erase(slePd);
     return tesSUCCESS;
 }
-
 
 } // ripple

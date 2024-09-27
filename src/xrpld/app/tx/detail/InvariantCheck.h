@@ -451,6 +451,13 @@ public:
         beast::Journal const&);
 };
 
+/**
+ * @brief Invariants: Permissioned Domains must have some rules and
+ * AcceptedCredentials must have length between 1 and 10 inclusive.
+ *
+ * Since only permissions constitute rules, an empty credentials list
+ * means that there are no rules and the invariant is violated.
+ */
 class ValidPermissionedDomain
 {
     std::size_t credentialsSize_ {0};

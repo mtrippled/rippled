@@ -393,6 +393,7 @@ CONSTRUCT_UNTYPED_SFIELD(sfXChainCreateAccountAttestationCollectionElement,
                                                  "XChainCreateAccountAttestationCollectionElement",
                                                                         OBJECT,    31);
 CONSTRUCT_UNTYPED_SFIELD(sfPriceData,            "PriceData",           OBJECT,    32);
+// TODO perhaps this should be a typed field once actual credentials are merged.
 CONSTRUCT_UNTYPED_SFIELD(sfAcceptedCredential,   "AcceptedCredential",  OBJECT,    33);
 
 // array of objects

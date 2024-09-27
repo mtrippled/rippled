@@ -20,6 +20,7 @@
 #include <xrpld/app/tx/detail/InvariantCheck.h>
 
 #include <xrpld/app/tx/detail/NFTokenUtils.h>
+#include <xrpld/app/tx/detail/PermissionedDomainSet.h>
 #include <xrpld/ledger/ReadView.h>
 #include <xrpld/ledger/View.h>
 #include <xrpl/basics/FeeUnits.h>
@@ -966,8 +967,7 @@ ValidPermissionedDomain::finalize(
         return false;
     }
 
-    constexpr std::size_t PD_ARRAY_MAX = 10;
-    if (credentialsSize_ > PD_ARRAY_MAX)
+    if (credentialsSize_ > PermissionedDomainSet::PD_ARRAY_MAX)
     {
         JLOG(j.fatal()) << "Invariant failed: permissioned domain bad "
                            "credentials size " << credentialsSize_;

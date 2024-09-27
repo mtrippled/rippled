@@ -23,6 +23,7 @@
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Issue.h>
 #include <xrpl/protocol/jss.h>
+#include <xrpld/app/tx/detail/PermissionedDomainSet.h>
 #include <xrpld/ledger/ApplyViewImpl.h>
 #include <algorithm>
 #include <map>
@@ -238,6 +239,7 @@ class PermissionedDomains_test : public beast::unit_test::suite
                                          {alice11, toBlob("credential10")},
                                          {alice12, toBlob("credential11")}
         };
+        BEAST_EXPECT(credentials11.size() == PermissionedDomainSet::PD_ARRAY_MAX + 1);
         env(setTx(account, credentials11, domain), fee(setFee), ter(temMALFORMED));
 
         // Test credentials including non-existent issuer.
@@ -333,6 +335,7 @@ class PermissionedDomains_test : public beast::unit_test::suite
                                   {alice10, toBlob("credential9")},
                                   {alice11, toBlob("credential10")},
                                   };
+        BEAST_EXPECT(credentials10.size() == PermissionedDomainSet::PD_ARRAY_MAX);
         BEAST_EXPECT(credentials10 != sortCredentials(credentials10));
         env(setTx(alice, credentials10), fee(setFee));
         tx = env.tx()->getJson(JsonOptions::none);

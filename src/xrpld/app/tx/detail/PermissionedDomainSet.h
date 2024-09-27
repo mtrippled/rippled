@@ -28,6 +28,7 @@ namespace ripple {
 class PermissionedDomainSet : public Transactor
 {
 public:
+    static constexpr std::size_t PD_ARRAY_MAX = 10;
     static constexpr ConsequencesFactoryType ConsequencesFactory{Normal};
 
     explicit PermissionedDomainSet(ApplyContext& ctx) : Transactor(ctx)
