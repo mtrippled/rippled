@@ -23,10 +23,8 @@
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Issue.h>
 #include <xrpl/protocol/jss.h>
-#include <xrpld/app/tx/detail/ApplyContext.h>
 #include <xrpld/ledger/ApplyViewImpl.h>
 #include <algorithm>
-#include <iostream>
 #include <map>
 #include <optional>
 #include <string>
@@ -69,7 +67,6 @@ class PermissionedDomains_test : public beast::unit_test::suite
             a.append(o2);
         }
         jv[sfAcceptedCredentials.jsonName] = a;
-        std::cerr << "json test set tx:" << jv << '\n';
         return jv;
     }
 
@@ -86,26 +83,20 @@ class PermissionedDomains_test : public beast::unit_test::suite
     static std::map<uint256, Json::Value>
     getObjects(Account const& account, Env& env)
     {
-        std::cerr << "objects for " << account.human() << '\n';
         std::map<uint256, Json::Value> ret;
         Json::Value params;
         params[jss::account] = account.human();
         auto const& resp = env.rpc("json", "account_objects",
             to_string(params));
-        std::cerr << "json:" << resp << '\n';
         Json::Value a(Json::arrayValue);
         a = resp[jss::result][jss::account_objects];
         for (auto const& object : a)
         {
-            for (auto const& member : object.getMemberNames())
-                std::cerr << "member:" << member << '\n';
-            std::cerr << "LedgerEntryType:" << object["LedgerEntryType"] << '\n';
             if (object["LedgerEntryType"] != "PermissionedDomain")
                 continue;
             uint256 index;
             std::ignore = index.parseHex(object[jss::index].asString());
             ret[index] = object;
-            std::cerr << "object:" << object << '\n';
         }
         return ret;
     }
@@ -137,12 +128,8 @@ class PermissionedDomains_test : public beast::unit_test::suite
             obj = credential["AcceptedCredential"];
             auto const issuer = obj["Issuer"];
             auto const credentialType = obj["CredentialType"];
-//            auto aid = AccountID(issuer.asString());
             auto aid = parseBase58<AccountID>(issuer.asString());
             auto ct = strUnHex(credentialType.asString());
-            std::cerr << "credential type optional exists: "
-                << (ct.has_value() ? "yes" : "no") << '\n';
-            std::cerr << "credentialtype:" << fromBlob(*ct) << '\n';
             ret.emplace_back(*parseBase58<AccountID>(issuer.asString()),
                            strUnHex(credentialType.asString()).value());
         }
@@ -167,7 +154,6 @@ class PermissionedDomains_test : public beast::unit_test::suite
         params[jss::account] = account.human();
         auto const& resp = env.rpc("json", "account_info",
             to_string(params));
-//        std::cerr << "account_info:" << resp << '\n';
         return env.rpc("json", "account_info",
             to_string(params))["result"]["account_data"];
     }
@@ -188,41 +174,6 @@ class PermissionedDomains_test : public beast::unit_test::suite
         BEAST_EXPECT(objects.size() == 1);
         auto const domain = objects.begin()->first;
         env(deleteTx(alice, domain));
-
-        /*
-        Account const alice{"alice"};
-        Env env{*this, withFeature_};
-        env.fund(XRP(1000), alice);
-        auto const setFee {drops(env.current()->fees().increment)};
-        Credentials credentials;
-        credentials.emplace_back(alice, Blob());
-        env(setTx(alice, credentials), fee(setFee));
-        std::cerr << "ter:" << env.ter() << '\n';
-        std::cerr << "tx:" << env.tx()->getJson(JsonOptions::none) << '\n';
-        std::cerr << "meta:" << env.meta()->getJson(JsonOptions::none) << '\n';
-        env.close();
-        auto const objects = getObjects(alice, env);
-        std::cerr << "number of objects: " << objects.size() << '\n';
-        for (auto const& object : objects)
-        {
-            std::cerr << to_string(object.first) << ',' << object.second << '\n';
-        }
-
-        Json::Value params;
-        params[jss::account] = alice.human();
-        auto const resp = env.rpc("json", "account_objects", to_string(params));
-        BEAST_EXPECT(resp["result"]["account_objects"].size() == 1);
-        Json::Value a{Json::arrayValue};
-        a = resp[jss::result][jss::account_objects][0u][jss::index].asString();
-
-        uint256 index;
-        std::ignore = index.parseHex(a.asString());
-        uint256 d{};
-        env(deleteTx(alice, to_string(index)), ter(tesSUCCESS));
-        env.close();
-        BEAST_EXPECT(env.rpc("json", "account_objects",
-            to_string(params))["result"]["account_objects"].size() == 0);
-            */
     }
 
     void
@@ -287,7 +238,6 @@ class PermissionedDomains_test : public beast::unit_test::suite
                                          {alice11, toBlob("credential10")},
                                          {alice12, toBlob("credential11")}
         };
-        std::cerr << "credentials11\n";
         env(setTx(account, credentials11, domain), fee(setFee), ter(temMALFORMED));
 
         // Test credentials including non-existent issuer.
@@ -300,7 +250,6 @@ class PermissionedDomains_test : public beast::unit_test::suite
                                          {alice6, toBlob("credential6")},
                                          {alice7, toBlob("credential7")}
         };
-        std::cerr << "credentialsnon\n";
         env(setTx(account, credentialsNon, domain), fee(setFee), ter(temBAD_ISSUER));
 
         Credentials credentialsMutable{{alice2, toBlob("credential1")},
@@ -309,23 +258,19 @@ class PermissionedDomains_test : public beast::unit_test::suite
                                        {alice5, toBlob("credential4")},
         };
         auto txJson = setTx(account, credentialsMutable, domain);
-        std::cerr << "txJson:" << txJson << '\n';
         auto const credentialOrig = txJson["AcceptedCredentials"][2u];
 
         // Remove Issuer from the 3rd credential and apply.
         txJson["AcceptedCredentials"][2u]["AcceptedCredential"].removeMember("Issuer");
-        std::cerr << " after1:" << txJson << '\n';
         env(txJson, fee(setFee), ter(temMALFORMED));
 
         txJson["AcceptedCredentials"][2u] = credentialOrig;
         // Remove Credentialtype from the 3rd credential and apply.
         txJson["AcceptedCredentials"][2u]["AcceptedCredential"].removeMember("CredentialType");
-        std::cerr << " after2:" << txJson << '\n';
         env(txJson, fee(setFee), ter(temMALFORMED));
 
         // Remove both
         txJson["AcceptedCredentials"][2u]["AcceptedCredential"].removeMember("Issuer");
-        std::cerr << " after3:" << txJson << '\n';
         env(txJson, fee(setFee), ter(temMALFORMED));
     }
 
@@ -391,9 +336,7 @@ class PermissionedDomains_test : public beast::unit_test::suite
         BEAST_EXPECT(credentials10 != sortCredentials(credentials10));
         env(setTx(alice, credentials10), fee(setFee));
         tx = env.tx()->getJson(JsonOptions::none);
-        std::cerr << "tx:" << tx << '\n';
         auto meta = env.meta()->getJson(JsonOptions::none);
-        std::cerr << "meta:" << meta << '\n';
         Json::Value a(Json::arrayValue);
         a = meta["AffectedNodes"];
 
@@ -434,17 +377,11 @@ class PermissionedDomains_test : public beast::unit_test::suite
         // Try to delete the account with domains.
         auto const acctDelFee(drops(env.current()->fees().increment));
         // Close enough ledgers to make it potentially deletable if empty.
-        std::cerr << "owner seq,current seq: " << ownerInfo(alice, env)["Sequence"].asUInt()
-            << ',' << env.current()->seq() << '\n';
         constexpr std::size_t deleteDelta = 255;
         std::size_t iters = deleteDelta + ownerInfo(alice, env)["Sequence"].asUInt() - env.current()->seq();
-        std::cerr << "iters:" << iters << '\n';
         std::size_t ownerSeq = ownerInfo(alice, env)["Sequence"].asUInt();
-//        for (std::size_t n = 0; n < (std::size_t)(deleteDelta + ownerInfo(alice, env)["Sequence"].asUInt() - env.current()->seq()); ++n)
         while (deleteDelta + ownerSeq > env.current()->seq())
-//        for (std::size_t n = 0; n < (deleteDelta + ownerInfo(alice, env)["Sequence"].asUInt()); ++n)
             env.close();
-        std::cerr << "after closes current seq " << env.current()->seq() << '\n';
         env(acctdelete(alice, alice2), fee(acctDelFee), ter(tecHAS_OBLIGATIONS));
 
         // Delete the domains and then the owner account.
@@ -455,61 +392,6 @@ class PermissionedDomains_test : public beast::unit_test::suite
         while (deleteDelta + ownerSeq > env.current()->seq())
             env.close();
         env(acctdelete(alice, alice2), fee(acctDelFee));
-
-        /*
-            // Create new (with only XRP flag and no other rules)
-            Account const alice{"alice"};
-            Env env{*this, withFeature_};
-            env.fund(XRP(1000), alice);
-            auto const setFee{drops(env.current()->fees().increment)};
-            env.close();
-
-            Json::Value params;
-            params[jss::account] = alice.human();
-            Json::Value const objs = env.rpc("json", "account_objects",
-                to_string(params))[jss::result][jss::account_objects];
-            std::cerr << "objs:" << objs << '\n';
-            BEAST_EXPECT(objs.size() == 1);
-            BEAST_EXPECT(objs[0u].get("AcceptedCredentials", Json::nullValue) == Json::nullValue);
-
-            // Update
-            uint256 domain;
-            std::ignore = domain.parseHex(objs[0u][jss::index].asString());
-            std::vector<std::pair<AccountID, Blob>> credentials;
-            credentials.emplace_back(alice, Blob());
-            credentials.emplace_back(alice, Blob());
-            std::cerr << "UPDATE TEST TX\n";
-            env.close();
-            Json::Value const obj = env.rpc("json", "account_objects",
-                to_string(params))[jss::result][jss::account_objects];
-            std::cerr << "obj:" << obj << '\n';
-            BEAST_EXPECT(obj.size() == 1);
-            BEAST_EXPECT(obj[0u]["AcceptedCredentials"].size() == 2);
-
-            // Update non-existing
-
-            // Update doesn't belong to owner.
-            Account const bob{"bob"};
-            env.fund(XRP(1000), bob);
-            env.close();
-
-            // Create object with no flags.
-            env(setTx(bob, credentials), fee(setFee));
-            env.close();
-            params[jss::account] = bob.human();
-            Json::Value objects = env.rpc("json", "account_objects",
-                to_string(params))[jss::result][jss::account_objects];
-            BEAST_EXPECT(objects.size() == 1);
-            BEAST_EXPECT(objects[0u]["Flags"].asUInt() == 0);
-
-            // Update object with bad flags.
-            std::ignore = domain.parseHex(objects[0u][jss::index].asString());
-
-            // Update object good flag.
-            env.close();
-            objects = env.rpc("json", "account_objects",
-                to_string(params))[jss::result][jss::account_objects];
-                */
     }
 
     void

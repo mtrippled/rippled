@@ -109,19 +109,16 @@ class Invariants_test : public beast::unit_test::suite
         TER terActual = tesSUCCESS;
         for (TER const& terExpect : ters)
         {
-            std::cerr << "check3 starting\n";
             terActual = ac.checkInvariants(terActual, fee);
-            std::cerr << "check3 finished terActual,terExpect " << terActual << ',' << terExpect << '\n';
             BEAST_EXPECT(terExpect == terActual);
             BEAST_EXPECT(
                 sink.messages().str().starts_with("Invariant failed:") ||
                 sink.messages().str().starts_with(
                     "Transaction caused an exception"));
             // uncomment if you want to log the invariant failure message
-            log << "   --> " << sink.messages().str() << std::endl;
+            // log << "   --> " << sink.messages().str() << std::endl;
             for (auto const& m : expect_logs)
             {
-                std::cerr << "m:" << m << '\n';
                 BEAST_EXPECT(
                     sink.messages().str().find(m) != std::string::npos);
             }

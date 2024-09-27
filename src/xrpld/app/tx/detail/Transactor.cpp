@@ -979,9 +979,7 @@ Transactor::operator()()
     {
         // Check invariants: if `tecINVARIANT_FAILED` is not returned, we can
         // proceed to apply the tx
-        std::cerr << "check1 starting\n";
         result = ctx_.checkInvariants(result, fee);
-        std::cerr << "check1 finished " << result << '\n';
 
         if (result == tecINVARIANT_FAILED)
         {
@@ -996,11 +994,7 @@ Transactor::operator()()
             // Check invariants again to ensure the fee claiming doesn't
             // violate invariants.
             if (isTesSuccess(result) || isTecClaim(result))
-            {
-                std::cerr << "check2 starting << " << result << '\n';
                 result = ctx_.checkInvariants(result, fee);
-                std::cerr << "check2 finished\n";
-            }
         }
 
         // We ran through the invariant checker, which can, in some cases,
