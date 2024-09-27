@@ -76,6 +76,22 @@ PermissionedDomainSet::preclaim(PreclaimContext const& ctx)
     if (!ctx.view.read(keylet::account(ctx.tx.getAccountID(sfAccount))))
         return tefINTERNAL;
 
+    auto const credentials = ctx.tx.getFieldArray(sfAcceptedCredentials);
+    for (auto const& credential : credentials)
+    {
+        if (!credential.isFieldPresent(sfIssuer) ||
+            !credential.isFieldPresent(sfCredentialType))
+        {
+            return temMALFORMED;
+        }
+        auto const issuer = credential.getAccountID(sfIssuer);
+        std::cerr << "preclaim issuer:" << to_string(issuer) << '\n';
+        auto sle = ctx.view.read(keylet::account(issuer));
+        std::cerr << "does sle exist? " << sle.operator bool() << '\n';
+        if (!sle)
+            return temBAD_ISSUER;
+    }
+
     auto const domain = ctx.tx.at(~sfDomainID);
     if (!domain)
         return tesSUCCESS;

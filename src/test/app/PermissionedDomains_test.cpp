@@ -247,6 +247,89 @@ class PermissionedDomains_test : public beast::unit_test::suite
     }
 
     void
+    testBadData(Account const& account, Env& env,
+        std::optional<uint256> domain = std::nullopt)
+    {
+        /*
+        if (domain)
+            testcase("Update with bad data");
+        else
+            testcase("Create with bad data");
+            */
+
+        Account const alice2("alice2");
+        Account const alice3("alice3");
+        Account const alice4("alice4");
+        Account const alice5("alice5");
+        Account const alice6("alice6");
+        Account const alice7("alice7");
+        Account const alice8("alice8");
+        Account const alice9("alice9");
+        Account const alice10("alice10");
+        Account const alice11("alice11");
+        Account const alice12("alice12");
+        auto const dropsFee = env.current()->fees().increment;
+        auto const setFee(drops(dropsFee));
+
+        // Test empty credentials.
+        env(setTx(account, Credentials(), domain), fee(setFee), ter(temMALFORMED));
+
+        // Test 11 credentials.
+        Credentials const credentials11 {{alice2, toBlob("credential1")},
+                                         {alice3, toBlob("credential2")},
+                                         {alice4, toBlob("credential3")},
+                                         {alice5, toBlob("credential4")},
+                                         {alice6, toBlob("credential5")},
+                                         {alice7, toBlob("credential6")},
+                                         {alice8, toBlob("credential7")},
+                                         {alice9, toBlob("credential8")},
+                                         {alice10, toBlob("credential9")},
+                                         {alice11, toBlob("credential10")},
+                                         {alice12, toBlob("credential11")}
+        };
+        std::cerr << "credentials11\n";
+        env(setTx(account, credentials11, domain), fee(setFee), ter(temMALFORMED));
+
+        // Test credentials including non-existent issuer.
+        Account const nobody("nobody");
+        Credentials const credentialsNon {{alice2, toBlob("credential1")},
+                                         {alice3, toBlob("credential2")},
+                                         {alice4, toBlob("credential3")},
+                                         {nobody, toBlob("credential4")},
+                                         {alice5, toBlob("credential5")},
+                                         {alice6, toBlob("credential6")},
+                                         {alice7, toBlob("credential7")}
+        };
+        std::cerr << "credentialsnon\n";
+        env(setTx(account, credentialsNon, domain), fee(setFee), ter(temBAD_ISSUER));
+
+        Credentials credentialsMutable{{alice2, toBlob("credential1")},
+                                       {alice3, toBlob("credential2")},
+                                       {alice4, toBlob("credential3")},
+                                       {alice5, toBlob("credential4")},
+        };
+        auto txJson = setTx(account, credentialsMutable, domain);
+        std::cerr << "txJson:" << txJson << '\n';
+        auto const credentialOrig = txJson["AcceptedCredentials"][2u];
+
+        // Remove Issuer from the 3rd credential and apply.
+        txJson["AcceptedCredentials"][2u]["AcceptedCredential"].removeMember("Issuer");
+        std::cerr << " after1:" << txJson << '\n';
+        env(txJson, fee(setFee), ter(temMALFORMED));
+
+        txJson["AcceptedCredentials"][2u] = credentialOrig;
+        // Remove Credentialtype from the 3rd credential and apply.
+        txJson["AcceptedCredentials"][2u]["AcceptedCredential"].removeMember("CredentialType");
+        std::cerr << " after2:" << txJson << '\n';
+        env(txJson, fee(setFee), ter(temMALFORMED));
+
+        // Remove both
+        txJson["AcceptedCredentials"][2u]["AcceptedCredential"].removeMember("Issuer");
+        std::cerr << " after3:" << txJson << '\n';
+        env(txJson, fee(setFee), ter(temMALFORMED));
+    }
+
+    void
     testSet()
     {
         testcase("Set");
@@ -342,6 +425,11 @@ class PermissionedDomains_test : public beast::unit_test::suite
         env.close();
         BEAST_EXPECT(credentialsFromJson(getObjects(alice, env)[domain2]) ==
             sortCredentials(credentials10));
+
+        // Test bad data when creating a domain.
+        testBadData(alice, env);
+        // Test bad data when updating a domain.
+        testBadData(alice, env, domain2);
 
         // Try to delete the account with domains.
         auto const acctDelFee(drops(env.current()->fees().increment));
