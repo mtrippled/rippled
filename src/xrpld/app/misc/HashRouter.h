@@ -138,6 +138,7 @@ private:
             Stopwatch::time_point now,
             std::chrono::seconds interval)
         {
+            return true;
             if (peerProcessed_.contains(peer) &&
                 ((peerProcessed_[peer] + interval) > now))
                 return false;
