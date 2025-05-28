@@ -1652,6 +1652,11 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMLedgerData> const& m)
 void
 PeerImp::onMessage(std::shared_ptr<protocol::TMProposeSet> const& m)
 {
+    auto received = std::chrono::system_clock::now();
+    std::stringstream ss;
+    ss << "PROPOSAL onMessage received " << to_string(received) << ", id: "
+        << id_ << ". ";
+
     protocol::TMProposeSet& set = *m;
 
     auto const sig = makeSlice(set.signature());
@@ -1665,6 +1670,8 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMProposeSet> const& m)
         fee_.update(
             Resource::feeInvalidSignature,
             " signature can't be longer than 72 bytes");
+        ss << "bad signature length";
+        JLOG(p_journal_.debug()) << ss.str();
         return;
     }
 
@@ -1673,6 +1680,8 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMProposeSet> const& m)
     {
         JLOG(p_journal_.warn()) << "Proposal: malformed";
         fee_.update(Resource::feeMalformedRequest, "bad hashes");
+        ss << "bad hashes";
+        JLOG(p_journal_.debug()) << ss.str();
         return;
     }
 
@@ -1685,11 +1694,16 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMProposeSet> const& m)
     // If the operator has specified that untrusted proposals be dropped then
     // this happens here I.e. before further wasting CPU verifying the signature
     // of an untrusted key
-    if (!isTrusted && app_.config().RELAY_UNTRUSTED_PROPOSALS == -1)
+    if (!isTrusted && app_.config().RELAY_UNTRUSTED_PROPOSALS == -1) {
+        ss << "untrusted";
+        JLOG(p_journal_.debug()) << ss.str();
         return;
+    }
 
     uint256 const proposeHash{set.currenttxhash()};
     uint256 const prevLedger{set.previousledger()};
+    ss << "hash: " << proposeHash << ", seq: " << set.proposeseq()
+        << ", previous ledger: " << prevLedger << ". ";
 
     NetClock::time_point const closeTime{NetClock::duration{set.closetime()}};
 
@@ -1712,6 +1726,8 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMProposeSet> const& m)
             overlay_.updateSlotAndSquelch(
                 suppression, publicKey, id_, protocol::mtPROPOSE_LEDGER);
         JLOG(p_journal_.trace()) << "Proposal: duplicate";
+        ss << "duplicate";
+        JLOG(p_journal_.debug()) << ss.str();
         return;
     }
 
@@ -1721,18 +1737,23 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMProposeSet> const& m)
         {
             JLOG(p_journal_.debug())
                 << "Proposal: Dropping untrusted (peer divergence)";
+            ss << "diverged";
+            JLOG(p_journal_.debug()) << ss.str();
             return;
         }
 
         if (!cluster() && app_.getFeeTrack().isLoadedLocal())
         {
             JLOG(p_journal_.debug()) << "Proposal: Dropping untrusted (load)";
+            ss << "load";
+            JLOG(p_journal_.debug()) << ss.str();
             return;
         }
     }
 
     JLOG(p_journal_.trace())
         << "Proposal: " << (isTrusted ? "trusted" : "untrusted");
+    ss << (isTrusted ? "trusted" : "untrusted") << ". ";
 
     auto proposal = RCLCxPeerPos(
         publicKey,
@@ -1754,6 +1775,8 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMProposeSet> const& m)
             if (auto peer = weak.lock())
                 peer->checkPropose(isTrusted, m, proposal);
         });
+    ss << "added job";
+    JLOG(p_journal_.debug()) << ss.str();
 }
 
 void
