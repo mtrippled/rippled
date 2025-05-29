@@ -119,6 +119,13 @@ private:
     std::atomic<uint64_t> peerDisconnects_{0};
     std::atomic<uint64_t> peerDisconnectsCharges_{0};
 
+    std::atomic<uint64_t> totalPeerInbound_{0};
+    std::atomic<uint64_t> totalPeerInboundEarlyReturn_{0};
+    std::atomic<uint64_t> totalPeerInboundBytes_{0};
+    std::atomic<uint64_t> totalPeerInboundComplete_{0};
+    std::atomic<uint64_t> totalPeerInboundPropose_{0};
+
+
     reduce_relay::Slots<UptimeClock> slots_;
 
     // Transaction reduce-relay metrics
@@ -378,6 +385,64 @@ public:
     getPeerDisconnectCharges() const override
     {
         return peerDisconnectsCharges_;
+    }
+
+    void
+    incTotalPeerInbound() override
+    {
+        ++totalPeerInbound_;
+    }
+
+    std::uint64_t
+    getTotalPeerInbound() const override
+    {
+        return totalPeerInbound_;
+    }
+
+    void
+    incTotalPeerInboundEarlyReturn() override
+    {
+        ++totalPeerInboundEarlyReturn_;
+    }
+
+    std::uint64_t
+    getTotalPeerInboundEarlyReturn() const override
+    {
+        return totalPeerInboundEarlyReturn_;
+    }
+
+    void
+    addTotalPeerInboundBytes(std::uint64_t numBytes) override {
+        totalPeerInboundBytes_ += numBytes;
+    }
+
+    std::uint64_t
+    getTotalPeerInboundBytes() const override {
+        return totalPeerInboundBytes_;
+    }
+
+    std::uint64_t
+    getTotalPeerInboundComplete() const override
+    {
+        return totalPeerInboundComplete_;
+    }
+
+    void
+    incTotalPeerInboundComplete() override
+    {
+        ++totalPeerInboundComplete_;
+    }
+
+    std::uint64_t
+    getTotalPeerInboundPropose() const override
+    {
+        return totalPeerInboundPropose_;
+    }
+
+    void
+    incTotalPeerInboundPropose() override
+    {
+        ++totalPeerInboundPropose_;
     }
 
     std::optional<std::uint32_t>

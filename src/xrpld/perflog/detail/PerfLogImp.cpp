@@ -38,6 +38,8 @@
 #include <unordered_map>
 #include <utility>
 
+#include "xrpld/overlay/Overlay.h"
+
 namespace ripple {
 namespace perf {
 
@@ -304,6 +306,20 @@ PerfLogImp::report()
     report[jss::nodestore] = Json::objectValue;
     app_.getNodeStore().getCountsJson(report[jss::nodestore]);
     report[jss::current_activities] = counters_.currentJson();
+
+    Json::Value peer = Json::objectValue;
+    peer["total_inbound"] = std::to_string(app_.overlay().getTotalPeerInbound());
+    peer["total_inbound_early_return"] = std::to_string(app_.overlay().getTotalPeerInboundEarlyReturn());
+    peer["total_inbound_bytes"] = std::to_string(app_.overlay().getTotalPeerInboundBytes());
+    peer["total_inbound_complete"] = std::to_string(app_.overlay().getTotalPeerInboundComplete());
+    peer["total_inbound_propose"] = std::to_string(app_.overlay().getTotalPeerInboundPropose());
+    peer[jss::peers] = Json::UInt(app_.overlay().size());
+    peer[jss::peer_disconnects] =
+        std::to_string(app_.overlay().getPeerDisconnect());
+    peer[jss::peer_disconnects_resources] =
+        std::to_string(app_.overlay().getPeerDisconnectCharges());
+    report["peer"] = peer;
+
     app_.getOPs().stateAccounting(report);
 
     logFile_ << Json::Compact{std::move(report)} << std::endl;

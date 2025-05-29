@@ -331,12 +331,14 @@ invoke(MessageHeader const& header, Buffers const& buffers, Handler& handler)
 
     @return The number of bytes consumed, or the error code if any.
 */
-template <class Buffers, class Handler>
+template <class Buffers, class Handler, class Func, class Func2>
 std::pair<std::size_t, boost::system::error_code>
 invokeProtocolMessage(
     Buffers const& buffers,
     Handler& handler,
-    std::size_t& hint)
+    std::size_t& hint,
+    Func incCompleteFunc,
+    Func2 incProposeFunc)
 {
     std::pair<std::size_t, boost::system::error_code> result = {0, {}};
 
@@ -384,6 +386,7 @@ invokeProtocolMessage(
 
     bool success;
 
+    incCompleteFunc();
     switch (header->message_type)
     {
         case protocol::mtMANIFESTS:
@@ -417,6 +420,7 @@ invokeProtocolMessage(
         case protocol::mtPROPOSE_LEDGER:
             success = detail::invoke<protocol::TMProposeSet>(
                 *header, buffers, handler);
+            incProposeFunc();
             break;
         case protocol::mtSTATUS_CHANGE:
             success = detail::invoke<protocol::TMStatusChange>(
