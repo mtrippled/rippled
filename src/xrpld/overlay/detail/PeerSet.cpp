@@ -21,6 +21,7 @@
 #include <xrpld/core/JobQueue.h>
 #include <xrpld/overlay/Overlay.h>
 #include <xrpld/overlay/PeerSet.h>
+#include <sstream>
 
 namespace ripple {
 
@@ -44,6 +45,9 @@ public:
 
     const std::set<Peer::id_t>&
     getPeerIds() const override;
+
+    std::string
+    to_string() const override;
 
 private:
     // Used in this class for access to boost::asio::io_service and
@@ -123,6 +127,20 @@ PeerSetImpl::getPeerIds() const
     return peers_;
 }
 
+std::string
+PeerSetImpl::to_string() const {
+    std::stringstream ss;
+    bool first = true;
+    for (auto const& peer : peers_) {
+        if (first)
+            first = false;
+        else
+            ss << ',';
+        ss << peer;
+    }
+    return ss.str();
+}
+
 class PeerSetBuilderImpl : public PeerSetBuilder
 {
 public:
@@ -178,6 +196,12 @@ public:
         JLOG(j_.error()) << "DummyPeerSet getPeerIds should not be called";
         return emptyPeers;
     }
+
+    std::string
+    to_string() const override {
+        return "DummyPeerSet to_string should not be called";
+    }
+
 
 private:
     beast::Journal j_;

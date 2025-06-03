@@ -75,6 +75,9 @@ public:
     /** get the set of ids of previously added peers */
     virtual const std::set<Peer::id_t>&
     getPeerIds() const = 0;
+
+    virtual std::string
+    to_string() const = 0;
 };
 
 class PeerSetBuilder

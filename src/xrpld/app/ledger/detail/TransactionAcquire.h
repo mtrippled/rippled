@@ -23,6 +23,8 @@
 #include <xrpld/app/main/Application.h>
 #include <xrpld/overlay/PeerSet.h>
 #include <xrpld/shamap/SHAMap.h>
+#include <chrono>
+#include <sstream>
 
 namespace ripple {
 
@@ -57,6 +59,10 @@ private:
     std::shared_ptr<SHAMap> mMap;
     bool mHaveRoot;
     std::unique_ptr<PeerSet> mPeerSet;
+
+    std::chrono::steady_clock::time_point startTime_;
+    std::atomic<std::size_t> nodeCount_;
+    std::stringstream ss_;
 
     void
     onTimer(bool progress, ScopedLockType& peerSetLock) override;

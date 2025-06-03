@@ -419,6 +419,11 @@ struct TestPeerSet : public PeerSet
         return emptyPeers;
     }
 
+    std::string
+    to_string() const override {
+        return "";
+    }
+
     LedgerReplayMsgHandler& local;
     LedgerReplayMsgHandler& remote;
     std::shared_ptr<TestPeer> dummyPeer;
