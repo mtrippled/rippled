@@ -23,6 +23,7 @@
 #include <xrpld/overlay/Compression.h>
 #include <xrpld/overlay/Message.h>
 #include <xrpld/overlay/detail/ZeroCopyStream.h>
+#include <xrpld/perflog/PerfLog.h>
 #include <xrpl/basics/ByteUtilities.h>
 #include <xrpl/beast/utility/instrumentation.h>
 #include <xrpl/protocol/messages.h>
@@ -338,14 +339,18 @@ invokeProtocolMessage(
     Handler& handler,
     std::size_t& hint,
     Func incCompleteFunc,
-    Func2 incProposeFunc)
+    Func2 incProposeFunc,
+    perf::PerfLog::Peer& peerCounters,
+    beast::Journal const& j)
 {
     std::pair<std::size_t, boost::system::error_code> result = {0, {}};
 
     auto const size = boost::asio::buffer_size(buffers);
 
-    if (size == 0)
+    if (size == 0) {
+        ++peerCounters.receive.receiveFailedZeroSize;
         return result;
+    }
 
     auto header = detail::parseMessageHeader(result.second, buffers, size);
 
@@ -354,8 +359,10 @@ invokeProtocolMessage(
     // Otherwise we failed to match the header's marker (error_code is set to
     // no_message) or the compression algorithm is invalid (error_code is
     // protocol_error) and signal an error.
-    if (!header)
+    if (!header) {
+        ++peerCounters.receive.receiveFailedHeader;
         return result;
+    }
 
     // We implement a maximum size for protocol messages. Sending a message
     // whose size exceeds this may result in the connection being dropped. A
@@ -365,6 +372,7 @@ invokeProtocolMessage(
         header->uncompressed_size > maximiumMessageSize)
     {
         result.second = make_error_code(boost::system::errc::message_size);
+        ++peerCounters.receive.receiveFailedTooBig;
         return result;
     }
 
@@ -373,6 +381,7 @@ invokeProtocolMessage(
         header->algorithm != compression::Algorithm::None)
     {
         result.second = make_error_code(boost::system::errc::protocol_error);
+        ++peerCounters.receive.receiveFailedCompressed;
         return result;
     }
 
@@ -387,6 +396,7 @@ invokeProtocolMessage(
     bool success;
 
     incCompleteFunc();
+    peerCounters.receivedPeerMessage(header->message_type, header->payload_wire_size, j);
     switch (header->message_type)
     {
         case protocol::mtMANIFESTS:

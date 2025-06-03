@@ -38,6 +38,8 @@
 #include <utility>
 #include <vector>
 
+#include "xrpld/overlay/Overlay.h"
+
 namespace ripple {
 namespace perf {
 
@@ -112,10 +114,11 @@ class PerfLogImp : public PerfLog
         mutable std::mutex jobsMutex_;
         std::unordered_map<std::uint64_t, MethodStart> methods_;
         mutable std::mutex methodsMutex_;
+        Peer peer_;
 
         Counters(std::set<char const*> const& labels, JobTypes const& jobTypes);
         Json::Value
-        countersJson() const;
+        countersJson(std::size_t const peers) const;
         Json::Value
         currentJson() const;
     };
@@ -184,7 +187,7 @@ public:
     Json::Value
     countersJson() const override
     {
-        return counters_.countersJson();
+        return counters_.countersJson(app_.overlay().size());
     }
 
     Json::Value
@@ -203,6 +206,11 @@ public:
 
     void
     stop() override;
+
+    Peer&
+    getPeerCounters() override {
+        return counters_.peer_;
+    }
 };
 
 }  // namespace perf

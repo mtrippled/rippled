@@ -51,6 +51,7 @@ ConnectAttempt::ConnectAttempt(
     , stream_(*stream_ptr_)
     , slot_(slot)
 {
+    ++app_.getPerfLog().getPeerCounters().connection.totalOutboundAttempts;
     log << "CONNECTATTEMPT start "
         << to_string(std::chrono::system_clock::now())
         << ". remote ip: " << remote_endpoint_ << ". id: " << id_;

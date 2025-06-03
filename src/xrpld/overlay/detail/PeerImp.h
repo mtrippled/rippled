@@ -722,6 +722,7 @@ PeerImp::PeerImp(
           app_.config().LEDGER_REPLAY))
     , ledgerReplayMsgHandler_(app, app.getLedgerReplayer())
 {
+    ++app_.getPerfLog().getPeerCounters().connection.totalOutboundConnects;
     read_buffer_.commit(boost::asio::buffer_copy(
         read_buffer_.prepare(boost::asio::buffer_size(buffers)), buffers));
     JLOG(journal_.info()) << "compression enabled "

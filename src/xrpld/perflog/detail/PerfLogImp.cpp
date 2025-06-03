@@ -23,6 +23,7 @@
 #include <xrpl/basics/BasicConfig.h>
 #include <xrpl/beast/core/CurrentThreadName.h>
 #include <xrpl/beast/utility/Journal.h>
+#include <xrpl/json/json_value.h>
 #include <xrpl/json/json_writer.h>
 #include <xrpl/json/to_string.h>
 #include <atomic>
@@ -80,7 +81,7 @@ PerfLogImp::Counters::Counters(
 }
 
 Json::Value
-PerfLogImp::Counters::countersJson() const
+PerfLogImp::Counters::countersJson(std::size_t const peers) const
 {
     Json::Value rpcobj(Json::objectValue);
     // totalRpc represents all rpc methods. All that started, finished, etc.
@@ -165,6 +166,10 @@ PerfLogImp::Counters::countersJson() const
             std::to_string(totalJq.runningDuration.count());
         jqobj[jss::total] = totalJqJson;
     }
+
+    auto peer = peer_.to_json();
+    peer[Json::StaticString("connection")][Json::StaticString("current")] =
+        std::to_string(peers);
 
     Json::Value counters(Json::objectValue);
     // Be kind to reporting tools and let them expect rpc and jq objects
@@ -302,7 +307,7 @@ PerfLogImp::report()
             static_cast<unsigned int>(counters_.jobs_.size());
     }
     report[jss::hostid] = hostname_;
-    report[jss::counters] = counters_.countersJson();
+    report[jss::counters] = counters_.countersJson(app_.overlay().size());
     report[jss::nodestore] = Json::objectValue;
     app_.getNodeStore().getCountsJson(report[jss::nodestore]);
     report[jss::current_activities] = counters_.currentJson();

@@ -66,6 +66,210 @@ public:
         milliseconds logInterval{seconds(1)};
     };
 
+    struct Peer {
+        struct PeerMsg {
+            ::Json::StaticString label;
+            // Atomics are faster than mutexes for modifying a pair integers,
+            // and it's not strictly necessary that they are read or modified in
+            // conjunction atomically.
+            std::atomic<std::uint64_t> sent{0};
+            std::atomic<std::uint64_t> sentBytes{0};
+            std::atomic<std::uint64_t> received{0};
+            std::atomic<std::uint64_t> receivedBytes{0};
+
+            PeerMsg(char const* l): label(l) {
+                sent.store(0);
+                sentBytes.store(0);
+                received.store(0);
+                receivedBytes.store(0);
+            }
+
+            PeerMsg(PeerMsg const& other): label(other.label) {
+                sent.store(other.sent.load());
+                sentBytes.store(other.sentBytes.load());
+                received.store(other.received.load());
+                receivedBytes.store(other.receivedBytes.load());
+            }
+
+            Json::Value
+            to_json() const {
+                Json::Value ret(Json::objectValue);
+                ret[Json::StaticString("sent")] = std::to_string(sent.load());
+                ret[Json::StaticString("sent_bytes")] = std::to_string(sentBytes.load());
+                ret[Json::StaticString("received")] = std::to_string(received.load());
+                ret[Json::StaticString("received_bytes")] = std::to_string(receivedBytes.load());
+                return ret;
+            }
+        };
+
+        struct Send {
+            std::atomic<std::uint64_t> sent{0};
+            std::atomic<std::uint64_t> sentBytes{0};
+            std::atomic<std::uint64_t> sendFailedClosed{0};
+            std::atomic<std::uint64_t> sendFailedAborted{0};
+            std::atomic<std::uint64_t> sendFailedOther{0};
+            std::atomic<std::uint64_t> sendQueueFailedGracefulClose{0};
+            std::atomic<std::uint64_t> sendQueueFailedDetaching{0};
+            std::atomic<std::uint64_t> sendQueueFailedSquelch{0};
+
+            Json::Value
+            to_json() const {
+                Json::Value ret(Json::objectValue);
+                ret[Json::StaticString("sent")] = std::to_string(
+                    sent.load());
+                ret[Json::StaticString("sent_bytes")] = std::to_string(
+                    sentBytes.load());
+                ret[Json::StaticString("send_failed_closed")] = std::to_string(
+                    sendFailedClosed.load());
+                ret[Json::StaticString("send_failed_aborted")] = std::to_string(
+                    sendFailedAborted.load());
+                ret[Json::StaticString("send_failed_other")] = std::to_string(
+                    sendFailedOther.load());
+                ret[Json::StaticString("send_queue_failed_graceful_close")] = std::to_string(
+                    sendQueueFailedGracefulClose.load());
+                ret[Json::StaticString("send_queue_failed_detaching")] = std::to_string(
+                    sendQueueFailedDetaching.load());
+                ret[Json::StaticString("send_queue_failed_squelch")] = std::to_string(
+                    sendQueueFailedSquelch.load());
+                return ret;
+            }
+        };
+
+        struct Receive {
+            std::atomic<std::uint64_t> receiveFailedZeroSize{0};
+            std::atomic<std::uint64_t> receiveFailedHeader{0};
+            std::atomic<std::uint64_t> receiveFailedTooBig{0};
+            std::atomic<std::uint64_t> receiveFailedCompressed{0};
+            std::atomic<std::uint64_t> receivePackets{0};
+
+            Json::Value
+            to_json() const {
+                Json::Value ret(Json::objectValue);
+                ret[Json::StaticString("receive_failed_zero_size")] = std::to_string(
+                    receiveFailedZeroSize.load());
+                ret[Json::StaticString("receive_failed_header")] = std::to_string(
+                    receiveFailedHeader.load());
+                ret[Json::StaticString("receive_failed_too_big")] = std::to_string(
+                    receiveFailedTooBig.load());
+                ret[Json::StaticString("receive_failed_compressed")] = std::to_string(
+                    receiveFailedCompressed.load());
+                ret[Json::StaticString("receive_packets")] = std::to_string(
+                    receivePackets.load());
+                return ret;
+            }
+        };
+
+        struct Connection {
+            std::atomic<std::uint64_t> totalInboundAttempts{0};
+            std::atomic<std::uint64_t> totalOutboundAttempts{0};
+            std::atomic<std::uint64_t> totalInboundConnects{0};
+            std::atomic<std::uint64_t> totalOutboundConnects{0};
+            std::atomic<std::uint64_t> totalInboundDisconnects{0};
+            std::atomic<std::uint64_t> totalOutboundDisconnects{0};
+            std::atomic<std::uint64_t> disconnectInboundResources{0};
+            std::atomic<std::uint64_t> disconnectOutboundResources{0};
+
+            Json::Value
+            to_json() const {
+                Json::Value ret(Json::objectValue);
+                ret[Json::StaticString("total_inbound_attempts")] = std::to_string(
+                    totalInboundAttempts.load());
+                ret[Json::StaticString("total_outbound_attempts")] = std::to_string(
+                    totalOutboundAttempts.load());
+                ret[Json::StaticString("total_inbound_connects")] = std::to_string(
+                    totalInboundConnects.load());
+                ret[Json::StaticString("total_outbound_connects")] = std::to_string(
+                    totalOutboundConnects.load());
+                ret[Json::StaticString("total_inbound_disconnects")] = std::to_string(
+                    totalInboundDisconnects.load());
+                ret[Json::StaticString("total_outbound_disconnects")] = std::to_string(
+                    totalOutboundDisconnects.load());
+                ret[Json::StaticString("disconnect_inbound_resources")] = std::to_string(
+                    disconnectInboundResources.load());
+                ret[Json::StaticString("disconnect_outbound_resources")] = std::to_string(
+                    disconnectOutboundResources.load());
+                return ret;
+            }
+        };
+
+        std::unordered_map<int, PeerMsg> msgs;
+        Send send;
+        Receive receive;
+        Connection connection;
+
+        Peer() {
+            // from ripple.proto
+            msgs.insert({2, "mtMANIFESTS"});
+            msgs.insert({3, "mtPING"});
+            msgs.insert({5, "mtCLUSTER"});
+            msgs.insert({15, "mtENDPOINTS"});
+            msgs.insert({30, "mtTRANSACTION"});
+            msgs.insert({31, "mtGET_LEDGER"});
+            msgs.insert({32, "mtLEDGER_DATA"});
+            msgs.insert({33, "mtPROPOSE_LEDGER"});
+            msgs.insert({34, "mtSTATUS_CHANGE"});
+            msgs.insert({35, "mtHAVE_SET"});
+            msgs.insert({41, "mtVALIDATION"});
+            msgs.insert({42, "mtGET_OBJECTS"});
+            msgs.insert({54, "mtVALIDATORLIST"});
+            msgs.insert({55, "mtSQUELCH"});
+            msgs.insert({56, "mtVALIDATORLISTCOLLECTION"});
+            msgs.insert({57, "mtPROOF_PATH_REQ"});
+            msgs.insert({58, "mtPROOF_PATH_RESPONSE"});
+            msgs.insert({59, "mtREPLAY_DELTA_REQ"});
+            msgs.insert({60, "mtREPLAY_DELTA_RESPONSE"});
+            msgs.insert({63, "mtHAVE_TRANSACTIONS"});
+            msgs.insert({64, "mtTRANSACTIONS"});
+        }
+
+        void
+        queuedPeerMessage(int const type, std::size_t const numBytes,
+            beast::Journal const& j) {
+            auto found = msgs.find(type);
+            if (found != msgs.end()) {
+                ++found->second.sent;
+                found->second.sentBytes += numBytes;
+            } else {
+                auto unknown = msgs.insert({-1, "UNKNOWN"});
+                ++unknown.first->second.sent;
+                unknown.first->second.sentBytes += numBytes;
+                JLOG(j.error()) << "queued unknown peer message type " << type;
+            }
+        }
+
+        void
+        receivedPeerMessage(int const type, std::size_t const numBytes,
+                beast::Journal const& j) {
+            auto found = msgs.find(type);
+            if (found != msgs.end()) {
+                ++found->second.received;
+                found->second.receivedBytes += numBytes;
+            } else {
+                auto unknown = msgs.insert({-1, "UNKNOWN"});
+                ++unknown.first->second.received;
+                unknown.first->second.receivedBytes += numBytes;
+                JLOG(j.error()) << "queued unknown peer message type " << type;
+            }
+        }
+
+        Json::Value
+        to_json() const {
+            Json::Value ret(Json::objectValue);
+            Json::Value byMessage(Json::objectValue);
+            for (auto const& [type, stats] : msgs) {
+                if (stats.sent || stats.sentBytes || stats.received ||
+                        stats.receivedBytes) {
+                    byMessage[stats.label] = stats.to_json();
+                }
+            }
+            ret[Json::StaticString("by_message")] = byMessage;
+            ret[Json::StaticString("send")] = send.to_json();
+            ret[Json::StaticString("receive")] = receive.to_json();
+            ret[Json::StaticString("connection")] = connection.to_json();
+            return ret;
+        }
+    };
+
     virtual ~PerfLog() = default;
 
     virtual void
@@ -167,6 +371,9 @@ public:
      */
     virtual void
     rotate() = 0;
+
+    virtual Peer&
+    getPeerCounters() = 0;
 };
 
 PerfLog::Setup
