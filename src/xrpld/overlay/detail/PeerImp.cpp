@@ -914,23 +914,16 @@ PeerImp::onReadMessage(error_code ec, std::size_t bytes_transferred)
 {
     auto& peerCounters = app_.getPerfLog().getPeerCounters();
     ++peerCounters.receive.receivePackets;
-    app_.overlay().incTotalPeerInbound();
-    if (!socket_.is_open()) {
-        app_.overlay().incTotalPeerInboundEarlyReturn();
+    if (!socket_.is_open())
         return;
-    }
-    if (ec == boost::asio::error::operation_aborted) {
-        app_.overlay().incTotalPeerInboundEarlyReturn();
+    if (ec == boost::asio::error::operation_aborted)
         return;
-    }
     if (ec == boost::asio::error::eof)
     {
         JLOG(journal_.info()) << "EOF";
-        app_.overlay().incTotalPeerInboundEarlyReturn();
         return gracefulClose();
     }
     if (ec) {
-        app_.overlay().incTotalPeerInboundEarlyReturn();
         return fail("onReadMessage", ec);
     }
     if (auto stream = journal_.trace())
@@ -940,8 +933,6 @@ PeerImp::onReadMessage(error_code ec, std::size_t bytes_transferred)
         else
             stream << "onReadMessage";
     }
-
-    app_.overlay().addTotalPeerInboundBytes(bytes_transferred);
 
     metrics_.recv.add_message(bytes_transferred);
 
@@ -957,8 +948,6 @@ PeerImp::onReadMessage(error_code ec, std::size_t bytes_transferred)
         std::tie(bytes_consumed, ec) = perf::measureDurationAndLog(
             [&]() {
                 return invokeProtocolMessage(read_buffer_.data(), *this, hint,
-                    [this]() { app_.overlay().incTotalPeerInboundComplete(); },
-                    [this]() { app_.overlay().incTotalPeerInboundPropose(); },
                     peerCounters, journal_);
             },
             "invokeProtocolMessage",

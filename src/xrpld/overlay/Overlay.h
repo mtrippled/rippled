@@ -219,27 +219,6 @@ public:
     virtual std::uint64_t
     getPeerDisconnectCharges() const = 0;
 
-    virtual void
-    incTotalPeerInbound() = 0;
-    virtual std::uint64_t
-    getTotalPeerInbound() const = 0;
-    virtual void
-    incTotalPeerInboundEarlyReturn() = 0;
-    virtual std::uint64_t
-    getTotalPeerInboundEarlyReturn() const = 0;
-    virtual void
-    addTotalPeerInboundBytes(std::uint64_t numBytes) = 0;
-    virtual std::uint64_t
-    getTotalPeerInboundBytes() const = 0;
-    virtual void
-    incTotalPeerInboundComplete() = 0;
-    virtual std::uint64_t
-    getTotalPeerInboundComplete() const = 0;
-    virtual void
-    incTotalPeerInboundPropose() = 0;
-    virtual std::uint64_t
-    getTotalPeerInboundPropose() const = 0;
-
     /** Returns the ID of the network this server is configured for, if any.
 
         The ID is just a numerical identifier, with the IDs 0, 1 and 2 used to

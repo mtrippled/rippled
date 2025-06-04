@@ -332,14 +332,12 @@ invoke(MessageHeader const& header, Buffers const& buffers, Handler& handler)
 
     @return The number of bytes consumed, or the error code if any.
 */
-template <class Buffers, class Handler, class Func, class Func2>
+template <class Buffers, class Handler>
 std::pair<std::size_t, boost::system::error_code>
 invokeProtocolMessage(
     Buffers const& buffers,
     Handler& handler,
     std::size_t& hint,
-    Func incCompleteFunc,
-    Func2 incProposeFunc,
     perf::PerfLog::Peer& peerCounters,
     beast::Journal const& j)
 {
@@ -395,7 +393,6 @@ invokeProtocolMessage(
 
     bool success;
 
-    incCompleteFunc();
     peerCounters.receivedPeerMessage(header->message_type, header->payload_wire_size, j);
     switch (header->message_type)
     {
@@ -430,7 +427,6 @@ invokeProtocolMessage(
         case protocol::mtPROPOSE_LEDGER:
             success = detail::invoke<protocol::TMProposeSet>(
                 *header, buffers, handler);
-            incProposeFunc();
             break;
         case protocol::mtSTATUS_CHANGE:
             success = detail::invoke<protocol::TMStatusChange>(
