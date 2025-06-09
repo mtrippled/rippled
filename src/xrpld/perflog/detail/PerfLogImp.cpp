@@ -175,6 +175,7 @@ PerfLogImp::Counters::countersJson(std::size_t const peers) const
     // even if empty.
     counters[jss::rpc] = rpcobj;
     counters[jss::job_queue] = jqobj;
+    counters[jss::peers] = peer;
     return counters;
 }
 

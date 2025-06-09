@@ -64,23 +64,26 @@ TransactionAcquire::done()
 {
     // We hold a PeerSet lock and so cannot do real work here
 
+    std::stringstream ss;
+    if (mPeerSet) {
+        ss << " total peers " << mPeerSet->getPeerIds().size()
+            << " peers " << mPeerSet->to_string();
+    } else {
+        ss << " no peer set";
+    }
     if (failed_)
     {
         JLOG(journal_.debug()) << "ACQUIRE done Failed to acquire TX set " << hash_
         << " duration " << to_string(std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now() - startTime_).count()) << "ns total nodes " << nodeCount_
-        << " total peers " << mPeerSet->getPeerIds().size()
-        << " peers " << mPeerSet->to_string();
-
+        << ss.str();
     }
     else
     {
         JLOG(journal_.debug()) << "ACQUIRE done Acquired TX set " << hash_
             << " duration " << to_string(std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::steady_clock::now() - startTime_).count()) << "ns total nodes " << nodeCount_
-            << " total peers " << mPeerSet->getPeerIds().size()
-            << " peers " << mPeerSet->to_string();
-
+            << ss.str();
         mMap->setImmutable();
 
         uint256 const& hash(hash_);
@@ -112,8 +115,14 @@ TransactionAcquire::onTimer(bool progress, ScopedLockType& psl)
         trigger(nullptr);
 
     addPeers(1);
-    JLOG(journal_.debug()) << "ACQUIRE onTimer " << hash_ << " num peers: " << mPeerSet->getPeerIds().size()
-        << " peers " << mPeerSet->to_string();
+    std::stringstream ss;
+    if (mPeerSet) {
+        ss << " total peers " << mPeerSet->getPeerIds().size()
+            << " peers " << mPeerSet->to_string();
+    } else {
+        ss << " no peer set";
+    }
+    JLOG(journal_.debug()) << "ACQUIRE onTimer " << hash_ << " num peers: " << ss.str();
 }
 
 std::weak_ptr<TimeoutCounter>
@@ -150,7 +159,8 @@ TransactionAcquire::trigger(std::shared_ptr<Peer> const& peer)
 
         *(tmGL.add_nodeids()) = SHAMapNodeID().getRawString();
         mPeerSet->sendRequest(tmGL, peer);
-    JLOG(journal_.debug()) << "ACQUIRE trigger " << hash_ << " no root sending to: " << peer.get()->id();
+    JLOG(journal_.debug()) << "ACQUIRE trigger " << hash_ << " no root sending to: "
+        << (peer ? std::to_string(peer.get()->id()) : "no peerid");
     }
     else if (!mMap->isValid())
     {
@@ -187,7 +197,7 @@ TransactionAcquire::trigger(std::shared_ptr<Peer> const& peer)
         mPeerSet->sendRequest(tmGL, peer);
         nodeCount_ +=  nodes.size();
         JLOG(journal_.debug()) << "ACQUIRE trigger " << hash_ << " need " << nodes.size()
-            << " nodes sending to: " << peer.get()->id();
+            << " nodes sending to: " << (peer ? std::to_string(peer.get()->id()) : "no peerid");
     }
 }
 
@@ -243,7 +253,8 @@ TransactionAcquire::takeNodes(
         trigger(peer);
         progress_ = true;
         JLOG(journal_.debug()) << "ACQUIRE takeNodes " << hash_ << " got " << data.size()
-            << " nodes from " << peer.get()->id();
+            << " nodes from "
+            << (peer ? to_string(peer.get()->id()) : "no peerid");
         return SHAMapAddNode::useful();
     }
     catch (std::exception const& ex)
@@ -270,8 +281,14 @@ TransactionAcquire::init(int numPeers)
     ScopedLockType sl(mtx_);
 
     addPeers(numPeers);
-    JLOG(journal_.debug()) << "ACQUIRE init " << hash_ << " num peers: " << mPeerSet->getPeerIds().size()
-        << " peers " << mPeerSet->to_string();
+    std::stringstream ss;
+    if (mPeerSet) {
+        ss << " total peers " << mPeerSet->getPeerIds().size()
+            << " peers " << mPeerSet->to_string();
+    } else {
+        ss << " no peer set";
+    }
+    JLOG(journal_.debug()) << "ACQUIRE init " << hash_ << " num peers: " << ss.str();
 
     setTimer(sl);
 }
